@@ -22,6 +22,8 @@ import "leaflet/dist/leaflet.css";
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 import L from "leaflet";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 const DefaultIcon = L.icon({
   iconUrl: typeof icon === "string" ? icon : icon.src,
@@ -97,15 +99,19 @@ export default function MapLeaflet({ position }: MapLeafletProps) {
             position={[parseFloat(item.lat), parseFloat(item.lng)]}
           >
             <Popup>
-              <div>
-                <div>
-                  <b>信息:</b> {item.message}
+              <div className="rounded-lg bg-white p-3 min-w-[220px] flex flex-col gap-2">
+                <div className="text-base font-semibold text-gray-900 mb-1 break-words">
+                  {item.message}
                 </div>
-                <div>
-                  <b>用户:</b> {item.user_id}
-                </div>
-                <div>
-                  <b>时间:</b> {item.created_at}
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="inline-block bg-gray-100 px-2 py-0.5 rounded">
+                    用户: {item.user_id?.slice(0, 8) || "匿名"}
+                  </span>
+                  <span className="inline-block bg-gray-100 px-2 py-0.5 rounded">
+                    {new Date(
+                      item.created_at || item.timestamp
+                    ).toLocaleString()}
+                  </span>
                 </div>
               </div>
             </Popup>
@@ -190,15 +196,21 @@ export default function MapLeaflet({ position }: MapLeafletProps) {
                   required
                 />
               </label>
-              <button
-                type="submit"
-                className="bg-primary text-white rounded px-4 py-2"
-              >
+              <Button type="submit" className="bg-primary rounded px-4 py-2">
                 提交
-              </button>
+              </Button>
+              <div className="bg-red-100 text-red-800 p-2 rounded">
+                未登录用户无法提交数据。请转到
+                <Link href="/auth/login" className="text-blue-600 underline">
+                  登录页面
+                </Link>
+                登录或注册。
+              </div>
             </form>
             <DrawerFooter>
-              <DrawerClose className="w-full">关闭</DrawerClose>
+              <DrawerClose>
+                <Button variant="outline">关闭</Button>
+              </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
