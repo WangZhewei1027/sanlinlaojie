@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PostMessage 通信测试 - Iframe 子窗口</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 15px;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .header {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        color: #f5576c;
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+
+      .info {
+        background: #fff0f5;
+        border-left: 4px solid #f5576c;
+        padding: 12px;
+        margin: 12px 0;
+        border-radius: 4px;
+        font-size: 13px;
+        color: #4a5568;
+      }
+
+      .controls {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .input-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 12px;
+        border: 2px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+
+      input[type="text"]:focus {
+        outline: none;
+        border-color: #f5576c;
+      }
+
+      button {
+        padding: 10px 20px;
+        background: #f5576c;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      button:hover {
+        background: #e04558;
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      .messages {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .messages h2 {
+        color: #2d3748;
+        font-size: 18px;
+        margin-bottom: 15px;
+      }
+
+      .message-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .message-item {
+        padding: 12px;
+        margin-bottom: 8px;
+        border-radius: 6px;
+        border-left: 4px solid;
+        animation: slideIn 0.3s ease-out;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .message-sent {
+        background: #fff0f5;
+        border-left-color: #f5576c;
+      }
+
+      .message-received {
+        background: #f0fff4;
+        border-left-color: #48bb78;
+      }
+
+      .message-text {
+        font-size: 14px;
+        color: #2d3748;
+        margin-bottom: 4px;
+      }
+
+      .message-time {
+        font-size: 12px;
+        color: #718096;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #a0aec0;
+        padding: 40px;
+        font-size: 14px;
+      }
+
+      .stats {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+
+      .stat-item {
+        flex: 1;
+        background: #f7fafc;
+        padding: 15px;
+        border-radius: 6px;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #f5576c;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #718096;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>📱 Iframe 子窗口 (HTML)</h1>
+        <div class="info">
+          这是嵌入在 Next.js 页面中的 HTML iframe，可以与父窗口进行双向通信。
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="stats">
+          <div class="stat-item">
+            <div class="stat-value" id="sentCount">0</div>
+            <div class="stat-label">已发送</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="receivedCount">0</div>
+            <div class="stat-label">已接收</div>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <input
+            type="text"
+            id="messageInput"
+            placeholder="输入消息发送给父窗口..."
+            onkeypress="if(event.key === 'Enter') sendMessage()"
+          />
+          <button onclick="sendMessage()">📤 发送</button>
+          <button onclick="clearMessages()" style="background: #e53e3e">
+            🗑️ 清空
+          </button>
+        </div>
+      </div>
+
+      <div class="messages">
+        <h2>📬 消息历史</h2>
+        <div class="message-list" id="messageList">
+          <div class="empty-state">暂无消息，发送一条消息开始通信吧！</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let sentCount = 0;
+      let receivedCount = 0;
+      const messageList = document.getElementById("messageList");
+      const messageInput = document.getElementById("messageInput");
+
+      // 监听来自父窗口的消息
+      window.addEventListener("message", (event) => {
+        // 安全检查：在生产环境中应该验证 event.origin
+        console.log("收到来自父窗口的消息:", event.data);
+
+        if (event.data.type === "PARENT_TO_IFRAME") {
+          addMessage(`父窗口: ${event.data.message}`, "received");
+          receivedCount++;
+          updateStats();
+
+          // 回复确认消息
+          window.parent.postMessage(
+            {
+              type: "IFRAME_REPLY",
+              message: "已收到消息",
+              timestamp: new Date().toISOString(),
+            },
+            "*"
+          );
+        }
+      });
+
+      // 发送消息到父窗口
+      function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        window.parent.postMessage(
+          {
+            type: "IFRAME_TO_PARENT",
+            message: message,
+            timestamp: new Date().toISOString(),
+          },
+          "*" // 在生产环境中应该指定具体的 origin
+        );
+
+        addMessage(`我发送: ${message}`, "sent");
+        messageInput.value = "";
+        sentCount++;
+        updateStats();
+      }
+
+      // 添加消息到列表
+      function addMessage(text, type) {
+        if (messageList.querySelector(".empty-state")) {
+          messageList.innerHTML = "";
+        }
+
+        const messageItem = document.createElement("div");
+        messageItem.className = `message-item message-${type}`;
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString("zh-CN");
+
+        messageItem.innerHTML = `
+                <div class="message-text">${text}</div>
+                <div class="message-time">${timeStr}</div>
+            `;
+
+        messageList.appendChild(messageItem);
+        messageList.scrollTop = messageList.scrollHeight;
+      }
+
+      // 更新统计
+      function updateStats() {
+        document.getElementById("sentCount").textContent = sentCount;
+        document.getElementById("receivedCount").textContent = receivedCount;
+      }
+
+      // 清空消息
+      function clearMessages() {
+        messageList.innerHTML =
+          '<div class="empty-state">暂无消息，发送一条消息开始通信吧！</div>';
+        sentCount = 0;
+        receivedCount = 0;
+        updateStats();
+      }
+
+      // 通知父窗口 iframe 已加载
+      window.addEventListener("load", () => {
+        console.log("✅ Iframe 加载完成");
+        window.parent.postMessage(
+          {
+            type: "IFRAME_READY",
+            message: "iframe 已准备就绪",
+          },
+          "*"
+        );
+      });
+    </script>
+  </body>
+</html>
