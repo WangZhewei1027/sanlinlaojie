@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DJI 地形加载器 - CesiumJS</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <link
+      href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <div id="cesiumContainer"></div>
+
+    <div id="info">
+      <div id="stats">
+        <div class="stat-row">
+          <span class="stat-label">加载状态:</span>
+          <span class="stat-value" id="loadStatus">准备中...</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">区块数量:</span>
+          <span class="stat-value" id="blockCount">8</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">已加载区块:</span>
+          <span class="stat-value" id="loadedBlocks">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading">
+      <div>正在初始化 Cesium...</div>
+      <div class="spinner"></div>
+    </div>
+
+    <div id="controls">
+      <button onclick="resetCamera()">重置视角</button>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
