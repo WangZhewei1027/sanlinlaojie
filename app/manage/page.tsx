@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UploadAssetDialog } from "@/components/upload-asset-dialog";
+import { UploadAssetPanel } from "@/components/upload-asset-panel";
 
 interface LocationData {
   longitude: number;
@@ -149,18 +149,19 @@ export default function ManagePage() {
               )}
             </div>
 
-            {/* 上传按钮 */}
-            {selectedWorkspaceId && (
-              <UploadAssetDialog
+            {/* 上传面板 */}
+            {selectedWorkspaceId ? (
+              <UploadAssetPanel
                 workspaceId={selectedWorkspaceId}
                 location={clickedLocation}
                 onUpload={handleUpload}
               />
-            )}
-            {!selectedWorkspaceId && (
-              <p className="text-sm text-muted-foreground text-center p-4 border rounded-lg">
-                请先选择工作空间
-              </p>
+            ) : (
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  请先选择工作空间
+                </p>
+              </Card>
             )}
 
             {/* 点击位置卡片 */}
