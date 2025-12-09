@@ -7,8 +7,8 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("workspace")
-      .select("id, name, description")
-      .order("name");
+      .select("id, name, description, create_date")
+      .order("create_date", { ascending: false });
 
     if (error) throw error;
 
@@ -16,5 +16,53 @@ export async function GET() {
   } catch (error) {
     console.error("获取 workspace 失败:", error);
     return NextResponse.json({ error: "获取工作空间失败" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+
+    // 检查用户权限
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "未授权" }, { status: 401 });
+    }
+
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    if (userData?.role !== "admin") {
+      return NextResponse.json({ error: "权限不足" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, description } = body;
+
+    if (!name) {
+      return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("workspace")
+      .insert({
+        name,
+        description: description || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (error) {
+    console.error("创建 workspace 失败:", error);
+    return NextResponse.json({ error: "创建工作空间失败" }, { status: 500 });
   }
 }
