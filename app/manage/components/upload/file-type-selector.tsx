@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { UploadType } from "@/lib/upload/types";
-import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
+import { UploadType } from "../../lib/upload/types";
+import { FILE_TYPE_CONFIGS } from "../../lib/upload/config";
 
 interface FileTypeSelectorProps {
   selectedType: UploadType;

@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { FileUploadService } from "@/lib/upload/service";
-import { LocationData, UploadType } from "@/lib/upload/types";
-import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
-import { useLocationSelection } from "@/lib/upload/hooks";
-import { LocationSelector } from "@/components/upload/location-selector";
-import { FileTypeSelector } from "@/components/upload/file-type-selector";
+import { FileUploadService } from "../../lib/upload/service";
+import { LocationData, UploadType } from "../../lib/upload/types";
+import { FILE_TYPE_CONFIGS } from "../../lib/upload/config";
+import { useLocationSelection } from "../../lib/upload/hooks";
+import { LocationSelector } from "./location-selector";
+import { FileTypeSelector } from "./file-type-selector";
 
 interface UploadAssetPanelProps {
   location?: LocationData | null;

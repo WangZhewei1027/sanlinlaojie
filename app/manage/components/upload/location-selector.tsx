@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { LocationData } from "@/lib/upload/types";
+import { LocationData } from "../../lib/upload/types";
 
 interface LocationSelectorProps {
   clickedLocation?: LocationData | null;
