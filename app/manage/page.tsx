@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UploadAssetPanel } from "@/components/upload-asset-panel";
+import { UploadAssetPanel } from "@/components/upload/upload-asset-panel";
 
 interface LocationData {
   longitude: number;
@@ -26,6 +26,18 @@ interface Workspace {
   description: string | null;
 }
 
+interface Asset {
+  id: string;
+  file_type: string;
+  file_url: string | null;
+  metadata: {
+    longitude?: number;
+    latitude?: number;
+    height?: number;
+    gps_source?: string;
+  };
+}
+
 export default function ManagePage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [clickedLocation, setClickedLocation] = useState<LocationData | null>(
@@ -36,6 +48,8 @@ export default function ManagePage() {
     null
   );
   const [loading, setLoading] = useState(true);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // 获取所有 workspace
   useEffect(() => {
@@ -64,6 +78,68 @@ export default function ManagePage() {
     fetchWorkspaces();
   }, []);
 
+  // 获取当前 workspace 的 assets
+  useEffect(() => {
+    async function fetchAssets() {
+      if (!selectedWorkspaceId) {
+        setAssets([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/workspaces/${selectedWorkspaceId}/assets`
+        );
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "获取资源失败");
+        }
+
+        setAssets(result.data || []);
+      } catch (err) {
+        console.error("获取 assets 失败:", err);
+        setAssets([]);
+      }
+    }
+
+    fetchAssets();
+  }, [selectedWorkspaceId]);
+
+  // 发送 assets 数据到 viewer iframe
+  useEffect(() => {
+    if (!iframeRef.current) return;
+
+    // 等待 iframe 加载完成
+    const sendAssetsToViewer = () => {
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: "SET_ASSETS",
+            payload: assets,
+            source: "manage",
+            version: 1,
+          },
+          "*"
+        );
+        console.log("发送 assets 到 viewer:", assets.length);
+      }
+    };
+
+    // iframe 加载完成后发送数据
+    const iframe = iframeRef.current;
+    iframe.addEventListener("load", sendAssetsToViewer);
+
+    // 如果 iframe 已经加载，立即发送
+    if (iframe.contentWindow) {
+      sendAssetsToViewer();
+    }
+
+    return () => {
+      iframe.removeEventListener("load", sendAssetsToViewer);
+    };
+  }, [assets]);
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // 验证消息格式
@@ -79,14 +155,23 @@ export default function ManagePage() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  const handleUpload = (data: {
-    type: string;
-    file?: File;
-    link?: string;
-    text?: string;
-    location?: LocationData;
-  }) => {
-    console.log("上传成功:", data);
+  const handleUpload = async () => {
+    console.log("上传成功");
+
+    // 重新获取 assets 列表
+    if (selectedWorkspaceId) {
+      try {
+        const response = await fetch(
+          `/api/workspaces/${selectedWorkspaceId}/assets`
+        );
+        const result = await response.json();
+        if (response.ok) {
+          setAssets(result.data || []);
+        }
+      } catch (err) {
+        console.error("刷新 assets 失败:", err);
+      }
+    }
   };
 
   return (
@@ -99,6 +184,7 @@ export default function ManagePage() {
         }}
       >
         <iframe
+          ref={iframeRef}
           src="/js/viewer/index.html"
           className="w-full h-full border-0"
           title="3D Viewer"

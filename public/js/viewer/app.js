@@ -14,6 +14,8 @@ const metadata = {
 
 let viewer = null;
 let tileset = null;
+let clickedPointEntity = null; // 存储点击位置的标记
+let assetBillboards = []; // 存储 asset 标记
 
 /**
  * UTM Zone 51N 转换为经纬度
@@ -69,6 +71,93 @@ function initViewer() {
 
   // 添加点击事件监听
   setupClickHandler();
+
+  // 监听来自父窗口的消息
+  setupMessageListener();
+}
+
+/**
+ * 监听来自父窗口的消息
+ */
+function setupMessageListener() {
+  window.addEventListener("message", (event) => {
+    if (event.data?.source === "manage" && event.data?.type === "SET_ASSETS") {
+      const assets = event.data.payload;
+      displayAssets(assets);
+    }
+  });
+}
+
+/**
+ * 在地图上显示 assets
+ */
+function displayAssets(assets) {
+  // 清除之前的 billboards
+  assetBillboards.forEach((entity) => {
+    viewer.entities.remove(entity);
+  });
+  assetBillboards = [];
+
+  console.log(`显示 ${assets.length} 个 assets`);
+
+  // 为每个有坐标的 asset 添加 billboard
+  assets.forEach((asset) => {
+    const { longitude, latitude, height } = asset.metadata;
+
+    if (longitude !== undefined && latitude !== undefined) {
+      const entity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(
+          longitude,
+          latitude,
+          height || 0
+        ),
+        billboard: {
+          image: getBillboardImage(asset.file_type, asset.file_url),
+          scale: 0.5,
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: new Cesium.NearFarScalar(100, 0.3, 1000, 0.05),
+          sizeInMeters: false,
+        },
+        properties: {
+          assetId: asset.id,
+          fileType: asset.file_type,
+          fileUrl: asset.file_url,
+        },
+      });
+
+      assetBillboards.push(entity);
+    }
+  });
+}
+
+/**
+ * 根据文件类型返回对应的 billboard 图标
+ */
+function getBillboardImage(fileType, fileUrl) {
+  // 如果是图片类型且有 URL，直接返回图片 URL
+  if (fileType === "image" && fileUrl) {
+    return fileUrl;
+  }
+
+  // 否则使用 Canvas 生成简单的图标
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext("2d");
+
+  // 背景圆
+  ctx.fillStyle = fileType === "image" ? "#3b82f6" : "#10b981";
+  ctx.beginPath();
+  ctx.arc(16, 16, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 白色边框
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  return canvas;
 }
 
 /**
@@ -90,6 +179,35 @@ function setupClickHandler() {
       const longitude = Cesium.Math.toDegrees(cartographic.longitude);
       const latitude = Cesium.Math.toDegrees(cartographic.latitude);
       const height = cartographic.height;
+
+      // 移除之前的标记点
+      if (clickedPointEntity) {
+        viewer.entities.remove(clickedPointEntity);
+      }
+
+      // 添加新的发光标记点
+      clickedPointEntity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height),
+        point: {
+          pixelSize: 15,
+          color: Cesium.Color.CYAN,
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY, // 始终显示在最前面
+        },
+        // 添加脉冲动画效果
+        ellipse: {
+          semiMinorAxis: 20.0,
+          semiMajorAxis: 20.0,
+          height: height,
+          material: new Cesium.ColorMaterialProperty(
+            Cesium.Color.CYAN.withAlpha(0.3)
+          ),
+          outline: true,
+          outlineColor: Cesium.Color.CYAN,
+          outlineWidth: 2,
+        },
+      });
 
       // 发送消息给父窗口
       if (window.parent !== window) {
