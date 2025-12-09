@@ -66,6 +66,55 @@ function initViewer() {
   const originLat = Cesium.Math.toDegrees(originCartographic.latitude);
 
   console.log(`原点坐标: ${originLon.toFixed(6)}°E, ${originLat.toFixed(6)}°N`);
+
+  // 添加点击事件监听
+  setupClickHandler();
+}
+
+/**
+ * 设置点击事件处理
+ */
+function setupClickHandler() {
+  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+  handler.setInputAction((movement) => {
+    // 获取点击位置的地球坐标
+    const cartesian = viewer.camera.pickEllipsoid(
+      movement.position,
+      viewer.scene.globe.ellipsoid
+    );
+
+    if (cartesian) {
+      // 转换为经纬度
+      const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+      const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+      const latitude = Cesium.Math.toDegrees(cartographic.latitude);
+      const height = cartographic.height;
+
+      // 发送消息给父窗口
+      if (window.parent !== window) {
+        window.parent.postMessage(
+          {
+            type: "LOCATION_CLICKED",
+            payload: {
+              longitude,
+              latitude,
+              height,
+            },
+            source: "viewer",
+            version: 1,
+          },
+          "*"
+        );
+      }
+
+      console.log(
+        `点击坐标: ${longitude.toFixed(6)}°, ${latitude.toFixed(
+          6
+        )}°, ${height.toFixed(2)}m`
+      );
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
 
 /**

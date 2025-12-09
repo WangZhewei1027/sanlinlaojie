@@ -60,28 +60,37 @@ student：
 
 ## Database Schema (Supabase + PostGIS)
 
-- workspace
-  id (PK) uuid
-  name text
-  description text
-  created_at timestamp
+create table public.workspace (
+name text not null,
+description text null,
+create_date timestamp with time zone null default now(),
+id uuid not null default gen_random_uuid (),
+constraint workspace_pkey primary key (id)
+) TABLESPACE pg_default;
 
-- users
-  user_id (PK from auth.users) uuid
-  name text
-  role enum: admin / student
+create table public.users (
+user_id uuid not null,
+name text null,
+role public.user_role not null default 'student'::user_role,
+created_at timestamp with time zone null default now(),
+constraint users_pkey primary key (user_id),
+constraint users_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
 
-- asset
-  field notes
-  id (PK) uuid
-  workspace_id (FK) workspace.id
-  created_by (FK) users.user_id
-  created_at timestamp
-  file_type image/audio/text/video/model/pointcloud
-  file_url Supabase Storage path
-  link optional external link
-  location geometry(Point, 4326)
-  metadata jsonb
+create table public.asset (
+id uuid not null default gen_random_uuid (),
+created_by uuid not null,
+create_at timestamp with time zone null default now(),
+file_type text not null,
+file_url text null,
+link text null,
+text_content text null,
+location geometry null,
+metadata jsonb null default '{}'::jsonb,
+workspace_id uuid null,
+constraint asset_pkey primary key (id),
+constraint asset_created_by_fkey foreign KEY (created_by) references users (user_id) on delete set null,
+constraint asset_workspace_id_fkey foreign KEY (workspace_id) references workspace (id)
+) TABLESPACE pg_default;
 
-- workspace_assignment
-  Composite PK: (user_id, workspace_id)
+还有一个 bucket 叫做 "assets"，用来存储上传的文件
