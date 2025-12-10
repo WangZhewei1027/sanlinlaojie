@@ -1,5 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -11,27 +9,6 @@ import { Settings, FolderKanban, Users } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return redirect("/auth/login");
-  }
-
-  // 检查用户角色
-  const { data: userData } = await supabase
-    .from("users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (userData?.role !== "admin") {
-    return redirect("/manage");
-  }
-
   const modules = [
     {
       title: "Workspace 管理",
