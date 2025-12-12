@@ -67,13 +67,31 @@
       <canvas id="ar-canvas"></canvas>
     </div>
 
+    <!-- VConsole CDN -->
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+
     <!-- Three.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
     <!-- Zappar ThreeJS CDN -->
     <script src="https://libs.zappar.com/zappar-threejs/4.1.0/zappar-threejs.js"></script>
 
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script>
+      // 初始化 VConsole
+      var vConsole = new window.VConsole();
+
+      // Supabase 配置
+      const SUPABASE_URL = "https://mkdfezaufjhrfjkfqlbj.supabase.co";
+      const SUPABASE_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rZGZlemF1ZmpocmZqa2ZxbGJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMDI2NzksImV4cCI6MjA4MDc3ODY3OX0.YvoVQP5k61rl1dbm-y7O-MQCsfke3rnSIzhWvbVGQdU";
+      const DEFAULT_WORKSPACE = "sanlinlaojie";
+
+      // 初始化 Supabase
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
       const canvas = document.querySelector("#ar-canvas");
       const startButton = document.querySelector("#start-button");
 
@@ -95,7 +113,6 @@
 
       // 3. 创建 Zappar Camera
       const camera = new ZapparThree.Camera();
-
       // 场景 + 把相机背景设为摄像头画面
       const scene = new THREE.Scene();
       scene.background = camera.backgroundTexture;
@@ -116,12 +133,254 @@
         renderer.domElement
       );
 
-      // 5. 放置一个简单的彩色方块
-      const cubeGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-      const cubeMaterial = new THREE.MeshNormalMaterial();
-      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-      cube.position.set(0, 0.3, 0); // 稍微抬高，避免与平面重合
-      placementGroup.add(cube);
+      // 5. 存储已加载的资产
+      let assets = [];
+      let assetMarkers = [];
+      let userLocation = null;
+
+      // 获取用户当前位置
+      function getUserLocation() {
+        return new Promise((resolve, reject) => {
+          console.log("Checking geolocation support...");
+
+          if (!navigator.geolocation) {
+            const error = new Error("Geolocation not supported");
+            console.log("❌ Geolocation API not available");
+            reject(error);
+            return;
+          }
+
+          console.log("✅ Geolocation API available");
+          console.log("Requesting location permission...");
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              console.log(
+                `✅ Location obtained: ${position.coords.latitude.toFixed(
+                  6
+                )}, ${position.coords.longitude.toFixed(6)}`
+              );
+              resolve({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                altitude: position.coords.altitude || 0,
+              });
+            },
+            (error) => {
+              let errorMsg = "";
+              switch (error.code) {
+                case error.PERMISSION_DENIED:
+                  errorMsg = "用户拒绝了位置权限请求";
+                  break;
+                case error.POSITION_UNAVAILABLE:
+                  errorMsg = "位置信息不可用";
+                  break;
+                case error.TIMEOUT:
+                  errorMsg = "获取位置超时";
+                  break;
+                default:
+                  errorMsg = "未知错误";
+              }
+              console.log(
+                `❌ Location error: ${errorMsg} (code: ${error.code})`
+              );
+              reject(new Error(errorMsg));
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0,
+            }
+          );
+        });
+      }
+
+      // 从 Supabase 获取资产数据
+      async function fetchAssets() {
+        try {
+          console.log("Fetching workspace...");
+
+          // 首先获取 workspace ID
+          const { data: workspaces, error: wsError } = await supabase
+            .from("workspace")
+            .select("id")
+            .eq("name", DEFAULT_WORKSPACE)
+            .single();
+
+          if (wsError) {
+            console.log(`❌ Workspace error: ${wsError.message}`);
+            throw wsError;
+          }
+
+          if (!workspaces) {
+            console.log(`⚠️ Workspace not found: ${DEFAULT_WORKSPACE}`);
+            return [];
+          }
+
+          console.log(`✅ Workspace found: ${workspaces.id}`);
+          console.log("Fetching assets...");
+
+          // 获取该 workspace 的所有资产（带位置信息）
+          const { data, error } = await supabase
+            .from("asset")
+            .select("id, file_type, file_url, metadata")
+            .contains("workspace_id", [workspaces.id])
+            .not("location", "is", null)
+            .eq("file_type", "image");
+
+          if (error) {
+            console.log(`❌ Asset error: ${error.message}`);
+            throw error;
+          }
+
+          console.log(`✅ Loaded ${data?.length || 0} assets from Supabase`);
+          return data || [];
+        } catch (error) {
+          console.log(`❌ Error fetching assets: ${error.message}`);
+          return [];
+        }
+      }
+
+      // 将 GPS 坐标转换为相对于用户位置的 3D 坐标
+      function gpsToLocalCoordinates(assetLat, assetLon, assetAlt) {
+        if (!userLocation) return { x: 0, y: 0, z: 0 };
+
+        // 简化的平面投影（适用于小范围）
+        const latDiff = assetLat - userLocation.latitude;
+        const lonDiff = assetLon - userLocation.longitude;
+        const altDiff = (assetAlt || 0) - userLocation.altitude;
+
+        // 1度纬度 ≈ 111km, 1度经度 ≈ 111km * cos(latitude)
+        const latToMeters = 111000;
+        const lonToMeters =
+          111000 * Math.cos((userLocation.latitude * Math.PI) / 180);
+
+        return {
+          x: lonDiff * lonToMeters, // 东西方向
+          y: altDiff, // 高度
+          z: -latDiff * latToMeters, // 南北方向（Three.js Z轴向前为负）
+        };
+      }
+
+      // 创建图片平面
+      function createImagePlane(imageUrl, position) {
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = "anonymous";
+
+        const geometry = new THREE.PlaneGeometry(1, 1);
+        const material = new THREE.MeshBasicMaterial({
+          map: null,
+          side: THREE.DoubleSide,
+          transparent: true,
+        });
+
+        const plane = new THREE.Mesh(geometry, material);
+        plane.position.set(position.x, position.y + 1.5, position.z);
+
+        // 让平面始终面向相机
+        plane.lookAt(0, position.y + 1.5, 0);
+
+        // 异步加载纹理
+        textureLoader.load(
+          imageUrl,
+          (texture) => {
+            material.map = texture;
+            material.needsUpdate = true;
+
+            // 根据图片比例调整平面大小
+            const aspect = texture.image.width / texture.image.height;
+            if (aspect > 1) {
+              plane.scale.set(aspect, 1, 1);
+            } else {
+              plane.scale.set(1, 1 / aspect, 1);
+            }
+          },
+          undefined,
+          (error) => {
+            console.error("Error loading texture:", error);
+          }
+        );
+
+        return plane;
+      }
+
+      // 加载并显示资产
+      async function loadAndDisplayAssets() {
+        try {
+          console.log("🚀 Starting asset loading...");
+
+          // 获取用户位置
+          userLocation = await getUserLocation();
+          console.log(
+            `📍 User location: ${userLocation.latitude.toFixed(
+              6
+            )}, ${userLocation.longitude.toFixed(
+              6
+            )}, alt: ${userLocation.altitude.toFixed(1)}m`
+          );
+
+          // 获取资产
+          assets = await fetchAssets();
+
+          if (assets.length === 0) {
+            console.log("⚠️ No assets found in database");
+            return;
+          }
+
+          // 清除旧的标记
+          assetMarkers.forEach((marker) => {
+            scene.remove(marker);
+          });
+          assetMarkers = [];
+
+          console.log(`Processing ${assets.length} assets...`);
+
+          // 为每个资产创建 AR 标记
+          assets.forEach((asset) => {
+            if (!asset.metadata?.latitude || !asset.metadata?.longitude) {
+              console.log(`⚠️ Asset ${asset.id} missing GPS data`);
+              return;
+            }
+
+            const position = gpsToLocalCoordinates(
+              asset.metadata.latitude,
+              asset.metadata.longitude,
+              asset.metadata.height || 0
+            );
+
+            // 只显示在合理范围内的资产（例如 1km 内）
+            const distance = Math.sqrt(
+              position.x ** 2 + position.y ** 2 + position.z ** 2
+            );
+
+            if (distance > 1000) {
+              console.log(
+                `⚠️ Asset ${asset.id} too far: ${distance.toFixed(0)}m`
+              );
+              return;
+            }
+
+            console.log(
+              `✅ Placing asset ${asset.id} at (${position.x.toFixed(
+                1
+              )}, ${position.y.toFixed(1)}, ${position.z.toFixed(
+                1
+              )}) - ${distance.toFixed(0)}m away`
+            );
+
+            const marker = createImagePlane(asset.file_url, position);
+            scene.add(marker);
+            assetMarkers.push(marker);
+          });
+
+          console.log(`✅ Displayed ${assetMarkers.length} assets in AR`);
+        } catch (error) {
+          console.log(`❌ Error: ${error.message}`);
+          alert(
+            `无法获取位置信息：${error.message}\n\n请确保：\n1. 允许浏览器访问位置\n2. 手机GPS已开启\n3. 使用HTTPS连接`
+          );
+        }
+      }
 
       // 6. 窗口 resize 时更新画布大小
       window.addEventListener("resize", () => {
@@ -129,9 +388,15 @@
       });
 
       // 7. 启动 AR：需要用户点击按钮 → 请求摄像头权限
-      startButton.addEventListener("click", () => {
-        ZapparThree.permissionRequestUI().then((granted) => {
+      startButton.addEventListener("click", async () => {
+        console.log("👆 Start button clicked");
+        console.log(`🌐 Protocol: ${window.location.protocol}`);
+        console.log(`🔒 Secure context: ${window.isSecureContext}`);
+
+        ZapparThree.permissionRequestUI().then(async (granted) => {
           if (granted) {
+            console.log("✅ Camera permission granted");
+
             // 开始使用摄像头
             camera.start();
 
@@ -141,16 +406,20 @@
             // 隐藏开始按钮
             startButton.style.display = "none";
 
+            // 加载并显示资产
+            await loadAndDisplayAssets();
+
             // 开始渲染循环
             animate();
           } else {
+            console.log("❌ Camera permission denied");
             // 如果拒绝，就显示 Zappar 提供的默认提示 UI
             ZapparThree.permissionDeniedUI();
           }
         });
       });
 
-      // 7. 渲染循环
+      // 8. 渲染循环
       function animate() {
         requestAnimationFrame(animate);
 
@@ -162,8 +431,10 @@
           worldTrackerUI.hide();
         }
 
-        // 让方块转动，方便观察定位
-        cube.rotation.y += 0.01;
+        // 让所有图片平面面向相机
+        assetMarkers.forEach((marker) => {
+          marker.lookAt(camera.position);
+        });
 
         // 更新相机的帧（把最新摄像头画面塞进背景纹理）
         camera.updateFrame(renderer);
