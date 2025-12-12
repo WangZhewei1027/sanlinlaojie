@@ -100,7 +100,7 @@ export class FileUploadService {
       : null;
 
     const { error } = await this.supabase.from("asset").insert({
-      workspace_id: workspaceId,
+      workspace_id: [workspaceId],
       created_by: userId,
       file_type: result.fileType,
       file_url: result.fileUrl,
@@ -132,7 +132,7 @@ export class FileUploadService {
       : null;
 
     const { error } = await this.supabase.from("asset").insert({
-      workspace_id: workspaceId,
+      workspace_id: [workspaceId],
       created_by: userId,
       file_type: "link",
       link,
@@ -162,7 +162,7 @@ export class FileUploadService {
       : null;
 
     const { error } = await this.supabase.from("asset").insert({
-      workspace_id: workspaceId,
+      workspace_id: [workspaceId],
       created_by: userId,
       file_type: "text",
       text_content: text,

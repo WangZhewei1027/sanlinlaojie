@@ -19,10 +19,11 @@ export async function GET(
     }
 
     // 查询该 workspace 下所有有坐标的 assets
+    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
     const { data, error } = await supabase
       .from("asset")
-      .select("id, file_type, file_url, metadata")
-      .eq("workspace_id", workspaceId)
+      .select("id, file_type, file_url, metadata, workspace_id")
+      .contains("workspace_id", [workspaceId])
       .not("location", "is", null);
 
     if (error) {

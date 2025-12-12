@@ -305,11 +305,13 @@ This document describes all API routes available in the application.
         "id": "uuid",
         "file_type": "string",
         "file_url": "string",
-        "metadata": {}
+        "metadata": {},
+        "workspace_id": ["uuid", "uuid"]
       }
     ]
   }
   ```
+- **Note**: Assets can belong to multiple workspaces. The `workspace_id` field is an array of UUIDs.
 - **Error Handling**:
   - `401`: Unauthorized
   - `500`: Server error
@@ -323,3 +325,4 @@ This document describes all API routes available in the application.
 - All timestamps are in UTC with timezone (timestamptz)
 - UUIDs follow RFC 4122 standard
 - Assets with `location IS NULL` are excluded from workspace assets endpoint
+- **Asset Multi-Workspace Support**: The `workspace_id` field in the `asset` table is an array of UUIDs, allowing a single asset to belong to multiple workspaces. When creating assets, pass `workspace_id` as `[uuid]`.

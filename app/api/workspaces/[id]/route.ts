@@ -105,10 +105,11 @@ export async function DELETE(
     }
 
     // 检查是否有关联的资产
+    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
     const { count } = await supabase
       .from("asset")
       .select("*", { count: "exact", head: true })
-      .eq("workspace_id", id);
+      .contains("workspace_id", [id]);
 
     if (count && count > 0) {
       return NextResponse.json(
