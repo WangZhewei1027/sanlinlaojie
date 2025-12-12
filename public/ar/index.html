@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Zappar AR - Sanlinlaojie</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #ar-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      button {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 16px 32px;
+        font-size: 18px;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        z-index: 1000;
+        transition: all 0.3s ease;
+      }
+
+      #start-button {
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      #start-button:hover {
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+      }
+
+      #status-info {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 999;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="status-info">Initializing AR...</div>
+      <button id="start-button">Start AR</button>
+      <canvas id="ar-canvas"></canvas>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <!-- Zappar ThreeJS CDN -->
+    <script src="https://libs.zappar.com/zappar-threejs/4.1.0/zappar-threejs.js"></script>
+
+    <script>
+      const canvas = document.querySelector("#ar-canvas");
+      const startButton = document.querySelector("#start-button");
+      const statusInfo = document.querySelector("#status-info");
+
+      if (!canvas || !startButton) {
+        throw new Error("Canvas or start button not found");
+      }
+
+      // 1. 创建 Three.js renderer
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      ZapparThree.setLicenseKey("YOUR_LICENSE_KEY_HERE");
+
+      // 2. 告诉 Zappar 使用这个 WebGL 上下文
+      ZapparThree.glContextSet(renderer.getContext());
+
+      // 3. 创建 Zappar Camera
+      const camera = new ZapparThree.Camera();
+
+      // 场景 + 把相机背景设为摄像头画面
+      const scene = new THREE.Scene();
+      scene.background = camera.backgroundTexture;
+
+      // 4. 创建 World Tracker + 用户放置组
+      const worldTracker = new ZapparThree.WorldTracker();
+      const placementGroup = new ZapparThree.UserPlacementAnchorGroup(
+        camera,
+        worldTracker,
+        renderer
+      );
+      placementGroup.placeOnGround = true; // 允许基于地面的放置
+      placementGroup.placeButtonText = "放置";
+      scene.add(placementGroup);
+
+      // 使用官方提供的初始化 UI，引导用户左右移动手机
+      const worldTrackerUI = new ZapparThree.WorldTrackerUI(
+        renderer.domElement
+      );
+
+      // 5. 放置一个简单的彩色方块
+      const cubeGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+      const cubeMaterial = new THREE.MeshNormalMaterial();
+      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube.position.set(0, 0.3, 0); // 稍微抬高，避免与平面重合
+      placementGroup.add(cube);
+
+      // 添加环境光和方向光
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      directionalLight.position.set(0, 10, 0);
+      scene.add(directionalLight);
+
+      // 6. 窗口 resize 时更新画布大小
+      window.addEventListener("resize", () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // 7. 启动 AR：需要用户点击按钮 → 请求摄像头权限
+      startButton.addEventListener("click", () => {
+        statusInfo.style.display = "block";
+        statusInfo.textContent = "Requesting camera permission...";
+
+        ZapparThree.permissionRequestUI().then((granted) => {
+          if (granted) {
+            statusInfo.textContent = "Starting camera...";
+
+            // 开始使用摄像头
+            camera.start();
+
+            // 开启放置模式，让用户在平面上放置内容
+            placementGroup.placementMode = true;
+
+            // 隐藏开始按钮
+            startButton.style.display = "none";
+
+            // 3秒后隐藏状态信息
+            setTimeout(() => {
+              statusInfo.style.display = "none";
+            }, 3000);
+
+            // 开始渲染循环
+            animate();
+          } else {
+            // 如果拒绝，就显示 Zappar 提供的默认提示 UI
+            statusInfo.textContent = "Camera permission denied";
+            ZapparThree.permissionDeniedUI();
+          }
+        });
+      });
+
+      // 8. 渲染循环
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // 世界跟踪未初始化时显示官方提示 UI，引导左右移动
+        if (!placementGroup.ready) {
+          worldTrackerUI.show();
+          worldTrackerUI.update();
+        } else {
+          worldTrackerUI.hide();
+        }
+
+        // 让方块转动，方便观察定位
+        cube.rotation.y += 0.01;
+
+        // 更新相机的帧（把最新摄像头画面塞进背景纹理）
+        camera.updateFrame(renderer);
+
+        // 用 Zappar 相机渲染场景
+        renderer.render(scene, camera);
+      }
+
+      // 向父窗口发送消息（如果在 iframe 中）
+      if (window.parent !== window) {
+        window.addEventListener("message", (event) => {
+          // 可以接收来自父窗口的消息，例如切换内容等
+          if (event.data.type === "RESET_AR") {
+            // 重置 AR 场景
+            placementGroup.placementMode = true;
+          }
+        });
+
+        // 发送 AR 就绪消息
+        window.parent.postMessage(
+          {
+            type: "AR_READY",
+            source: "zappar-ar",
+          },
+          "*"
+        );
+      }
+    </script>
+  </body>
+</html>
