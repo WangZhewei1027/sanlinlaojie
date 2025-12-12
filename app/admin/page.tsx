@@ -25,7 +25,6 @@ export default async function AdminDashboard() {
       href: "/admin/users",
       color: "text-green-600",
       bgColor: "bg-green-50",
-      disabled: true,
     },
     {
       title: "资源管理",
