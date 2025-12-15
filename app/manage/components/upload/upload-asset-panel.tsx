@@ -14,6 +14,7 @@ import { FILE_TYPE_CONFIGS } from "../../lib/upload/config";
 import { useLocationSelection } from "../../lib/upload/hooks";
 import { LocationSelector } from "./location-selector";
 import { FileTypeSelector } from "./file-type-selector";
+import { FileDropzone } from "./file-dropzone";
 
 interface UploadAssetPanelProps {
   location?: LocationData | null;
@@ -108,23 +109,25 @@ export function UploadAssetPanel({
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+  const processSelectedFile = async (selectedFile: File) => {
+    setFile(selectedFile);
 
-      // 处理文件并提取元数据
-      try {
-        const processedFile = await uploadService.processFile(selectedFile);
-        if (processedFile.gpsSource) {
-          locationSelection.setExifLocation(processedFile.gpsSource.location);
-        } else {
-          locationSelection.setExifLocation(null);
-        }
-      } catch (error) {
-        console.error("文件处理失败:", error);
+    // 处理文件并提取元数据
+    try {
+      const processedFile = await uploadService.processFile(selectedFile);
+      if (processedFile.gpsSource) {
+        locationSelection.setExifLocation(processedFile.gpsSource.location);
+      } else {
+        locationSelection.setExifLocation(null);
       }
+    } catch (error) {
+      console.error("文件处理失败:", error);
     }
+  };
+
+  const handleFileRemove = () => {
+    setFile(null);
+    locationSelection.setExifLocation(null);
   };
 
   const resetForm = () => {
@@ -152,23 +155,14 @@ export function UploadAssetPanel({
 
         {/* 文件上传 */}
         {isFileType && (
-          <div className="space-y-2">
-            <Label htmlFor="file" className="text-xs">
-              选择{FILE_TYPE_CONFIGS[uploadType].label}
-            </Label>
-            <Input
-              id="file"
-              type="file"
-              accept={FILE_TYPE_CONFIGS[uploadType].accept}
-              onChange={handleFileChange}
-              className="text-xs"
-            />
-            {file && (
-              <p className="text-xs text-muted-foreground">
-                已选择: {file.name}
-              </p>
-            )}
-          </div>
+          <FileDropzone
+            file={file}
+            onFileSelect={processSelectedFile}
+            onFileRemove={handleFileRemove}
+            accept={FILE_TYPE_CONFIGS[uploadType].accept}
+            label={`选择${FILE_TYPE_CONFIGS[uploadType].label}`}
+            disabled={uploading}
+          />
         )}
 
         {/* 链接输入 */}
