@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Responsive, useContainerWidth, Layout } from "react-grid-layout";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import { useAssets } from "./hooks/useAssets";
 import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { ViewerFrame } from "./components/ViewerFrame";
 import { ManageSidebar } from "./components/ManageSidebar";
-import { MANAGE_CONFIG } from "./config";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
 
 export default function ManagePage() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { width, containerRef, mounted } = useContainerWidth();
 
   // 使用自定义 hooks
   const {
@@ -39,42 +39,102 @@ export default function ManagePage() {
     await refetchAssets();
   };
 
+  // 网格布局配置
+  const [layouts, setLayouts] = useState<Partial<Record<string, Layout>>>({
+    lg: [
+      { i: "viewer", x: 0, y: 0, w: 8, h: 12, minW: 4, minH: 12 },
+      { i: "sidebar", x: 8, y: 0, w: 4, h: 12, minW: 3, minH: 12 },
+    ],
+  });
+
+  const handleLayoutChange = (
+    layout: Layout,
+    allLayouts: Partial<Record<string, Layout>>
+  ) => {
+    // 自动调整布局，使两个组件总是占满整行
+    const adjustedLayouts: Partial<Record<string, Layout>> = {};
+
+    Object.keys(allLayouts).forEach((breakpoint) => {
+      const currentLayout = allLayouts[breakpoint];
+      if (currentLayout) {
+        const cols =
+          breakpoint === "lg"
+            ? 12
+            : breakpoint === "md"
+            ? 10
+            : breakpoint === "sm"
+            ? 6
+            : breakpoint === "xs"
+            ? 4
+            : 2;
+
+        const viewerItem = currentLayout.find((item) => item.i === "viewer");
+        const sidebarItem = currentLayout.find((item) => item.i === "sidebar");
+
+        if (viewerItem && sidebarItem) {
+          // 确保两个组件在同一行
+          viewerItem.y = 0;
+          sidebarItem.y = 0;
+
+          // 调整sidebar位置和宽度以占满剩余空间
+          sidebarItem.x = viewerItem.w;
+          sidebarItem.w = cols - viewerItem.w;
+
+          adjustedLayouts[breakpoint] = [viewerItem, sidebarItem];
+        }
+      }
+    });
+
+    setLayouts(adjustedLayouts);
+  };
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* 左侧 iframe 容器 */}
-      <ViewerFrame iframeRef={iframeRef} sidebarOpen={sidebarOpen} />
+    <div
+      ref={containerRef}
+      className="h-screen w-full overflow-hidden bg-background"
+    >
+      {mounted && (
+        <Responsive
+          className="layout"
+          layouts={layouts}
+          onLayoutChange={handleLayoutChange}
+          breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+          cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+          rowHeight={60}
+          width={width}
+          resizeConfig={{
+            enabled: true,
+            handles: ["e", "w"],
+          }}
+        >
+          {/* Viewer 面板 */}
+          <div
+            key="viewer"
+            className="bg-background border rounded-lg overflow-hidden"
+          >
+            <ViewerFrame iframeRef={iframeRef} />
+          </div>
 
-      {/* 右侧侧边栏 */}
-      <ManageSidebar
-        sidebarOpen={sidebarOpen}
-        workspaces={workspaces}
-        selectedWorkspaceId={selectedWorkspaceId}
-        selectedWorkspace={selectedWorkspace}
-        onWorkspaceChange={setSelectedWorkspaceId}
-        loading={loading}
-        clickedLocation={clickedLocation}
-        onUpload={handleUpload}
-        assets={assets}
-        assetsLoading={assetsLoading}
-        onFocusAsset={focusAsset}
-      />
-
-      {/* 切换按钮 */}
-      <Button
-        variant="secondary"
-        size="icon"
-        className="absolute top-1/2 -translate-y-1/2 z-50 rounded-lg shadow-lg transition-all duration-300 ease-in-out"
-        style={{
-          right: sidebarOpen ? `${MANAGE_CONFIG.SIDEBAR_WIDTH + 8}px` : "8px",
-        }}
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        {sidebarOpen ? (
-          <ChevronRight className="h-4 w-4" />
-        ) : (
-          <ChevronLeft className="h-4 w-4" />
-        )}
-      </Button>
+          {/* Sidebar 面板 */}
+          <div
+            key="sidebar"
+            className="bg-background border rounded-lg overflow-hidden"
+          >
+            <ManageSidebar
+              workspaces={workspaces}
+              selectedWorkspaceId={selectedWorkspaceId}
+              selectedWorkspace={selectedWorkspace}
+              onWorkspaceChange={setSelectedWorkspaceId}
+              loading={loading}
+              clickedLocation={clickedLocation}
+              onUpload={handleUpload}
+              assets={assets}
+              assetsLoading={assetsLoading}
+              onFocusAsset={focusAsset}
+            />
+          </div>
+        </Responsive>
+      )}
     </div>
   );
 }

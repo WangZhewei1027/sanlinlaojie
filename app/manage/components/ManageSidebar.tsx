@@ -4,10 +4,8 @@ import { WorkspaceSelect } from "./WorkspaceSelect";
 import { ClickedLocationCard } from "./ClickedLocationCard";
 import { AssetManager } from "./AssetManager";
 import type { Workspace, LocationData, Asset } from "../types";
-import { MANAGE_CONFIG } from "../config";
 
 interface ManageSidebarProps {
-  sidebarOpen: boolean;
   workspaces: Workspace[];
   selectedWorkspaceId: string | null;
   selectedWorkspace: Workspace | undefined;
@@ -21,7 +19,6 @@ interface ManageSidebarProps {
 }
 
 export function ManageSidebar({
-  sidebarOpen,
   workspaces,
   selectedWorkspaceId,
   selectedWorkspace,
@@ -34,12 +31,7 @@ export function ManageSidebar({
   onFocusAsset,
 }: ManageSidebarProps) {
   return (
-    <div
-      className="relative border-l transition-all duration-300 ease-in-out overflow-hidden bg-background"
-      style={{
-        width: sidebarOpen ? `${MANAGE_CONFIG.SIDEBAR_WIDTH}px` : "0px",
-      }}
-    >
+    <div className="h-full w-full overflow-hidden bg-background">
       {/* 侧边栏内容 */}
       <div className="h-full overflow-y-auto p-6">
         <div className="space-y-6">

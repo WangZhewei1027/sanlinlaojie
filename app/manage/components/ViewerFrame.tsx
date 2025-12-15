@@ -1,21 +1,12 @@
 import { RefObject } from "react";
-import { MANAGE_CONFIG } from "../config";
 
 interface ViewerFrameProps {
   iframeRef: RefObject<HTMLIFrameElement | null>;
-  sidebarOpen: boolean;
 }
 
-export function ViewerFrame({ iframeRef, sidebarOpen }: ViewerFrameProps) {
+export function ViewerFrame({ iframeRef }: ViewerFrameProps) {
   return (
-    <div
-      className="relative transition-all duration-300 ease-in-out"
-      style={{
-        width: sidebarOpen
-          ? `calc(100% - ${MANAGE_CONFIG.SIDEBAR_WIDTH}px)`
-          : "100%",
-      }}
-    >
+    <div className="w-full h-full">
       <iframe
         ref={iframeRef}
         src="/js/viewer/index.html"
