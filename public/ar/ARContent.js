@@ -99,11 +99,62 @@ class ARContent {
   }
 
   /**
-   * 从Supabase获取附近的素材
+   * 从Supabase获取附近的素材（使用PostGIS）
    */
   async fetchNearbyAssets() {
     try {
-      console.log("🔍 Fetching workspace...");
+      if (!this.userLocation) {
+        console.warn("⚠️ No user location available");
+        return [];
+      }
+
+      console.log("🔍 Fetching nearby assets using PostGIS...");
+
+      // 使用 RPC 调用 PostGIS 函数进行地理位置过滤
+      const { data, error } = await this.supabase.rpc("get_nearby_assets", {
+        user_lat: this.userLocation.latitude,
+        user_lng: this.userLocation.longitude,
+        max_distance_meters: this.MAX_DISTANCE,
+        workspace_name: this.DEFAULT_WORKSPACE,
+      });
+
+      if (error) {
+        console.error("❌ PostGIS RPC error:", error);
+        // 如果 RPC 失败，降级到客户端过滤
+        return await this.fetchNearbyAssetsFallback();
+      }
+
+      console.log(`📦 Fetched ${data?.length || 0} nearby assets from PostGIS`);
+
+      // 添加距离信息到日志
+      if (data && data.length > 0) {
+        data.forEach((asset) => {
+          console.log(
+            `✅ Asset ${asset.id} (${asset.file_type}) is ${
+              asset.distance?.toFixed(0) || "?"
+            }m away`,
+            asset.file_type === "text"
+              ? `text: "${asset.text_content}"`
+              : `url: ${asset.file_url}`
+          );
+        });
+      }
+
+      console.log("📋 Full asset data:", JSON.stringify(data, null, 2));
+
+      return data || [];
+    } catch (error) {
+      console.error("❌ Error fetching assets:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 降级方案：客户端过滤（当PostGIS RPC不可用时）
+   */
+  async fetchNearbyAssetsFallback() {
+    try {
+      console.log("🔄 Using fallback method (client-side filtering)...");
 
       // 获取workspace ID
       const { data: workspaces, error: wsError } = await this.supabase
@@ -115,22 +166,35 @@ class ARContent {
       if (wsError) throw wsError;
       if (!workspaces) return [];
 
-      console.log(`✅ Workspace found: ${workspaces.id}`);
-
-      // 获取资产
-      const { data, error } = await this.supabase
+      // 获取所有资产
+      const { data: allAssets, error } = await this.supabase
         .from("asset")
-        .select("id, file_type, file_url, metadata")
+        .select("id, file_type, file_url, text_content, metadata")
         .contains("workspace_id", [workspaces.id])
-        .not("location", "is", null)
-        .eq("file_type", "image");
+        .not("location", "is", null);
 
       if (error) throw error;
 
-      console.log(`📦 Fetched ${data?.length || 0} assets from Supabase`);
-      return data || [];
+      // 客户端过滤距离
+      const nearbyAssets = allAssets.filter((asset) => {
+        if (!asset.metadata?.latitude || !asset.metadata?.longitude) {
+          return false;
+        }
+
+        const distance = this.calculateDistance(
+          this.userLocation.latitude,
+          this.userLocation.longitude,
+          asset.metadata.latitude,
+          asset.metadata.longitude
+        );
+
+        return distance <= this.MAX_DISTANCE;
+      });
+
+      console.log(`📦 Fallback found ${nearbyAssets.length} nearby assets`);
+      return nearbyAssets;
     } catch (error) {
-      console.error("❌ Error fetching assets:", error);
+      console.error("❌ Fallback method error:", error);
       return [];
     }
   }
@@ -166,29 +230,8 @@ class ARContent {
         )}, ${this.userLocation.longitude.toFixed(6)}`
       );
 
-      // 获取所有素材
-      const allAssets = await this.fetchNearbyAssets();
-
-      // 过滤距离在50m内的素材
-      const nearbyAssets = allAssets.filter((asset) => {
-        if (!asset.metadata?.latitude || !asset.metadata?.longitude) {
-          return false;
-        }
-
-        const distance = this.calculateDistance(
-          this.userLocation.latitude,
-          this.userLocation.longitude,
-          asset.metadata.latitude,
-          asset.metadata.longitude
-        );
-
-        if (distance <= this.MAX_DISTANCE) {
-          console.log(`✅ Asset ${asset.id} is ${distance.toFixed(0)}m away`);
-          return true;
-        }
-
-        return false;
-      });
+      // 使用PostGIS获取附近的素材
+      const nearbyAssets = await this.fetchNearbyAssets();
 
       console.log(
         `🎯 Found ${nearbyAssets.length} assets within ${this.MAX_DISTANCE}m`
@@ -209,63 +252,159 @@ class ARContent {
    * 创建素材网格
    */
   createAssetMeshes() {
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.crossOrigin = "anonymous";
+    console.log(`🏗️ Creating meshes for ${this.assets.length} assets`);
 
     this.assets.forEach((asset, index) => {
-      const geometry = new THREE.PlaneGeometry(1, 1);
-      const material = new THREE.MeshBasicMaterial({
-        transparent: true,
-        side: THREE.DoubleSide,
-      });
-
-      const mesh = new THREE.Mesh(geometry, material);
+      console.log(
+        `🔨 Processing asset ${index + 1}/${this.assets.length}: ${asset.id} (${
+          asset.file_type
+        })`
+      );
 
       // 初始角度分布
       const angle = (index / this.assets.length) * Math.PI * 2;
-      mesh.userData.angle = angle;
-      mesh.userData.assetId = asset.id;
 
-      // 加载纹理
-      textureLoader.load(
-        asset.file_url,
-        (texture) => {
-          material.map = texture;
-          material.needsUpdate = true;
+      let mesh;
+      if (asset.file_type === "image") {
+        console.log(`🖼️ Creating image mesh for ${asset.id}`);
+        mesh = this.createImageMesh(asset, angle);
+      } else if (asset.file_type === "text") {
+        console.log(
+          `📝 Creating text mesh for ${asset.id}: "${asset.text_content}"`
+        );
+        mesh = this.createTextMesh(asset, angle);
+      } else {
+        console.warn(`⚠️ Unknown asset type: ${asset.file_type}`);
+        return;
+      }
 
-          // 根据图片比例调整平面大小，保持原始比例
-          const aspect = texture.image.width / texture.image.height;
-          const baseSize = 0.7; // 基础尺寸
-
-          if (aspect > 1) {
-            // 横向图片
-            mesh.scale.set(aspect * baseSize, baseSize, 1);
-          } else {
-            // 纵向图片
-            mesh.scale.set(baseSize, baseSize / aspect, 1);
-          }
-
-          console.log(
-            `✅ Loaded texture for asset ${asset.id}, aspect: ${aspect.toFixed(
-              2
-            )}`
-          );
-        },
-        undefined,
-        (error) => {
-          console.error(
-            `❌ Failed to load texture for asset ${asset.id}:`,
-            error
-          );
-          material.color.setHex(0xff0000);
-        }
-      );
-
-      this.group.add(mesh);
-      this.assetMeshes.push(mesh);
+      if (mesh) {
+        this.group.add(mesh);
+        this.assetMeshes.push(mesh);
+        console.log(`✅ Added mesh to group for asset ${asset.id}`);
+      } else {
+        console.error(`❌ Failed to create mesh for asset ${asset.id}`);
+      }
     });
 
     console.log(`✨ Created ${this.assetMeshes.length} asset meshes`);
+  }
+
+  /**
+   * 创建图片mesh
+   */
+  createImageMesh(asset, angle) {
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.crossOrigin = "anonymous";
+
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.angle = angle;
+    mesh.userData.assetId = asset.id;
+    mesh.userData.assetType = "image";
+
+    // 加载纹理
+    textureLoader.load(
+      asset.file_url,
+      (texture) => {
+        material.map = texture;
+        material.needsUpdate = true;
+
+        // 根据图片比例调整平面大小，保持原始比例
+        const aspect = texture.image.width / texture.image.height;
+        const baseSize = 0.7;
+
+        if (aspect > 1) {
+          mesh.scale.set(aspect * baseSize, baseSize, 1);
+        } else {
+          mesh.scale.set(baseSize, baseSize / aspect, 1);
+        }
+
+        console.log(
+          `✅ Loaded image for asset ${asset.id}, aspect: ${aspect.toFixed(2)}`
+        );
+      },
+      undefined,
+      (error) => {
+        console.error(
+          `❌ Failed to load texture for asset ${asset.id}:`,
+          error
+        );
+        material.color.setHex(0xff0000);
+      }
+    );
+
+    return mesh;
+  }
+
+  /**
+   * 创建文字mesh（圆角方块）
+   */
+  createTextMesh(asset, angle) {
+    // 创建圆角方块
+    const geometry = new THREE.BoxGeometry(0.8, 0.6, 0.1, 8, 8, 1);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.angle = angle;
+    mesh.userData.assetId = asset.id;
+    mesh.userData.assetType = "text";
+
+    // 创建canvas来绘制文字
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = 512;
+    canvas.height = 384;
+
+    // 背景（圆角矩形）
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制文字
+    context.fillStyle = "#000000";
+    context.font = "bold 32px Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    // 自动换行
+    const text = asset.text_content || "(无内容)";
+    const maxWidth = canvas.width - 40;
+    const lineHeight = 40;
+    const words = text.split("");
+    let line = "";
+    let y = canvas.height / 2 - 20;
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i];
+      const metrics = context.measureText(testLine);
+
+      if (metrics.width > maxWidth && i > 0) {
+        context.fillText(line, canvas.width / 2, y);
+        line = words[i];
+        y += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    context.fillText(line, canvas.width / 2, y);
+
+    // 将canvas作为纹理应用到材质
+    const texture = new THREE.CanvasTexture(canvas);
+    material.map = texture;
+    material.needsUpdate = true;
+
+    console.log(`✅ Created text mesh for asset ${asset.id}`);
+
+    return mesh;
   }
 
   /**
