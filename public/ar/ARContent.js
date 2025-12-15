@@ -177,55 +177,10 @@ class ARContent {
   }
 
   /**
-   * 创建图片mesh
+   * 创建图片mesh（使用ImageMeshCreator）
    */
   createImageMesh(asset, angle) {
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.crossOrigin = "anonymous";
-
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.MeshBasicMaterial({
-      transparent: true,
-      side: THREE.DoubleSide,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.userData.angle = angle;
-    mesh.userData.assetId = asset.id;
-    mesh.userData.assetType = "image";
-
-    // 加载纹理
-    textureLoader.load(
-      asset.file_url,
-      (texture) => {
-        material.map = texture;
-        material.needsUpdate = true;
-
-        // 根据图片比例调整平面大小，保持原始比例
-        const aspect = texture.image.width / texture.image.height;
-        const baseSize = 0.7;
-
-        if (aspect > 1) {
-          mesh.scale.set(aspect * baseSize, baseSize, 1);
-        } else {
-          mesh.scale.set(baseSize, baseSize / aspect, 1);
-        }
-
-        console.log(
-          `✅ Loaded image for asset ${asset.id}, aspect: ${aspect.toFixed(2)}`
-        );
-      },
-      undefined,
-      (error) => {
-        console.error(
-          `❌ Failed to load texture for asset ${asset.id}:`,
-          error
-        );
-        material.color.setHex(0xff0000);
-      }
-    );
-
-    return mesh;
+    return ImageMeshCreator.create(asset, angle);
   }
 
   /**
