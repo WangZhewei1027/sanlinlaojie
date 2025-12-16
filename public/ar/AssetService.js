@@ -21,9 +21,10 @@ class AssetService {
 
   /**
    * 获取用户位置
+   * @param {boolean} useCache - 是否允许使用缓存位置（默认允许）
    * @returns {Promise<{latitude: number, longitude: number, altitude: number}>}
    */
-  async getUserLocation() {
+  async getUserLocation(useCache = true) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error("Geolocation not supported"));
@@ -43,8 +44,8 @@ class AssetService {
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
+          timeout: 15000, // 增加超时时间到15秒
+          maximumAge: useCache ? 5000 : 0, // 允许5秒的缓存
         }
       );
     });

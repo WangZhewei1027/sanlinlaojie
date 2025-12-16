@@ -7,6 +7,7 @@ class ARContent {
   constructor() {
     this.group = new THREE.Group();
     this.userLocation = null;
+    this.currentLocation = null; // 当前位置（实时更新）
     this.lastUpdateLocation = null; // 上次更新时的位置
     this.assets = [];
     this.assetMeshes = [];
@@ -50,6 +51,9 @@ class ARContent {
     // 立即获取一次
     this.updateAssets();
 
+    // 启动位置监听
+    this.startLocationTracking();
+
     // 每2秒检查一次位置是否变化超过阈值
     setInterval(() => {
       this.checkLocationAndUpdate();
@@ -57,12 +61,49 @@ class ARContent {
   }
 
   /**
+   * 启动位置持续监听
+   */
+  startLocationTracking() {
+    if (!navigator.geolocation) {
+      console.error("❌ Geolocation not supported");
+      return;
+    }
+
+    // 使用watchPosition持续监听位置变化
+    this.locationWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        this.currentLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          altitude: position.coords.altitude || 0,
+        };
+        console.log(
+          `📍 Location updated: ${this.currentLocation.latitude.toFixed(
+            6
+          )}, ${this.currentLocation.longitude.toFixed(6)}`
+        );
+      },
+      (error) => {
+        console.error("❌ Location tracking error:", error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000, // 允许5秒的缓存
+      }
+    );
+  }
+
+  /**
    * 检查位置变化并决定是否更新素材
    */
   async checkLocationAndUpdate() {
     try {
-      // 获取当前位置
-      const currentLocation = await this.assetService.getUserLocation();
+      // 使用watchPosition更新的currentLocation
+      if (!this.currentLocation) {
+        console.log("⏳ Waiting for location...");
+        return;
+      }
 
       // 如果是第一次或没有上次位置记录，直接返回
       if (!this.lastUpdateLocation) {
@@ -72,7 +113,7 @@ class ARContent {
       // 计算距离上次更新位置的距离
       const distance = this.calculateDistance(
         this.lastUpdateLocation,
-        currentLocation
+        this.currentLocation
       );
 
       console.log(`📏 Distance moved: ${distance.toFixed(2)}m`);
