@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { Camera, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 interface CameraUploadProps {
   onUpload: (imageData: string) => Promise<void>;
@@ -9,6 +10,7 @@ interface CameraUploadProps {
 }
 
 export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -28,7 +30,7 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.error("无法访问相机：", err);
+      console.error(t("onsite.cameraError"), err);
     }
   };
 
@@ -100,7 +102,7 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
               disabled={!cameraStream || disabled}
             >
               <Camera className="h-5 w-5 mr-2" />
-              拍照
+              {t("onsite.takePhoto")}
             </Button>
           </div>
         </div>
@@ -122,12 +124,12 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
               {uploading ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  上传中...
+                  {t("onsite.uploading")}
                 </>
               ) : (
                 <>
                   <Check className="h-5 w-5 mr-2" />
-                  确认上传
+                  {t("onsite.confirmUpload")}
                 </>
               )}
             </Button>
@@ -138,7 +140,7 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
               onClick={retakePhoto}
               disabled={uploading}
             >
-              重新拍照
+              {t("onsite.retake")}
             </Button>
           </div>
         </div>

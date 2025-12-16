@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "react-i18next";
 
 interface TextUploadProps {
   onUpload: (text: string) => Promise<void>;
@@ -11,6 +12,7 @@ interface TextUploadProps {
 }
 
 export function TextUpload({ onUpload, disabled }: TextUploadProps) {
+  const { t } = useTranslation();
   const [textContent, setTextContent] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -29,10 +31,10 @@ export function TextUpload({ onUpload, disabled }: TextUploadProps) {
   return (
     <Card className="p-4 space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="text-content">文本内容</Label>
+        <Label htmlFor="text-content">{t("onsite.textContent")}</Label>
         <Textarea
           id="text-content"
-          placeholder="输入要记录的文本信息..."
+          placeholder={t("onsite.textPlaceholder")}
           value={textContent}
           onChange={(e) => setTextContent(e.target.value)}
           className="min-h-[120px]"
@@ -47,12 +49,12 @@ export function TextUpload({ onUpload, disabled }: TextUploadProps) {
         {uploading ? (
           <>
             <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-            上传中...
+            {t("onsite.uploading")}
           </>
         ) : (
           <>
             <Check className="h-5 w-5 mr-2" />
-            上传文本
+            {t("onsite.uploadText")}
           </>
         )}
       </Button>

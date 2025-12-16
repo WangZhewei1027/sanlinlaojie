@@ -1,5 +1,6 @@
 import { AlertCircle, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 interface StatusMessagesProps {
   error: string | null;
@@ -7,6 +8,8 @@ interface StatusMessagesProps {
 }
 
 export function StatusMessages({ error, success }: StatusMessagesProps) {
+  const { t } = useTranslation();
+
   return (
     <>
       {error && (
@@ -22,7 +25,7 @@ export function StatusMessages({ error, success }: StatusMessagesProps) {
         <Card className="p-4 border-green-500 bg-green-50 dark:bg-green-950">
           <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
             <Check className="h-5 w-5" />
-            <span>上传成功！</span>
+            <span>{t("onsite.uploadSuccess")}</span>
           </div>
         </Card>
       )}
