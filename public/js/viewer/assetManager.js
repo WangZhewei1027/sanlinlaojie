@@ -51,77 +51,9 @@ export function displayAssets(assets) {
       );
 
       if (asset.file_type === "text" && asset.text_content) {
-        console.log(
-          `创建文本覆盖层: "${asset.text_content}" at (${longitude}, ${latitude})`
-        );
-
-        // 文本类型：创建HTML div
-        const textDiv = document.createElement("div");
-        textDiv.textContent = asset.text_content;
-        textDiv.style.position = "absolute";
-        textDiv.style.display = "inline-block";
-        textDiv.style.maxWidth = "150px";
-        textDiv.style.fontSize = "8px";
-        textDiv.style.fontWeight = "400";
-        textDiv.style.color = "#d1d5db";
-        textDiv.style.backgroundColor = "rgba(0, 0, 0, 0.6)";
-        textDiv.style.backdropFilter = "blur(8px)";
-        textDiv.style.webkitBackdropFilter = "blur(8px)";
-        textDiv.style.padding = "8px 12px";
-        textDiv.style.borderRadius = "6px";
-        textDiv.style.textAlign = "left";
-        textDiv.style.overflow = "hidden";
-        textDiv.style.textOverflow = "ellipsis";
-        textDiv.style.whiteSpace = "nowrap";
-        textDiv.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
-        textDiv.style.transform = "translate(-50%, -100%)";
-        textDiv.style.marginTop = "-10px";
-
-        overlayContainer.appendChild(textDiv);
-
-        console.log(
-          `文本div已添加到容器，容器子元素数: ${overlayContainer.children.length}`
-        );
-
-        textOverlays.push({
-          div: textDiv,
-          position: Cesium.Cartesian3.fromDegrees(
-            longitude,
-            latitude,
-            height || 0
-          ),
-          scratch: new Cesium.Cartesian2(),
-          assetId: asset.id,
-        });
+        createTextOverlay(asset, longitude, latitude, height);
       } else {
-        // 图片类型：使用 billboard
-        const entity = viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(
-            longitude,
-            latitude,
-            height || 0
-          ),
-          billboard: {
-            image: getBillboardImage(asset.file_type, asset.file_url),
-            scale: BILLBOARD_CONFIG.scale,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: new Cesium.NearFarScalar(
-              BILLBOARD_CONFIG.scaleByDistanceNear,
-              BILLBOARD_CONFIG.scaleByDistanceNearValue,
-              BILLBOARD_CONFIG.scaleByDistanceFar,
-              BILLBOARD_CONFIG.scaleByDistanceFarValue
-            ),
-            sizeInMeters: false,
-          },
-          properties: {
-            assetId: asset.id,
-            fileType: asset.file_type,
-            fileUrl: asset.file_url,
-          },
-        });
-
-        assetBillboards.push(entity);
+        createImageBillboard(asset, longitude, latitude, height);
       }
     }
   });
@@ -133,6 +65,89 @@ export function displayAssets(assets) {
       updateTextOverlayPositions(viewer);
     });
   }
+}
+
+/**
+ * 创建文本覆盖层
+ * @param {Object} asset - 资产对象
+ * @param {number} longitude - 经度
+ * @param {number} latitude - 纬度
+ * @param {number} height - 高度
+ */
+function createTextOverlay(asset, longitude, latitude, height) {
+  console.log(
+    `创建文本覆盖层: "${asset.text_content}" at (${longitude}, ${latitude})`
+  );
+
+  const textDiv = document.createElement("div");
+  textDiv.textContent = asset.text_content;
+  textDiv.style.position = "absolute";
+  textDiv.style.display = "inline-block";
+  textDiv.style.maxWidth = "150px";
+  textDiv.style.fontSize = "8px";
+  textDiv.style.fontWeight = "400";
+  textDiv.style.color = "#d1d5db";
+  textDiv.style.backgroundColor = "rgba(0, 0, 0, 0.6)";
+  textDiv.style.backdropFilter = "blur(8px)";
+  textDiv.style.webkitBackdropFilter = "blur(8px)";
+  textDiv.style.padding = "8px 12px";
+  textDiv.style.borderRadius = "6px";
+  textDiv.style.textAlign = "left";
+  textDiv.style.overflow = "hidden";
+  textDiv.style.textOverflow = "ellipsis";
+  textDiv.style.whiteSpace = "nowrap";
+  textDiv.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
+  textDiv.style.transform = "translate(-50%, -100%)";
+  textDiv.style.marginTop = "-10px";
+
+  overlayContainer.appendChild(textDiv);
+
+  console.log(
+    `文本div已添加到容器，容器子元素数: ${overlayContainer.children.length}`
+  );
+
+  textOverlays.push({
+    div: textDiv,
+    position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
+    scratch: new Cesium.Cartesian2(),
+    assetId: asset.id,
+  });
+}
+
+/**
+ * 创建图片Billboard
+ * @param {Object} asset - 资产对象
+ * @param {number} longitude - 经度
+ * @param {number} latitude - 纬度
+ * @param {number} height - 高度
+ */
+function createImageBillboard(asset, longitude, latitude, height) {
+  const viewer = getViewer();
+  if (!viewer) return;
+
+  const entity = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
+    billboard: {
+      image: getBillboardImage(asset.file_type, asset.file_url),
+      scale: BILLBOARD_CONFIG.scale,
+      verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      scaleByDistance: new Cesium.NearFarScalar(
+        BILLBOARD_CONFIG.scaleByDistanceNear,
+        BILLBOARD_CONFIG.scaleByDistanceNearValue,
+        BILLBOARD_CONFIG.scaleByDistanceFar,
+        BILLBOARD_CONFIG.scaleByDistanceFarValue
+      ),
+      sizeInMeters: false,
+    },
+    properties: {
+      assetId: asset.id,
+      fileType: asset.file_type,
+      fileUrl: asset.file_url,
+    },
+  });
+
+  assetBillboards.push(entity);
 }
 
 /**

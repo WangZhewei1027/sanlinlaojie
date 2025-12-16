@@ -27,6 +27,7 @@ export default function ManagePage() {
     assets,
     refetch: refetchAssets,
     loading: assetsLoading,
+    updateAsset,
   } = useAssets(selectedWorkspaceId);
 
   const { clickedLocation, focusAsset } = useViewerMessaging({
@@ -106,6 +107,9 @@ export default function ManagePage() {
             enabled: true,
             handles: ["e", "w"],
           }}
+          dragConfig={{
+            enabled: false,
+          }}
         >
           {/* Viewer 面板 */}
           <div
@@ -131,6 +135,7 @@ export default function ManagePage() {
               assets={assets}
               assetsLoading={assetsLoading}
               onFocusAsset={focusAsset}
+              onUpdateAsset={updateAsset}
             />
           </div>
         </Responsive>

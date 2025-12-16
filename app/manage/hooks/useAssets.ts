@@ -41,10 +41,44 @@ export function useAssets(workspaceId: string | null) {
     return fetchAssets();
   }, [fetchAssets]);
 
+  const updateAsset = useCallback(
+    async (assetId: string, updates: Partial<Asset>) => {
+      try {
+        const response = await fetch(`/api/assets/${assetId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updates),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "更新资源失败");
+        }
+
+        // 更新本地状态
+        setAssets((prevAssets) =>
+          prevAssets.map((asset) =>
+            asset.id === assetId ? { ...asset, ...result.data } : asset
+          )
+        );
+
+        return result.data;
+      } catch (err) {
+        console.error("更新资源失败:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
   return {
     assets,
     loading,
     error,
     refetch,
+    updateAsset,
   };
 }

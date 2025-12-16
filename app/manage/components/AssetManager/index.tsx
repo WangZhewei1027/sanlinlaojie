@@ -9,12 +9,14 @@ interface AssetManagerProps {
   assets: Asset[];
   loading: boolean;
   onFocusAsset?: (asset: Asset) => void;
+  onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
 }
 
 export function AssetManager({
   assets,
   loading,
   onFocusAsset,
+  onUpdateAsset,
 }: AssetManagerProps) {
   if (loading) {
     return <LoadingState />;
@@ -30,7 +32,12 @@ export function AssetManager({
 
       <div className="divide-y max-h-[600px] overflow-y-auto">
         {assets.map((asset) => (
-          <AssetCard key={asset.id} asset={asset} onFocusAsset={onFocusAsset} />
+          <AssetCard
+            key={asset.id}
+            asset={asset}
+            onFocusAsset={onFocusAsset}
+            onUpdateAsset={onUpdateAsset}
+          />
         ))}
       </div>
     </Card>
