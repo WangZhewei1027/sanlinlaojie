@@ -69,7 +69,7 @@ export default function Home() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
                     通过手机浏览器即可体验 AR
-                    内容，无需安装额外应用，让历史文化"活"起来。
+                    内容，无需安装额外应用，让历史文化活起来。
                   </p>
                 </CardContent>
               </Card>
@@ -182,8 +182,7 @@ export default function Home() {
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
           <p className="text-muted-foreground">
-            &copy; {new Date().getFullYear()} 三林老街数字化平台. All rights
-            reserved.
+            三林老街数字化平台. All rights reserved.
           </p>
         </footer>
       </div>
