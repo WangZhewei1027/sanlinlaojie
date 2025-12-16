@@ -95,8 +95,6 @@ class AssetService {
         });
       }
 
-      console.log("📋 Full asset data:", JSON.stringify(data, null, 2));
-
       return data || [];
     } catch (error) {
       console.error("❌ Error fetching assets:", error);

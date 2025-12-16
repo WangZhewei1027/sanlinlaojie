@@ -14,6 +14,7 @@ export interface Asset {
   id: string;
   file_type: string;
   file_url: string | null;
+  text_content?: string | null; // 文本类型的内容
   metadata: {
     longitude?: number;
     latitude?: number;
