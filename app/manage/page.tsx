@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Responsive, useContainerWidth, Layout } from "react-grid-layout";
-import { useWorkspaces } from "./hooks/useWorkspaces";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useAssets } from "./hooks/useAssets";
 import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { ViewerFrame } from "./components/ViewerFrame";
@@ -21,7 +21,7 @@ export default function ManagePage() {
     selectedWorkspace,
     setSelectedWorkspaceId,
     loading,
-  } = useWorkspaces();
+  } = useWorkspace();
 
   const {
     assets,

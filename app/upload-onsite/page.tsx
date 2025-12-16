@@ -11,7 +11,7 @@ import { TextUpload } from "./components/TextUpload";
 import { StatusMessages } from "./components/StatusMessages";
 import { WorkspaceSelect } from "../manage/components/WorkspaceSelect";
 import { useGPS } from "./hooks/useGPS";
-import { useWorkspace } from "./hooks/useWorkspace";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 type UploadMode = "camera" | "text";
 
