@@ -1,0 +1,65 @@
+{
+    "nav": {
+        "home": "Home",
+        "admin": "Admin",
+        "workspace": "Workspace",
+        "upload": "Upload",
+        "manage": "Manage",
+        "display": "Display"
+    },
+    "common": {
+        "welcome": "Welcome",
+        "loading": "Loading...",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "create": "Create",
+        "search": "Search",
+        "filter": "Filter",
+        "logout": "Logout",
+        "login": "Login",
+        "signup": "Sign Up"
+    },
+    "workspace": {
+        "title": "Workspace Management",
+        "create": "Create Workspace",
+        "select": "Select Workspace",
+        "manage": "Manage Workspace"
+    },
+    "upload": {
+        "title": "Upload Assets",
+        "selectFile": "Select File",
+        "uploading": "Uploading...",
+        "success": "Upload Successful",
+        "failed": "Upload Failed"
+    },
+    "assets": {
+        "title": "Asset Management",
+        "list": "Asset List",
+        "edit": "Edit Asset",
+        "delete": "Delete Asset"
+    },
+    "onsite": {
+        "title": "Onsite Upload",
+        "subtitle": "Record onsite information using real-time GPS location",
+        "gpsStatus": "GPS Status",
+        "gettingLocation": "Getting location...",
+        "location": "Location:",
+        "altitude": "Altitude:",
+        "accuracy": "Accuracy:",
+        "cameraMode": "Photo Upload",
+        "textMode": "Text Upload",
+        "takePhoto": "Take Photo",
+        "uploading": "Uploading...",
+        "confirmUpload": "Confirm Upload",
+        "retake": "Retake",
+        "textContent": "Text Content",
+        "textPlaceholder": "Enter text information to record...",
+        "uploadText": "Upload Text",
+        "uploadSuccess": "Upload successful!",
+        "uploadFailed": "Upload failed:",
+        "missingInfo": "Missing required information",
+        "cameraError": "Unable to access camera:"
+    }
+}
