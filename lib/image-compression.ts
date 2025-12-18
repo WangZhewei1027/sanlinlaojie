@@ -2,9 +2,9 @@ import imageCompression from "browser-image-compression";
 
 export async function compressToWebP(file: File) {
   const options = {
-    maxWidthOrHeight: 1920,
+    maxWidthOrHeight: 1600,
     fileType: "image/webp",
-    maxSizeMB: 0.25, // 250 KB 上限，可调
+    maxSizeMB: 0.2, // 200 KB 上限，可调
     useWebWorker: true,
   };
 

@@ -17,6 +17,7 @@ interface ManageSidebarProps {
   assetsLoading: boolean;
   onFocusAsset: (asset: Asset) => void;
   onUpdateAsset: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
+  onDeleteAsset: (assetId: string) => Promise<void>;
 }
 
 export function ManageSidebar({
@@ -31,6 +32,7 @@ export function ManageSidebar({
   assetsLoading,
   onFocusAsset,
   onUpdateAsset,
+  onDeleteAsset,
 }: ManageSidebarProps) {
   return (
     <div className="h-full w-full overflow-hidden bg-background">
@@ -78,6 +80,7 @@ export function ManageSidebar({
               loading={assetsLoading}
               onFocusAsset={onFocusAsset}
               onUpdateAsset={onUpdateAsset}
+              onDeleteAsset={onDeleteAsset}
             />
           )}
         </div>

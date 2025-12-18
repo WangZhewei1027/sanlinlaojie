@@ -10,6 +10,7 @@ interface AssetManagerProps {
   loading: boolean;
   onFocusAsset?: (asset: Asset) => void;
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
+  onDeleteAsset?: (assetId: string) => Promise<void>;
 }
 
 export function AssetManager({
@@ -17,6 +18,7 @@ export function AssetManager({
   loading,
   onFocusAsset,
   onUpdateAsset,
+  onDeleteAsset,
 }: AssetManagerProps) {
   if (loading) {
     return <LoadingState />;
@@ -37,6 +39,7 @@ export function AssetManager({
             asset={asset}
             onFocusAsset={onFocusAsset}
             onUpdateAsset={onUpdateAsset}
+            onDeleteAsset={onDeleteAsset}
           />
         ))}
       </div>

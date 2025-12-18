@@ -74,11 +74,36 @@ export function useAssets(workspaceId: string | null) {
     []
   );
 
+  const deleteAsset = useCallback(async (assetId: string) => {
+    try {
+      const response = await fetch(`/api/assets/${assetId}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "删除资源失败");
+      }
+
+      // 从本地状态中移除
+      setAssets((prevAssets) =>
+        prevAssets.filter((asset) => asset.id !== assetId)
+      );
+
+      return result;
+    } catch (err) {
+      console.error("删除资源失败:", err);
+      throw err;
+    }
+  }, []);
+
   return {
     assets,
     loading,
     error,
     refetch,
     updateAsset,
+    deleteAsset,
   };
 }

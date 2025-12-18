@@ -10,6 +10,7 @@ let focusMarkerEntity = null; // 存储聚焦标记
 let textOverlays = []; // 存储文本HTML元素
 let overlayContainer = null; // HTML容器
 let preRenderListener = null; // preRender事件监听器
+let imageCache = new Map(); // 缓存加载的图片
 
 /**
  * 在地图上显示 assets
@@ -47,7 +48,7 @@ export function displayAssets(assets) {
 
     if (longitude !== undefined && latitude !== undefined) {
       console.log(
-        `处理资产: ${asset.id}, 类型: ${asset.file_type}, 文本: ${asset.text_content}`
+        `处理资产: ${asset.id}, 类型: ${asset.file_type}, 文本: ${asset.text_content}, URL: ${asset.file_url}`
       );
 
       if (asset.file_type === "text" && asset.text_content) {
@@ -125,10 +126,12 @@ function createImageBillboard(asset, longitude, latitude, height) {
   const viewer = getViewer();
   if (!viewer) return;
 
+  const billboardImage = getBillboardImage(asset.file_type, asset.file_url);
+
   const entity = viewer.entities.add({
     position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
     billboard: {
-      image: getBillboardImage(asset.file_type, asset.file_url),
+      image: billboardImage,
       scale: BILLBOARD_CONFIG.scale,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -139,6 +142,9 @@ function createImageBillboard(asset, longitude, latitude, height) {
         BILLBOARD_CONFIG.scaleByDistanceFarValue
       ),
       sizeInMeters: false,
+      // 添加这些属性来改善图片渲染
+      pixelOffsetScaleByDistance: undefined,
+      imageSubRegion: undefined,
     },
     properties: {
       assetId: asset.id,
@@ -148,6 +154,11 @@ function createImageBillboard(asset, longitude, latitude, height) {
   });
 
   assetBillboards.push(entity);
+
+  // 添加调试信息
+  console.log(
+    `创建billboard: ${asset.id}, 图片: ${asset.file_url ? "外部URL" : "Canvas"}`
+  );
 }
 
 /**
@@ -175,6 +186,9 @@ export function clearAssetBillboards() {
     preRenderListener();
     preRenderListener = null;
   }
+
+  // 注意：不清除imageCache，以便重复使用已加载的图片
+  console.log(`已清除billboards，图片缓存保留: ${imageCache.size} 个`);
 }
 
 /**
@@ -212,12 +226,87 @@ function updateTextOverlayPositions(viewer) {
  * 根据文件类型返回对应的 billboard 图标
  * @param {string} fileType - 文件类型
  * @param {string} fileUrl - 文件URL
- * @returns {HTMLCanvasElement|string} - Canvas元素或图片URL
+ * @returns {HTMLCanvasElement|Promise<HTMLCanvasElement>} - Canvas元素或Promise
  */
 function getBillboardImage(fileType, fileUrl) {
-  // 如果是图片类型且有 URL，直接返回图片 URL
+  // 如果是图片类型且有 URL，预加载图片并绘制到canvas
   if (fileType === "image" && fileUrl) {
-    return fileUrl;
+    console.log(`准备加载图片: ${fileUrl}`);
+
+    // 检查缓存
+    if (imageCache.has(fileUrl)) {
+      console.log(`使用缓存的图片: ${fileUrl}`);
+      return imageCache.get(fileUrl);
+    }
+
+    // 创建canvas来绘制图片
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // 创建Image对象加载图片
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    // 返回一个Promise，在图片加载完成后resolve
+    const promise = new Promise((resolve, reject) => {
+      img.onload = function () {
+        // 设置canvas大小为图片大小
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        // 绘制图片到canvas
+        ctx.drawImage(img, 0, 0);
+
+        console.log(
+          `图片加载成功: ${fileUrl}, 尺寸: ${img.width}x${img.height}`
+        );
+
+        // 缓存canvas
+        imageCache.set(fileUrl, canvas);
+
+        resolve(canvas);
+      };
+
+      img.onerror = function (error) {
+        console.error(`图片加载失败: ${fileUrl}`, error);
+
+        // 加载失败时返回一个带错误标记的canvas
+        canvas.width = BILLBOARD_CONFIG.iconSize;
+        canvas.height = BILLBOARD_CONFIG.iconSize;
+        ctx.fillStyle = "#ef4444"; // 红色表示错误
+        ctx.beginPath();
+        ctx.arc(16, 16, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 画一个X
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(8, 8);
+        ctx.lineTo(24, 24);
+        ctx.moveTo(24, 8);
+        ctx.lineTo(8, 24);
+        ctx.stroke();
+
+        resolve(canvas);
+      };
+
+      img.src = fileUrl;
+    });
+
+    // 先返回一个loading状态的canvas，同时缓存promise
+    const loadingCanvas = document.createElement("canvas");
+    loadingCanvas.width = BILLBOARD_CONFIG.iconSize;
+    loadingCanvas.height = BILLBOARD_CONFIG.iconSize;
+    const loadingCtx = loadingCanvas.getContext("2d");
+    loadingCtx.fillStyle = "#6b7280"; // 灰色表示加载中
+    loadingCtx.beginPath();
+    loadingCtx.arc(16, 16, 14, 0, Math.PI * 2);
+    loadingCtx.fill();
+
+    // 返回promise而不是loading canvas
+    // Cesium支持Promise<Image>或Promise<Canvas>
+    return promise;
   }
 
   // 否则使用 Canvas 生成简单的图标

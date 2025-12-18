@@ -28,6 +28,7 @@ export default function ManagePage() {
     refetch: refetchAssets,
     loading: assetsLoading,
     updateAsset,
+    deleteAsset,
   } = useAssets(selectedWorkspaceId);
 
   const { clickedLocation, focusAsset } = useViewerMessaging({
@@ -136,6 +137,7 @@ export default function ManagePage() {
               assetsLoading={assetsLoading}
               onFocusAsset={focusAsset}
               onUpdateAsset={updateAsset}
+              onDeleteAsset={deleteAsset}
             />
           </div>
         </Responsive>

@@ -90,3 +90,90 @@ export async function PATCH(
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    const { id: assetId } = await params;
+
+    // 获取当前用户
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "未授权" }, { status: 401 });
+    }
+
+    // 首先检查该资产是否存在以及用户是否有权限
+    const { data: asset, error: fetchError } = await supabase
+      .from("asset")
+      .select("id, created_by, file_url")
+      .eq("id", assetId)
+      .single();
+
+    if (fetchError || !asset) {
+      console.error("查询资产失败:", fetchError);
+      return NextResponse.json({ error: "资源不存在" }, { status: 404 });
+    }
+
+    // 检查用户权限（只能删除自己的资产，或者是admin）
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    const isAdmin = profile?.role === "admin";
+    const isOwner = asset.created_by === user.id;
+
+    if (!isAdmin && !isOwner) {
+      return NextResponse.json({ error: "无权限删除此资源" }, { status: 403 });
+    }
+
+    // 如果有文件URL，尝试从storage中删除文件
+    if (asset.file_url) {
+      try {
+        // 从 URL 中提取文件路径
+        const url = new URL(asset.file_url);
+        const pathMatch = url.pathname.match(
+          /\/storage\/v1\/object\/public\/(.+)/
+        );
+
+        if (pathMatch) {
+          const fullPath = pathMatch[1];
+          const { error: storageError } = await supabase.storage
+            .from("assets")
+            .remove([fullPath.replace("assets/", "")]);
+
+          if (storageError) {
+            console.warn("删除存储文件失败:", storageError);
+            // 不阻止删除数据库记录
+          }
+        }
+      } catch (err) {
+        console.warn("解析文件URL失败:", err);
+        // 继续删除数据库记录
+      }
+    }
+
+    // 从数据库中删除资产记录
+    const { error: deleteError } = await supabase
+      .from("asset")
+      .delete()
+      .eq("id", assetId);
+
+    if (deleteError) {
+      console.error("删除资源失败:", deleteError);
+      return NextResponse.json({ error: "删除资源失败" }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: "资源已删除" });
+  } catch (error) {
+    console.error("删除资源失败:", error);
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+  }
+}

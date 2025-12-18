@@ -12,6 +12,7 @@ import { StatusMessages } from "./components/StatusMessages";
 import { WorkspaceSelect } from "../manage/components/WorkspaceSelect";
 import { useGPS } from "./hooks/useGPS";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { compressToWebP } from "@/lib/image-compression";
 
 type UploadMode = "camera" | "text";
 
@@ -44,11 +45,17 @@ export default function UploadOnsitePage() {
 
     try {
       const blob = await (await fetch(capturedImage)).blob();
-      const file = new File([blob], `onsite-${Date.now()}.jpg`, {
+      const originalFile = new File([blob], `onsite-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
 
-      const fileUrl = await uploadService.uploadToStorage(file, userId);
+      // 压缩图片到 WebP 格式
+      const compressedFile = await compressToWebP(originalFile);
+
+      const fileUrl = await uploadService.uploadToStorage(
+        compressedFile,
+        userId
+      );
 
       const location: LocationData = {
         latitude: gpsPosition.latitude,

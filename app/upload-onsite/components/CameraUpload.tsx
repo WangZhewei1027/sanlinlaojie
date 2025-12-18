@@ -113,6 +113,11 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
                 </>
               )}
             </Button>
+            {!uploading && (
+              <p className="text-xs text-muted-foreground text-center">
+                图片将自动压缩为 WebP 格式上传
+              </p>
+            )}
             <Button
               size="lg"
               variant="outline"
