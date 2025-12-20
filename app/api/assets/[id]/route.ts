@@ -138,20 +138,26 @@ export async function DELETE(
     if (asset.file_url) {
       try {
         // 从 URL 中提取文件路径
+        // URL 格式: https://{project}.supabase.co/storage/v1/object/public/assets/{workspace_id}/{filename}
         const url = new URL(asset.file_url);
         const pathMatch = url.pathname.match(
-          /\/storage\/v1\/object\/public\/(.+)/
+          /\/storage\/v1\/object\/public\/assets\/(.+)/
         );
 
         if (pathMatch) {
-          const fullPath = pathMatch[1];
+          // pathMatch[1] 是 {workspace_id}/{filename}，这正是我们需要的路径
+          const filePath = pathMatch[1];
+          console.log("尝试删除文件:", filePath);
+
           const { error: storageError } = await supabase.storage
             .from("assets")
-            .remove([fullPath.replace("assets/", "")]);
+            .remove([filePath]);
 
           if (storageError) {
             console.warn("删除存储文件失败:", storageError);
             // 不阻止删除数据库记录
+          } else {
+            console.log("文件删除成功");
           }
         }
       } catch (err) {

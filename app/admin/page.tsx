@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Settings, FolderKanban, Users } from "lucide-react";
+import { Settings, FolderKanban, Users, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminDashboard() {
@@ -25,6 +25,14 @@ export default async function AdminDashboard() {
       href: "/admin/users",
       color: "text-green-600",
       bgColor: "bg-green-50",
+    },
+    {
+      title: "资源清理",
+      description: "清理数据库和存储桶中的孤立资源",
+      icon: Trash2,
+      href: "/admin/clean",
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
     },
     {
       title: "资源管理",

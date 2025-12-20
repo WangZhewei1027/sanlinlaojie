@@ -60,7 +60,7 @@ student：
 
 ## Database Schema (Supabase + PostGIS)
 
-When it comes to database schema, follow these guidelines:
+When it comes to database schema, or API, follow these guidelines:
 
 If data structure changed, use supabase mcp to get the latest schema.
 
