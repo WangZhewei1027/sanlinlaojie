@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileUploadService } from "../manage/lib/upload/service";
-import { LocationData } from "../manage/lib/upload/types";
+import { FileUploadService } from "@/lib/upload/service";
+import { LocationData } from "@/lib/upload/types";
+import { createClient } from "@/lib/supabase/client";
 import { GPSStatusCard } from "./components/GPSStatusCard";
 import { ModeSelector } from "./components/ModeSelector";
 import { CameraUpload } from "./components/CameraUpload";
@@ -12,7 +13,6 @@ import { StatusMessages } from "./components/StatusMessages";
 import { WorkspaceSelect } from "../manage/components/WorkspaceSelect";
 import { useGPS } from "./hooks/useGPS";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { compressToWebP } from "@/lib/image-compression";
 
 type UploadMode = "camera" | "text";
 
@@ -25,7 +25,6 @@ export default function UploadOnsitePage() {
     selectedWorkspaceId,
     selectedWorkspace,
     setSelectedWorkspaceId,
-    userId,
     loading: workspaceLoading,
     error: workspaceError,
   } = useWorkspace();
@@ -36,7 +35,7 @@ export default function UploadOnsitePage() {
 
   // 上传拍摄的照片
   const handlePhotoUpload = async (capturedImage: string) => {
-    if (!gpsPosition || !selectedWorkspaceId || !userId) {
+    if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
       throw new Error(t("onsite.missingInfo"));
     }
@@ -44,17 +43,27 @@ export default function UploadOnsitePage() {
     setError(null);
 
     try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error(t("onsite.pleaseLogin") || "请先登录");
+      }
+
       const blob = await (await fetch(capturedImage)).blob();
       const originalFile = new File([blob], `onsite-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
 
-      // 压缩图片到 WebP 格式
-      const compressedFile = await compressToWebP(originalFile);
+      // 使用 FileUploadService 处理文件（自动压缩）
+      const processedFileData = await uploadService.processFile(originalFile);
 
+      // 上传到 Storage
       const fileUrl = await uploadService.uploadToStorage(
-        compressedFile,
-        userId
+        processedFileData.file,
+        user.id
       );
 
       const location: LocationData = {
@@ -63,15 +72,12 @@ export default function UploadOnsitePage() {
         height: gpsPosition.altitude || 0,
       };
 
-      await uploadService.saveToDatabase(selectedWorkspaceId, userId, {
+      // 保存到数据库
+      await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
+        fileType: processedFileData.type,
         fileUrl,
-        fileType: "image",
         location,
         gpsSource: "device_gps",
-        metadata: {
-          gps_accuracy: gpsPosition.accuracy,
-          capture_time: new Date(gpsPosition.timestamp).toISOString(),
-        },
       });
 
       setSuccess(true);
@@ -85,7 +91,7 @@ export default function UploadOnsitePage() {
 
   // 上传文本
   const handleTextUpload = async (textContent: string) => {
-    if (!gpsPosition || !selectedWorkspaceId || !userId) {
+    if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
       throw new Error(t("onsite.missingInfo"));
     }
@@ -93,15 +99,25 @@ export default function UploadOnsitePage() {
     setError(null);
 
     try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error(t("onsite.pleaseLogin") || "请先登录");
+      }
+
       const location: LocationData = {
         latitude: gpsPosition.latitude,
         longitude: gpsPosition.longitude,
         height: gpsPosition.altitude || 0,
       };
 
+      // 使用 FileUploadService 保存文本
       await uploadService.saveText(
         selectedWorkspaceId,
-        userId,
+        user.id,
         textContent,
         location
       );
