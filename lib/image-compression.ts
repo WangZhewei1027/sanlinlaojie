@@ -21,16 +21,24 @@ export async function compressToWebP(file: File) {
 
   let compressedBlob: Blob | null = null;
 
+  let currentFile: File = file;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`第 ${attempt} 次压缩尝试...`);
 
-    compressedBlob = await imageCompression(file, COMPRESSION_OPTIONS);
+    const quality = Math.max(0.8 - attempt * 0.15, 0.3);
 
-    const sizeKB = (compressedBlob.size / 1024).toFixed(2);
-    console.log(`压缩结果: ${sizeKB}KB`);
+    const compressed = await imageCompression(currentFile, {
+      ...COMPRESSION_OPTIONS,
+      initialQuality: quality,
+    });
 
-    // 如果达到目标大小或已达到最大重试次数，停止
-    if (compressedBlob.size <= TARGET_SIZE) {
+    const sizeKB = (compressed.size / 1024).toFixed(2);
+    console.log(`压缩结果: ${sizeKB}KB (quality=${quality.toFixed(2)})`);
+
+    currentFile = new File([compressed], file.name, { type: compressed.type });
+
+    if (compressed.size <= TARGET_SIZE) {
       console.log(`✓ 压缩成功，大小符合要求`);
       break;
     }
@@ -41,6 +49,8 @@ export async function compressToWebP(file: File) {
       console.warn(`⚠ 已达到最大重试次数 (${MAX_RETRIES})，使用当前压缩结果`);
     }
   }
+
+  compressedBlob = currentFile;
 
   const compressedFile = new File(
     [compressedBlob!],
