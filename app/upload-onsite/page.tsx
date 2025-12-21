@@ -57,8 +57,18 @@ export default function UploadOnsitePage() {
         type: "image/jpeg",
       });
 
+      console.log(
+        `原始文件大小: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB`
+      );
+
       // 使用 FileUploadService 处理文件（自动压缩）
       const processedFileData = await uploadService.processFile(originalFile);
+
+      console.log(
+        `压缩后文件大小: ${(processedFileData.file.size / 1024 / 1024).toFixed(
+          2
+        )}MB`
+      );
 
       // 上传到 Storage
       const fileUrl = await uploadService.uploadToStorage(

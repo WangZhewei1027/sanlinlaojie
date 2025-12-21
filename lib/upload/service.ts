@@ -48,7 +48,8 @@ export class FileUploadService {
           ).toFixed(2)}KB`
         );
       } catch (error) {
-        console.warn("文件处理失败，使用原文件:", error);
+        console.error("文件处理失败:", error);
+        throw new Error(`文件压缩失败: ${error}`);
       }
     }
 
@@ -68,6 +69,20 @@ export class FileUploadService {
    * 上传文件到 Storage
    */
   async uploadToStorage(file: File, userId: string): Promise<string> {
+    console.log(
+      `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+    );
+
+    // Supabase Storage 限制检查（默认 50MB）
+    const maxStorageSize = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > maxStorageSize) {
+      throw new Error(
+        `文件大小 ${(file.size / 1024 / 1024).toFixed(
+          2
+        )}MB 超过 Supabase Storage 限制 (50MB)。请联系管理员。`
+      );
+    }
+
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random()
       .toString(36)
@@ -78,12 +93,16 @@ export class FileUploadService {
       .from("assets")
       .upload(filePath, file);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Storage 上传错误:", error);
+      throw error;
+    }
 
     const {
       data: { publicUrl },
     } = this.supabase.storage.from("assets").getPublicUrl(filePath);
 
+    console.log(`文件上传成功: ${publicUrl}`);
     return publicUrl;
   }
 
