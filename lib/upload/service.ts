@@ -15,29 +15,10 @@ export class FileUploadService {
     const uploadType = inferUploadType(file.type);
     const config = FILE_TYPE_CONFIGS[uploadType];
 
-    // 验证文件大小
-    if (!validateFileSize(file, config.maxSize)) {
-      throw new Error(`文件大小超过限制 (${config.maxSize}MB)`);
-    }
-
     let processedFile = file;
     let gpsSource: GPSSource | undefined;
 
-    // 处理文件（如压缩）
-    if (config.process) {
-      try {
-        processedFile = await config.process(file);
-        console.log(
-          `文件处理完成: ${(file.size / 1024).toFixed(2)}KB -> ${(
-            processedFile.size / 1024
-          ).toFixed(2)}KB`
-        );
-      } catch (error) {
-        console.warn("文件处理失败，使用原文件:", error);
-      }
-    }
-
-    // 提取元数据（如 GPS）
+    // 提取元数据（如 GPS）- 在压缩前提取，避免 EXIF 数据丢失
     if (config.extractMetadata) {
       try {
         const metadata = await config.extractMetadata(file);
@@ -55,6 +36,25 @@ export class FileUploadService {
       } catch (error) {
         console.warn("元数据提取失败:", error);
       }
+    }
+
+    // 处理文件（如压缩）
+    if (config.process) {
+      try {
+        processedFile = await config.process(file);
+        console.log(
+          `文件处理完成: ${(file.size / 1024).toFixed(2)}KB -> ${(
+            processedFile.size / 1024
+          ).toFixed(2)}KB`
+        );
+      } catch (error) {
+        console.warn("文件处理失败，使用原文件:", error);
+      }
+    }
+
+    // 验证处理后的文件大小
+    if (!validateFileSize(processedFile, config.maxSize)) {
+      throw new Error(`文件大小超过限制 (${config.maxSize}MB)`);
     }
 
     return {
