@@ -9,7 +9,7 @@ const COMPRESSION_OPTIONS = {
 };
 
 const MAX_RETRIES = 5;
-const TARGET_SIZE = 1024 * 1024; // 1MB 目标大小
+const TARGET_SIZE = 0.2 * 1024 * 1024; // 200KB 目标大小
 const SKIP_COMPRESSION_SIZE = COMPRESSION_OPTIONS.maxSizeMB * 1024 * 1024; // 200KB
 
 export async function compressToWebP(file: File) {
