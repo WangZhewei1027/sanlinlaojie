@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Zappar AR Demo - Standalone</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #ar-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="ar-canvas"></canvas>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <!-- Zappar ThreeJS CDN -->
+    <script src="https://libs.zappar.com/zappar-threejs/4.1.0/zappar-threejs.js"></script>
+
+    <!-- VConsole CDN -->
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+
+    <script>
+      new VConsole();
+    </script>
+
+    <script>
+      const canvas = document.querySelector("#ar-canvas");
+
+      if (!canvas) {
+        throw new Error("Canvas not found");
+      }
+
+      // 1. 创建 Three.js renderer
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      // 2. 告诉 Zappar 使用这个 WebGL 上下文
+      ZapparThree.glContextSet(renderer.getContext());
+
+      // 3. 创建 Zappar Camera
+      const camera = new ZapparThree.Camera();
+
+      // 场景 + 把相机背景设为摄像头画面
+      const scene = new THREE.Scene();
+      scene.background = camera.backgroundTexture;
+
+      // 4. 创建 Instant World Tracker
+      const instantWorldTracker = new ZapparThree.InstantWorldTracker();
+      const instantWorldAnchorGroup = new ZapparThree.InstantWorldAnchorGroup(
+        camera,
+        instantWorldTracker
+      );
+      scene.add(instantWorldAnchorGroup);
+
+      function spawnCube() {
+        const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        const material = new THREE.MeshNormalMaterial();
+        const cube = new THREE.Mesh(geometry, material);
+
+        const x = (Math.random() - 0.5) * 2;
+        const z = (Math.random() - 0.5) * 2;
+
+        cube.position.set(x, 0.15, z);
+        instantWorldAnchorGroup.add(cube);
+      }
+
+      setInterval(spawnCube, 2000);
+
+      // 6. 窗口 resize 时更新画布大小
+      window.addEventListener("resize", () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // 7. 自动启动 AR
+      ZapparThree.permissionRequestUI().then((granted) => {
+        if (granted) {
+          // 开始使用摄像头
+          camera.start();
+          // 开始渲染循环
+          animate();
+        } else {
+          // 如果拒绝，就显示 Zappar 提供的默认提示 UI
+          ZapparThree.permissionDeniedUI();
+        }
+      });
+
+      // 7. 渲染循环
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // 始终更新官方提示 UI
+        // worldTrackerUI.update();
+
+        // 让所有方块转动，方便观察定位
+        instantWorldAnchorGroup.children.forEach((cube) => {
+          cube.rotation.y += 0.01;
+        });
+
+        // 更新相机的帧（把最新摄像头画面塞进背景纹理）
+        camera.updateFrame(renderer);
+
+        // 用 Zappar 相机渲染场景
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Zappar AR Demo - Standalone</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #ar-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #status-indicator {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 8px;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: opacity 0.3s ease;
+      }
+
+      #status-indicator.hidden {
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="ar-canvas"></canvas>
+      <div id="status-indicator">保持手机竖直...</div>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <!-- Zappar ThreeJS CDN -->
+    <script src="https://libs.zappar.com/zappar-threejs/4.2.0/zappar-threejs.js"></script>
+
+    <!-- VConsole CDN -->
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Splash Screen Remover Module -->
+    <script src="./SplashScreenRemover.js"></script>
+
+    <!-- Device Orientation Checker Module -->
+    <script src="./DeviceOrientationChecker.js"></script>
+
+    <!-- Asset Service Module -->
+    <script src="./AssetService.js"></script>
+
+    <!-- Center Object Component -->
+    <script src="./CenterObject.js"></script>
+
+    <!-- Image Mesh Creator Module -->
+    <script src="./ImageMeshCreator.js"></script>
+
+    <!-- Text Mesh Creator Module -->
+    <script src="./TextMeshCreator.js"></script>
+
+    <!-- AR Content Component -->
+    <script src="./ARContent.js"></script>
+
+    <script>
+      // 初始化 VConsole
+      var vConsole = new window.VConsole();
+
+      // 初始化并启动 Splash Screen Remover
+      const splashRemover = new SplashScreenRemover();
+      splashRemover.start();
+
+      const canvas = document.querySelector("#ar-canvas");
+      const statusIndicator = document.querySelector("#status-indicator");
+
+      if (!canvas || !statusIndicator) {
+        throw new Error("Canvas or status indicator not found");
+      }
+
+      // 1. 创建 Three.js renderer
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      // 2. 告诉 Zappar 使用这个 WebGL 上下文
+      ZapparThree.glContextSet(renderer.getContext());
+
+      // 3. 创建 Zappar Camera
+      const camera = new ZapparThree.Camera();
+
+      // 场景 + 把相机背景设为摄像头画面
+      const scene = new THREE.Scene();
+      scene.background = camera.backgroundTexture;
+
+      // 4. 创建 Instant World Tracker + Anchor Group
+      const instantWorldTracker = new ZapparThree.InstantWorldTracker();
+      const instantWorldAnchorGroup = new ZapparThree.InstantWorldAnchorGroup(
+        camera,
+        instantWorldTracker
+      );
+      scene.add(instantWorldAnchorGroup);
+
+      // 5. 创建 AR 内容组件
+      const arContent = new ARContent();
+      instantWorldAnchorGroup.add(arContent.getObject3D());
+
+      // 6. 创建设备方向检测器
+      const orientationChecker = new DeviceOrientationChecker(statusIndicator);
+
+      // 7. 窗口 resize 时更新画布大小
+      window.addEventListener("resize", () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // 8. 自动启动 AR
+      ZapparThree.permissionRequestUI().then((granted) => {
+        if (granted) {
+          console.log("✅ Camera permission granted");
+
+          // 开始使用摄像头
+          camera.start();
+
+          // 启动设备方向检测
+          orientationChecker.start();
+
+          // 开始渲染循环
+          animate();
+
+          // 等待 3 秒后再请求其他权限（如 GPS）
+          console.log(
+            "⏳ Waiting 3 seconds before requesting other permissions..."
+          );
+          setTimeout(() => {
+            console.log("✅ Ready to request additional permissions");
+
+            // 请求 GPS 位置权限
+            if (navigator.geolocation) {
+              console.log("📍 Requesting location permission...");
+
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  console.log("✅ Location permission granted");
+                  console.log(
+                    `📍 Latitude: ${position.coords.latitude.toFixed(6)}`
+                  );
+                  console.log(
+                    `📍 Longitude: ${position.coords.longitude.toFixed(6)}`
+                  );
+                  console.log(`📍 Altitude: ${position.coords.altitude || 0}m`);
+                  console.log(`📍 Accuracy: ${position.coords.accuracy}m`);
+                },
+                (error) => {
+                  let errorMsg = "";
+                  switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                      errorMsg = "用户拒绝了位置权限请求";
+                      break;
+                    case error.POSITION_UNAVAILABLE:
+                      errorMsg = "位置信息不可用";
+                      break;
+                    case error.TIMEOUT:
+                      errorMsg = "获取位置超时";
+                      break;
+                    default:
+                      errorMsg = "未知错误";
+                  }
+                  console.warn(`⚠️ Location error: ${errorMsg}`);
+                },
+                {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 0,
+                }
+              );
+            } else {
+              console.warn("⚠️ Geolocation not supported by this browser");
+            }
+          }, 3000);
+        } else {
+          // 如果拒绝，就显示 Zappar 提供的默认提示 UI
+          ZapparThree.permissionDeniedUI();
+        }
+      });
+
+      // 9. 渲染循环
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // 更新相机的帧（把最新摄像头画面塞进背景纹理）
+        camera.updateFrame(renderer);
+
+        // 如果还没放置，持续更新anchor位置到与视线齐平的水平前方
+        // Y=0 保持与相机同高度（人眼高度），Z=-5 表示前方5米
+        if (!orientationChecker.isPlaced()) {
+          instantWorldTracker.setAnchorPoseFromCameraOffset(0, 0, -5);
+        }
+
+        // 更新AR内容组件动画
+        arContent.update();
+
+        // 用 Zappar 相机渲染场景
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>
