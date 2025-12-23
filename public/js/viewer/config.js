@@ -44,8 +44,17 @@ export const VIEWER_CONFIG = {
 
 // Billboard 图片配置
 export const IMAGE_CONFIG = {
-  maxWidth: 1920, // 最大宽度（像素）
-  maxHeight: 1920, // 最大高度（像素）
+  maxWidth: 512, // 最大宽度（像素）- billboard 优化尺寸
+  maxHeight: 512, // 最大高度（像素）- billboard 优化尺寸
+};
+
+// 文本配置
+export const TEXT_CONFIG = {
+  maxWidth: 300, // 文本最大宽度（像素）
+  fontSize: 14, // 字体大小
+  lineHeight: 1.4, // 行高倍数
+  padding: 16, // 内边距
+  borderRadius: 6, // 圆角半径
 };
 
 // 相机配置
@@ -58,7 +67,9 @@ export const CAMERA_CONFIG = {
 
 // Billboard 配置
 export const BILLBOARD_CONFIG = {
-  scale: 0.5,
+  scale: 0.5, // 图标默认缩放
+  imageScale: 2, // 图片类型billboard的缩放（更大以便看清）
+  textScale: 5, // 文本类型billboard的缩放
   scaleByDistanceNear: 100,
   scaleByDistanceNearValue: 0.3,
   scaleByDistanceFar: 1000,

@@ -6,14 +6,12 @@ import {
   BILLBOARD_CONFIG,
   FOCUS_MARKER_CONFIG,
   IMAGE_CONFIG,
+  TEXT_CONFIG,
 } from "./config.js";
 import { getViewer, flyTo } from "./viewerManager.js";
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
-let textOverlays = []; // 存储文本HTML元素
-let overlayContainer = null; // HTML容器
-let preRenderListener = null; // preRender事件监听器
 let imageCache = new Map(); // 缓存加载的图片
 
 /**
@@ -30,23 +28,9 @@ export function displayAssets(assets) {
   // 清除之前的 billboards
   clearAssetBillboards();
 
-  // 创建HTML容器（如果不存在）
-  if (!overlayContainer) {
-    overlayContainer = document.createElement("div");
-    overlayContainer.id = "cesium-text-overlay";
-    overlayContainer.style.position = "absolute";
-    overlayContainer.style.top = "0";
-    overlayContainer.style.left = "0";
-    overlayContainer.style.pointerEvents = "none";
-    overlayContainer.style.zIndex = "1000";
-    overlayContainer.style.width = "100%";
-    overlayContainer.style.height = "100%";
-    viewer.container.appendChild(overlayContainer);
-  }
-
   console.log(`显示 ${assets.length} 个 assets`);
 
-  // 为每个有坐标的 asset 添加 billboard 或 text overlay
+  // 为每个有坐标的 asset 添加 billboard
   assets.forEach((asset) => {
     const { longitude, latitude, height } = asset.metadata;
 
@@ -55,88 +39,41 @@ export function displayAssets(assets) {
         `处理资产: ${asset.id}, 类型: ${asset.file_type}, 文本: ${asset.text_content}, URL: ${asset.file_url}`
       );
 
-      if (asset.file_type === "text" && asset.text_content) {
-        createTextOverlay(asset, longitude, latitude, height);
-      } else {
-        createImageBillboard(asset, longitude, latitude, height);
-      }
+      createBillboard(asset, longitude, latitude, height);
     }
   });
-
-  // 设置preRender监听器来更新文本位置
-  if (textOverlays.length > 0 && !preRenderListener) {
-    console.log(`设置preRender监听器，文本覆盖层数量: ${textOverlays.length}`);
-    preRenderListener = viewer.scene.preRender.addEventListener(() => {
-      updateTextOverlayPositions(viewer);
-    });
-  }
 }
 
 /**
- * 创建文本覆盖层
+ * 创建Billboard
  * @param {Object} asset - 资产对象
  * @param {number} longitude - 经度
  * @param {number} latitude - 纬度
  * @param {number} height - 高度
  */
-function createTextOverlay(asset, longitude, latitude, height) {
-  console.log(
-    `创建文本覆盖层: "${asset.text_content}" at (${longitude}, ${latitude})`
-  );
-
-  const textDiv = document.createElement("div");
-  textDiv.textContent = asset.text_content;
-  textDiv.style.position = "absolute";
-  textDiv.style.display = "inline-block";
-  textDiv.style.maxWidth = "150px";
-  textDiv.style.fontSize = "8px";
-  textDiv.style.fontWeight = "400";
-  textDiv.style.color = "#d1d5db";
-  textDiv.style.backgroundColor = "rgba(0, 0, 0, 0.6)";
-  textDiv.style.backdropFilter = "blur(8px)";
-  textDiv.style.webkitBackdropFilter = "blur(8px)";
-  textDiv.style.padding = "8px 12px";
-  textDiv.style.borderRadius = "6px";
-  textDiv.style.textAlign = "left";
-  textDiv.style.overflow = "hidden";
-  textDiv.style.textOverflow = "ellipsis";
-  textDiv.style.whiteSpace = "nowrap";
-  textDiv.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
-  textDiv.style.transform = "translate(-50%, -100%)";
-  textDiv.style.marginTop = "-10px";
-
-  overlayContainer.appendChild(textDiv);
-
-  console.log(
-    `文本div已添加到容器，容器子元素数: ${overlayContainer.children.length}`
-  );
-
-  textOverlays.push({
-    div: textDiv,
-    position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
-    scratch: new Cesium.Cartesian2(),
-    assetId: asset.id,
-  });
-}
-
-/**
- * 创建图片Billboard
- * @param {Object} asset - 资产对象
- * @param {number} longitude - 经度
- * @param {number} latitude - 纬度
- * @param {number} height - 高度
- */
-function createImageBillboard(asset, longitude, latitude, height) {
+function createBillboard(asset, longitude, latitude, height) {
   const viewer = getViewer();
   if (!viewer) return;
 
-  const billboardImage = getBillboardImage(asset.file_type, asset.file_url);
+  const billboardImage = getBillboardImage(
+    asset.file_type,
+    asset.file_url,
+    asset.text_content
+  );
+
+  // 根据文件类型选择合适的scale
+  let scale = BILLBOARD_CONFIG.scale;
+  if (asset.file_type === "image" && asset.file_url) {
+    scale = BILLBOARD_CONFIG.imageScale;
+  } else if (asset.file_type === "text") {
+    scale = BILLBOARD_CONFIG.textScale;
+  }
 
   const entity = viewer.entities.add({
     position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
     billboard: {
       image: billboardImage,
-      scale: BILLBOARD_CONFIG.scale,
+      scale: scale,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
       scaleByDistance: new Cesium.NearFarScalar(
@@ -146,7 +83,6 @@ function createImageBillboard(asset, longitude, latitude, height) {
         BILLBOARD_CONFIG.scaleByDistanceFarValue
       ),
       sizeInMeters: false,
-      // 添加这些属性来改善图片渲染
       pixelOffsetScaleByDistance: undefined,
       imageSubRegion: undefined,
     },
@@ -159,10 +95,7 @@ function createImageBillboard(asset, longitude, latitude, height) {
 
   assetBillboards.push(entity);
 
-  // 添加调试信息
-  console.log(
-    `创建billboard: ${asset.id}, 图片: ${asset.file_url ? "外部URL" : "Canvas"}`
-  );
+  console.log(`创建billboard: ${asset.id}, 类型: ${asset.file_type}`);
 }
 
 /**
@@ -177,62 +110,22 @@ export function clearAssetBillboards() {
   });
   assetBillboards = [];
 
-  // 清除文本覆盖层
-  textOverlays.forEach((overlay) => {
-    if (overlay.div.parentNode) {
-      overlay.div.parentNode.removeChild(overlay.div);
-    }
-  });
-  textOverlays = [];
-
-  // 移除preRender监听器
-  if (preRenderListener) {
-    preRenderListener();
-    preRenderListener = null;
-  }
-
-  // 注意：不清除imageCache，以便重复使用已加载的图片
   console.log(`已清除billboards，图片缓存保留: ${imageCache.size} 个`);
-}
-
-/**
- * 更新文本覆盖层的屏幕位置
- */
-function updateTextOverlayPositions(viewer) {
-  textOverlays.forEach((overlay, index) => {
-    const canvasPosition = viewer.scene.cartesianToCanvasCoordinates(
-      overlay.position,
-      overlay.scratch
-    );
-
-    if (Cesium.defined(canvasPosition)) {
-      overlay.div.style.left = `${canvasPosition.x}px`;
-      overlay.div.style.top = `${canvasPosition.y}px`;
-      overlay.div.style.display = "block";
-
-      // 只在第一次更新时打印
-      if (!overlay.positioned) {
-        console.log(
-          `文本 #${index} 位置更新: (${canvasPosition.x.toFixed(
-            0
-          )}, ${canvasPosition.y.toFixed(0)})`
-        );
-        overlay.positioned = true;
-      }
-    } else {
-      // 位置不可见时隐藏
-      overlay.div.style.display = "none";
-    }
-  });
 }
 
 /**
  * 根据文件类型返回对应的 billboard 图标
  * @param {string} fileType - 文件类型
  * @param {string} fileUrl - 文件URL
+ * @param {string} textContent - 文本内容（当fileType为text时）
  * @returns {HTMLCanvasElement|Promise<HTMLCanvasElement>} - Canvas元素或Promise
  */
-function getBillboardImage(fileType, fileUrl) {
+function getBillboardImage(fileType, fileUrl, textContent) {
+  // 处理文本类型
+  if (fileType === "text" && textContent) {
+    return createTextCanvas(textContent);
+  }
+
   // 如果是图片类型且有 URL，预加载图片并绘制到canvas
   if (fileType === "image" && fileUrl) {
     console.log(`准备加载图片: ${fileUrl}`);
@@ -280,6 +173,8 @@ function getBillboardImage(fileType, fileUrl) {
         let width = img.width;
         let height = img.height;
 
+        console.log(`原始图片尺寸: ${width}x${height}`);
+
         // 如果图片超过最大尺寸，按比例缩放
         if (width > IMAGE_CONFIG.maxWidth || height > IMAGE_CONFIG.maxHeight) {
           const ratio = Math.min(
@@ -289,8 +184,12 @@ function getBillboardImage(fileType, fileUrl) {
           width = Math.floor(width * ratio);
           height = Math.floor(height * ratio);
           console.log(
-            `图片缩放: ${img.width}x${img.height} -> ${width}x${height}`
+            `图片缩放: ${img.width}x${
+              img.height
+            } -> ${width}x${height}, 比例: ${ratio.toFixed(3)}`
           );
+        } else {
+          console.log(`图片无需缩放: ${width}x${height}`);
         }
 
         // 设置canvas大小
@@ -314,6 +213,8 @@ function getBillboardImage(fileType, fileUrl) {
         console.error(`图片加载失败: ${fileUrl}`, error);
 
         // 加载失败时返回一个带错误标记的canvas
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
         canvas.width = BILLBOARD_CONFIG.iconSize;
         canvas.height = BILLBOARD_CONFIG.iconSize;
         ctx.fillStyle = "#ef4444"; // 红色表示错误
@@ -338,11 +239,97 @@ function getBillboardImage(fileType, fileUrl) {
     });
 
     // 直接返回promise，让Cesium处理加载状态
-    // Cesium原生支持Promise<Image>或Promise<Canvas>
     return promise;
   }
 
-  // 否则使用 Canvas 生成简单的图标
+  // 其他类型使用简单图标
+  return createIconCanvas(fileType);
+}
+
+/**
+ * 创建文本canvas
+ * @param {string} text - 文本内容
+ * @returns {HTMLCanvasElement} - Canvas元素
+ */
+function createTextCanvas(text) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  // 设置字体
+  const fontSize = TEXT_CONFIG.fontSize;
+  const lineHeight = fontSize * TEXT_CONFIG.lineHeight;
+  ctx.font = `${fontSize}px Arial`;
+
+  // 文本换行处理
+  const maxWidth = TEXT_CONFIG.maxWidth;
+  const padding = TEXT_CONFIG.padding;
+  const lines = wrapText(ctx, text, maxWidth - padding * 2);
+
+  // 计算canvas尺寸
+  const canvasWidth = maxWidth;
+  const canvasHeight = lines.length * lineHeight + padding * 2;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  // 绘制背景（带圆角）
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  roundRect(ctx, 0, 0, canvasWidth, canvasHeight, TEXT_CONFIG.borderRadius);
+  ctx.fill();
+
+  // 绘制文本（需要重新设置字体，因为canvas尺寸改变会重置样式）
+  ctx.font = `${fontSize}px Arial`;
+  ctx.fillStyle = "#d1d5db";
+  ctx.textBaseline = "top";
+
+  // 逐行绘制文本
+  lines.forEach((line, index) => {
+    ctx.fillText(line, padding, padding + index * lineHeight);
+  });
+
+  console.log(
+    `创建文本canvas: "${text}", 行数: ${lines.length}, 尺寸: ${canvas.width}x${canvas.height}`
+  );
+
+  return canvas;
+}
+
+/**
+ * 文本换行处理
+ * @param {CanvasRenderingContext2D} ctx - Canvas上下文
+ * @param {string} text - 文本内容
+ * @param {number} maxWidth - 最大宽度
+ * @returns {Array<string>} - 换行后的文本数组
+ */
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split("");
+  const lines = [];
+  let currentLine = "";
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = currentLine + words[i];
+    const metrics = ctx.measureText(testLine);
+
+    if (metrics.width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = words[i];
+    } else {
+      currentLine = testLine;
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  return lines.length > 0 ? lines : [text];
+}
+
+/**
+ * 创建图标canvas
+ * @param {string} fileType - 文件类型
+ * @returns {HTMLCanvasElement} - Canvas元素
+ */
+function createIconCanvas(fileType) {
   const canvas = document.createElement("canvas");
   canvas.width = BILLBOARD_CONFIG.iconSize;
   canvas.height = BILLBOARD_CONFIG.iconSize;
@@ -360,6 +347,29 @@ function getBillboardImage(fileType, fileUrl) {
   ctx.stroke();
 
   return canvas;
+}
+
+/**
+ * 绘制圆角矩形
+ * @param {CanvasRenderingContext2D} ctx - Canvas上下文
+ * @param {number} x - x坐标
+ * @param {number} y - y坐标
+ * @param {number} width - 宽度
+ * @param {number} height - 高度
+ * @param {number} radius - 圆角半径
+ */
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }
 
 /**
