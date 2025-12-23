@@ -9,6 +9,7 @@ import { Suspense } from "react";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { hasEnvVars } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { WorkspaceSelect } from "@/app/manage/components/WorkspaceSelect";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -46,6 +47,9 @@ export default function RootLayout({
               <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
                 <div className="flex gap-5 items-center font-semibold">
                   <Link href={"/"}>Sanlin Old Street</Link>
+                  <Suspense>
+                    <WorkspaceSelect />
+                  </Suspense>
                 </div>
                 <div className="flex items-center gap-2">
                   <LanguageSwitcher />

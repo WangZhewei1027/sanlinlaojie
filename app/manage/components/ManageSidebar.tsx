@@ -1,38 +1,19 @@
 import { Card } from "@/components/ui/card";
 import { UploadAssetPanel } from "./upload/upload-asset-panel";
-import { WorkspaceSelect } from "./WorkspaceSelect";
 import { ClickedLocationCard } from "./ClickedLocationCard";
 import { AssetManager } from "./AssetManager";
-import type { Workspace, LocationData, Asset } from "../types";
+import type { LocationData, Asset } from "../types";
 
 interface ManageSidebarProps {
-  workspaces: Workspace[];
-  selectedWorkspaceId: string | null;
-  selectedWorkspace: Workspace | undefined;
-  onWorkspaceChange: (workspaceId: string) => void;
-  loading: boolean;
   clickedLocation: LocationData | null;
   onUpload: () => void;
-  assets: Asset[];
-  assetsLoading: boolean;
   onFocusAsset: (asset: Asset) => void;
-  onUpdateAsset: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
-  onDeleteAsset: (assetId: string) => Promise<void>;
 }
 
 export function ManageSidebar({
-  workspaces,
-  selectedWorkspaceId,
-  selectedWorkspace,
-  onWorkspaceChange,
-  loading,
   clickedLocation,
   onUpload,
-  assets,
-  assetsLoading,
   onFocusAsset,
-  onUpdateAsset,
-  onDeleteAsset,
 }: ManageSidebarProps) {
   return (
     <div className="h-full w-full overflow-hidden bg-background">
@@ -46,43 +27,11 @@ export function ManageSidebar({
             </p>
           </div>
 
-          {/* Workspace 选择器 */}
-          <WorkspaceSelect
-            workspaces={workspaces}
-            selectedWorkspaceId={selectedWorkspaceId}
-            selectedWorkspace={selectedWorkspace}
-            onWorkspaceChange={onWorkspaceChange}
-            loading={loading}
-          />
-
-          {/* 上传面板 */}
-          {selectedWorkspaceId ? (
-            <UploadAssetPanel
-              workspaceId={selectedWorkspaceId}
-              location={clickedLocation}
-              onUpload={onUpload}
-            />
-          ) : (
-            <Card className="p-4">
-              <p className="text-sm text-muted-foreground text-center">
-                请先选择工作空间
-              </p>
-            </Card>
-          )}
-
           {/* 点击位置卡片 */}
           <ClickedLocationCard clickedLocation={clickedLocation} />
 
           {/* 资产管理器 */}
-          {selectedWorkspaceId && (
-            <AssetManager
-              assets={assets}
-              loading={assetsLoading}
-              onFocusAsset={onFocusAsset}
-              onUpdateAsset={onUpdateAsset}
-              onDeleteAsset={onDeleteAsset}
-            />
-          )}
+          <AssetManager onFocusAsset={onFocusAsset} />
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
-import { Label } from "@/components/ui/label";
+"use client";
+
 import {
   Select,
   SelectContent,
@@ -6,47 +7,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Workspace } from "../types";
+import { useManageStore } from "../store";
 
-interface WorkspaceSelectProps {
-  workspaces: Workspace[];
-  selectedWorkspaceId: string | null;
-  selectedWorkspace: Workspace | undefined;
-  onWorkspaceChange: (workspaceId: string) => void;
-  loading: boolean;
-}
+export function WorkspaceSelect() {
+  const workspaces = useManageStore((state) => state.workspaces);
+  const selectedWorkspaceId = useManageStore(
+    (state) => state.selectedWorkspaceId
+  );
+  const selectedWorkspace = useManageStore((state) => state.selectedWorkspace);
+  const setSelectedWorkspaceId = useManageStore(
+    (state) => state.setSelectedWorkspaceId
+  );
+  const setSelectedWorkspace = useManageStore(
+    (state) => state.setSelectedWorkspace
+  );
+  const loading = useManageStore((state) => state.workspaceLoading);
 
-export function WorkspaceSelect({
-  workspaces,
-  selectedWorkspaceId,
-  selectedWorkspace,
-  onWorkspaceChange,
-  loading,
-}: WorkspaceSelectProps) {
+  const handleChange = (workspaceId: string) => {
+    setSelectedWorkspaceId(workspaceId);
+    const workspace = workspaces.find((w) => w.id === workspaceId);
+    setSelectedWorkspace(workspace || null);
+  };
+
+  if (workspaces.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="space-y-2">
-      <Label htmlFor="workspace">工作空间</Label>
-      <Select
-        value={selectedWorkspaceId || undefined}
-        onValueChange={onWorkspaceChange}
-        disabled={loading}
-      >
-        <SelectTrigger id="workspace">
-          <SelectValue placeholder="选择工作空间..." />
-        </SelectTrigger>
-        <SelectContent>
-          {workspaces.map((workspace) => (
-            <SelectItem key={workspace.id} value={workspace.id}>
-              {workspace.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {selectedWorkspace && (
-        <p className="text-xs text-muted-foreground">
-          当前工作空间: {selectedWorkspace.name}
-        </p>
-      )}
-    </div>
+    <Select
+      value={selectedWorkspaceId || undefined}
+      onValueChange={handleChange}
+      disabled={loading}
+    >
+      <SelectTrigger className="w-[200px]">
+        <SelectValue placeholder="选择工作空间..." />
+      </SelectTrigger>
+      <SelectContent>
+        {workspaces.map((workspace) => (
+          <SelectItem key={workspace.id} value={workspace.id}>
+            {workspace.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
