@@ -1,14 +1,9 @@
 import { MapPin } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import type { LocationData } from "../types";
+import { useManageStore } from "../store";
 
-interface ClickedLocationCardProps {
-  clickedLocation: LocationData | null;
-}
-
-export function ClickedLocationCard({
-  clickedLocation,
-}: ClickedLocationCardProps) {
+export function ClickedLocationCard() {
+  const clickedLocation = useManageStore((state) => state.clickedLocation);
   return (
     <Card className="p-4">
       <div className="space-y-3">

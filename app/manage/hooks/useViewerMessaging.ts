@@ -1,5 +1,6 @@
-import { useState, useEffect, RefObject } from "react";
+import { useEffect, RefObject } from "react";
 import type { Asset, LocationData, ViewerMessage } from "../types";
+import { useManageStore } from "../store";
 
 interface UseViewerMessagingProps {
   assets: Asset[];
@@ -10,8 +11,8 @@ export function useViewerMessaging({
   assets,
   iframeRef,
 }: UseViewerMessagingProps) {
-  const [clickedLocation, setClickedLocation] = useState<LocationData | null>(
-    null
+  const setClickedLocation = useManageStore(
+    (state) => state.setClickedLocation
   );
 
   // 发送 assets 数据到 viewer iframe
@@ -61,7 +62,7 @@ export function useViewerMessaging({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [setClickedLocation]);
 
   // 发送聚焦资产消息到 viewer
   const focusAsset = (asset: Asset) => {
@@ -85,7 +86,6 @@ export function useViewerMessaging({
   };
 
   return {
-    clickedLocation,
     focusAsset,
   };
 }

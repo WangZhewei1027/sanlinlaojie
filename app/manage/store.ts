@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { Asset, Workspace } from "./types";
+import type { Asset, Workspace, LocationData } from "./types";
 
 interface ManageStore {
   // Workspace state
@@ -22,9 +22,9 @@ interface ManageStore {
   deleteAsset: (id: string) => void;
 
   // Viewer state
-  clickedLocation: { lat: number; lng: number } | null;
+  clickedLocation: LocationData | null;
   focusedAssetId: string | null;
-  setClickedLocation: (location: { lat: number; lng: number } | null) => void;
+  setClickedLocation: (location: LocationData | null) => void;
   setFocusedAssetId: (id: string | null) => void;
 }
 

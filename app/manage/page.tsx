@@ -7,6 +7,7 @@ import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { useManageStore } from "./store";
 import { ViewerFrame } from "./components/ViewerFrame";
 import { ManageSidebar } from "./components/ManageSidebar";
+import { AssetManager } from "./components/AssetManager";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -19,15 +20,21 @@ export default function ManagePage() {
     workspaces,
     selectedWorkspaceId,
     selectedWorkspace,
-    setSelectedWorkspaceId,
+    setSelectedWorkspaceId: _setSelectedWorkspaceId,
     loading,
   } = useWorkspace();
 
   // 同步数据到 zustand store
   const setStoreWorkspaces = useManageStore((state) => state.setWorkspaces);
-  const setStoreSelectedWorkspaceId = useManageStore((state) => state.setSelectedWorkspaceId);
-  const setStoreSelectedWorkspace = useManageStore((state) => state.setSelectedWorkspace);
-  const setStoreWorkspaceLoading = useManageStore((state) => state.setWorkspaceLoading);
+  const setStoreSelectedWorkspaceId = useManageStore(
+    (state) => state.setSelectedWorkspaceId
+  );
+  const setStoreSelectedWorkspace = useManageStore(
+    (state) => state.setSelectedWorkspace
+  );
+  const setStoreWorkspaceLoading = useManageStore(
+    (state) => state.setWorkspaceLoading
+  );
   const assets = useManageStore((state) => state.assets);
 
   // 同步 workspace 数据
@@ -47,7 +54,7 @@ export default function ManagePage() {
     setStoreWorkspaceLoading(loading);
   }, [loading, setStoreWorkspaceLoading]);
 
-  const { clickedLocation, focusAsset } = useViewerMessaging({
+  const { focusAsset } = useViewerMessaging({
     assets,
     iframeRef,
   });
@@ -55,8 +62,9 @@ export default function ManagePage() {
   // 网格布局配置
   const layouts: Partial<Record<string, Layout>> = {
     lg: [
-      { i: "viewer", x: 0, y: 0, w: 8, h: 12, minW: 4, minH: 12 },
-      { i: "sidebar", x: 8, y: 0, w: 4, h: 12, minW: 3, minH: 12 },
+      { i: "assetManager", x: 0, y: 0, w: 3, h: 12, minW: 2, minH: 12 },
+      { i: "viewer", x: 3, y: 0, w: 6, h: 12, minW: 4, minH: 12 },
+      { i: "sidebar", x: 9, y: 0, w: 3, h: 12, minW: 2, minH: 12 },
     ],
   };
 
@@ -82,6 +90,11 @@ export default function ManagePage() {
             enabled: false,
           }}
         >
+          {/* 资产管理器 */}
+          <div key="assetManager">
+            <AssetManager onFocusAsset={focusAsset} />
+          </div>
+
           {/* Viewer 面板 */}
           <div
             key="viewer"
@@ -91,15 +104,8 @@ export default function ManagePage() {
           </div>
 
           {/* Sidebar 面板 */}
-          <div
-            key="sidebar"
-            className="bg-background border rounded-lg overflow-hidden"
-          >
-            <ManageSidebar
-              clickedLocation={clickedLocation}
-              onUpload={() => console.log("上传成功")}
-              onFocusAsset={focusAsset}
-            />
+          <div key="sidebar" className="">
+            <ManageSidebar onUpload={() => console.log("上传成功")} />
           </div>
         </Responsive>
       )}

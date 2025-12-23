@@ -9,24 +9,21 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { FileUploadService } from "@/lib/upload/service";
-import { LocationData, UploadType } from "@/lib/upload/types";
+import { UploadType } from "@/lib/upload/types";
 import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
 import { useLocationSelection } from "@/lib/upload/hooks";
 import { LocationSelector } from "./location-selector";
 import { FileTypeSelector } from "./file-type-selector";
 import { FileDropzone } from "./file-dropzone";
+import { useManageStore } from "../../store";
 
 interface UploadAssetPanelProps {
-  location?: LocationData | null;
   onUpload?: () => void;
-  workspaceId: string;
 }
 
-export function UploadAssetPanel({
-  location,
-  onUpload,
-  workspaceId,
-}: UploadAssetPanelProps) {
+export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
+  const workspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  const clickedLocation = useManageStore((state) => state.clickedLocation);
   const router = useRouter();
   const uploadService = new FileUploadService();
 
@@ -39,13 +36,17 @@ export function UploadAssetPanel({
   const [error, setError] = useState<string | null>(null);
 
   // Location selection
-  const locationSelection = useLocationSelection(location);
+  const locationSelection = useLocationSelection(clickedLocation);
 
   const handleUpload = async () => {
     setError(null);
     setUploading(true);
 
     try {
+      if (!workspaceId) {
+        throw new Error("请先选择工作空间");
+      }
+
       const supabase = createClient();
       const {
         data: { user },
@@ -200,7 +201,7 @@ export function UploadAssetPanel({
 
         {/* 位置选择 */}
         <LocationSelector
-          clickedLocation={location}
+          clickedLocation={clickedLocation}
           locationSelection={locationSelection}
         />
 
