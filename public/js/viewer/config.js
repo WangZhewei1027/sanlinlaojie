@@ -42,6 +42,12 @@ export const VIEWER_CONFIG = {
   infoBox: false,
 };
 
+// Billboard 图片配置
+export const IMAGE_CONFIG = {
+  maxWidth: 1920, // 最大宽度（像素）
+  maxHeight: 1920, // 最大高度（像素）
+};
+
 // 相机配置
 export const CAMERA_CONFIG = {
   defaultPitch: -45, // 度

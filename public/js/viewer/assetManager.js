@@ -2,7 +2,11 @@
  * 资产管理模块
  */
 
-import { BILLBOARD_CONFIG, FOCUS_MARKER_CONFIG } from "./config.js";
+import {
+  BILLBOARD_CONFIG,
+  FOCUS_MARKER_CONFIG,
+  IMAGE_CONFIG,
+} from "./config.js";
 import { getViewer, flyTo } from "./viewerManager.js";
 
 let assetBillboards = []; // 存储 asset 标记
@@ -233,15 +237,26 @@ function getBillboardImage(fileType, fileUrl) {
   if (fileType === "image" && fileUrl) {
     console.log(`准备加载图片: ${fileUrl}`);
 
-    // 检查缓存
+    // 检查缓存 - 返回克隆的canvas而不是原始引用
     if (imageCache.has(fileUrl)) {
       console.log(`使用缓存的图片: ${fileUrl}`);
-      return imageCache.get(fileUrl);
-    }
+      const cachedCanvas = imageCache.get(fileUrl);
 
-    // 创建canvas来绘制图片
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+      // 验证缓存的 canvas 尺寸
+      if (!cachedCanvas.width || !cachedCanvas.height) {
+        console.warn(`缓存的 canvas 尺寸无效: ${fileUrl}`);
+        imageCache.delete(fileUrl);
+        // 继续执行加载逻辑
+      } else {
+        // 创建新的canvas并复制内容
+        const canvas = document.createElement("canvas");
+        canvas.width = cachedCanvas.width;
+        canvas.height = cachedCanvas.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(cachedCanvas, 0, 0);
+        return canvas;
+      }
+    }
 
     // 创建Image对象加载图片
     const img = new Image();
@@ -250,15 +265,43 @@ function getBillboardImage(fileType, fileUrl) {
     // 返回一个Promise，在图片加载完成后resolve
     const promise = new Promise((resolve, reject) => {
       img.onload = function () {
-        // 设置canvas大小为图片大小
-        canvas.width = img.width;
-        canvas.height = img.height;
+        // 验证图片尺寸
+        if (!img.width || !img.height) {
+          console.error(`图片尺寸无效: ${fileUrl}`);
+          reject(new Error("Invalid image dimensions"));
+          return;
+        }
 
-        // 绘制图片到canvas
-        ctx.drawImage(img, 0, 0);
+        // 创建canvas来绘制图片
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        // 计算缩放后的尺寸，限制最大尺寸
+        let width = img.width;
+        let height = img.height;
+
+        // 如果图片超过最大尺寸，按比例缩放
+        if (width > IMAGE_CONFIG.maxWidth || height > IMAGE_CONFIG.maxHeight) {
+          const ratio = Math.min(
+            IMAGE_CONFIG.maxWidth / width,
+            IMAGE_CONFIG.maxHeight / height
+          );
+          width = Math.floor(width * ratio);
+          height = Math.floor(height * ratio);
+          console.log(
+            `图片缩放: ${img.width}x${img.height} -> ${width}x${height}`
+          );
+        }
+
+        // 设置canvas大小
+        canvas.width = width;
+        canvas.height = height;
+
+        // 绘制图片到canvas（如果需要缩放）
+        ctx.drawImage(img, 0, 0, width, height);
 
         console.log(
-          `图片加载成功: ${fileUrl}, 尺寸: ${img.width}x${img.height}`
+          `图片加载成功: ${fileUrl}, 原始: ${img.width}x${img.height}, 使用: ${width}x${height}`
         );
 
         // 缓存canvas
@@ -294,18 +337,8 @@ function getBillboardImage(fileType, fileUrl) {
       img.src = fileUrl;
     });
 
-    // 先返回一个loading状态的canvas，同时缓存promise
-    const loadingCanvas = document.createElement("canvas");
-    loadingCanvas.width = BILLBOARD_CONFIG.iconSize;
-    loadingCanvas.height = BILLBOARD_CONFIG.iconSize;
-    const loadingCtx = loadingCanvas.getContext("2d");
-    loadingCtx.fillStyle = "#6b7280"; // 灰色表示加载中
-    loadingCtx.beginPath();
-    loadingCtx.arc(16, 16, 14, 0, Math.PI * 2);
-    loadingCtx.fill();
-
-    // 返回promise而不是loading canvas
-    // Cesium支持Promise<Image>或Promise<Canvas>
+    // 直接返回promise，让Cesium处理加载状态
+    // Cesium原生支持Promise<Image>或Promise<Canvas>
     return promise;
   }
 
