@@ -21,8 +21,6 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const loading = useManageStore((state) => state.assetsLoading);
   const setAssets = useManageStore((state) => state.setAssets);
   const setAssetsLoading = useManageStore((state) => state.setAssetsLoading);
-  const updateAssetInStore = useManageStore((state) => state.updateAsset);
-  const deleteAssetInStore = useManageStore((state) => state.deleteAsset);
 
   const fetchAssets = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -55,60 +53,6 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     fetchAssets();
   }, [fetchAssets]);
 
-  const handleUpdateAsset = useCallback(
-    async (assetId: string, updates: Partial<Asset>) => {
-      try {
-        const response = await fetch(`/api/assets/${assetId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updates),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "更新资源失败");
-        }
-
-        // 更新 store 中的状态
-        updateAssetInStore(assetId, result.data);
-
-        return result.data;
-      } catch (err) {
-        console.error("更新资源失败:", err);
-        throw err;
-      }
-    },
-    [updateAssetInStore]
-  );
-
-  const handleDeleteAsset = useCallback(
-    async (assetId: string) => {
-      try {
-        const response = await fetch(`/api/assets/${assetId}`, {
-          method: "DELETE",
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "删除资源失败");
-        }
-
-        // 从 store 中移除
-        deleteAssetInStore(assetId);
-
-        return result;
-      } catch (err) {
-        console.error("删除资源失败:", err);
-        throw err;
-      }
-    },
-    [deleteAssetInStore]
-  );
-
   if (loading) {
     return <LoadingState />;
   }
@@ -123,15 +67,64 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
       <div className="divide-y max-h-[600px] overflow-y-auto">
         {assets.map((asset) => (
-          <AssetCard
-            key={asset.id}
-            asset={asset}
-            onFocusAsset={onFocusAsset}
-            onUpdateAsset={handleUpdateAsset}
-            onDeleteAsset={handleDeleteAsset}
-          />
+          <AssetCard key={asset.id} asset={asset} onFocusAsset={onFocusAsset} />
         ))}
       </div>
     </Card>
   );
+}
+
+// 导出 API 方法供其他组件使用
+export function useAssetAPI() {
+  const updateAssetInStore = useManageStore((state) => state.updateAsset);
+  const deleteAssetInStore = useManageStore((state) => state.deleteAsset);
+
+  const handleUpdateAsset = async (
+    assetId: string,
+    updates: Partial<Asset>
+  ) => {
+    try {
+      const response = await fetch(`/api/assets/${assetId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "更新资源失败");
+      }
+
+      updateAssetInStore(assetId, result.data);
+      return result.data;
+    } catch (err) {
+      console.error("更新资源失败:", err);
+      throw err;
+    }
+  };
+
+  const handleDeleteAsset = async (assetId: string) => {
+    try {
+      const response = await fetch(`/api/assets/${assetId}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "删除资源失败");
+      }
+
+      deleteAssetInStore(assetId);
+      return result;
+    } catch (err) {
+      console.error("删除资源失败:", err);
+      throw err;
+    }
+  };
+
+  return { handleUpdateAsset, handleDeleteAsset };
 }

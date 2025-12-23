@@ -7,13 +7,14 @@ import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { useManageStore } from "./store";
 import { ViewerFrame } from "./components/ViewerFrame";
 import { ManageSidebar } from "./components/ManageSidebar";
-import { AssetManager } from "./components/AssetManager";
+import { AssetManager, useAssetAPI } from "./components/AssetManager";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 export default function ManagePage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { width, containerRef, mounted } = useContainerWidth();
+  const { handleUpdateAsset, handleDeleteAsset } = useAssetAPI();
 
   // 使用原有的 hooks 获取数据，但将状态存入 zustand
   const {
@@ -105,7 +106,11 @@ export default function ManagePage() {
 
           {/* Sidebar 面板 */}
           <div key="sidebar" className="">
-            <ManageSidebar onUpload={() => console.log("上传成功")} />
+            <ManageSidebar
+              onUpload={() => console.log("上传成功")}
+              onUpdateAsset={handleUpdateAsset}
+              onDeleteAsset={handleDeleteAsset}
+            />
           </div>
         </Responsive>
       )}

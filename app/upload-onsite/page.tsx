@@ -155,14 +155,6 @@ export default function UploadOnsitePage() {
           gpsLoading={gpsLoading}
         />
 
-        <WorkspaceSelect
-          workspaces={workspaces}
-          selectedWorkspaceId={selectedWorkspaceId}
-          selectedWorkspace={selectedWorkspace}
-          onWorkspaceChange={setSelectedWorkspaceId}
-          loading={workspaceLoading}
-        />
-
         <ModeSelector mode={mode} onModeChange={setMode} />
 
         {mode === "camera" && (

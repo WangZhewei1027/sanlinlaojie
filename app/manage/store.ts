@@ -24,8 +24,10 @@ interface ManageStore {
   // Viewer state
   clickedLocation: LocationData | null;
   focusedAssetId: string | null;
+  selectedAssetId: string | null;
   setClickedLocation: (location: LocationData | null) => void;
   setFocusedAssetId: (id: string | null) => void;
+  setSelectedAssetId: (id: string | null) => void;
 }
 
 export const useManageStore = create<ManageStore>()(
@@ -85,6 +87,7 @@ export const useManageStore = create<ManageStore>()(
       // Viewer state
       clickedLocation: null,
       focusedAssetId: null,
+      selectedAssetId: null,
       setClickedLocation: (location) =>
         set(
           { clickedLocation: location },
@@ -93,6 +96,8 @@ export const useManageStore = create<ManageStore>()(
         ),
       setFocusedAssetId: (id) =>
         set({ focusedAssetId: id }, undefined, "manage/setFocusedAssetId"),
+      setSelectedAssetId: (id) =>
+        set({ selectedAssetId: id }, undefined, "manage/setSelectedAssetId"),
     }),
     {
       name: "ManageStore",

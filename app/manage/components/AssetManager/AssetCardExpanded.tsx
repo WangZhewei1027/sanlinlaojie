@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Loader2 } from "lucide-react";
 import { AssetEditActions } from "./AssetEditActions";
-import { AssetTextEditor } from "./AssetTextEditor";
-import { AssetImagePreview } from "./AssetImagePreview";
-import { AssetLocationEditor } from "./AssetLocationEditor";
-import { AssetMetadata } from "./AssetMetadata";
+import { AssetTextEditor } from "../AssetEditor/AssetTextEditor";
+import { AssetImagePreview } from "../AssetEditor/AssetImagePreview";
+import { AssetLocationEditor } from "../AssetEditor/AssetLocationEditor";
+import { AssetMetadata } from "../AssetEditor/AssetMetadata";
 
 interface AssetCardExpandedProps {
   asset: Asset;
