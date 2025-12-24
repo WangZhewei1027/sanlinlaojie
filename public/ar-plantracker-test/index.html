@@ -33,10 +33,37 @@
         width: 100%;
         height: 100%;
       }
+
+      button {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 16px 32px;
+        font-size: 18px;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        z-index: 1000;
+        transition: all 0.3s ease;
+      }
+
+      #start-button {
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      #start-button:hover {
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+      }
     </style>
   </head>
   <body>
     <div id="app">
+      <button id="start-button">Start AR</button>
       <canvas id="ar-canvas"></canvas>
     </div>
 
@@ -46,18 +73,12 @@
     <!-- Zappar ThreeJS CDN -->
     <script src="https://libs.zappar.com/zappar-threejs/4.1.0/zappar-threejs.js"></script>
 
-    <!-- VConsole CDN -->
-    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-
-    <script>
-      new VConsole();
-    </script>
-
     <script>
       const canvas = document.querySelector("#ar-canvas");
+      const startButton = document.querySelector("#start-button");
 
-      if (!canvas) {
-        throw new Error("Canvas not found");
+      if (!canvas || !startButton) {
+        throw new Error("Canvas or start button not found");
       }
 
       // 1. 创建 Three.js renderer
@@ -79,57 +100,57 @@
       const scene = new THREE.Scene();
       scene.background = camera.backgroundTexture;
 
-      // 4. 创建 Instant World Tracker
-      const instantWorldTracker = new ZapparThree.InstantWorldTracker();
-      const instantWorldAnchorGroup = new ZapparThree.InstantWorldAnchorGroup(
+      // 4. 创建 World Tracker + 用户放置组
+      const worldTracker = new ZapparThree.WorldTracker();
+      const placementGroup = new ZapparThree.UserPlacementAnchorGroup(
         camera,
-        instantWorldTracker
+        worldTracker,
+        renderer
       );
-      scene.add(instantWorldAnchorGroup);
+      placementGroup.placeOnGround = true; // 允许基于地面的放置
+      placementGroup.placeButtonText = "Place";
+      scene.add(placementGroup);
 
-      function spawnCube() {
-        const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-        const material = new THREE.MeshNormalMaterial();
-        const cube = new THREE.Mesh(geometry, material);
-
-        const x = (Math.random() - 0.5) * 2;
-        const z = (Math.random() - 0.5) * 2;
-
-        cube.position.set(x, 0.15, z);
-        instantWorldAnchorGroup.add(cube);
-      }
-
-      setInterval(spawnCube, 2000);
+      // 5. 放置一个简单的彩色方块
+      const cubeGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+      const cubeMaterial = new THREE.MeshNormalMaterial();
+      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube.position.set(0, 0.3, 0); // 稍微抬高，避免与平面重合
+      placementGroup.add(cube);
 
       // 6. 窗口 resize 时更新画布大小
       window.addEventListener("resize", () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
-      // 7. 自动启动 AR
-      ZapparThree.permissionRequestUI().then((granted) => {
-        if (granted) {
-          // 开始使用摄像头
-          camera.start();
-          // 开始渲染循环
-          animate();
-        } else {
-          // 如果拒绝，就显示 Zappar 提供的默认提示 UI
-          ZapparThree.permissionDeniedUI();
-        }
+      // 7. 启动 AR：需要用户点击按钮 → 请求摄像头权限
+      startButton.addEventListener("click", () => {
+        ZapparThree.permissionRequestUI().then((granted) => {
+          if (granted) {
+            // 开始使用摄像头
+            camera.start();
+
+            // 开启放置模式，让用户在平面上放置内容
+            placementGroup.placementMode = true;
+
+            // 隐藏开始按钮
+            startButton.style.display = "none";
+
+            // 开始渲染循环
+            animate();
+          } else {
+            // 如果拒绝，就显示 Zappar 提供的默认提示 UI
+            ZapparThree.permissionDeniedUI();
+          }
+        });
       });
 
       // 7. 渲染循环
       function animate() {
         requestAnimationFrame(animate);
 
-        // 始终更新官方提示 UI
-        // worldTrackerUI.update();
-
-        // 让所有方块转动，方便观察定位
-        instantWorldAnchorGroup.children.forEach((cube) => {
-          cube.rotation.y += 0.01;
-        });
+        // 让方块转动，方便观察定位
+        cube.rotation.y += 0.01;
 
         // 更新相机的帧（把最新摄像头画面塞进背景纹理）
         camera.updateFrame(renderer);

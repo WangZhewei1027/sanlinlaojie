@@ -62,7 +62,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   }
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <AssetListHeader totalCount={assets.length} />
 
       <div className="divide-y max-h-[600px] overflow-y-auto">
