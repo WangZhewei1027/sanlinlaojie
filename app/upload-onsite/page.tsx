@@ -10,9 +10,8 @@ import { ModeSelector } from "./components/ModeSelector";
 import { CameraUpload } from "./components/CameraUpload";
 import { TextUpload } from "./components/TextUpload";
 import { StatusMessages } from "./components/StatusMessages";
-import { WorkspaceSelect } from "../manage/components/WorkspaceSelect";
 import { useGPS } from "./hooks/useGPS";
-import { useWorkspace } from "@/hooks/useWorkspace";
+import { useManageStore } from "../manage/store";
 
 type UploadMode = "camera" | "text";
 
@@ -20,14 +19,11 @@ export default function UploadOnsitePage() {
   const { t } = useTranslation();
   const uploadService = new FileUploadService();
   const { gpsPosition, gpsError, gpsLoading } = useGPS();
-  const {
-    workspaces,
-    selectedWorkspaceId,
-    selectedWorkspace,
-    setSelectedWorkspaceId,
-    loading: workspaceLoading,
-    error: workspaceError,
-  } = useWorkspace();
+
+  // 从 store 获取 workspace 信息
+  const selectedWorkspaceId = useManageStore(
+    (state) => state.selectedWorkspaceId
+  );
 
   const [mode, setMode] = useState<UploadMode>("camera");
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +147,7 @@ export default function UploadOnsitePage() {
 
         <GPSStatusCard
           gpsPosition={gpsPosition}
-          gpsError={gpsError || workspaceError}
+          gpsError={gpsError}
           gpsLoading={gpsLoading}
         />
 

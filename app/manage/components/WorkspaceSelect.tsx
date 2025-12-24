@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -8,8 +9,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useManageStore } from "../store";
+import { WORKSPACE_ROUTES } from "./WorkspaceProvider";
 
 export function WorkspaceSelect() {
+  const pathname = usePathname();
   const workspaces = useManageStore((state) => state.workspaces);
   const selectedWorkspaceId = useManageStore(
     (state) => state.selectedWorkspaceId
@@ -23,13 +26,18 @@ export function WorkspaceSelect() {
   );
   const loading = useManageStore((state) => state.workspaceLoading);
 
+  // 检查当前路由是否需要显示 WorkspaceSelect
+  const shouldShow = WORKSPACE_ROUTES.some((route) =>
+    pathname.startsWith(route)
+  );
+
   const handleChange = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);
     const workspace = workspaces.find((w) => w.id === workspaceId);
     setSelectedWorkspace(workspace || null);
   };
 
-  if (workspaces.length === 0) {
+  if (!shouldShow || workspaces.length === 0) {
     return null;
   }
 
