@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { FileUploadService } from "@/lib/upload/service";
@@ -141,92 +147,108 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const isFileType = !["link", "text"].includes(uploadType);
 
   return (
-    <Card className="p-4">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Upload className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-semibold text-sm">上传资源</h3>
-        </div>
+    <Card className="p-0">
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue="upload"
+        className="w-full"
+      >
+        <AccordionItem value="upload" className="border-none">
+          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold text-sm">上传资源</h3>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4">
+            <div className="space-y-4">
+              {/* 文件类型选择 */}
+              <FileTypeSelector
+                selectedType={uploadType}
+                onTypeChange={setUploadType}
+              />
 
-        {/* 文件类型选择 */}
-        <FileTypeSelector
-          selectedType={uploadType}
-          onTypeChange={setUploadType}
-        />
+              {/* 文件上传 */}
+              {isFileType && (
+                <FileDropzone
+                  file={file}
+                  onFileSelect={processSelectedFile}
+                  onFileRemove={handleFileRemove}
+                  accept={FILE_TYPE_CONFIGS[uploadType].accept}
+                  label={`选择${FILE_TYPE_CONFIGS[uploadType].label}`}
+                  disabled={uploading}
+                />
+              )}
 
-        {/* 文件上传 */}
-        {isFileType && (
-          <FileDropzone
-            file={file}
-            onFileSelect={processSelectedFile}
-            onFileRemove={handleFileRemove}
-            accept={FILE_TYPE_CONFIGS[uploadType].accept}
-            label={`选择${FILE_TYPE_CONFIGS[uploadType].label}`}
-            disabled={uploading}
-          />
-        )}
+              {/* 链接输入 */}
+              {uploadType === "link" && (
+                <div className="space-y-2">
+                  <Label htmlFor="link" className="text-xs">
+                    链接地址
+                  </Label>
+                  <Input
+                    id="link"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={link}
+                    onChange={(e) => setLink(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              )}
 
-        {/* 链接输入 */}
-        {uploadType === "link" && (
-          <div className="space-y-2">
-            <Label htmlFor="link" className="text-xs">
-              链接地址
-            </Label>
-            <Input
-              id="link"
-              type="url"
-              placeholder="https://example.com"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              className="text-xs"
-            />
-          </div>
-        )}
+              {/* 文本输入 */}
+              {uploadType === "text" && (
+                <div className="space-y-2">
+                  <Label htmlFor="text" className="text-xs">
+                    文本内容
+                  </Label>
+                  <textarea
+                    id="text"
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="输入文本内容..."
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                  />
+                </div>
+              )}
 
-        {/* 文本输入 */}
-        {uploadType === "text" && (
-          <div className="space-y-2">
-            <Label htmlFor="text" className="text-xs">
-              文本内容
-            </Label>
-            <textarea
-              id="text"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="输入文本内容..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-          </div>
-        )}
+              {/* 位置选择 */}
+              <LocationSelector
+                clickedLocation={clickedLocation}
+                locationSelection={locationSelection}
+              />
 
-        {/* 位置选择 */}
-        <LocationSelector
-          clickedLocation={clickedLocation}
-          locationSelection={locationSelection}
-        />
+              {/* 错误提示 */}
+              {error && (
+                <div className="p-2 bg-destructive/10 border border-destructive rounded-md">
+                  <p className="text-xs text-destructive">{error}</p>
+                </div>
+              )}
 
-        {/* 错误提示 */}
-        {error && (
-          <div className="p-2 bg-destructive/10 border border-destructive rounded-md">
-            <p className="text-xs text-destructive">{error}</p>
-          </div>
-        )}
-
-        {/* 上传按钮 */}
-        <Button onClick={handleUpload} disabled={uploading} className="w-full">
-          {uploading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              上传中...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              上传
-            </>
-          )}
-        </Button>
-      </div>
+              {/* 上传按钮 */}
+              <Button
+                onClick={handleUpload}
+                disabled={uploading}
+                className="w-full"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    上传中...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    上传
+                  </>
+                )}
+              </Button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
   );
 }
