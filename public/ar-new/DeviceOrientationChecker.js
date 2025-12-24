@@ -118,4 +118,15 @@ class DeviceOrientationChecker {
   isPlaced() {
     return this.hasPlaced;
   }
+
+  /**
+   * 重置状态，重新开始检测流程
+   */
+  reset() {
+    console.log("🔄 Resetting orientation checker...");
+    this.hasPlaced = false;
+    this.orientationStableStartTime = null;
+    this.statusIndicator.textContent = "保持手机竖直...";
+    this.statusIndicator.classList.remove("hidden");
+  }
 }

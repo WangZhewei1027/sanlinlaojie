@@ -53,12 +53,36 @@
       #status-indicator.hidden {
         opacity: 0;
       }
+
+      #reset-button {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 32px;
+        font-size: 16px;
+        font-weight: 600;
+        border: none;
+        border-radius: 25px;
+        z-index: 1000;
+        background: rgba(255, 59, 48, 0.9);
+        color: white;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      #reset-button:active {
+        transform: translateX(-50%) scale(0.95);
+        background: rgba(255, 59, 48, 1);
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <canvas id="ar-canvas"></canvas>
       <div id="status-indicator">保持手机竖直...</div>
+      <button id="reset-button">🔄 刷新素材</button>
     </div>
 
     <!-- Three.js CDN -->
@@ -104,9 +128,10 @@
 
       const canvas = document.querySelector("#ar-canvas");
       const statusIndicator = document.querySelector("#status-indicator");
+      const resetButton = document.querySelector("#reset-button");
 
-      if (!canvas || !statusIndicator) {
-        throw new Error("Canvas or status indicator not found");
+      if (!canvas || !statusIndicator || !resetButton) {
+        throw new Error("Canvas, status indicator, or reset button not found");
       }
 
       // 1. 创建 Three.js renderer
@@ -139,6 +164,38 @@
       // 5. 创建 AR 内容组件
       const arContent = new ARContent();
       instantWorldAnchorGroup.add(arContent.getObject3D());
+
+      // 5.1 绑定Reset按钮
+      resetButton.addEventListener("click", () => {
+        console.log("🔄 Manual refresh triggered");
+        resetButton.textContent = "⏳ 重置中...";
+        resetButton.disabled = true;
+
+        // 重置方向检测器，重新开始检测流程
+        orientationChecker.reset();
+
+        // 设置回调：在放置完成后更新素材
+        orientationChecker.onPlaced(() => {
+          console.log("📍 Placement completed, now updating assets...");
+          arContent
+            .updateAssets()
+            .then(() => {
+              resetButton.textContent = "✅ 已刷新";
+              setTimeout(() => {
+                resetButton.textContent = "🔄 刷新素材";
+                resetButton.disabled = false;
+              }, 1500);
+            })
+            .catch((error) => {
+              console.error("❌ Refresh failed:", error);
+              resetButton.textContent = "❌ 刷新失败";
+              setTimeout(() => {
+                resetButton.textContent = "🔄 刷新素材";
+                resetButton.disabled = false;
+              }, 1500);
+            });
+        });
+      });
 
       // 6. 创建设备方向检测器
       const orientationChecker = new DeviceOrientationChecker(statusIndicator);
