@@ -65,3 +65,24 @@ When it comes to database schema, or API, follow these guidelines:
 If data structure changed, use supabase mcp to get the latest schema.
 
 Else, use the schema in context.
+
+## When translating components, use i18n keys as shown below:
+
+Only translate to Chinese and English.
+
+```tsx
+"use client";
+
+import { useTranslation } from "react-i18next";
+
+export function WorkspaceSelect() {
+  const { t } = useTranslation();
+
+  return (
+    <div>
+      <h2>{t("workspace.select")}</h2>
+      <button>{t("workspace.create")}</button>
+    </div>
+  );
+}
+```

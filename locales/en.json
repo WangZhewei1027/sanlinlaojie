@@ -62,5 +62,14 @@
     "missingInfo": "Missing required information",
     "cameraError": "Unable to access camera:",
     "cameraPrompt": "open camera"
+  },
+  "manage": {
+    "clickedLocation": {
+      "title": "Clicked Location",
+      "longitude": "Lon",
+      "latitude": "Lat",
+      "height": "Alt",
+      "prompt": "Click on the map to view coordinates..."
+    }
   }
 }

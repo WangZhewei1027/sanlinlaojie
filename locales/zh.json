@@ -62,5 +62,14 @@
     "missingInfo": "缺少必要信息",
     "cameraError": "无法访问相机：",
     "cameraPrompt": "打开相机"
+  },
+  "manage": {
+    "clickedLocation": {
+      "title": "点击位置",
+      "longitude": "经",
+      "latitude": "纬",
+      "height": "高",
+      "prompt": "点击地图查看坐标..."
+    }
   }
 }
