@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
-import { UploadFile, UploadResult, LocationData, GPSSource } from "./types";
+import {
+  UploadFile,
+  UploadResult,
+  LocationData,
+  GPSSource,
+  AnchorData,
+} from "./types";
 import { FILE_TYPE_CONFIGS, inferUploadType, validateFileSize } from "./config";
 
 /**
@@ -190,6 +196,36 @@ export class FileUploadService {
         longitude: location?.longitude,
         latitude: location?.latitude,
         height: location?.height,
+        upload_time: new Date().toISOString(),
+      },
+    });
+
+    if (error) throw error;
+  }
+
+  /**
+   * 保存锚点
+   * 锚点必须有位置信息，可选文本内容
+   */
+  async saveAnchor(
+    workspaceId: string,
+    userId: string,
+    anchorData: AnchorData
+  ): Promise<void> {
+    const { name, location, text } = anchorData;
+    const geometry = `POINT(${location.longitude} ${location.latitude})`;
+
+    const { error } = await this.supabase.from("asset").insert({
+      workspace_id: [workspaceId],
+      created_by: userId,
+      name: name,
+      file_type: "anchor",
+      text_content: text || null,
+      location: geometry,
+      metadata: {
+        longitude: location.longitude,
+        latitude: location.latitude,
+        height: location.height,
         upload_time: new Date().toISOString(),
       },
     });

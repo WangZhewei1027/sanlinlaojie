@@ -18,6 +18,8 @@ import { AssetTextEditor } from "./AssetTextEditor";
 import { AssetImagePreview } from "./AssetImagePreview";
 import { AssetLocationEditor } from "./AssetLocationEditor";
 import { AssetMetadata } from "./AssetMetadata";
+import { AssetNameEditor } from "./AssetNameEditor";
+import { AnchorSelector } from "./AnchorSelector";
 
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
@@ -29,6 +31,9 @@ export function AssetEditor({
   onDeleteAsset,
 }: AssetEditorProps) {
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
+  const selectedWorkspaceId = useManageStore(
+    (state) => state.selectedWorkspaceId
+  );
   const assets = useManageStore((state) => state.assets);
   const setSelectedAssetId = useManageStore(
     (state) => state.setSelectedAssetId
@@ -39,7 +44,9 @@ export function AssetEditor({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editedData, setEditedData] = useState({
+    name: "",
     text_content: "",
+    anchor_id: null as string | null,
     longitude: "",
     latitude: "",
     height: "",
@@ -52,7 +59,9 @@ export function AssetEditor({
   useEffect(() => {
     if (selectedAsset) {
       setEditedData({
+        name: selectedAsset.name || "",
         text_content: selectedAsset.text_content || "",
+        anchor_id: selectedAsset.anchor_id || null,
         longitude: selectedAsset.metadata.longitude?.toString() || "",
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
@@ -82,6 +91,16 @@ export function AssetEditor({
         updates.text_content = editedData.text_content;
       }
 
+      if (selectedAsset.file_type === "anchor") {
+        updates.name = editedData.name;
+        updates.text_content = editedData.text_content;
+      }
+
+      // 对于非 anchor 类型，更新 anchor_id
+      if (selectedAsset.file_type !== "anchor") {
+        updates.anchor_id = editedData.anchor_id;
+      }
+
       await onUpdateAsset(selectedAsset.id, updates);
       setIsEditing(false);
     } catch (error) {
@@ -95,7 +114,9 @@ export function AssetEditor({
   const handleCancel = useCallback(() => {
     if (selectedAsset) {
       setEditedData({
+        name: selectedAsset.name || "",
         text_content: selectedAsset.text_content || "",
+        anchor_id: selectedAsset.anchor_id || null,
         longitude: selectedAsset.metadata.longitude?.toString() || "",
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
@@ -136,7 +157,15 @@ export function AssetEditor({
     );
   }
 
-  const fileName = selectedAsset.file_url?.split("/").pop() || "未命名文件";
+  // 获取显示名称
+  const getDisplayName = () => {
+    if (selectedAsset.file_type === "anchor" && selectedAsset.name) {
+      return selectedAsset.name;
+    }
+    return selectedAsset.file_url?.split("/").pop() || "未命名文件";
+  };
+
+  const fileName = getDisplayName();
 
   return (
     <>
@@ -246,6 +275,41 @@ export function AssetEditor({
             </div>
           </div>
 
+          {/* 锁点名称编辑 */}
+          {selectedAsset.file_type === "anchor" && (
+            <AssetNameEditor
+              name={selectedAsset.name}
+              isEditing={isEditing}
+              editedName={editedData.name}
+              onNameChange={(name) => setEditedData({ ...editedData, name })}
+            />
+          )}
+
+          {/* 锁点描述编辑 */}
+          {selectedAsset.file_type === "anchor" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">锁点描述（可选）</label>
+              {isEditing ? (
+                <textarea
+                  value={editedData.text_content}
+                  onChange={(e) =>
+                    setEditedData({
+                      ...editedData,
+                      text_content: e.target.value,
+                    })
+                  }
+                  rows={3}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="输入锁点描述（可选）"
+                />
+              ) : (
+                <p className="text-sm p-3 bg-background rounded-md">
+                  {selectedAsset.text_content || "无描述"}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* 文本内容编辑 */}
           {selectedAsset.file_type === "text" && (
             <AssetTextEditor
@@ -263,6 +327,18 @@ export function AssetEditor({
             <AssetImagePreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
+            />
+          )}
+
+          {/* 锚点关联（非 anchor 类型显示） */}
+          {selectedAsset.file_type !== "anchor" && selectedWorkspaceId && (
+            <AnchorSelector
+              currentAnchorId={isEditing ? editedData.anchor_id : selectedAsset.anchor_id}
+              workspaceId={selectedWorkspaceId}
+              isEditing={isEditing}
+              onAnchorChange={(anchorId) =>
+                setEditedData({ ...editedData, anchor_id: anchorId })
+              }
             />
           )}
 

@@ -20,7 +20,7 @@ export async function PATCH(
 
     // 解析请求体
     const body = await request.json();
-    const { text_content, metadata } = body;
+    const { name, text_content, anchor_id, metadata } = body;
 
     // 首先检查该资产是否存在以及用户是否有权限
     const { data: asset, error: fetchError } = await supabase
@@ -51,9 +51,19 @@ export async function PATCH(
     // 构建更新对象
     const updates: Record<string, unknown> = {};
 
+    // 更新 name（如果提供）
+    if (name !== undefined) {
+      updates.name = name;
+    }
+
     // 更新 text_content（如果提供）
     if (text_content !== undefined) {
       updates.text_content = text_content;
+    }
+
+    // 更新 anchor_id（如果提供）
+    if (anchor_id !== undefined) {
+      updates.anchor_id = anchor_id;
     }
 
     // 更新 metadata（合并而不是替换）
@@ -76,7 +86,9 @@ export async function PATCH(
       .from("asset")
       .update(updates)
       .eq("id", assetId)
-      .select("id, file_type, file_url, text_content, metadata, workspace_id")
+      .select(
+        "id, name, file_type, file_url, text_content, anchor_id, metadata, workspace_id"
+      )
       .single();
 
     if (updateError) {

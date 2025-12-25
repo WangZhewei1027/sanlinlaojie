@@ -10,6 +10,7 @@ import {
   createIconCanvas,
   getImageCacheSize,
 } from "./canvasRenderers.js";
+import { createAnchorCanvas } from "./anchorRenderer.js";
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
@@ -55,11 +56,7 @@ function createBillboard(asset, longitude, latitude, height) {
   const viewer = getViewer();
   if (!viewer) return;
 
-  const billboardImage = getBillboardImage(
-    asset.file_type,
-    asset.file_url,
-    asset.text_content
-  );
+  const billboardImage = getBillboardImage(asset);
 
   // 根据文件类型选择合适的scale
   let scale = BILLBOARD_CONFIG.scale;
@@ -67,6 +64,8 @@ function createBillboard(asset, longitude, latitude, height) {
     scale = BILLBOARD_CONFIG.imageScale;
   } else if (asset.file_type === "text") {
     scale = BILLBOARD_CONFIG.textScale;
+  } else if (asset.file_type === "anchor") {
+    scale = BILLBOARD_CONFIG.anchorScale || 1.0;
   }
 
   const entity = viewer.entities.add({
@@ -115,24 +114,29 @@ export function clearAssetBillboards() {
 
 /**
  * 根据文件类型返回对应的 billboard 图标
- * @param {string} fileType - 文件类型
- * @param {string} fileUrl - 文件URL
- * @param {string} textContent - 文本内容（当fileType为text时）
+ * @param {Object} asset - 资产对象
  * @returns {HTMLCanvasElement|Promise<HTMLCanvasElement>} - Canvas元素或Promise
  */
-function getBillboardImage(fileType, fileUrl, textContent) {
+function getBillboardImage(asset) {
+  const { file_type, file_url, text_content, name } = asset;
+
+  // 处理锚点类型
+  if (file_type === "anchor") {
+    return createAnchorCanvas(name, text_content);
+  }
+
   // 处理文本类型
-  if (fileType === "text" && textContent) {
-    return createTextCanvas(textContent);
+  if (file_type === "text" && text_content) {
+    return createTextCanvas(text_content);
   }
 
   // 如果是图片类型且有 URL，预加载图片并绘制到canvas
-  if (fileType === "image" && fileUrl) {
-    return createImageCanvas(fileUrl);
+  if (file_type === "image" && file_url) {
+    return createImageCanvas(file_url);
   }
 
   // 其他类型使用简单图标
-  return createIconCanvas(fileType);
+  return createIconCanvas(file_type);
 }
 
 /**

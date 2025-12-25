@@ -51,6 +51,11 @@ export function AssetCardCollapsed({
               {asset.text_content}
             </p>
           )}
+          {asset.file_type === "anchor" && asset.text_content && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
+              {asset.text_content}
+            </p>
+          )}
         </div>
 
         {/* 操作按钮 */}

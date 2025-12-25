@@ -23,7 +23,15 @@ export function AssetCard({ asset, onFocusAsset }: AssetCardProps) {
     (asset.metadata.longitude !== undefined ||
       asset.metadata.latitude !== undefined);
 
-  const fileName = asset.file_url?.split("/").pop() || "未命名文件";
+  // 针对 anchor 类型，优先显示 name
+  const getDisplayName = () => {
+    if (asset.file_type === "anchor" && asset.name) {
+      return asset.name;
+    }
+    return asset.file_url?.split("/").pop() || "未命名文件";
+  };
+
+  const fileName = getDisplayName();
 
   const handleClick = () => {
     setSelectedAssetId(asset.id);
@@ -68,6 +76,11 @@ export function AssetCard({ asset, onFocusAsset }: AssetCardProps) {
             {fileName}
           </p>
           {asset.file_type === "text" && asset.text_content && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
+              {asset.text_content}
+            </p>
+          )}
+          {asset.file_type === "anchor" && asset.text_content && (
             <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
               {asset.text_content}
             </p>

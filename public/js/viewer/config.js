@@ -70,6 +70,7 @@ export const BILLBOARD_CONFIG = {
   scale: 0.5, // 图标默认缩放
   imageScale: 2, // 图片类型billboard的缩放（更大以便看清）
   textScale: 5, // 文本类型billboard的缩放
+  anchorScale: 6.0, // 锚点类型billboard的缩放
   scaleByDistanceNear: 100,
   scaleByDistanceNearValue: 0.3,
   scaleByDistanceFar: 1000,

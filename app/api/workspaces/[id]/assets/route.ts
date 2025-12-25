@@ -22,7 +22,7 @@ export async function GET(
     // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
     const { data, error } = await supabase
       .from("asset")
-      .select("id, file_type, file_url, text_content, metadata, workspace_id")
+      .select("*")
       .contains("workspace_id", [workspaceId])
       .not("location", "is", null);
 

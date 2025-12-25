@@ -12,9 +12,11 @@ export interface Workspace {
 
 export interface Asset {
   id: string;
+  name?: string | null; // 资源名称（特别是 anchor 类型）
   file_type: string;
   file_url: string | null;
   text_content?: string | null; // 文本类型的内容
+  anchor_id?: string | null; // 关联的锚点ID
   metadata: {
     longitude?: number;
     latitude?: number;

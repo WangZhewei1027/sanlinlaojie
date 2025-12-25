@@ -20,7 +20,8 @@ export type UploadType =
   | "audio"
   | "document"
   | "link"
-  | "text";
+  | "text"
+  | "anchor";
 
 export interface UploadFile {
   file: File;
@@ -35,6 +36,12 @@ export interface UploadResult {
   gpsSource?: GPSSource["type"];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
+}
+
+export interface AnchorData {
+  name: string;
+  text?: string;
+  location: LocationData;
 }
 
 export interface FileTypeConfig {

@@ -11,7 +11,7 @@ interface FileTypeSelectorProps {
 export function FileTypeSelector({
   selectedType,
   onTypeChange,
-  types = ["image", "video", "audio", "document", "link", "text"],
+  types = ["image", "video", "audio", "document", "link", "text", "anchor"],
 }: FileTypeSelectorProps) {
   return (
     <div className="grid grid-cols-3 gap-2">

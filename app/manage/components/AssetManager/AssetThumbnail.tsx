@@ -1,4 +1,4 @@
-import { File } from "lucide-react";
+import { File, Anchor } from "lucide-react";
 
 interface AssetThumbnailProps {
   fileType: string;
@@ -24,6 +24,10 @@ export function AssetThumbnail({
       ) : fileType === "text" && textContent ? (
         <div className="w-full h-full flex items-center justify-center p-2 text-xs text-center text-muted-foreground line-clamp-3">
           {textContent}
+        </div>
+      ) : fileType === "anchor" ? (
+        <div className="w-full h-full flex items-center justify-center bg-amber-500/20">
+          <Anchor className="h-8 w-8 text-amber-600" />
         </div>
       ) : (
         <File className="h-8 w-8 text-muted-foreground" />

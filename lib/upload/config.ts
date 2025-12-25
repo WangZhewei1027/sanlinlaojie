@@ -6,6 +6,7 @@ import {
   FileText,
   Link as LinkIcon,
   File,
+  Anchor,
 } from "lucide-react";
 import { compressToWebP } from "@/lib/image-compression";
 import { extractGPSFromImage } from "@/lib/exif-reader";
@@ -60,6 +61,12 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     type: "text",
     label: "文本",
     icon: FileText,
+    accept: "",
+  },
+  anchor: {
+    type: "anchor",
+    label: "锚点",
+    icon: Anchor,
     accept: "",
   },
 };

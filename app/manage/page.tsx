@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Responsive, useContainerWidth, Layout } from "react-grid-layout";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useViewerMessaging } from "./hooks/useViewerMessaging";
@@ -15,6 +15,28 @@ export default function ManagePage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { width, containerRef, mounted } = useContainerWidth();
   const { handleUpdateAsset, handleDeleteAsset } = useAssetAPI();
+  const [rowHeight, setRowHeight] = useState(50);
+
+  // 动态计算 rowHeight
+  useEffect(() => {
+    if (!containerRef.current || !mounted) return;
+
+    const updateRowHeight = () => {
+      const containerHeight = containerRef.current?.clientHeight || 0;
+      // 容器高度除以行数（12行），再减去一些 margin/padding
+      const calculatedRowHeight = Math.floor((containerHeight - 130) / 12);
+      setRowHeight(calculatedRowHeight);
+    };
+
+    updateRowHeight();
+
+    const resizeObserver = new ResizeObserver(updateRowHeight);
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [containerRef, mounted]);
 
   // 使用原有的 hooks 获取数据，但将状态存入 zustand
   const {
@@ -72,8 +94,7 @@ export default function ManagePage() {
   return (
     <div
       ref={containerRef}
-      className="w-full bg-background"
-      style={{ height: "calc(100vh - 4rem)" }}
+      className="w-full h-[calc(100vh-4rem)] bg-background"
     >
       {mounted && (
         <Responsive
@@ -81,7 +102,7 @@ export default function ManagePage() {
           layouts={layouts}
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-          rowHeight={50}
+          rowHeight={rowHeight}
           width={width}
           resizeConfig={{
             enabled: false,

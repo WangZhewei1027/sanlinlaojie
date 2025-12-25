@@ -38,6 +38,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const [text, setText] = useState("");
+  const [name, setName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +67,20 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         locationSelection.getFinalLocation();
 
       // 处理不同类型的上传
-      if (uploadType === "link") {
+      if (uploadType === "anchor") {
+        // 锚点必须有位置和名称
+        if (!finalLocation) {
+          throw new Error("锚点必须指定位置");
+        }
+        if (!name.trim()) {
+          throw new Error("锚点必须输入名称");
+        }
+        await uploadService.saveAnchor(workspaceId, user.id, {
+          name: name.trim(),
+          location: finalLocation,
+          text: text.trim() || undefined,
+        });
+      } else if (uploadType === "link") {
         if (!link.trim()) throw new Error("请输入链接地址");
         await uploadService.saveLink(
           workspaceId,
@@ -141,10 +155,11 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
     setFile(null);
     setLink("");
     setText("");
+    setName("");
     locationSelection.setExifLocation(null);
   };
 
-  const isFileType = !["link", "text"].includes(uploadType);
+  const isFileType = !["link", "text", "anchor"].includes(uploadType);
 
   return (
     <Card className="p-0">
@@ -211,6 +226,41 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                   />
+                </div>
+              )}
+
+              {/* 锚点输入 */}
+              {uploadType === "anchor" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="anchor-name" className="text-xs">
+                      锚点名称 <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="anchor-name"
+                      type="text"
+                      placeholder="输入锚点名称（必填）"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="text-xs"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="anchor-text" className="text-xs">
+                      锚点描述（可选）
+                    </Label>
+                    <textarea
+                      id="anchor-text"
+                      className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="输入锚点描述（可选）..."
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    锚点必须指定位置和名称，其他资源可以挂靠到此锚点
+                  </p>
                 </div>
               )}
 
