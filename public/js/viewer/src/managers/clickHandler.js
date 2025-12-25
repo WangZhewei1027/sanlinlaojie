@@ -2,9 +2,9 @@
  * 点击事件处理模块
  */
 
-import { CLICK_MARKER_CONFIG } from "./config.js";
+import { CLICK_MARKER_CONFIG } from "../utils/config.js";
 import { getViewer } from "./viewerManager.js";
-import { cartesianToLonLat } from "./coordinateUtils.js";
+import { cartesianToLonLat } from "../utils/coordinateUtils.js";
 import { sendLocationClicked } from "./messageHandler.js";
 
 let clickedPointEntity = null; // 存储点击位置的标记

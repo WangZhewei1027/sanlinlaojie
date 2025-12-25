@@ -2,8 +2,8 @@
  * Cesium Viewer 管理模块
  */
 
-import { VIEWER_CONFIG, CAMERA_CONFIG } from "./config.js";
-import { getOriginCoordinates } from "./coordinateUtils.js";
+import { VIEWER_CONFIG, CAMERA_CONFIG } from "../utils/config.js";
+import { getOriginCoordinates } from "../utils/coordinateUtils.js";
 
 let viewer = null;
 

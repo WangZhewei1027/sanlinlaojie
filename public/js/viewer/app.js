@@ -11,11 +11,11 @@
  * - tilesetLoader.js: 3D Tiles加载
  */
 
-import { CESIUM_ION_TOKEN } from "./config.js";
-import { initViewer, resetCamera } from "./viewerManager.js";
-import { setupMessageListener } from "./messageHandler.js";
-import { setupClickHandler } from "./clickHandler.js";
-import { load3DTiles, getTileset } from "./tilesetLoader.js";
+import { CESIUM_ION_TOKEN } from "./src/utils/config.js";
+import { initViewer, resetCamera } from "./src/managers/viewerManager.js";
+import { setupMessageListener } from "./src/managers/messageHandler.js";
+import { setupClickHandler } from "./src/managers/clickHandler.js";
+import { load3DTiles, getTileset } from "./src/managers/tilesetLoader.js";
 
 // 设置 Cesium Ion token
 Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;

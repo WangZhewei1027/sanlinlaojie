@@ -2,7 +2,7 @@
  * Anchor渲染模块 - 专门处理锚点的绘制
  */
 
-import { BILLBOARD_CONFIG } from "./config.js";
+import { BILLBOARD_CONFIG } from "../utils/config.js";
 
 /**
  * 创建锚点canvas

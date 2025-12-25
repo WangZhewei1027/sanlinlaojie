@@ -2,7 +2,7 @@
  * 3D Tiles 加载模块
  */
 
-import { TILESET_CONFIG } from "./config.js";
+import { TILESET_CONFIG } from "../utils/config.js";
 import { getViewer, zoomToTileset } from "./viewerManager.js";
 
 let tileset = null;

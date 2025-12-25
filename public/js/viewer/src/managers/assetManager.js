@@ -2,15 +2,15 @@
  * 资产管理模块
  */
 
-import { BILLBOARD_CONFIG, FOCUS_MARKER_CONFIG } from "./config.js";
+import { BILLBOARD_CONFIG, FOCUS_MARKER_CONFIG } from "../utils/config.js";
 import { getViewer, flyTo } from "./viewerManager.js";
 import {
   createTextCanvas,
   createImageCanvas,
   createIconCanvas,
   getImageCacheSize,
-} from "./canvasRenderers.js";
-import { createAnchorCanvas } from "./anchorRenderer.js";
+} from "../renderers/canvasRenderers.js";
+import { createAnchorCanvas } from "../renderers/anchorRenderer.js";
 import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,

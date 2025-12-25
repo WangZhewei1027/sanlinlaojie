@@ -2,7 +2,11 @@
  * Canvas渲染模块 - 处理各种类型资产的canvas绘制
  */
 
-import { BILLBOARD_CONFIG, IMAGE_CONFIG, TEXT_CONFIG } from "./config.js";
+import {
+  BILLBOARD_CONFIG,
+  IMAGE_CONFIG,
+  TEXT_CONFIG,
+} from "../utils/config.js";
 
 // 图片缓存
 const imageCache = new Map();
