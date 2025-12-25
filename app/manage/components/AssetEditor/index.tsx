@@ -362,13 +362,13 @@ export function AssetEditor({
             editedLatitude={editedData.latitude}
             editedHeight={editedData.height}
             onLongitudeChange={(value) =>
-              setEditedData({ ...editedData, longitude: value })
+              setEditedData((prev) => ({ ...prev, longitude: value }))
             }
             onLatitudeChange={(value) =>
-              setEditedData({ ...editedData, latitude: value })
+              setEditedData((prev) => ({ ...prev, latitude: value }))
             }
             onHeightChange={(value) =>
-              setEditedData({ ...editedData, height: value })
+              setEditedData((prev) => ({ ...prev, height: value }))
             }
           />
 

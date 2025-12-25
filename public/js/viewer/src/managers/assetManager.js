@@ -11,6 +11,7 @@ import {
   getImageCacheSize,
 } from "../renderers/canvasRenderers.js";
 import { createAnchorCanvas } from "../renderers/anchorRenderer.js";
+import { createAudioCanvas } from "../renderers/audioRenderer.js";
 import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,
@@ -73,6 +74,8 @@ function createBillboard(asset, longitude, latitude, height) {
     scale = BILLBOARD_CONFIG.textScale;
   } else if (asset.file_type === "anchor") {
     scale = BILLBOARD_CONFIG.anchorScale || 1.0;
+  } else if (asset.file_type === "audio") {
+    scale = BILLBOARD_CONFIG.audioScale || 6.0;
   }
 
   const entity = viewer.entities.add({
@@ -128,11 +131,16 @@ export function clearAssetBillboards() {
  * @returns {HTMLCanvasElement|Promise<HTMLCanvasElement>} - Canvas元素或Promise
  */
 function getBillboardImage(asset) {
-  const { file_type, file_url, text_content, name } = asset;
+  const { file_type, file_url, text_content, name, metadata } = asset;
 
   // 处理锚点类型
   if (file_type === "anchor") {
     return createAnchorCanvas(name, text_content);
+  }
+
+  // 处理音频类型
+  if (file_type === "audio") {
+    return createAudioCanvas(name || file_url?.split("/").pop(), metadata);
   }
 
   // 处理文本类型

@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
+import { useManageStore } from "../../store";
 
 interface LocationData {
   longitude?: number;
@@ -29,6 +33,18 @@ export function AssetLocationEditor({
   onLatitudeChange,
   onHeightChange,
 }: AssetLocationEditorProps) {
+  const clickedLocation = useManageStore((state) => state.clickedLocation);
+
+  // 监听 clickedLocation 的变化，在编辑状态时自动填充
+  useEffect(() => {
+    if (isEditing && clickedLocation) {
+      onLongitudeChange(String(clickedLocation.longitude));
+      onLatitudeChange(String(clickedLocation.latitude));
+      onHeightChange(String(clickedLocation.height));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, clickedLocation]);
+
   return (
     <div className="space-y-3">
       <label className="text-sm font-medium flex items-center gap-2">
