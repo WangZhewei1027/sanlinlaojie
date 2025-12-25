@@ -16,6 +16,7 @@ import { useManageStore } from "../../store";
 import type { Asset } from "../../types";
 import { AssetTextEditor } from "./AssetTextEditor";
 import { AssetImagePreview } from "./AssetImagePreview";
+import { AssetAudioPreview } from "./AssetAudioPreview";
 import { AssetLocationEditor } from "./AssetLocationEditor";
 import { AssetMetadata } from "./AssetMetadata";
 import { AssetNameEditor } from "./AssetNameEditor";
@@ -330,10 +331,21 @@ export function AssetEditor({
             />
           )}
 
+          {/* 音频预览 */}
+          {selectedAsset.file_type === "audio" && selectedAsset.file_url && (
+            <AssetAudioPreview
+              key={selectedAsset.file_url}
+              fileUrl={selectedAsset.file_url}
+              fileName={fileName}
+            />
+          )}
+
           {/* 锚点关联（非 anchor 类型显示） */}
           {selectedAsset.file_type !== "anchor" && selectedWorkspaceId && (
             <AnchorSelector
-              currentAnchorId={isEditing ? editedData.anchor_id : selectedAsset.anchor_id}
+              currentAnchorId={
+                isEditing ? editedData.anchor_id : selectedAsset.anchor_id
+              }
               workspaceId={selectedWorkspaceId}
               isEditing={isEditing}
               onAnchorChange={(anchorId) =>

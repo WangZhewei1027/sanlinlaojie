@@ -22,6 +22,16 @@ export interface Asset {
     latitude?: number;
     height?: number;
     gps_source?: string;
+    // 音频元数据
+    duration?: number;
+    sampleRate?: number;
+    numberOfChannels?: number;
+    length?: number;
+    // 图片元数据
+    dimensions?: {
+      width: number;
+      height: number;
+    };
   };
 }
 

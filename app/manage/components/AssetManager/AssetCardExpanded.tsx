@@ -12,6 +12,7 @@ import { Trash2, Loader2 } from "lucide-react";
 import { AssetEditActions } from "./AssetEditActions";
 import { AssetTextEditor } from "../AssetEditor/AssetTextEditor";
 import { AssetImagePreview } from "../AssetEditor/AssetImagePreview";
+import { AssetAudioPreview } from "../AssetEditor/AssetAudioPreview";
 import { AssetLocationEditor } from "../AssetEditor/AssetLocationEditor";
 import { AssetMetadata } from "../AssetEditor/AssetMetadata";
 
@@ -137,6 +138,15 @@ export function AssetCardExpanded({
           {/* 图片预览 */}
           {asset.file_type === "image" && asset.file_url && (
             <AssetImagePreview fileUrl={asset.file_url} fileName={fileName} />
+          )}
+
+          {/* 音频预览 */}
+          {asset.file_type === "audio" && asset.file_url && (
+            <AssetAudioPreview
+              key={asset.file_url}
+              fileUrl={asset.file_url}
+              fileName={fileName}
+            />
           )}
 
           {/* 位置信息编辑 */}

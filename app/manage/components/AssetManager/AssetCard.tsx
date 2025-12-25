@@ -75,6 +75,15 @@ export function AssetCard({ asset, onFocusAsset }: AssetCardProps) {
           <p className="text-sm font-medium truncate leading-tight">
             {fileName}
           </p>
+          {asset.file_type === "audio" && asset.metadata?.duration && (
+            <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
+              时长: {Math.floor(asset.metadata.duration / 60)}:
+              {String(Math.floor(asset.metadata.duration % 60)).padStart(
+                2,
+                "0"
+              )}
+            </p>
+          )}
           {asset.file_type === "text" && asset.text_content && (
             <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
               {asset.text_content}

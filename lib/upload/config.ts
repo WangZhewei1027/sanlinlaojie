@@ -10,6 +10,10 @@ import {
 } from "lucide-react";
 import { compressToWebP } from "@/lib/image-compression";
 import { extractGPSFromImage } from "@/lib/exif-reader";
+import {
+  compressToOpusWebM,
+  extractAudioMetadata,
+} from "@/lib/audio-compression";
 
 /**
  * 文件类型配置
@@ -43,6 +47,8 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     icon: Music,
     accept: "audio/*",
     maxSize: 50,
+    process: compressToOpusWebM,
+    extractMetadata: extractAudioMetadata,
   },
   document: {
     type: "document",
