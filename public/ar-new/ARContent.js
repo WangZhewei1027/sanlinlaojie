@@ -4,8 +4,9 @@
  * 创建和管理AR场景中的3D内容
  */
 class ARContent {
-  constructor() {
+  constructor(camera) {
     this.group = new THREE.Group();
+    this.camera = camera; // 存储摄像机引用用于空间音频
     this.userLocation = null;
     this.currentLocation = null; // 当前位置（实时更新）
     this.lastUpdateLocation = null; // 上次更新时的位置
@@ -15,6 +16,7 @@ class ARContent {
     this.maxDistance = 5; // 最大距离（米）
     this.eyeLevel = 1.6; // 视平线高度（米）
     this.UPDATE_DISTANCE_THRESHOLD = 10; // 移动10米才更新（米）
+    this.clock = new THREE.Clock(); // 用于呼吸动画
 
     // 初始化资产服务
     this.assetService = new AssetService();
@@ -34,7 +36,14 @@ class ARContent {
    * 更新动画
    */
   update() {
-    // 素材静态放置，不需要动画更新
+    const delta = this.clock.getDelta();
+
+    // 更新所有音频mesh的呼吸动画
+    this.assetMeshes.forEach((mesh) => {
+      if (mesh.userData.assetType === "audio") {
+        AudioMeshCreator.updateBreathingAnimation(mesh, delta);
+      }
+    });
   }
 
   /**
@@ -197,6 +206,8 @@ class ARContent {
         mesh = this.createImageMesh(asset, position, rotation);
       } else if (asset.file_type === "text") {
         mesh = this.createTextMesh(asset, position, rotation);
+      } else if (asset.file_type === "audio") {
+        mesh = this.createAudioMesh(asset, position, rotation);
       } else {
         console.warn(`⚠️ Unknown asset type: ${asset.file_type}`);
         return;
@@ -227,6 +238,13 @@ class ARContent {
    */
   createTextMesh(asset, position, rotation) {
     return TextMeshCreator.create(asset, position, rotation);
+  }
+
+  /**
+   * 创建音频mesh（使用AudioMeshCreator）
+   */
+  createAudioMesh(asset, position, rotation) {
+    return AudioMeshCreator.create(asset, position, rotation, this.camera);
   }
 
   /**
@@ -261,12 +279,22 @@ class ARContent {
    */
   clearAssets() {
     this.assetMeshes.forEach((mesh) => {
-      this.group.remove(mesh);
-      if (mesh.material.map) {
-        mesh.material.map.dispose();
+      // 如果是音频类型，特殊清理
+      if (mesh.userData.assetType === "audio") {
+        AudioMeshCreator.dispose(mesh);
+      } else {
+        // 普通清理
+        if (mesh.material) {
+          if (mesh.material.map) {
+            mesh.material.map.dispose();
+          }
+          mesh.material.dispose();
+        }
+        if (mesh.geometry) {
+          mesh.geometry.dispose();
+        }
       }
-      mesh.material.dispose();
-      mesh.geometry.dispose();
+      this.group.remove(mesh);
     });
     this.assetMeshes = [];
     console.log("🗑️ Cleared old assets");
