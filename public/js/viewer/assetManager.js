@@ -11,6 +11,10 @@ import {
   getImageCacheSize,
 } from "./canvasRenderers.js";
 import { createAnchorCanvas } from "./anchorRenderer.js";
+import {
+  createAnchorConnectionLines,
+  clearAnchorConnectionLines,
+} from "./anchorConnectionManager.js";
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
@@ -43,6 +47,9 @@ export function displayAssets(assets) {
       createBillboard(asset, longitude, latitude, height);
     }
   });
+
+  // 创建锚点关联线
+  createAnchorConnectionLines(assets);
 }
 
 /**
@@ -108,6 +115,9 @@ export function clearAssetBillboards() {
     viewer.entities.remove(entity);
   });
   assetBillboards = [];
+
+  // 清除锚点关联线
+  clearAnchorConnectionLines();
 
   console.log(`已清除billboards，图片缓存保留: ${getImageCacheSize()} 个`);
 }
