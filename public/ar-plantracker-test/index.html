@@ -107,8 +107,13 @@
         worldTracker,
         renderer
       );
-      placementGroup.placeOnGround = true; // 允许基于地面的放置
-      placementGroup.placeButtonText = "Place";
+      // 只允许在地面放置
+      placementGroup.placeOnGround = true;
+      placementGroup.placeOnWalls = false;
+      placementGroup.placeOnMeshes = false;
+
+      // 默认不在放置状态
+      placementGroup.placementMode = false;
       scene.add(placementGroup);
 
       // 5. 放置一个简单的彩色方块
@@ -123,15 +128,29 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
+      // ===== 点击屏幕在地面种植（最终稳定版本）=====
+      let isPlacing = false;
+
+      // 使用 pointerdown（比 click 在移动端更稳定）
+      canvas.addEventListener("pointerdown", () => {
+        if (isPlacing) return;
+
+        isPlacing = true;
+        placementGroup.placementMode = true;
+      });
+
+      // 放置完成后立刻锁定，防止漂移
+      placementGroup.addEventListener("placed", () => {
+        placementGroup.placementMode = false;
+        isPlacing = false;
+      });
+
       // 7. 启动 AR：需要用户点击按钮 → 请求摄像头权限
       startButton.addEventListener("click", () => {
         ZapparThree.permissionRequestUI().then((granted) => {
           if (granted) {
             // 开始使用摄像头
             camera.start();
-
-            // 开启放置模式，让用户在平面上放置内容
-            placementGroup.placementMode = true;
 
             // 隐藏开始按钮
             startButton.style.display = "none";
