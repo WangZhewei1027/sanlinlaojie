@@ -42,6 +42,15 @@ class ARContent {
   }
 
   /**
+   * 设置获取模式
+   * @param {string} mode - 'nearby' 或 'anchor'
+   * @param {string} anchorId - (可选) anchor ID
+   */
+  setFetchMode(mode, anchorId = null) {
+    this.assetManager.setFetchMode(mode, anchorId);
+  }
+
+  /**
    * 更新素材
    */
   async updateAssets() {

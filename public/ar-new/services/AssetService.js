@@ -52,7 +52,75 @@ class AssetService {
   }
 
   /**
-   * 从Supabase获取附近的素材（使用PostGIS）
+   * 获取所有 Anchor 列表
+   * @returns {Promise<Array>} Anchor 列表
+   */
+  async fetchAnchors() {
+    try {
+      console.log("🔍 Fetching anchors...");
+
+      // 获取workspace ID
+      const { data: workspaces, error: wsError } = await this.supabase
+        .from("workspace")
+        .select("id")
+        .eq("name", this.DEFAULT_WORKSPACE)
+        .single();
+
+      if (wsError) throw wsError;
+      if (!workspaces) return [];
+
+      // 查询所有 anchor 类型的资产
+      const { data: anchors, error } = await this.supabase
+        .from("asset")
+        .select("id, name, text_content, metadata")
+        .contains("workspace_id", [workspaces.id])
+        .eq("file_type", "anchor")
+        .order("create_at", { ascending: false });
+
+      if (error) throw error;
+
+      console.log(`📍 Fetched ${anchors?.length || 0} anchors`);
+
+      return anchors || [];
+    } catch (error) {
+      console.error("❌ Error fetching anchors:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 统一的素材获取入口
+   * @param {Object} options - 获取选项
+   * @param {string} options.mode - 获取模式: 'nearby' | 'anchor' | 'nearestAnchor'
+   * @param {Object} options.userLocation - 用户位置 {latitude, longitude}
+   * @param {string} options.anchorId - (可选) Anchor ID，用于 anchor 模式
+   * @returns {Promise<Array>} 素材列表
+   */
+  async fetchAssets(options) {
+    const { mode = "nearby", userLocation, anchorId } = options;
+
+    try {
+      console.log(`🔍 Fetching assets in ${mode} mode...`);
+
+      switch (mode) {
+        case "nearby":
+          return await this.fetchNearbyAssets(userLocation);
+        case "anchor":
+          return await this.fetchAssetsByAnchor(anchorId);
+        case "nearestAnchor":
+          return await this.fetchAssetsByNearestAnchor(userLocation);
+        default:
+          console.error(`❌ Unknown fetch mode: ${mode}`);
+          return [];
+      }
+    } catch (error) {
+      console.error("❌ Error in fetchAssets:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 按地理位置获取附近的素材（使用PostGIS）
    * @param {Object} userLocation - 用户位置 {latitude, longitude}
    * @returns {Promise<Array>} 附近的资产列表
    */
@@ -98,6 +166,140 @@ class AssetService {
       return data || [];
     } catch (error) {
       console.error("❌ Error fetching assets:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 按 Anchor 获取素材
+   * @param {string} anchorId - Anchor ID
+   * @returns {Promise<Array>} 素材列表
+   */
+  async fetchAssetsByAnchor(anchorId) {
+    try {
+      if (!anchorId) {
+        console.warn("⚠️ No anchor ID provided");
+        return [];
+      }
+
+      console.log(`🔍 Fetching assets for anchor: ${anchorId}`);
+
+      // 获取workspace ID
+      const { data: workspaces, error: wsError } = await this.supabase
+        .from("workspace")
+        .select("id")
+        .eq("name", this.DEFAULT_WORKSPACE)
+        .single();
+
+      if (wsError) throw wsError;
+      if (!workspaces) return [];
+
+      // 按 anchor_id 查询素材
+      const { data: assets, error } = await this.supabase
+        .from("asset")
+        .select("id, file_type, file_url, text_content, metadata")
+        .contains("workspace_id", [workspaces.id])
+        .eq("anchor_id", anchorId);
+
+      if (error) throw error;
+
+      console.log(
+        `📦 Fetched ${assets?.length || 0} assets for anchor ${anchorId}`
+      );
+
+      if (assets && assets.length > 0) {
+        assets.forEach((asset) => {
+          console.log(
+            `✅ Asset ${asset.id} (${asset.file_type})`,
+            asset.file_type === "text"
+              ? `text: "${asset.text_content}"`
+              : `url: ${asset.file_url}`
+          );
+        });
+      }
+
+      return assets || [];
+    } catch (error) {
+      console.error("❌ Error fetching assets by anchor:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取最近的 Anchor 并返回其关联的素材
+   * @param {Object} userLocation - 用户位置 {latitude, longitude}
+   * @returns {Promise<Array>} 素材列表
+   */
+  async fetchAssetsByNearestAnchor(userLocation) {
+    try {
+      if (!userLocation) {
+        console.warn("⚠️ No user location available");
+        return [];
+      }
+
+      console.log("🔍 Finding nearest anchor...");
+
+      // 获取workspace ID
+      const { data: workspaces, error: wsError } = await this.supabase
+        .from("workspace")
+        .select("id")
+        .eq("name", this.DEFAULT_WORKSPACE)
+        .single();
+
+      if (wsError) throw wsError;
+      if (!workspaces) return [];
+
+      // 获取所有 anchor
+      const { data: anchors, error: anchorError } = await this.supabase
+        .from("asset")
+        .select("id, name, metadata")
+        .contains("workspace_id", [workspaces.id])
+        .eq("file_type", "anchor")
+        .not("metadata", "is", null);
+
+      if (anchorError) throw anchorError;
+      if (!anchors || anchors.length === 0) {
+        console.warn("⚠️ No anchors found");
+        return [];
+      }
+
+      // 找到最近的 anchor
+      let nearestAnchor = null;
+      let minDistance = Infinity;
+
+      anchors.forEach((anchor) => {
+        if (anchor.metadata?.latitude && anchor.metadata?.longitude) {
+          const distance = this.calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            anchor.metadata.latitude,
+            anchor.metadata.longitude
+          );
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestAnchor = anchor;
+          }
+        }
+      });
+
+      if (!nearestAnchor) {
+        console.warn("⚠️ No valid anchor with location found");
+        return [];
+      }
+
+      console.log(
+        `📍 Nearest anchor: ${
+          nearestAnchor.name || nearestAnchor.id
+        } (${minDistance.toFixed(0)}m away)`
+      );
+
+      // 获取该 anchor 关联的所有素材
+      const assets = await this.fetchAssetsByAnchor(nearestAnchor.id);
+
+      return assets;
+    } catch (error) {
+      console.error("❌ Error fetching assets by nearest anchor:", error);
       return [];
     }
   }

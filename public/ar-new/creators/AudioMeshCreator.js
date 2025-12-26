@@ -129,7 +129,7 @@ class AudioMeshCreator {
         (buffer) => {
           sound.setBuffer(buffer);
           sound.setRefDistance(1); // 参考距离（米）
-          sound.setRolloffFactor(4); // 衰减因子（越大衰减越快）
+          sound.setRolloffFactor(3); // 衰减因子（越大衰减越快）
           sound.setDistanceModel("exponential"); // 指数衰减模型
           sound.setLoop(true); // 循环播放
           sound.setVolume(1); // 音量

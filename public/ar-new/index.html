@@ -15,6 +15,24 @@
     <div id="app">
       <canvas id="ar-canvas"></canvas>
       <div id="status-indicator">保持手机竖直...</div>
+
+      <!-- 模式选择控制面板 -->
+      <div id="mode-selector-panel">
+        <label for="fetch-mode-select">获取模式：</label>
+        <select id="fetch-mode-select" aria-label="选择素材获取模式">
+          <option value="nearby">📍 附近素材</option>
+          <option value="nearestAnchor">🎯 最近Anchor</option>
+          <option value="anchor">🔗 指定Anchor</option>
+        </select>
+
+        <div id="anchor-input-container" class="hidden">
+          <label for="anchor-select">Anchor：</label>
+          <select id="anchor-select" aria-label="选择Anchor">
+            <option value="">加载中...</option>
+          </select>
+        </div>
+      </div>
+
       <button id="reset-button" aria-label="重置位置">
         <img src="./icons/reset.svg" alt="" role="presentation" />
       </button>

@@ -85,6 +85,113 @@ body {
   opacity: 0;
 }
 
+/* 模式选择面板 */
+#mode-selector-panel {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-small);
+  z-index: 1000;
+  background: var(--color-bg-overlay);
+  color: var(--color-text-light);
+  box-shadow: var(--shadow-default);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 280px;
+}
+
+#mode-selector-panel label {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+#fetch-mode-select {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-small);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+#fetch-mode-select:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#fetch-mode-select:focus {
+  outline: 2px solid var(--color-text-light);
+  outline-offset: 2px;
+}
+
+#anchor-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all var(--transition-normal);
+}
+
+#anchor-input-container.hidden {
+  display: none;
+}
+
+#anchor-select {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-small);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+#anchor-select:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#anchor-select:focus {
+  outline: 2px solid var(--color-text-light);
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#anchor-select option {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+/* 旧样式，保留兼容 */
+#anchor-id-input {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-small);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-light);
+  transition: all var(--transition-fast);
+}
+
+#anchor-id-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#anchor-id-input:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#anchor-id-input:focus {
+  outline: 2px solid var(--color-text-light);
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* 重置按钮 */
 #reset-button {
   position: absolute;

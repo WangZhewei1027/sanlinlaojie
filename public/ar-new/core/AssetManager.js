@@ -13,6 +13,8 @@ class AssetManager {
     this.minDistance = 2; // 最小距离（米）
     this.maxDistance = 5; // 最大距离（米）
     this.eyeLevel = 1.6; // 视平线高度（米）
+    this.fetchMode = "nearby"; // 默认使用 nearby 模式
+    this.anchorId = null; // 用于 anchor 模式
   }
 
   /**
@@ -24,32 +26,50 @@ class AssetManager {
   }
 
   /**
+   * 设置获取模式
+   * @param {string} mode - 'nearby' 或 'anchor'
+   * @param {string} anchorId - (可选) anchor ID
+   */
+  setFetchMode(mode, anchorId = null) {
+    this.fetchMode = mode;
+    this.anchorId = anchorId;
+    console.log(
+      `🔄 Fetch mode changed to: ${mode}${
+        anchorId ? ` (anchor: ${anchorId})` : ""
+      }`
+    );
+  }
+
+  /**
    * 从服务器获取附近的素材并创建
    * @param {Object} userLocation - 用户位置 {latitude, longitude, altitude}
    */
   async updateAssets(userLocation) {
     try {
       console.log("🔄 Updating assets...");
-      console.log(
-        `📍 User location: ${userLocation.latitude.toFixed(
-          6
-        )}, ${userLocation.longitude.toFixed(6)}`
-      );
 
-      // 使用PostGIS获取附近的素材
-      const nearbyAssets = await this.assetService.fetchNearbyAssets(
-        userLocation
-      );
+      if (this.fetchMode === "nearby" && userLocation) {
+        console.log(
+          `📍 User location: ${userLocation.latitude.toFixed(
+            6
+          )}, ${userLocation.longitude.toFixed(6)}`
+        );
+      }
 
-      console.log(
-        `🎯 Found ${nearbyAssets.length} assets within ${this.assetService.MAX_DISTANCE}m`
-      );
+      // 使用统一的 fetchAssets 方法
+      const assets = await this.assetService.fetchAssets({
+        mode: this.fetchMode,
+        userLocation: userLocation,
+        anchorId: this.anchorId,
+      });
+
+      console.log(`🎯 Found ${assets.length} assets`);
 
       // 清除旧的素材
       this.clearAssets();
 
       // 创建新的素材
-      this.assets = nearbyAssets;
+      this.assets = assets;
       this.createAssetMeshes();
     } catch (error) {
       console.error("❌ Error updating assets:", error);

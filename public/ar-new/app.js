@@ -14,9 +14,19 @@ splashRemover.start();
 const canvas = document.querySelector("#ar-canvas");
 const statusIndicator = document.querySelector("#status-indicator");
 const resetButton = document.querySelector("#reset-button");
+const fetchModeSelect = document.querySelector("#fetch-mode-select");
+const anchorInputContainer = document.querySelector("#anchor-input-container");
+const anchorSelect = document.querySelector("#anchor-select");
 
-if (!canvas || !statusIndicator || !resetButton) {
-  throw new Error("Canvas, status indicator, or reset button not found");
+if (
+  !canvas ||
+  !statusIndicator ||
+  !resetButton ||
+  !fetchModeSelect ||
+  !anchorInputContainer ||
+  !anchorSelect
+) {
+  throw new Error("Required DOM elements not found");
 }
 
 // 1. 创建 Three.js renderer
@@ -53,7 +63,81 @@ instantWorldAnchorGroup.add(arContent.getObject3D());
 // 6. 创建设备方向检测器
 const orientationChecker = new DeviceOrientationChecker(statusIndicator);
 
-// 7. 绑定Reset按钮
+// 7. 加载 Anchor 列表
+async function loadAnchors() {
+  try {
+    console.log("🔄 Loading anchors...");
+    const assetService = arContent.assetService;
+    const anchors = await assetService.fetchAnchors();
+
+    // 清空现有选项
+    anchorSelect.innerHTML = "";
+
+    // 添加默认选项
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "请选择 Anchor";
+    anchorSelect.appendChild(defaultOption);
+
+    // 添加 anchor 选项
+    anchors.forEach((anchor) => {
+      const option = document.createElement("option");
+      option.value = anchor.id;
+      option.textContent = anchor.name || `Anchor ${anchor.id.substring(0, 8)}`;
+      anchorSelect.appendChild(option);
+    });
+
+    console.log(`✅ Loaded ${anchors.length} anchors`);
+  } catch (error) {
+    console.error("❌ Failed to load anchors:", error);
+    anchorSelect.innerHTML = '<option value="">加载失败</option>';
+  }
+}
+
+// 8. 绑定模式选择器事件
+fetchModeSelect.addEventListener("change", (e) => {
+  const mode = e.target.value;
+  console.log(`🔄 Fetch mode changed to: ${mode}`);
+
+  // 显示或隐藏 Anchor 下拉框
+  if (mode === "anchor") {
+    anchorInputContainer.classList.remove("hidden");
+    // 加载 anchor 列表
+    loadAnchors();
+  } else {
+    anchorInputContainer.classList.add("hidden");
+  }
+
+  // 更新 AssetManager 的 fetch 模式
+  const anchorId = mode === "anchor" ? anchorSelect.value : null;
+  arContent.setFetchMode(mode, anchorId);
+
+  // 如果不是 anchor 模式，或者已经选择了 anchor，则自动刷新素材
+  if (mode !== "anchor" || anchorId) {
+    arContent.updateAssets().catch((error) => {
+      console.error("❌ Failed to update assets after mode change:", error);
+    });
+  }
+});
+
+// 9. 绑定 Anchor 下拉框事件
+anchorSelect.addEventListener("change", (e) => {
+  const anchorId = e.target.value;
+
+  if (fetchModeSelect.value === "anchor") {
+    console.log(`🔄 Anchor changed to: ${anchorId}`);
+    arContent.setFetchMode("anchor", anchorId);
+
+    // 如果选择了有效的 anchor，自动刷新素材
+    if (anchorId) {
+      arContent.updateAssets().catch((error) => {
+        console.error("❌ Failed to update assets after anchor change:", error);
+      });
+    }
+  }
+});
+
+// 10. 绑定Reset按钮
 resetButton.addEventListener("click", () => {
   console.log("🔄 Manual refresh triggered");
   resetButton.textContent = "⏳ 重置中...";
@@ -85,12 +169,12 @@ resetButton.addEventListener("click", () => {
   });
 });
 
-// 8. 窗口 resize 时更新画布大小
+// 11. 窗口 resize 时更新画布大小
 window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// 9. 渲染循环
+// 11. 渲染循环
 function animate() {
   requestAnimationFrame(animate);
 
@@ -110,7 +194,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// 10. 自动启动 AR
+// 13. 自动启动 AR
 function startAR() {
   ZapparThree.permissionRequestUI().then((granted) => {
     if (granted) {
@@ -139,7 +223,7 @@ function startAR() {
   });
 }
 
-// 11. 请求位置权限
+// 14. 请求位置权限
 function requestLocationPermission() {
   console.log("✅ Ready to request additional permissions");
 
