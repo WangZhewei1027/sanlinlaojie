@@ -50,6 +50,7 @@
     "accuracy": "精度：",
     "cameraMode": "拍照上传",
     "textMode": "文本上传",
+    "audioMode": "录音上传",
     "takePhoto": "拍照",
     "uploading": "上传中...",
     "confirmUpload": "确认上传",
@@ -61,7 +62,15 @@
     "uploadFailed": "上传失败：",
     "missingInfo": "缺少必要信息",
     "cameraError": "无法访问相机：",
-    "cameraPrompt": "打开相机"
+    "cameraPrompt": "打开相机",
+    "startRecording": "开始录音",
+    "stopRecording": "停止录音",
+    "recording": "录音中...",
+    "play": "播放",
+    "pause": "暂停",
+    "fileSize": "文件大小",
+    "microphoneError": "无法访问麦克风",
+    "pleaseLogin": "请先登录"
   },
   "manage": {
     "clickedLocation": {

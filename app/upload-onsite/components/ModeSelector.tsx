@@ -1,8 +1,8 @@
-import { Camera, Type } from "lucide-react";
+import { Camera, Type, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 
-type UploadMode = "camera" | "text";
+type UploadMode = "camera" | "text" | "audio";
 
 interface ModeSelectorProps {
   mode: UploadMode;
@@ -29,6 +29,14 @@ export function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
       >
         <Type className="h-4 w-4 mr-2" />
         {t("onsite.textMode")}
+      </Button>
+      <Button
+        variant={mode === "audio" ? "default" : "outline"}
+        className="flex-1"
+        onClick={() => onModeChange("audio")}
+      >
+        <Mic className="h-4 w-4 mr-2" />
+        {t("onsite.audioMode")}
       </Button>
     </div>
   );

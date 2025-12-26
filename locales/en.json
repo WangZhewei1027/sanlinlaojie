@@ -50,6 +50,7 @@
     "accuracy": "Accuracy:",
     "cameraMode": "Photo Upload",
     "textMode": "Text Upload",
+    "audioMode": "Audio Recording",
     "takePhoto": "Take Photo",
     "uploading": "Uploading...",
     "confirmUpload": "Confirm Upload",
@@ -61,7 +62,15 @@
     "uploadFailed": "Upload failed:",
     "missingInfo": "Missing required information",
     "cameraError": "Unable to access camera:",
-    "cameraPrompt": "open camera"
+    "cameraPrompt": "open camera",
+    "startRecording": "Start Recording",
+    "stopRecording": "Stop Recording",
+    "recording": "Recording...",
+    "play": "Play",
+    "pause": "Pause",
+    "fileSize": "File Size",
+    "microphoneError": "Unable to access microphone",
+    "pleaseLogin": "Please login first"
   },
   "manage": {
     "clickedLocation": {
