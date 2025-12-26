@@ -25,6 +25,10 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   // 格式化时间显示
   const formatTime = (seconds: number) => {
@@ -35,11 +39,71 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
       .padStart(2, "0")}`;
   };
 
+  // 绘制波形
+  const drawWaveform = () => {
+    if (!canvasRef.current || !analyserRef.current || !isRecording) {
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    const canvasCtx = canvas.getContext("2d");
+    if (!canvasCtx) return;
+
+    const analyser = analyserRef.current;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    analyser.getByteTimeDomainData(dataArray);
+
+    // 清空画布
+    canvasCtx.fillStyle = "rgb(0, 0, 0)";
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制波形
+    canvasCtx.lineWidth = 2;
+    canvasCtx.strokeStyle = "rgb(239, 68, 68)"; // destructive color
+    canvasCtx.beginPath();
+
+    const sliceWidth = (canvas.width * 1.0) / bufferLength;
+    let x = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = (v * canvas.height) / 2;
+
+      if (i === 0) {
+        canvasCtx.moveTo(x, y);
+      } else {
+        canvasCtx.lineTo(x, y);
+      }
+
+      x += sliceWidth;
+    }
+
+    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+    canvasCtx.stroke();
+
+    // 继续下一帧
+    animationFrameRef.current = requestAnimationFrame(drawWaveform);
+  };
+
   // 开始录音
   const startRecording = async () => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // 设置音频分析器
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -64,6 +128,11 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
 
         // 停止所有音轨
         stream.getTracks().forEach((track) => track.stop());
+
+        // 关闭音频上下文
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+        }
       };
 
       mediaRecorder.start();
@@ -73,7 +142,16 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
       // 开始计时
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => prev + 1);
+
+        // 停止波形动画
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
       }, 1000);
+
+      // 开始绘制波形
+      drawWaveform();
     } catch (err) {
       console.error("录音失败:", err);
       setError("无法访问麦克风，请检查权限设置");
@@ -136,6 +214,12 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
   // 清理
   useEffect(() => {
     return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -168,6 +252,14 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
               <div className="absolute w-16 h-16 bg-destructive/20 rounded-full animate-ping" />
               <div className="relative w-12 h-12 bg-destructive rounded-full flex items-center justify-center">
                 <Mic className="h-6 w-6 text-destructive-foreground" />
+
+                {/* 波形显示 */}
+                <canvas
+                  ref={canvasRef}
+                  width={300}
+                  height={100}
+                  className="w-full max-w-sm h-24 rounded border border-border"
+                />
               </div>
             </div>
             <div className="text-2xl font-mono font-bold">
