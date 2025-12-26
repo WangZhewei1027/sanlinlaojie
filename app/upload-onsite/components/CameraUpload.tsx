@@ -92,7 +92,7 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
           <img
             src={capturedImage}
             alt="Captured"
-            className="w-full aspect-[4/3] object-cover"
+            className="w-full max-h-[70vh] object-contain bg-muted"
           />
           <div className="p-4 space-y-2">
             <Button

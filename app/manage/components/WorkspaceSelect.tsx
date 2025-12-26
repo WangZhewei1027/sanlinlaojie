@@ -47,7 +47,7 @@ export function WorkspaceSelect() {
       onValueChange={handleChange}
       disabled={loading}
     >
-      <SelectTrigger className="w-[200px]">
+      <SelectTrigger className="w-full max-w-[120px] sm:max-w-[240px]">
         <SelectValue placeholder="选择工作空间..." />
       </SelectTrigger>
       <SelectContent>
