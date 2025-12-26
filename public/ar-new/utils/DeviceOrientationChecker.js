@@ -74,7 +74,9 @@ class DeviceOrientationChecker {
         (stableDuration / this.STABLE_DURATION) * 100,
         100
       );
-      this.statusIndicator.textContent = `保持稳定... ${Math.floor(progress)}%`;
+      this.statusIndicator.textContent = `保持稳定...\n${Math.floor(
+        progress
+      )}%`;
 
       if (stableDuration >= this.STABLE_DURATION) {
         this.completePlacement();

@@ -27,14 +27,14 @@ export default function Home() {
                     </span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-auto py-6">
+                {/* <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/ar" className="flex flex-col gap-2">
                     <span className="text-lg font-semibold">AR 体验</span>
                     <span className="text-sm text-muted-foreground font-normal">
                       增强现实内容浏览
                     </span>
                   </Link>
-                </Button>
+                </Button> */}
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/admin" className="flex flex-col gap-2">
                     <span className="text-lg font-semibold">管理后台</span>

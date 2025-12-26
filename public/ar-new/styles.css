@@ -63,8 +63,7 @@ body {
 #status-indicator {
   position: absolute;
   top: var(--spacing-sm);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
   padding: var(--spacing-xs) var(--spacing-md);
   font-size: 16px;
   font-weight: 600;
