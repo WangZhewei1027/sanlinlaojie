@@ -7,7 +7,7 @@ const COMPRESSION_OPTIONS = {
   audioBitsPerSecond: 64000, // 64kbps - 适合语音，如需音乐可设为 128000
 };
 
-const SKIP_COMPRESSION_SIZE = 0.01 * 1024 * 1024; // 1MB - 小于此大小跳过压缩
+const SKIP_COMPRESSION_SIZE = 0.01 * 1024 * 1024; // 0.01MB - 小于此大小跳过压缩
 
 /**
  * 压缩音频文件到 WebM (Opus) 格式
@@ -15,7 +15,7 @@ const SKIP_COMPRESSION_SIZE = 0.01 * 1024 * 1024; // 1MB - 小于此大小跳过
 export async function compressToOpusWebM(file: File): Promise<File> {
   // 如果文件已经很小，直接返回
   if (file.size < SKIP_COMPRESSION_SIZE) {
-    console.log("音频文件已经小于 1MB，跳过压缩");
+    console.log("音频文件已经小于 0.01MB，跳过压缩");
     return file;
   }
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, Upload, RotateCcw, Play, Pause } from "lucide-react";
+import { Mic, Upload, RotateCcw, Play, Pause, StopCircle } from "lucide-react";
 
 interface AudioRecorderProps {
   onUpload: (audioFile: File) => Promise<void>;
@@ -13,34 +13,83 @@ interface AudioRecorderProps {
 
 export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
   const { t } = useTranslation();
+  const [isRecording, setIsRecording] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 触发系统录音接口
-  const handleRecordClick = () => {
-    fileInputRef.current?.click();
+  // 格式化时间显示
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
-  // 处理文件选择
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // 清理旧的 URL
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
+  // 开始录音
+  const startRecording = async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+        const file = new File([audioBlob], `recording-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
+        const url = URL.createObjectURL(audioBlob);
+
+        setAudioFile(file);
+        setAudioUrl(url);
+
+        // 停止所有音轨
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // 开始计时
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("录音失败:", err);
+      setError("无法访问麦克风，请检查权限设置");
+    }
+  };
+
+  // 停止录音
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-
-      setAudioFile(file);
-      setAudioUrl(URL.createObjectURL(file));
-      setIsPlaying(false);
-
-      // 重置 input 以允许选择同一个文件
-      event.target.value = "";
     }
   };
 
@@ -52,6 +101,8 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
     setAudioFile(null);
     setAudioUrl(null);
     setIsPlaying(false);
+    setRecordingTime(0);
+    setError(null);
   };
 
   // 播放/暂停录音
@@ -82,6 +133,18 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
     }
   };
 
+  // 清理
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
   return (
     <Card>
       <CardHeader>
@@ -91,21 +154,34 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 隐藏的文件输入，使用 capture 属性调用系统录音 */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="audio/*"
-          capture="user"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+        {/* 错误提示 */}
+        {error && (
+          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            {error}
+          </div>
+        )}
+
+        {/* 录音状态显示 */}
+        {isRecording && (
+          <div className="flex flex-col items-center gap-4 p-6 bg-muted rounded-lg">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-16 h-16 bg-destructive/20 rounded-full animate-ping" />
+              <div className="relative w-12 h-12 bg-destructive rounded-full flex items-center justify-center">
+                <Mic className="h-6 w-6 text-destructive-foreground" />
+              </div>
+            </div>
+            <div className="text-2xl font-mono font-bold">
+              {formatTime(recordingTime)}
+            </div>
+            <p className="text-sm text-muted-foreground">录音中...</p>
+          </div>
+        )}
 
         {/* 录音控制按钮 */}
         <div className="flex flex-col gap-3">
-          {!audioFile && (
+          {!isRecording && !audioFile && (
             <Button
-              onClick={handleRecordClick}
+              onClick={startRecording}
               disabled={disabled}
               size="lg"
               className="w-full"
@@ -115,7 +191,19 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
             </Button>
           )}
 
-          {audioFile && (
+          {isRecording && (
+            <Button
+              onClick={stopRecording}
+              size="lg"
+              variant="destructive"
+              className="w-full"
+            >
+              <StopCircle className="h-5 w-5 mr-2" />
+              停止录音
+            </Button>
+          )}
+
+          {!isRecording && audioFile && (
             <>
               {/* 播放控制 */}
               <audio
@@ -175,7 +263,7 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
         </div>
 
         {/* 文件信息 */}
-        {audioFile && (
+        {audioFile && !isRecording && (
           <div className="text-sm text-muted-foreground text-center space-y-1">
             <div>
               {t("onsite.fileName")}: {audioFile.name}
