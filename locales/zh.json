@@ -68,6 +68,7 @@
     "recording": "录音中...",
     "play": "播放",
     "pause": "暂停",
+    "fileName": "文件名",
     "fileSize": "文件大小",
     "microphoneError": "无法访问麦克风",
     "pleaseLogin": "请先登录"

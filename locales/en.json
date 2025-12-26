@@ -68,6 +68,7 @@
     "recording": "Recording...",
     "play": "Play",
     "pause": "Pause",
+    "fileName": "File Name",
     "fileSize": "File Size",
     "microphoneError": "Unable to access microphone",
     "pleaseLogin": "Please login first"
