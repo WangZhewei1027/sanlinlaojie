@@ -1,8 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
+import { AuthButton } from "@/components/auth-button";
+import { EnvVarWarning } from "@/components/env-var-warning";
 import { NavbarSidebar } from "@/components/navbar-sidebar";
 import { WorkspaceSelect } from "@/app/manage/components/WorkspaceSelect";
+import { hasEnvVars } from "@/lib/utils";
 
 export function Navbar() {
   return (
@@ -20,7 +24,21 @@ export function Navbar() {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <LanguageSwitcher />
-          <NavbarSidebar />
+          {/* 桌面端显示所有功能 */}
+          <div className="hidden md:flex items-center gap-2">
+            <ThemeSwitcher />
+            {!hasEnvVars ? (
+              <EnvVarWarning />
+            ) : (
+              <Suspense>
+                <AuthButton />
+              </Suspense>
+            )}
+          </div>
+          {/* 移动端显示侧边栏 */}
+          <div className="md:hidden">
+            <NavbarSidebar />
+          </div>
         </div>
       </div>
     </nav>
