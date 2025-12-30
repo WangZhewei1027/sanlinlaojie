@@ -23,10 +23,10 @@ const COMPRESSION_OPTIONS = {
 };
 
 /** 最小压缩质量 */
-const MIN_QUALITY = 0.3;
+const MIN_QUALITY = 0.05;
 
 /** 质量降低步长 */
-const QUALITY_STEP = 0.15;
+const QUALITY_STEP = 0.3;
 
 /** 最大压缩尝试次数 */
 const MAX_COMPRESSION_ATTEMPTS = 5;
