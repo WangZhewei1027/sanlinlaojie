@@ -62,10 +62,7 @@ function formatSizeMB(bytes: number): string {
 /**
  * 执行图片压缩
  */
-async function performCompression(
-  file: File,
-  quality: number
-): Promise<Blob> {
+async function performCompression(file: File, quality: number): Promise<Blob> {
   return await imageCompression(file, {
     ...COMPRESSION_OPTIONS,
     initialQuality: quality,
@@ -116,7 +113,9 @@ export async function compressToWebP(
       const compressed = await performCompression(currentFile, currentQuality);
 
       console.log(
-        `第 ${attempt} 次压缩: ${formatSizeMB(compressed.size)}MB (质量=${currentQuality.toFixed(2)})`
+        `第 ${attempt} 次压缩: ${formatSizeMB(
+          compressed.size
+        )}MB (质量=${currentQuality.toFixed(2)})`
       );
 
       // 更新当前文件为压缩结果
@@ -133,7 +132,9 @@ export async function compressToWebP(
       // 检查是否已达最低质量
       if (currentQuality <= MIN_QUALITY) {
         console.warn(
-          `⚠ 已达到最低质量 (${MIN_QUALITY})，但文件仍为 ${formatSizeMB(currentFile.size)}MB`
+          `⚠ 已达到最低质量 (${MIN_QUALITY})，但文件仍为 ${formatSizeMB(
+            currentFile.size
+          )}MB`
         );
         break;
       }
@@ -143,9 +144,14 @@ export async function compressToWebP(
       console.log(`降低质量至 ${currentQuality.toFixed(2)}，继续压缩...`);
     }
 
-    if (attempt >= MAX_COMPRESSION_ATTEMPTS && currentFile.size > targetSizeBytes) {
+    if (
+      attempt >= MAX_COMPRESSION_ATTEMPTS &&
+      currentFile.size > targetSizeBytes
+    ) {
       console.warn(
-        `⚠ 已达到最大尝试次数 (${MAX_COMPRESSION_ATTEMPTS})，最终大小: ${formatSizeMB(currentFile.size)}MB`
+        `⚠ 已达到最大尝试次数 (${MAX_COMPRESSION_ATTEMPTS})，最终大小: ${formatSizeMB(
+          currentFile.size
+        )}MB`
       );
     }
   } catch (error) {
@@ -168,26 +174,6 @@ export async function compressToWebP(
   // 步骤 5: 创建最终文件
   const originalFileName = file.name.split(".")[0];
   const compressedFile = new File([currentFile], `${originalFileName}.webp`, {
-    type: "image/webp",
-  });
-
-  console.log(
-    `✓ 压缩完成: ${formatSizeMB(file.size)}MB → ${formatSizeMB(compressedFile.size)}MB`
-  );
-
-  return compressedFile;
-}
-    compressed = await imageCompression(file, {
-      maxWidthOrHeight: 1920,
-      fileType: "image/webp",
-      initialQuality: 0.5,
-      useWebWorker: false,
-    });
-  }
-
-  // 步骤 5: 创建最终文件
-  const originalFileName = file.name.split(".")[0];
-  const compressedFile = new File([compressed!], `${originalFileName}.webp`, {
     type: "image/webp",
   });
 
