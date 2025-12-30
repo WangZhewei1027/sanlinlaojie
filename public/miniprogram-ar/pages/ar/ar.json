@@ -1,7 +1,0 @@
-{
-    "usingComponents": {
-        "xr-ar-scene": "../../components/xr-ar-scene/index"
-    },
-    "disableScroll": true,
-    "navigationBarTitleText": "AR场景"
-}
