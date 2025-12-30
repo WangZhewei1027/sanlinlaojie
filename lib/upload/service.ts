@@ -79,13 +79,13 @@ export class FileUploadService {
       `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`
     );
 
-    // Supabase Storage 限制检查（默认 50MB）
-    const maxStorageSize = 50 * 1024 * 1024; // 50MB in bytes
+    // Supabase Storage 限制检查（实际配置为 1MB）
+    const maxStorageSize = 1 * 1024 * 1024; // 1MB in bytes
     if (file.size > maxStorageSize) {
       throw new Error(
         `文件大小 ${(file.size / 1024 / 1024).toFixed(
           2
-        )}MB 超过 Supabase Storage 限制 (50MB)。请联系管理员。`
+        )}MB 超过 Supabase Storage 限制 (1MB)。请联系管理员。`
       );
     }
 

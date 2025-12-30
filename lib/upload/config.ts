@@ -25,7 +25,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     icon: ImageIcon,
     accept: "image/*",
     maxSize: 10,
-    process: compressToWebP,
+    process: (file: File) => compressToWebP(file, 0.9), // Storage 限制 1MB，压缩到 0.9MB 以内保险
     extractMetadata: async (file: File) => {
       const gps = await extractGPSFromImage(file);
       return {
