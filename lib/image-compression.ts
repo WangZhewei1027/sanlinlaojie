@@ -17,7 +17,6 @@ import imageCompression from "browser-image-compression";
 const COMPRESSION_OPTIONS = {
   maxWidthOrHeight: 1920, // 限制最大分辨率（长边）
   fileType: "image/webp" as const, // 输出格式
-  maxSizeMB: 0.2, // 目标大小 200KB
   useWebWorker: true, // 使用 Web Worker 提升性能
   initialQuality: 0.8, // 默认初始质量
 };
@@ -63,10 +62,15 @@ function formatSizeMB(bytes: number): string {
 /**
  * 执行图片压缩
  */
-async function performCompression(file: File, quality: number): Promise<Blob> {
+async function performCompression(
+  file: File,
+  quality: number,
+  maxWidthOrHeight?: number
+): Promise<Blob> {
   return await imageCompression(file, {
     ...COMPRESSION_OPTIONS,
     initialQuality: quality,
+    maxWidthOrHeight: maxWidthOrHeight || COMPRESSION_OPTIONS.maxWidthOrHeight,
   });
 }
 
@@ -103,8 +107,10 @@ export async function compressToWebP(
 
   // 步骤 2: 根据原始文件大小估算初始质量
   let currentQuality = estimateInitialQuality(file.size);
+  let currentResolution = 1920;
   let compressed: Blob | null = null;
   let attempt = 0;
+  let lastSize = file.size;
 
   try {
     // 步骤 3: 迭代压缩直到满足大小要求或达到最大尝试次数
@@ -112,12 +118,16 @@ export async function compressToWebP(
       attempt++;
 
       // 重要：始终从原始文件压缩，而非压缩已压缩的文件
-      compressed = await performCompression(file, currentQuality);
+      compressed = await performCompression(
+        file,
+        currentQuality,
+        currentResolution
+      );
 
       console.log(
         `第 ${attempt} 次压缩: ${formatSizeMB(
           compressed.size
-        )}MB (质量=${currentQuality.toFixed(2)})`
+        )}MB (质量=${currentQuality.toFixed(2)}, 分辨率=${currentResolution}px)`
       );
 
       // 检查是否满足大小要求
@@ -126,24 +136,53 @@ export async function compressToWebP(
         break;
       }
 
-      // 检查是否已达最低质量
-      if (currentQuality <= MIN_QUALITY) {
+      // 检查文件大小是否有变化（至少减少5%）
+      const sizeReduction = (lastSize - compressed.size) / lastSize;
+      const hasImprovement = sizeReduction > 0.05;
+
+      if (!hasImprovement && currentQuality > MIN_QUALITY) {
+        // 如果降低质量没有效果，尝试降低分辨率
+        if (currentResolution > 800) {
+          currentResolution = Math.max(
+            Math.floor(currentResolution * 0.7),
+            800
+          );
+          currentQuality = 0.7; // 重置质量
+          console.log(
+            `质量调整无效，降低分辨率至 ${currentResolution}px，重置质量为 0.7`
+          );
+        } else {
+          // 分辨率和质量都已达下限
+          console.warn(
+            `⚠ 分辨率和质量都已达到最低限制，但文件仍为 ${formatSizeMB(
+              compressed.size
+            )}MB`
+          );
+          break;
+        }
+      } else if (currentQuality <= MIN_QUALITY && currentResolution <= 800) {
+        // 质量和分辨率都已达最低
         console.warn(
-          `⚠ 已达到最低质量 (${MIN_QUALITY})，但文件仍为 ${formatSizeMB(
+          `⚠ 已达到最低质量和分辨率，但文件仍为 ${formatSizeMB(
             compressed.size
           )}MB`
         );
         break;
+      } else {
+        // 继续降低质量
+        const nextQuality = Math.max(
+          currentQuality - QUALITY_STEP,
+          MIN_QUALITY
+        );
+        console.log(
+          `文件仍然较大 (${formatSizeMB(
+            compressed.size
+          )}MB > ${maxSizeMB}MB)，降低质量至 ${nextQuality.toFixed(2)}`
+        );
+        currentQuality = nextQuality;
       }
 
-      // 降低质量准备下次压缩
-      const nextQuality = Math.max(currentQuality - QUALITY_STEP, MIN_QUALITY);
-      console.log(
-        `文件仍然较大 (${formatSizeMB(
-          compressed.size
-        )}MB > ${maxSizeMB}MB)，降低质量至 ${nextQuality.toFixed(2)}`
-      );
-      currentQuality = nextQuality;
+      lastSize = compressed.size;
     }
 
     if (
