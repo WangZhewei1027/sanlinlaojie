@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Card } from "@/components/ui/card";
-import type { Asset } from "../../types";
+import type { Asset, Tag } from "../../types";
 import { useManageStore } from "../../store";
 import { AssetCard } from "./AssetCard";
 import { AssetListHeader } from "./AssetListHeader";
@@ -21,6 +21,30 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const loading = useManageStore((state) => state.assetsLoading);
   const setAssets = useManageStore((state) => state.setAssets);
   const setAssetsLoading = useManageStore((state) => state.setAssetsLoading);
+
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  const fetchTags = useCallback(async () => {
+    if (!selectedWorkspaceId) {
+      setTags([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/tags?workspace_id=${selectedWorkspaceId}`
+      );
+      const result = await response.json();
+
+      if (response.ok) {
+        setTags(result.tags || []);
+      }
+    } catch (err) {
+      console.error("获取标签失败:", err);
+      setTags([]);
+    }
+  }, [selectedWorkspaceId]);
 
   const fetchAssets = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -50,8 +74,19 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   }, [selectedWorkspaceId, setAssets, setAssetsLoading]);
 
   useEffect(() => {
+    fetchTags();
     fetchAssets();
-  }, [fetchAssets]);
+  }, [fetchTags, fetchAssets]);
+
+  // 过滤资产：如果选中了标签，只显示包含这些标签的资产
+  const filteredAssets =
+    selectedTagIds.length === 0
+      ? assets
+      : assets.filter((asset) => {
+          if (!asset.tag_ids || asset.tag_ids.length === 0) return false;
+          // 资产必须包含至少一个选中的标签
+          return selectedTagIds.some((tagId) => asset.tag_ids?.includes(tagId));
+        });
 
   if (loading) {
     return <LoadingState />;
@@ -63,12 +98,29 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
   return (
     <Card className="overflow-hidden">
-      <AssetListHeader totalCount={assets.length} />
+      <AssetListHeader
+        totalCount={assets.length}
+        filteredCount={filteredAssets.length}
+        tags={tags}
+        selectedTagIds={selectedTagIds}
+        onTagsChange={setSelectedTagIds}
+      />
 
       <div className="divide-y max-h-[600px] overflow-y-auto">
-        {assets.map((asset) => (
-          <AssetCard key={asset.id} asset={asset} onFocusAsset={onFocusAsset} />
-        ))}
+        {filteredAssets.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            <p>没有符合筛选条件的资产</p>
+          </div>
+        ) : (
+          filteredAssets.map((asset) => (
+            <AssetCard
+              key={asset.id}
+              asset={asset}
+              tags={tags}
+              onFocusAsset={onFocusAsset}
+            />
+          ))
+        )}
       </div>
     </Card>
   );

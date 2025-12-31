@@ -34,7 +34,9 @@ export function NavbarSidebar() {
         <div className="px-4 pb-6">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-medium text-muted-foreground">主题</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                主题
+              </h3>
               <ThemeSwitcher />
             </div>
             <div className="flex flex-col gap-3">

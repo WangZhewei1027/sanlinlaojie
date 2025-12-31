@@ -1,5 +1,5 @@
 import { useManageStore } from "../../store";
-import type { Asset } from "../../types";
+import type { Asset, Tag } from "../../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Focus } from "lucide-react";
@@ -7,10 +7,11 @@ import { AssetThumbnail } from "./AssetThumbnail";
 
 interface AssetCardProps {
   asset: Asset;
+  tags: Tag[];
   onFocusAsset?: (asset: Asset) => void;
 }
 
-export function AssetCard({ asset, onFocusAsset }: AssetCardProps) {
+export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useManageStore(
     (state) => state.setSelectedAssetId
@@ -93,6 +94,24 @@ export function AssetCard({ asset, onFocusAsset }: AssetCardProps) {
             <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
               {asset.text_content}
             </p>
+          )}
+          {/* 显示标签 */}
+          {asset.tag_ids && asset.tag_ids.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {asset.tag_ids.map((tagId) => {
+                const tag = tags.find((t) => t.id === tagId);
+                if (!tag) return null;
+                return (
+                  <Badge
+                    key={tagId}
+                    style={{ backgroundColor: tag.color }}
+                    className="text-[10px] px-1 py-0 h-4"
+                  >
+                    {tag.name}
+                  </Badge>
+                );
+              })}
+            </div>
           )}
         </div>
 

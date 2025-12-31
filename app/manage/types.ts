@@ -10,6 +10,15 @@ export interface Workspace {
   description: string | null;
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  workspace_id: string;
+  created_at?: string;
+  created_by?: string | null;
+}
+
 export interface Asset {
   id: string;
   name?: string | null; // 资源名称（特别是 anchor 类型）
@@ -17,6 +26,7 @@ export interface Asset {
   file_url: string | null;
   text_content?: string | null; // 文本类型的内容
   anchor_id?: string | null; // 关联的锚点ID
+  tag_ids?: string[]; // 关联的标签ID数组
   metadata: {
     longitude?: number;
     latitude?: number;

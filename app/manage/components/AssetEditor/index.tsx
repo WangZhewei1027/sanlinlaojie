@@ -21,6 +21,7 @@ import { AssetLocationEditor } from "./AssetLocationEditor";
 import { AssetMetadata } from "./AssetMetadata";
 import { AssetNameEditor } from "./AssetNameEditor";
 import { AnchorSelector } from "./AnchorSelector";
+import { AssetTagEditor } from "./AssetTagEditor";
 
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
@@ -48,6 +49,7 @@ export function AssetEditor({
     name: "",
     text_content: "",
     anchor_id: null as string | null,
+    tag_ids: [] as string[],
     longitude: "",
     latitude: "",
     height: "",
@@ -62,6 +64,7 @@ export function AssetEditor({
       setEditedData({
         name: selectedAsset.name || "",
         text_content: selectedAsset.text_content || "",
+        tag_ids: selectedAsset.tag_ids || [],
         anchor_id: selectedAsset.anchor_id || null,
         longitude: selectedAsset.metadata.longitude?.toString() || "",
         latitude: selectedAsset.metadata.latitude?.toString() || "",
@@ -101,6 +104,8 @@ export function AssetEditor({
       if (selectedAsset.file_type !== "anchor") {
         updates.anchor_id = editedData.anchor_id;
       }
+      // 更新标签
+      updates.tag_ids = editedData.tag_ids;
 
       await onUpdateAsset(selectedAsset.id, updates);
       setIsEditing(false);
@@ -115,6 +120,7 @@ export function AssetEditor({
   const handleCancel = useCallback(() => {
     if (selectedAsset) {
       setEditedData({
+        tag_ids: selectedAsset.tag_ids || [],
         name: selectedAsset.name || "",
         text_content: selectedAsset.text_content || "",
         anchor_id: selectedAsset.anchor_id || null,
@@ -350,6 +356,18 @@ export function AssetEditor({
               isEditing={isEditing}
               onAnchorChange={(anchorId) =>
                 setEditedData({ ...editedData, anchor_id: anchorId })
+              }
+            />
+          )}
+
+          {/* 标签编辑 */}
+          {selectedWorkspaceId && (
+            <AssetTagEditor
+              tagIds={isEditing ? editedData.tag_ids : selectedAsset.tag_ids}
+              workspaceId={selectedWorkspaceId}
+              isEditing={isEditing}
+              onTagIdsChange={(tagIds) =>
+                setEditedData({ ...editedData, tag_ids: tagIds })
               }
             />
           )}

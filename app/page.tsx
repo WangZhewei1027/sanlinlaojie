@@ -7,6 +7,16 @@ export default function Home() {
       <div className="flex-1 w-full flex flex-col gap-20 items-center">
         <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5 w-full">
           <main className="flex-1 flex flex-col gap-6 px-4">
+            {/* Hero Title */}
+            <section className="flex flex-col items-center gap-4 pt-12">
+              <h1 className="text-4xl md:text-5xl font-bold text-center">
+                A Letter to the Future
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground text-center">
+                Experience studio, IMA, CEL, DHL, NYU Shanghai
+              </p>
+            </section>
+
             {/* Quick Links */}
             <section className="flex flex-col items-center gap-6 py-12">
               <h2 className="text-3xl font-bold">快速入口</h2>
