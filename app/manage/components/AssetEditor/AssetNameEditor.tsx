@@ -5,6 +5,8 @@ interface AssetNameEditorProps {
   isEditing: boolean;
   editedName: string;
   onNameChange: (name: string) => void;
+  label?: string;
+  placeholder?: string;
 }
 
 export function AssetNameEditor({
@@ -12,15 +14,17 @@ export function AssetNameEditor({
   isEditing,
   editedName,
   onNameChange,
+  label = "名称",
+  placeholder = "输入名称",
 }: AssetNameEditorProps) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">锚点名称</label>
+      <label className="text-sm font-medium">{label}</label>
       {isEditing ? (
         <Input
           value={editedName}
           onChange={(e) => onNameChange(e.target.value)}
-          placeholder="输入锚点名称"
+          placeholder={placeholder}
           className="text-sm"
         />
       ) : (

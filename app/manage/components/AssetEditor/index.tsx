@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,12 @@ import { AssetMetadata } from "./AssetMetadata";
 import { AssetNameEditor } from "./AssetNameEditor";
 import { AnchorSelector } from "./AnchorSelector";
 import { AssetTagEditor } from "./AssetTagEditor";
+import {
+  getAssetConfig,
+  isFieldEditable,
+  getFieldLabel,
+  getFieldPlaceholder,
+} from "../../config";
 
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
@@ -58,6 +64,11 @@ export function AssetEditor({
   // 获取选中的资产
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
 
+  // 获取当前资产类型的配置
+  const assetConfig = useMemo(() => {
+    return selectedAsset ? getAssetConfig(selectedAsset.file_type) : null;
+  }, [selectedAsset]);
+
   // 当选中的资产变化时，重置编辑状态
   useEffect(() => {
     if (selectedAsset) {
@@ -79,8 +90,11 @@ export function AssetEditor({
 
     setIsSaving(true);
     try {
-      const updates: Partial<Asset> = {
-        metadata: {
+      const updates: Partial<Asset> = {};
+
+      // 根据配置决定保存哪些字段
+      if (isFieldEditable(selectedAsset.file_type, "location")) {
+        updates.metadata = {
           longitude: editedData.longitude
             ? parseFloat(editedData.longitude)
             : undefined,
@@ -88,24 +102,24 @@ export function AssetEditor({
             ? parseFloat(editedData.latitude)
             : undefined,
           height: editedData.height ? parseFloat(editedData.height) : undefined,
-        },
-      };
-
-      if (selectedAsset.file_type === "text") {
-        updates.text_content = editedData.text_content;
+        };
       }
 
-      if (selectedAsset.file_type === "anchor") {
+      if (isFieldEditable(selectedAsset.file_type, "name")) {
         updates.name = editedData.name;
+      }
+
+      if (isFieldEditable(selectedAsset.file_type, "text_content")) {
         updates.text_content = editedData.text_content;
       }
 
-      // 对于非 anchor 类型，更新 anchor_id
-      if (selectedAsset.file_type !== "anchor") {
+      if (isFieldEditable(selectedAsset.file_type, "anchor_id")) {
         updates.anchor_id = editedData.anchor_id;
       }
-      // 更新标签
-      updates.tag_ids = editedData.tag_ids;
+
+      if (isFieldEditable(selectedAsset.file_type, "tag_ids")) {
+        updates.tag_ids = editedData.tag_ids;
+      }
 
       await onUpdateAsset(selectedAsset.id, updates);
       setIsEditing(false);
@@ -283,54 +297,82 @@ export function AssetEditor({
           </div>
 
           {/* 锁点名称编辑 */}
-          {selectedAsset.file_type === "anchor" && (
+          {isFieldEditable(selectedAsset.file_type, "name") && (
             <AssetNameEditor
               name={selectedAsset.name}
               isEditing={isEditing}
               editedName={editedData.name}
               onNameChange={(name) => setEditedData({ ...editedData, name })}
-            />
-          )}
-
-          {/* 锁点描述编辑 */}
-          {selectedAsset.file_type === "anchor" && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">锁点描述（可选）</label>
-              {isEditing ? (
-                <textarea
-                  value={editedData.text_content}
-                  onChange={(e) =>
-                    setEditedData({
-                      ...editedData,
-                      text_content: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="输入锁点描述（可选）"
-                />
-              ) : (
-                <p className="text-sm p-3 bg-background rounded-md">
-                  {selectedAsset.text_content || "无描述"}
-                </p>
+              label={getFieldLabel(selectedAsset.file_type, "name", "名称")}
+              placeholder={getFieldPlaceholder(
+                selectedAsset.file_type,
+                "name",
+                "输入名称"
               )}
-            </div>
-          )}
-
-          {/* 文本内容编辑 */}
-          {selectedAsset.file_type === "text" && (
-            <AssetTextEditor
-              textContent={selectedAsset.text_content}
-              isEditing={isEditing}
-              editedText={editedData.text_content}
-              onTextChange={(text) =>
-                setEditedData({ ...editedData, text_content: text })
-              }
             />
           )}
+
+          {/* 文本内容编辑 - 用于 anchor 类型的描述 */}
+          {isFieldEditable(selectedAsset.file_type, "text_content") &&
+            assetConfig?.previewType === "anchor" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {getFieldLabel(
+                    selectedAsset.file_type,
+                    "text_content",
+                    "描述"
+                  )}
+                </label>
+                {isEditing ? (
+                  <textarea
+                    value={editedData.text_content}
+                    onChange={(e) =>
+                      setEditedData({
+                        ...editedData,
+                        text_content: e.target.value,
+                      })
+                    }
+                    rows={3}
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder={getFieldPlaceholder(
+                      selectedAsset.file_type,
+                      "text_content",
+                      "输入描述"
+                    )}
+                  />
+                ) : (
+                  <p className="text-sm p-3 bg-background rounded-md">
+                    {selectedAsset.text_content || "无描述"}
+                  </p>
+                )}
+              </div>
+            )}
+
+          {/* 文本内容编辑 - 用于 text 类型 */}
+          {isFieldEditable(selectedAsset.file_type, "text_content") &&
+            assetConfig?.previewType === "text" && (
+              <AssetTextEditor
+                textContent={selectedAsset.text_content}
+                isEditing={isEditing}
+                editedText={editedData.text_content}
+                onTextChange={(text) =>
+                  setEditedData({ ...editedData, text_content: text })
+                }
+                label={getFieldLabel(
+                  selectedAsset.file_type,
+                  "text_content",
+                  "文本内容"
+                )}
+                placeholder={getFieldPlaceholder(
+                  selectedAsset.file_type,
+                  "text_content",
+                  "输入文本内容"
+                )}
+              />
+            )}
 
           {/* 图片预览 */}
-          {selectedAsset.file_type === "image" && selectedAsset.file_url && (
+          {assetConfig?.previewType === "image" && selectedAsset.file_url && (
             <AssetImagePreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
@@ -338,7 +380,7 @@ export function AssetEditor({
           )}
 
           {/* 音频预览 */}
-          {selectedAsset.file_type === "audio" && selectedAsset.file_url && (
+          {assetConfig?.previewType === "audio" && selectedAsset.file_url && (
             <AssetAudioPreview
               key={selectedAsset.file_url}
               fileUrl={selectedAsset.file_url}
@@ -346,49 +388,53 @@ export function AssetEditor({
             />
           )}
 
-          {/* 锚点关联（非 anchor 类型显示） */}
-          {selectedAsset.file_type !== "anchor" && selectedWorkspaceId && (
-            <AnchorSelector
-              currentAnchorId={
-                isEditing ? editedData.anchor_id : selectedAsset.anchor_id
-              }
-              workspaceId={selectedWorkspaceId}
-              isEditing={isEditing}
-              onAnchorChange={(anchorId) =>
-                setEditedData({ ...editedData, anchor_id: anchorId })
-              }
-            />
-          )}
+          {/* 锚点关联 */}
+          {isFieldEditable(selectedAsset.file_type, "anchor_id") &&
+            selectedWorkspaceId && (
+              <AnchorSelector
+                currentAnchorId={
+                  isEditing ? editedData.anchor_id : selectedAsset.anchor_id
+                }
+                workspaceId={selectedWorkspaceId}
+                isEditing={isEditing}
+                onAnchorChange={(anchorId) =>
+                  setEditedData({ ...editedData, anchor_id: anchorId })
+                }
+              />
+            )}
 
           {/* 标签编辑 */}
-          {selectedWorkspaceId && (
-            <AssetTagEditor
-              tagIds={isEditing ? editedData.tag_ids : selectedAsset.tag_ids}
-              workspaceId={selectedWorkspaceId}
+          {isFieldEditable(selectedAsset.file_type, "tag_ids") &&
+            selectedWorkspaceId && (
+              <AssetTagEditor
+                tagIds={isEditing ? editedData.tag_ids : selectedAsset.tag_ids}
+                workspaceId={selectedWorkspaceId}
+                isEditing={isEditing}
+                onTagIdsChange={(tagIds) =>
+                  setEditedData({ ...editedData, tag_ids: tagIds })
+                }
+              />
+            )}
+
+          {/* 位置信息编辑 */}
+          {isFieldEditable(selectedAsset.file_type, "location") && (
+            <AssetLocationEditor
+              metadata={selectedAsset.metadata}
               isEditing={isEditing}
-              onTagIdsChange={(tagIds) =>
-                setEditedData({ ...editedData, tag_ids: tagIds })
+              editedLongitude={editedData.longitude}
+              editedLatitude={editedData.latitude}
+              editedHeight={editedData.height}
+              onLongitudeChange={(value) =>
+                setEditedData((prev) => ({ ...prev, longitude: value }))
+              }
+              onLatitudeChange={(value) =>
+                setEditedData((prev) => ({ ...prev, latitude: value }))
+              }
+              onHeightChange={(value) =>
+                setEditedData((prev) => ({ ...prev, height: value }))
               }
             />
           )}
-
-          {/* 位置信息编辑 */}
-          <AssetLocationEditor
-            metadata={selectedAsset.metadata}
-            isEditing={isEditing}
-            editedLongitude={editedData.longitude}
-            editedLatitude={editedData.latitude}
-            editedHeight={editedData.height}
-            onLongitudeChange={(value) =>
-              setEditedData((prev) => ({ ...prev, longitude: value }))
-            }
-            onLatitudeChange={(value) =>
-              setEditedData((prev) => ({ ...prev, latitude: value }))
-            }
-            onHeightChange={(value) =>
-              setEditedData((prev) => ({ ...prev, height: value }))
-            }
-          />
 
           {/* 元数据和资产ID */}
           <AssetMetadata

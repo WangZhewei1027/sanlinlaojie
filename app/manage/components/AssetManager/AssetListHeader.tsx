@@ -17,7 +17,7 @@ export function AssetListHeader({
   onTagsChange,
 }: AssetListHeaderProps) {
   const hasFilters = selectedTagIds.length > 0;
-  
+
   return (
     <div className="p-4 border-b space-y-3">
       <div className="flex items-start justify-between">

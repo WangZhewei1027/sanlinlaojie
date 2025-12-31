@@ -106,7 +106,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         onTagsChange={setSelectedTagIds}
       />
 
-      <div className="divide-y max-h-[600px] overflow-y-auto">
+      <div className="divide-y w-full overflow-y-auto max-h-[calc(100vh-200px)]">
         {filteredAssets.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             <p>没有符合筛选条件的资产</p>
