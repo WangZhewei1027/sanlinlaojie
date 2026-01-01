@@ -58,7 +58,7 @@ export default function ManagePage() {
   const setStoreWorkspaceLoading = useManageStore(
     (state) => state.setWorkspaceLoading
   );
-  const assets = useManageStore((state) => state.assets);
+  const filteredAssets = useManageStore((state) => state.filteredAssets);
 
   // 同步 workspace 数据
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function ManagePage() {
   }, [loading, setStoreWorkspaceLoading]);
 
   const { focusAsset } = useViewerMessaging({
-    assets,
+    assets: filteredAssets,
     iframeRef,
   });
 

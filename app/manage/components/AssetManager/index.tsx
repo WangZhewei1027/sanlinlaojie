@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import type { Asset, Tag } from "../../types";
 import { useManageStore } from "../../store";
@@ -20,6 +20,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const assets = useManageStore((state) => state.assets);
   const loading = useManageStore((state) => state.assetsLoading);
   const setAssets = useManageStore((state) => state.setAssets);
+  const setFilteredAssets = useManageStore((state) => state.setFilteredAssets);
   const setAssetsLoading = useManageStore((state) => state.setAssetsLoading);
 
   const [tags, setTags] = useState<Tag[]>([]);
@@ -79,14 +80,21 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   }, [fetchTags, fetchAssets]);
 
   // 过滤资产：如果选中了标签，只显示包含这些标签的资产
-  const filteredAssets =
-    selectedTagIds.length === 0
+  const filteredAssets = useMemo(() => {
+    return selectedTagIds.length === 0
       ? assets
       : assets.filter((asset) => {
           if (!asset.tag_ids || asset.tag_ids.length === 0) return false;
           // 资产必须包含至少一个选中的标签
           return selectedTagIds.some((tagId) => asset.tag_ids?.includes(tagId));
         });
+  }, [assets, selectedTagIds]);
+
+  // 将过滤后的结果同步到store，供viewer使用
+  useEffect(() => {
+    setFilteredAssets(filteredAssets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets, selectedTagIds, setFilteredAssets]);
 
   if (loading) {
     return <LoadingState />;

@@ -15,8 +15,10 @@ interface ManageStore {
 
   // Assets state
   assets: Asset[];
+  filteredAssets: Asset[]; // 经过标签过滤后的资产列表
   assetsLoading: boolean;
   setAssets: (assets: Asset[]) => void;
+  setFilteredAssets: (assets: Asset[]) => void;
   setAssetsLoading: (loading: boolean) => void;
   updateAsset: (id: string, updates: Partial<Asset>) => void;
   deleteAsset: (id: string) => void;
@@ -61,8 +63,11 @@ export const useManageStore = create<ManageStore>()(
 
       // Assets state
       assets: [],
+      filteredAssets: [], // 初始为空数组
       assetsLoading: false,
       setAssets: (assets) => set({ assets }, undefined, "manage/setAssets"),
+      setFilteredAssets: (assets) =>
+        set({ filteredAssets: assets }, undefined, "manage/setFilteredAssets"),
       setAssetsLoading: (loading) =>
         set({ assetsLoading: loading }, undefined, "manage/setAssetsLoading"),
       updateAsset: (id, updates) =>
