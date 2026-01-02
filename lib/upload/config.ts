@@ -21,7 +21,7 @@ import {
 export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
   image: {
     type: "image",
-    label: "图片",
+    label: "fileTypes.image",
     icon: ImageIcon,
     accept: "image/*",
     maxSize: 10,
@@ -36,14 +36,14 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
   },
   video: {
     type: "video",
-    label: "视频",
+    label: "fileTypes.video",
     icon: Video,
     accept: "video/*",
     maxSize: 100,
   },
   audio: {
     type: "audio",
-    label: "音频",
+    label: "fileTypes.audio",
     icon: Music,
     accept: "audio/*",
     maxSize: 50,
@@ -52,26 +52,26 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
   },
   document: {
     type: "document",
-    label: "文档",
+    label: "fileTypes.document",
     icon: File,
     accept: ".pdf,.doc,.docx,.txt,.md",
     maxSize: 20,
   },
   link: {
     type: "link",
-    label: "链接",
+    label: "fileTypes.link",
     icon: LinkIcon,
     accept: "",
   },
   text: {
     type: "text",
-    label: "文本",
+    label: "fileTypes.text",
     icon: FileText,
     accept: "",
   },
   anchor: {
     type: "anchor",
-    label: "锚点",
+    label: "fileTypes.anchor",
     icon: Anchor,
     accept: "",
   },

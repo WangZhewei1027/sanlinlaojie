@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Upload, X, FileIcon } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export function FileDropzone({
   label,
   disabled = false,
 }: FileDropzoneProps) {
+  const { t } = useTranslation();
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
@@ -63,7 +65,9 @@ export function FileDropzone({
               <div className="space-y-1">
                 <p className="text-sm font-medium">{file.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                  {t("upload.fileDropzone.fileSize", {
+                    size: (file.size / 1024 / 1024).toFixed(2),
+                  })}
                 </p>
               </div>
               <Button
@@ -77,7 +81,7 @@ export function FileDropzone({
                 className="mt-2"
               >
                 <X className="h-4 w-4 mr-1" />
-                移除文件
+                {t("upload.fileDropzone.removeFile")}
               </Button>
             </>
           ) : (
@@ -86,10 +90,12 @@ export function FileDropzone({
               <div className="space-y-1">
                 <p className="text-sm font-medium">
                   {isDragActive
-                    ? "松开以上传文件"
-                    : "拖拽文件到这里，或点击选择"}
+                    ? t("upload.fileDropzone.dropActive")
+                    : t("upload.fileDropzone.dropInactive")}
                 </p>
-                <p className="text-xs text-muted-foreground">支持: {accept}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("upload.fileDropzone.supports", { accept })}
+                </p>
               </div>
             </>
           )}

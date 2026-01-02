@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { UploadType } from "@/lib/upload/types";
 import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
@@ -13,6 +14,8 @@ export function FileTypeSelector({
   onTypeChange,
   types = ["image", "audio", "link", "text", "anchor"],
 }: FileTypeSelectorProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-3 gap-2">
       {types.map((type) => {
@@ -28,7 +31,7 @@ export function FileTypeSelector({
             className="flex-1"
           >
             <Icon className="mr-2 h-4 w-4" />
-            {config.label}
+            {t(config.label)}
           </Button>
         );
       })}

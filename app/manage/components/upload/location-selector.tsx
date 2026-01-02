@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { LocationData } from "@/lib/upload/types";
 
@@ -16,6 +17,7 @@ export function LocationSelector({
   clickedLocation,
   locationSelection,
 }: LocationSelectorProps) {
+  const { t } = useTranslation();
   const {
     gpsSource,
     selectedSource,
@@ -31,10 +33,12 @@ export function LocationSelector({
   return (
     <div className="p-3 bg-muted rounded-md space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold">坐标来源</div>
+        <div className="text-xs font-semibold">
+          {t("upload.location.source")}
+        </div>
         {hasExifLocation && hasClickedLocation && (
           <Badge variant="secondary" className="text-xs">
-            可选择
+            {t("upload.location.optional")}
           </Badge>
         )}
       </div>
@@ -58,7 +62,9 @@ export function LocationSelector({
               }`}
             />
             <div className="flex-1">
-              <div className="text-xs font-semibold">📷 图片GPS坐标</div>
+              <div className="text-xs font-semibold">
+                {t("upload.location.exifGPS")}
+              </div>
               <div className="font-mono text-xs mt-0.5">
                 {gpsSource.location.longitude.toFixed(6)}°,{" "}
                 {gpsSource.location.latitude.toFixed(6)}°
@@ -88,7 +94,9 @@ export function LocationSelector({
               }`}
             />
             <div className="flex-1">
-              <div className="text-xs font-semibold">📍 手动点击位置</div>
+              <div className="text-xs font-semibold">
+                {t("upload.location.manualClick")}
+              </div>
               <div className="font-mono text-xs mt-0.5">
                 {clickedLocation.longitude.toFixed(6)}°,{" "}
                 {clickedLocation.latitude.toFixed(6)}°

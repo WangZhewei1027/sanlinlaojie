@@ -262,5 +262,55 @@
       "save": "Save",
       "saving": "Saving..."
     }
+  },
+  "upload": {
+    "title": "Upload Asset",
+    "selectWorkspace": "Please select a workspace first",
+    "pleaseLogin": "Please login first",
+    "anchorRequiresLocation": "Anchor must have a location",
+    "anchorRequiresName": "Anchor must have a name",
+    "enterLink": "Please enter a link address",
+    "enterText": "Please enter text content",
+    "selectFile": "Please select a file",
+    "uploadFailed": "Upload failed:",
+    "fileProcessingFailed": "File processing failed:",
+    "uploading": "Uploading...",
+    "uploadButton": "Upload",
+    "fileDropzone": {
+      "label": "{{type}}",
+      "dropActive": "Release to upload file",
+      "dropInactive": "Drag file here or click to select",
+      "supports": "Supports: {{accept}}",
+      "removeFile": "Remove file",
+      "fileSize": "{{size}} MB"
+    },
+    "fields": {
+      "linkAddress": "Link Address",
+      "linkPlaceholder": "https://example.com",
+      "textContent": "Text Content",
+      "textPlaceholder": "Enter text content...",
+      "anchorName": "Anchor Name",
+      "anchorNameRequired": "*",
+      "anchorNamePlaceholder": "Enter anchor name (required)",
+      "anchorDescription": "Anchor Description (Optional)",
+      "anchorDescPlaceholder": "Enter anchor description (optional)...",
+      "anchorNote": "Anchor must specify location and name, other assets can be attached to this anchor",
+      "select": "Select {{type}}"
+    },
+    "location": {
+      "source": "Coordinate Source",
+      "optional": "Optional",
+      "exifGPS": "📷 Image GPS Coordinates",
+      "manualClick": "📍 Manual Click Location"
+    }
+  },
+  "fileTypes": {
+    "image": "Image",
+    "video": "Video",
+    "audio": "Audio",
+    "document": "Document",
+    "link": "Link",
+    "text": "Text",
+    "anchor": "Anchor"
   }
 }

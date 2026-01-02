@@ -263,5 +263,55 @@
       "save": "保存",
       "saving": "保存中..."
     }
+  },
+  "upload": {
+    "title": "上传资源",
+    "selectWorkspace": "请先选择工作空间",
+    "pleaseLogin": "请先登录",
+    "anchorRequiresLocation": "锚点必须指定位置",
+    "anchorRequiresName": "锚点必须输入名称",
+    "enterLink": "请输入链接地址",
+    "enterText": "请输入文本内容",
+    "selectFile": "请选择文件",
+    "uploadFailed": "上传失败:",
+    "fileProcessingFailed": "文件处理失败:",
+    "uploading": "上传中...",
+    "uploadButton": "上传",
+    "fileDropzone": {
+      "label": "{{type}}",
+      "dropActive": "松开以上传文件",
+      "dropInactive": "拖拽文件到这里，或点击选择",
+      "supports": "支持: {{accept}}",
+      "removeFile": "移除文件",
+      "fileSize": "{{size}} MB"
+    },
+    "fields": {
+      "linkAddress": "链接地址",
+      "linkPlaceholder": "https://example.com",
+      "textContent": "文本内容",
+      "textPlaceholder": "输入文本内容...",
+      "anchorName": "锚点名称",
+      "anchorNameRequired": "*",
+      "anchorNamePlaceholder": "输入锚点名称（必填）",
+      "anchorDescription": "锚点描述（可选）",
+      "anchorDescPlaceholder": "输入锚点描述（可选）...",
+      "anchorNote": "锚点必须指定位置和名称，其他资源可以挂靠到此锚点",
+      "select": "选择{{type}}"
+    },
+    "location": {
+      "source": "坐标来源",
+      "optional": "可选择",
+      "exifGPS": "📷 图片GPS坐标",
+      "manualClick": "📍 手动点击位置"
+    }
+  },
+  "fileTypes": {
+    "image": "图片",
+    "video": "视频",
+    "audio": "音频",
+    "document": "文档",
+    "link": "链接",
+    "text": "文本",
+    "anchor": "锚点"
   }
 }

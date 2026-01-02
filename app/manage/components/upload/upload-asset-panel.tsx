@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,6 +29,7 @@ interface UploadAssetPanelProps {
 }
 
 export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
+  const { t } = useTranslation();
   const workspaceId = useManageStore((state) => state.selectedWorkspaceId);
   const clickedLocation = useManageStore((state) => state.clickedLocation);
   const router = useRouter();
@@ -51,7 +53,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
     try {
       if (!workspaceId) {
-        throw new Error("请先选择工作空间");
+        throw new Error(t("upload.selectWorkspace"));
       }
 
       const supabase = createClient();
@@ -60,7 +62,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        throw new Error("请先登录");
+        throw new Error(t("upload.pleaseLogin"));
       }
 
       const { location: finalLocation, source: gpsSource } =
@@ -70,10 +72,10 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       if (uploadType === "anchor") {
         // 锚点必须有位置和名称
         if (!finalLocation) {
-          throw new Error("锚点必须指定位置");
+          throw new Error(t("upload.anchorRequiresLocation"));
         }
         if (!name.trim()) {
-          throw new Error("锚点必须输入名称");
+          throw new Error(t("upload.anchorRequiresName"));
         }
         await uploadService.saveAnchor(workspaceId, user.id, {
           name: name.trim(),
@@ -81,7 +83,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           text: text.trim() || undefined,
         });
       } else if (uploadType === "link") {
-        if (!link.trim()) throw new Error("请输入链接地址");
+        if (!link.trim()) throw new Error(t("upload.enterLink"));
         await uploadService.saveLink(
           workspaceId,
           user.id,
@@ -89,7 +91,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           finalLocation || undefined
         );
       } else if (uploadType === "text") {
-        if (!text.trim()) throw new Error("请输入文本内容");
+        if (!text.trim()) throw new Error(t("upload.enterText"));
         await uploadService.saveText(
           workspaceId,
           user.id,
@@ -111,7 +113,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           gpsSource: gpsSource || undefined,
         });
       } else {
-        throw new Error("请选择文件");
+        throw new Error(t("upload.selectFile"));
       }
 
       // 成功回调
@@ -123,8 +125,8 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       // 刷新页面数据
       router.refresh();
     } catch (err) {
-      console.error("上传失败:", err);
-      setError(err instanceof Error ? err.message : "上传失败");
+      console.error(t("upload.uploadFailed"), err);
+      setError(err instanceof Error ? err.message : t("upload.uploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -142,7 +144,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         locationSelection.setExifLocation(null);
       }
     } catch (error) {
-      console.error("文件处理失败:", error);
+      console.error(t("upload.fileProcessingFailed"), error);
     }
   };
 
@@ -173,7 +175,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           <AccordionTrigger className="px-4 py-3 hover:no-underline">
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold text-sm">上传资源</h3>
+              <h3 className="font-semibold text-sm">{t("upload.title")}</h3>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
@@ -191,7 +193,9 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                   onFileSelect={processSelectedFile}
                   onFileRemove={handleFileRemove}
                   accept={FILE_TYPE_CONFIGS[uploadType].accept}
-                  label={`选择${FILE_TYPE_CONFIGS[uploadType].label}`}
+                  label={t("upload.fields.select", {
+                    type: t(FILE_TYPE_CONFIGS[uploadType].label),
+                  })}
                   disabled={uploading}
                 />
               )}
@@ -200,12 +204,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               {uploadType === "link" && (
                 <div className="space-y-2">
                   <Label htmlFor="link" className="text-xs">
-                    链接地址
+                    {t("upload.fields.linkAddress")}
                   </Label>
                   <Input
                     id="link"
                     type="url"
-                    placeholder="https://example.com"
+                    placeholder={t("upload.fields.linkPlaceholder")}
                     value={link}
                     onChange={(e) => setLink(e.target.value)}
                     className="text-xs"
@@ -217,12 +221,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               {uploadType === "text" && (
                 <div className="space-y-2">
                   <Label htmlFor="text" className="text-xs">
-                    文本内容
+                    {t("upload.fields.textContent")}
                   </Label>
                   <textarea
                     id="text"
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="输入文本内容..."
+                    placeholder={t("upload.fields.textPlaceholder")}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                   />
@@ -234,12 +238,15 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="anchor-name" className="text-xs">
-                      锚点名称 <span className="text-destructive">*</span>
+                      {t("upload.fields.anchorName")}{" "}
+                      <span className="text-destructive">
+                        {t("upload.fields.anchorNameRequired")}
+                      </span>
                     </Label>
                     <Input
                       id="anchor-name"
                       type="text"
-                      placeholder="输入锚点名称（必填）"
+                      placeholder={t("upload.fields.anchorNamePlaceholder")}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="text-xs"
@@ -248,18 +255,18 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="anchor-text" className="text-xs">
-                      锚点描述（可选）
+                      {t("upload.fields.anchorDescription")}
                     </Label>
                     <textarea
                       id="anchor-text"
                       className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="输入锚点描述（可选）..."
+                      placeholder={t("upload.fields.anchorDescPlaceholder")}
                       value={text}
                       onChange={(e) => setText(e.target.value)}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    锚点必须指定位置和名称，其他资源可以挂靠到此锚点
+                    {t("upload.fields.anchorNote")}
                   </p>
                 </div>
               )}
@@ -286,12 +293,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                 {uploading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    上传中...
+                    {t("upload.uploading")}
                   </>
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    上传
+                    {t("upload.uploadButton")}
                   </>
                 )}
               </Button>
