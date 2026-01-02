@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,6 +48,7 @@ interface CleanSummary {
 }
 
 export default function CleanPage() {
+  const { t } = useTranslation();
   const { workspaces, selectedWorkspaceId, setSelectedWorkspaceId, loading } =
     useWorkspace();
   const [cleaning, setCleaning] = useState(false);
@@ -55,25 +57,34 @@ export default function CleanPage() {
 
   const handleClean = async (action: CleanAction) => {
     if (!selectedWorkspaceId) {
-      alert("请先选择工作空间");
+      alert(t("admin.clean.selectWorkspaceFirst"));
       return;
     }
 
     if (
       !confirm(
-        `确定要执行清理操作吗？\n\n` +
+        t("admin.clean.confirmMessage") +
+          "\n\n" +
           `${
-            action === "clean-rows" ? "- 将删除文件不存在的数据库记录\n" : ""
+            action === "clean-rows"
+              ? t("admin.clean.willDeleteRows") + "\n"
+              : ""
           }` +
           `${
-            action === "clean-files" ? "- 将删除数据库中没有记录的文件\n" : ""
+            action === "clean-files"
+              ? t("admin.clean.willDeleteFiles") + "\n"
+              : ""
           }` +
           `${
             action === "both"
-              ? "- 将删除文件不存在的数据库记录\n- 将删除数据库中没有记录的文件\n"
+              ? t("admin.clean.willDeleteRows") +
+                "\n" +
+                t("admin.clean.willDeleteFiles") +
+                "\n"
               : ""
           }` +
-          `\n此操作不可逆！`
+          "\n" +
+          t("admin.clean.irreversible")
       )
     ) {
       return;
@@ -105,7 +116,9 @@ export default function CleanPage() {
       setSummary(data.summary);
     } catch (error) {
       console.error("清理失败:", error);
-      alert(error instanceof Error ? error.message : "清理失败");
+      alert(
+        error instanceof Error ? error.message : t("admin.clean.cleanFailed")
+      );
     } finally {
       setCleaning(false);
     }
@@ -125,14 +138,14 @@ export default function CleanPage() {
         <Link href="/admin">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            返回管理后台
+            {t("admin.backToDashboard")}
           </Button>
         </Link>
       </div>
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">资源清理</h1>
-        <p className="text-muted-foreground">清理数据库和存储桶中的孤立资源</p>
+        <h1 className="text-3xl font-bold mb-2">{t("admin.clean.title")}</h1>
+        <p className="text-muted-foreground">{t("admin.clean.description")}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

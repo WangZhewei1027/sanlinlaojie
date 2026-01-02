@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +24,7 @@ export function TagFilter({
   selectedTagIds,
   onTagsChange,
 }: TagFilterProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const handleToggleTag = (tagId: string) => {
@@ -49,7 +51,7 @@ export function TagFilter({
             className="h-8 gap-1"
           >
             <Filter className="h-3.5 w-3.5" />
-            标签筛选
+            {t("assetManager.tagFilter.title")}
             {hasFilters && (
               <Badge variant="secondary" className="ml-1 px-1 py-0 h-4 min-w-4">
                 {selectedTagIds.length}
@@ -60,7 +62,9 @@ export function TagFilter({
         <DropdownMenuContent align="start" className="w-64">
           <div className="p-2">
             <div className="flex items-center justify-between mb-2 pb-2 border-b">
-              <span className="text-sm font-medium">选择标签</span>
+              <span className="text-sm font-medium">
+                {t("assetManager.tagFilter.selectTags")}
+              </span>
               {hasFilters && (
                 <Button
                   variant="ghost"
@@ -69,14 +73,14 @@ export function TagFilter({
                   className="h-6 px-2 text-xs"
                 >
                   <X className="h-3 w-3 mr-1" />
-                  清除
+                  {t("assetManager.tagFilter.clear")}
                 </Button>
               )}
             </div>
 
             {tags.length === 0 ? (
               <div className="text-sm text-muted-foreground py-4 text-center">
-                暂无标签
+                {t("assetManager.tagFilter.noTags")}
               </div>
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -125,7 +129,7 @@ export function TagFilter({
                 <button
                   onClick={() => handleToggleTag(tagId)}
                   className="hover:bg-black/20 rounded-sm p-0.5"
-                  title="移除筛选"
+                  title={t("assetManager.tagFilter.removeFilter")}
                 >
                   <X className="h-3 w-3" />
                 </button>

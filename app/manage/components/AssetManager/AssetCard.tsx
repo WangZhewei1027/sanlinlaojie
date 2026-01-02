@@ -1,4 +1,5 @@
 import { useManageStore } from "../../store";
+import { useTranslation } from "react-i18next";
 import type { Asset, Tag } from "../../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface AssetCardProps {
 }
 
 export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
+  const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useManageStore(
     (state) => state.setSelectedAssetId
@@ -29,7 +31,7 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
     if (asset.name) {
       return asset.name;
     }
-    return asset.file_url?.split("/").pop() || "未命名文件";
+    return asset.file_url?.split("/").pop() || t("assetManager.unnamed");
   };
 
   const fileName = getDisplayName();
@@ -78,7 +80,8 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
           </p>
           {asset.file_type === "audio" && asset.metadata?.duration && (
             <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
-              时长: {Math.floor(asset.metadata.duration / 60)}:
+              {t("assetManager.duration")}{" "}
+              {Math.floor(asset.metadata.duration / 60)}:
               {String(Math.floor(asset.metadata.duration % 60)).padStart(
                 2,
                 "0"
@@ -122,7 +125,7 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
             size="sm"
             className="h-7 w-7 p-0 flex-shrink-0"
             onClick={handleFocus}
-            title="定位到地图"
+            title={t("assetManager.focusOnMap")}
           >
             <Focus className="h-4 w-4" />
           </Button>

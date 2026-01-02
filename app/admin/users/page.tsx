@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, ArrowLeft, Users as UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -25,6 +26,7 @@ interface UserData {
 }
 
 export default function UsersManagePage() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<UserData[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -94,22 +96,24 @@ export default function UsersManagePage() {
         <Link href="/admin">
           <Button variant="ghost" size="sm" className="mb-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            返回管理后台
+            {t("admin.backToDashboard")}
           </Button>
         </Link>
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <UsersIcon className="h-8 w-8" />
-              <h1 className="text-3xl font-bold">用户管理</h1>
+              <h1 className="text-3xl font-bold">{t("admin.users.title")}</h1>
             </div>
             <p className="text-muted-foreground">
-              管理用户角色和工作空间访问权限
+              {t("admin.users.description")}
             </p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold">{users.length}</p>
-            <p className="text-sm text-muted-foreground">总用户数</p>
+            <p className="text-sm text-muted-foreground">
+              {t("admin.users.totalUsers")}
+            </p>
           </div>
         </div>
       </div>

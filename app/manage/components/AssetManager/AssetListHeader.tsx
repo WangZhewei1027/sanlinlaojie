@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Tag } from "../../types";
 import { TagFilter } from "./TagFilter";
 
@@ -16,21 +17,21 @@ export function AssetListHeader({
   selectedTagIds,
   onTagsChange,
 }: AssetListHeaderProps) {
+  const { t } = useTranslation();
   const hasFilters = selectedTagIds.length > 0;
 
   return (
     <div className="p-4 border-b space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-semibold text-lg">资产列表</h3>
+          <h3 className="font-semibold text-lg">{t("assetManager.title")}</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {hasFilters ? (
-              <>
-                显示 {filteredCount} 个 / 共 {totalCount} 个资产
-              </>
-            ) : (
-              <>共 {totalCount} 个资产</>
-            )}
+            {hasFilters
+              ? t("assetManager.showing", {
+                  filtered: filteredCount,
+                  total: totalCount,
+                })
+              : t("assetManager.total", { count: totalCount })}
           </p>
         </div>
         <TagFilter

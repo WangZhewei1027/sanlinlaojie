@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, ArrowLeft } from "lucide-react";
 import { WorkspaceList } from "./components/WorkspaceList";
@@ -16,6 +17,7 @@ interface Workspace {
 }
 
 export default function WorkspaceManagePage() {
+  const { t } = useTranslation();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -78,19 +80,21 @@ export default function WorkspaceManagePage() {
         <Link href="/admin">
           <Button variant="ghost" size="sm" className="mb-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            返回管理后台
+            {t("admin.backToDashboard")}
           </Button>
         </Link>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">工作空间管理</h1>
+            <h1 className="text-3xl font-bold mb-2">
+              {t("admin.workspace.title")}
+            </h1>
             <p className="text-muted-foreground">
-              创建、编辑和删除工作空间，管理项目的组织结构
+              {t("admin.workspace.description")}
             </p>
           </div>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
-            创建工作空间
+            {t("admin.workspace.create")}
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import type { Asset, Tag } from "../../types";
 import { useManageStore } from "../../store";
@@ -14,6 +15,7 @@ interface AssetManagerProps {
 }
 
 export function AssetManager({ onFocusAsset }: AssetManagerProps) {
+  const { t } = useTranslation();
   const selectedWorkspaceId = useManageStore(
     (state) => state.selectedWorkspaceId
   );
@@ -42,10 +44,10 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         setTags(result.tags || []);
       }
     } catch (err) {
-      console.error("获取标签失败:", err);
+      console.error(t("assetManager.fetchTagsFailed"), err);
       setTags([]);
     }
-  }, [selectedWorkspaceId]);
+  }, [selectedWorkspaceId, t]);
 
   const fetchAssets = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -62,17 +64,17 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "获取资源失败");
+        throw new Error(result.error || t("assetManager.fetchAssetsFailed"));
       }
 
       setAssets(result.data || []);
     } catch (err) {
-      console.error("获取 assets 失败:", err);
+      console.error(t("assetManager.fetchAssetsFailed"), err);
       setAssets([]);
     } finally {
       setAssetsLoading(false);
     }
-  }, [selectedWorkspaceId, setAssets, setAssetsLoading]);
+  }, [selectedWorkspaceId, setAssets, setAssetsLoading, t]);
 
   useEffect(() => {
     fetchTags();
@@ -117,7 +119,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       <div className="divide-y w-full overflow-y-auto max-h-[calc(100vh-200px)]">
         {filteredAssets.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
-            <p>没有符合筛选条件的资产</p>
+            <p>{t("assetManager.noMatchingAssets")}</p>
           </div>
         ) : (
           filteredAssets.map((asset) => (
@@ -136,6 +138,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
 // 导出 API 方法供其他组件使用
 export function useAssetAPI() {
+  const { t } = useTranslation();
   const updateAssetInStore = useManageStore((state) => state.updateAsset);
   const deleteAssetInStore = useManageStore((state) => state.deleteAsset);
 
@@ -155,13 +158,13 @@ export function useAssetAPI() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "更新资源失败");
+        throw new Error(result.error || t("assetManager.updateAssetFailed"));
       }
 
       updateAssetInStore(assetId, result.data);
       return result.data;
     } catch (err) {
-      console.error("更新资源失败:", err);
+      console.error(t("assetManager.updateAssetFailed"), err);
       throw err;
     }
   };
@@ -175,13 +178,13 @@ export function useAssetAPI() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "删除资源失败");
+        throw new Error(result.error || t("assetManager.deleteAssetFailed"));
       }
 
       deleteAssetInStore(assetId);
       return result;
     } catch (err) {
-      console.error("删除资源失败:", err);
+      console.error(t("assetManager.deleteAssetFailed"), err);
       throw err;
     }
   };

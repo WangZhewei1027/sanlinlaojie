@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -7,36 +9,38 @@ import {
 } from "@/components/ui/card";
 import { Settings, FolderKanban, Users, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
-export default async function AdminDashboard() {
+export default function AdminDashboard() {
+  const { t } = useTranslation();
   const modules = [
     {
-      title: "Workspace 管理",
-      description: "创建、编辑和删除工作空间，管理区域限制和地图模型",
+      title: t("admin.dashboard.workspace.title"),
+      description: t("admin.dashboard.workspace.description"),
       icon: FolderKanban,
       href: "/admin/workspace",
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
-      title: "用户管理",
-      description: "管理用户权限，分配工作空间访问权限",
+      title: t("admin.dashboard.users.title"),
+      description: t("admin.dashboard.users.description"),
       icon: Users,
       href: "/admin/users",
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
-      title: "资源清理",
-      description: "清理数据库和存储桶中的孤立资源",
+      title: t("admin.dashboard.clean.title"),
+      description: t("admin.dashboard.clean.description"),
       icon: Trash2,
       href: "/admin/clean",
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
-      title: "资源管理",
-      description: "管理所有工作空间下的资源和资产",
+      title: t("admin.dashboard.resources.title"),
+      description: t("admin.dashboard.resources.description"),
       icon: Settings,
       href: "/admin/resources",
       color: "text-purple-600",
@@ -48,10 +52,10 @@ export default async function AdminDashboard() {
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">管理后台</h1>
-        <p className="text-muted-foreground">
-          欢迎回来！这里可以管理系统的各个模块。
-        </p>
+        <h1 className="text-3xl font-bold mb-2">
+          {t("admin.dashboard.title")}
+        </h1>
+        <p className="text-muted-foreground">{t("admin.dashboard.welcome")}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -75,7 +79,7 @@ export default async function AdminDashboard() {
                   {module.title}
                   {module.disabled && (
                     <span className="text-xs text-muted-foreground font-normal">
-                      (即将推出)
+                      ({t("admin.dashboard.comingSoon")})
                     </span>
                   )}
                 </CardTitle>
@@ -83,7 +87,9 @@ export default async function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {module.disabled ? "功能开发中..." : "点击进入管理"}
+                  {module.disabled
+                    ? t("admin.dashboard.developing")
+                    : t("admin.dashboard.clickToManage")}
                 </p>
               </CardContent>
             </Card>

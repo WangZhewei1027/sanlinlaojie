@@ -107,5 +107,161 @@
     "footer": {
       "copyright": "三林老街数字化平台. All rights reserved."
     }
+  },
+  "admin": {
+    "backToDashboard": "返回管理后台",
+    "dashboard": {
+      "title": "管理后台",
+      "welcome": "欢迎回来！这里可以管理系统的各个模块。",
+      "clickToManage": "点击进入管理",
+      "developing": "功能开发中...",
+      "comingSoon": "即将推出",
+      "workspace": {
+        "title": "Workspace 管理",
+        "description": "创建、编辑和删除工作空间，管理区域限制和地图模型"
+      },
+      "users": {
+        "title": "用户管理",
+        "description": "管理用户权限，分配工作空间访问权限"
+      },
+      "clean": {
+        "title": "资源清理",
+        "description": "清理数据库和存储桶中的孤立资源"
+      },
+      "resources": {
+        "title": "资源管理",
+        "description": "管理所有工作空间下的资源和资产"
+      }
+    },
+    "workspace": {
+      "title": "工作空间管理",
+      "description": "创建、编辑和删除工作空间，管理项目的组织结构",
+      "create": "创建工作空间",
+      "edit": "编辑",
+      "delete": "删除",
+      "noWorkspaces": "暂无工作空间",
+      "noWorkspacesHint": "点击上方按钮创建第一个工作空间",
+      "createdAt": "创建于",
+      "formDialog": {
+        "createTitle": "创建工作空间",
+        "editTitle": "编辑工作空间",
+        "createDescription": "创建一个新的工作空间，用于组织和管理资产",
+        "editDescription": "修改工作空间的名称和描述",
+        "name": "名称",
+        "namePlaceholder": "例如：三林老街项目",
+        "description": "描述",
+        "descriptionPlaceholder": "可选：添加工作空间的描述",
+        "required": "*"
+      },
+      "deleteDialog": {
+        "title": "确认删除",
+        "description": "你确定要删除工作空间 {name} 吗？此操作无法撤销。",
+        "confirmDelete": "删除"
+      }
+    },
+    "users": {
+      "title": "用户管理",
+      "description": "管理用户角色和工作空间访问权限",
+      "totalUsers": "总用户数",
+      "noUsers": "暂无用户",
+      "noUsersHint": "等待用户注册",
+      "currentUser": "当前用户",
+      "admin": "管理员",
+      "student": "学生",
+      "registeredOn": "注册于",
+      "workspaces": "个工作空间",
+      "changeRole": "修改角色",
+      "assignWorkspace": "分配工作空间",
+      "changeRoleDialog": {
+        "title": "修改用户角色",
+        "description": "修改 {name} 的角色权限",
+        "role": "角色",
+        "selectRole": "选择角色",
+        "studentRole": "学生 (Student)",
+        "adminRole": "管理员 (Admin)",
+        "studentHint": "学生只能访问被分配的工作空间",
+        "adminHint": "管理员可以访问所有功能和管理后台"
+      },
+      "manageWorkspaceDialog": {
+        "title": "管理工作空间访问",
+        "description": "为 {name} 分配工作空间访问权限",
+        "addWorkspace": "添加工作空间",
+        "selectWorkspace": "选择工作空间",
+        "assignedWorkspaces": "已分配的工作空间",
+        "noAssignedWorkspaces": "暂无分配的工作空间",
+        "close": "关闭"
+      }
+    },
+    "clean": {
+      "title": "资源清理",
+      "description": "清理数据库和存储桶中的孤立资源",
+      "selectWorkspaceFirst": "请先选择工作空间",
+      "confirmMessage": "确定要执行清理操作吗？",
+      "willDeleteRows": "- 将删除文件不存在的数据库记录",
+      "willDeleteFiles": "- 将删除数据库中没有记录的文件",
+      "irreversible": "此操作不可逆！",
+      "cleanFailed": "清理失败",
+      "cleanOperation": "清理操作",
+      "selectCleanType": "选择工作空间和清理类型",
+      "workspace": "工作空间",
+      "selectWorkspace": "选择工作空间",
+      "cleanOrphanedRows": "清理孤立数据库记录",
+      "cleanOrphanedFiles": "清理孤立存储文件",
+      "fullCleanup": "全面清理",
+      "notes": "注意事项：",
+      "note1": "清理操作不可逆，请谨慎操作",
+      "note2": "孤立记录：数据库中存在但文件已被删除",
+      "note3": "孤立文件：存储桶中存在但数据库无记录",
+      "note4": "建议先单独清理，确认无误后再全面清理",
+      "cleanupSummary": "清理摘要",
+      "orphanedRowsFound": "孤立记录",
+      "orphanedFilesFound": "孤立文件",
+      "rowsDeleted": "已删记录",
+      "filesDeleted": "已删文件",
+      "errors": "错误",
+      "selectToStart": "选择工作空间和清理类型开始清理",
+      "log": {
+        "orphanedRows": "孤立的数据库记录",
+        "orphanedRowsDesc": "数据库中存在但文件已被删除的记录 ({count} 条)",
+        "orphanedFiles": "孤立的存储文件",
+        "orphanedFilesDesc": "存储桶中存在但数据库无记录的文件 ({count} 个)",
+        "deleted": "已删除",
+        "deleteFailed": "删除失败",
+        "cleanupComplete": "清理完成",
+        "deletedRecords": "✓ 已删除 {count} 条数据库记录",
+        "deletedFiles": "✓ 已删除 {count} 个存储文件",
+        "errorLog": "错误记录 ({count})",
+        "noIssues": "未发现需要清理的资源",
+        "databaseHealthy": "数据库和存储桶状态良好"
+      }
+    }
+  },
+  "assetManager": {
+    "title": "资产列表",
+    "showing": "显示 {{filtered}} 个 / 共 {{total}} 个资产",
+    "total": "共 {{count}} 个资产",
+    "noAssets": "暂无资产",
+    "loading": "加载中...",
+    "noMatchingAssets": "没有符合筛选条件的资产",
+    "fetchTagsFailed": "获取标签失败:",
+    "fetchAssetsFailed": "获取资源失败:",
+    "updateAssetFailed": "更新资源失败",
+    "deleteAssetFailed": "删除资源失败",
+    "unnamed": "未命名文件",
+    "duration": "时长:",
+    "focusOnMap": "定位到地图",
+    "tagFilter": {
+      "title": "标签筛选",
+      "selectTags": "选择标签",
+      "clear": "清除",
+      "noTags": "暂无标签",
+      "removeFilter": "移除筛选"
+    },
+    "editActions": {
+      "edit": "编辑",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中..."
+    }
   }
 }

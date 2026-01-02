@@ -107,5 +107,160 @@
     "footer": {
       "copyright": "Sanlin Old Street Digital Platform. All rights reserved."
     }
+  },
+  "admin": {
+    "backToDashboard": "Back to Admin Dashboard",
+    "dashboard": {
+      "title": "Admin Dashboard",
+      "welcome": "Welcome back! Manage all system modules here.",
+      "clickToManage": "Click to manage",
+      "developing": "Feature in development...",
+      "comingSoon": "Coming Soon",
+      "workspace": {
+        "title": "Workspace Management",
+        "description": "Create, edit and delete workspaces, manage region restrictions and map models"
+      },
+      "users": {
+        "title": "User Management",
+        "description": "Manage user permissions and workspace access"
+      },
+      "clean": {
+        "title": "Resource Cleanup",
+        "description": "Clean up orphaned resources in database and storage"
+      },
+      "resources": {
+        "title": "Resource Management",
+        "description": "Manage resources and assets across all workspaces"
+      }
+    },
+    "workspace": {
+      "title": "Workspace Management",
+      "description": "Create, edit and delete workspaces to organize project structure",
+      "create": "Create Workspace",
+      "edit": "Edit",
+      "delete": "Delete",
+      "noWorkspaces": "No Workspaces",
+      "noWorkspacesHint": "Click the button above to create your first workspace",
+      "createdAt": "Created on",
+      "formDialog": {
+        "createTitle": "Create Workspace",
+        "editTitle": "Edit Workspace",
+        "createDescription": "Create a new workspace to organize and manage assets",
+        "editDescription": "Modify workspace name and description",
+        "name": "Name",
+        "namePlaceholder": "e.g., Sanlin Old Street Project",
+        "description": "Description",
+        "descriptionPlaceholder": "Optional: Add workspace description",
+        "required": "*"
+      },
+      "deleteDialog": {
+        "title": "Confirm Delete",
+        "description": "Are you sure you want to delete workspace {name}? This action cannot be undone.",
+        "confirmDelete": "Delete"
+      }
+    },
+    "users": {
+      "title": "User Management",
+      "description": "Manage user roles and workspace access permissions",
+      "totalUsers": "Total Users",
+      "noUsers": "No Users",
+      "noUsersHint": "Waiting for user registration",
+      "currentUser": "Current User",
+      "admin": "Admin",
+      "student": "Student",
+      "registeredOn": "Registered on",
+      "workspaces": "workspaces",
+      "changeRole": "Change Role",
+      "assignWorkspace": "Assign Workspace",
+      "changeRoleDialog": {
+        "title": "Change User Role",
+        "description": "Modify role permissions for {name}",
+        "role": "Role",
+        "selectRole": "Select role",
+        "studentRole": "Student",
+        "adminRole": "Admin",
+        "studentHint": "Students can only access assigned workspaces",
+        "adminHint": "Admins can access all features and admin dashboard"
+      },
+      "manageWorkspaceDialog": {
+        "title": "Manage Workspace Access",
+        "description": "Assign workspace access permissions for {name}",
+        "addWorkspace": "Add Workspace",
+        "selectWorkspace": "Select workspace",
+        "assignedWorkspaces": "Assigned Workspaces",
+        "noAssignedWorkspaces": "No assigned workspaces",
+        "close": "Close"
+      }
+    },
+    "clean": {
+      "title": "Resource Cleanup",
+      "description": "Clean up orphaned resources in database and storage",
+      "selectWorkspaceFirst": "Please select a workspace first",
+      "confirmMessage": "Are you sure you want to proceed with cleanup?",
+      "willDeleteRows": "- Will delete database records with missing files",
+      "willDeleteFiles": "- Will delete files without database records",
+      "irreversible": "This action cannot be undone!",
+      "cleanFailed": "Cleanup failed",
+      "cleanOperation": "Cleanup Operation",
+      "selectCleanType": "Select workspace and cleanup type",
+      "selectWorkspace": "Select workspace",
+      "cleanOrphanedRows": "Clean Orphaned Database Records",
+      "cleanOrphanedFiles": "Clean Orphaned Storage Files",
+      "fullCleanup": "Full Cleanup",
+      "notes": "Important Notes:",
+      "note1": "Cleanup operations cannot be undone, please proceed with caution",
+      "note2": "Orphaned records: Records exist in database but files are deleted",
+      "note3": "Orphaned files: Files exist in storage but no database records",
+      "note4": "Recommend cleaning separately first, then full cleanup after confirmation",
+      "cleanupSummary": "Cleanup Summary",
+      "orphanedRowsFound": "Orphaned Records",
+      "orphanedFilesFound": "Orphaned Files",
+      "rowsDeleted": "Records Deleted",
+      "filesDeleted": "Files Deleted",
+      "errors": "Errors",
+      "selectToStart": "Select workspace and cleanup type to start",
+      "log": {
+        "orphanedRows": "Orphaned Database Records",
+        "orphanedRowsDesc": "Records exist in database but files are deleted ({count} records)",
+        "orphanedFiles": "Orphaned Storage Files",
+        "orphanedFilesDesc": "Files exist in storage but no database records ({count} files)",
+        "deleted": "Deleted",
+        "deleteFailed": "Delete Failed",
+        "cleanupComplete": "Cleanup Complete",
+        "deletedRecords": "✓ Deleted {count} database records",
+        "deletedFiles": "✓ Deleted {count} storage files",
+        "errorLog": "Error Log ({count})",
+        "noIssues": "No resources need cleaning",
+        "databaseHealthy": "Database and storage are in good condition"
+      }
+    }
+  },
+  "assetManager": {
+    "title": "Asset List",
+    "showing": "Showing {{filtered}} / Total {{total}} assets",
+    "total": "Total {{count}} assets",
+    "noAssets": "No assets",
+    "loading": "Loading...",
+    "noMatchingAssets": "No assets match the filter criteria",
+    "fetchTagsFailed": "Failed to fetch tags:",
+    "fetchAssetsFailed": "Failed to fetch assets:",
+    "updateAssetFailed": "Failed to update asset",
+    "deleteAssetFailed": "Failed to delete asset",
+    "unnamed": "Unnamed file",
+    "duration": "Duration:",
+    "focusOnMap": "Focus on map",
+    "tagFilter": {
+      "title": "Tag Filter",
+      "selectTags": "Select Tags",
+      "clear": "Clear",
+      "noTags": "No tags",
+      "removeFilter": "Remove filter"
+    },
+    "editActions": {
+      "edit": "Edit",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    }
   }
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Save, X, Loader2 } from "lucide-react";
 
@@ -16,6 +17,8 @@ export function AssetEditActions({
   onSave,
   onCancel,
 }: AssetEditActionsProps) {
+  const { t } = useTranslation();
+
   if (isEditing) {
     return (
       <>
@@ -26,18 +29,18 @@ export function AssetEditActions({
           disabled={isSaving}
         >
           <X className="h-4 w-4 mr-1" />
-          取消
+          {t("assetManager.editActions.cancel")}
         </Button>
         <Button size="sm" onClick={onSave} disabled={isSaving}>
           {isSaving ? (
             <>
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              保存中...
+              {t("assetManager.editActions.saving")}
             </>
           ) : (
             <>
               <Save className="h-4 w-4 mr-1" />
-              保存
+              {t("assetManager.editActions.save")}
             </>
           )}
         </Button>
@@ -47,7 +50,7 @@ export function AssetEditActions({
 
   return (
     <Button size="sm" variant="outline" onClick={onEdit}>
-      编辑
+      {t("assetManager.editActions.edit")}
     </Button>
   );
 }
