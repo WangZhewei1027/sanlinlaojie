@@ -70,8 +70,10 @@
     "pause": "Pause",
     "fileName": "File Name",
     "fileSize": "File Size",
-    "microphoneError": "Unable to access microphone",
-    "pleaseLogin": "Please login first"
+    "microphoneError": "Unable to access microphone. Please check your permission settings.",
+    "pleaseLogin": "Please login first",
+    "imageCompressionNote": "Image will be automatically compressed to WebP format",
+    "browserNotSupported": "Browser does not support audio recording"
   },
   "manage": {
     "clickedLocation": {

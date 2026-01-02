@@ -70,8 +70,10 @@
     "pause": "暂停",
     "fileName": "文件名",
     "fileSize": "文件大小",
-    "microphoneError": "无法访问麦克风",
-    "pleaseLogin": "请先登录"
+    "microphoneError": "无法访问麦克风，请检查权限设置",
+    "pleaseLogin": "请先登录",
+    "imageCompressionNote": "图片将自动压缩为 WebP 格式上传",
+    "browserNotSupported": "浏览器不支持录音"
   },
   "manage": {
     "clickedLocation": {

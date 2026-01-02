@@ -59,7 +59,7 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
       }
 
       if (!selectedMimeType) {
-        throw new Error("浏览器不支持录音");
+        throw new Error(t("onsite.browserNotSupported"));
       }
 
       // 创建 MediaRecorder 并指定 MIME 类型
@@ -120,7 +120,7 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
       }, 1000);
     } catch (err) {
       console.error("录音失败:", err);
-      setError("无法访问麦克风，请检查权限设置");
+      setError(t("onsite.microphoneError"));
     }
   };
 
@@ -217,7 +217,9 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
             <div className="text-2xl font-mono font-bold">
               {formatTime(recordingTime)}
             </div>
-            <p className="text-sm text-muted-foreground">录音中...</p>
+            <p className="text-sm text-muted-foreground">
+              {t("onsite.recording")}
+            </p>
           </div>
         )}
 
@@ -243,7 +245,7 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
               className="w-full"
             >
               <StopCircle className="h-5 w-5 mr-2" />
-              停止录音
+              {t("onsite.stopRecording")}
             </Button>
           )}
 
