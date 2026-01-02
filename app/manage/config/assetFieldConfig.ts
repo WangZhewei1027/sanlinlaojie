@@ -77,7 +77,7 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 音频类型
   audio: {
-    editableFields: ["anchor_id", "tag_ids", "location"],
+    editableFields: ["name", "anchor_id", "tag_ids", "location"],
     previewType: "audio",
   },
 

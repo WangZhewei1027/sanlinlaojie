@@ -24,9 +24,9 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
     (asset.metadata.longitude !== undefined ||
       asset.metadata.latitude !== undefined);
 
-  // 针对 anchor 类型，优先显示 name
+  // 优先显示 name, 否则显示文件名
   const getDisplayName = () => {
-    if (asset.file_type === "anchor" && asset.name) {
+    if (asset.name) {
       return asset.name;
     }
     return asset.file_url?.split("/").pop() || "未命名文件";
