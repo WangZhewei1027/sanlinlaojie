@@ -77,13 +77,25 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 图片类型
   image: {
-    editableFields: ["name", "anchor_id", "tag_ids", "location"],
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
     previewType: "image",
   },
 
   // 音频类型
   audio: {
-    editableFields: ["name", "anchor_id", "tag_ids", "location"],
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
     previewType: "audio",
   },
 
@@ -94,7 +106,13 @@ export const assetFieldConfig: AssetFieldConfigMap = {
   },
 
   link: {
-    editableFields: ["name", "anchor_id", "tag_ids", "location"],
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
     previewType: "link",
   },
 

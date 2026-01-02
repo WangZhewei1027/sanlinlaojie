@@ -360,7 +360,7 @@ export function AssetEditor({
 
           {/* 文本内容编辑 - 用于 text 类型 */}
           {isFieldEditable(selectedAsset.file_type, "text_content") &&
-            assetConfig?.previewType === "text" && (
+            assetConfig?.previewType !== "anchor" && (
               <AssetTextEditor
                 textContent={selectedAsset.text_content}
                 isEditing={isEditing}
