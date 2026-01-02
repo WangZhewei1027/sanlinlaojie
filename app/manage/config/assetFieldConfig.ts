@@ -94,7 +94,7 @@ export const assetFieldConfig: AssetFieldConfigMap = {
   },
 
   link: {
-    editableFields: ["anchor_id", "tag_ids", "location"],
+    editableFields: ["name", "anchor_id", "tag_ids", "location"],
     previewType: "link",
   },
 

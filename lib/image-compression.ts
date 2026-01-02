@@ -20,17 +20,26 @@ const COMPRESSION_OPTIONS = {
   initialQuality: 0.8, // 默认初始质量
 };
 
-/** 最小压缩质量 */
-const MIN_QUALITY = 0.3;
+/** 最小压缩质量（对极小目标尺寸放宽） */
+const MIN_QUALITY = 0.2;
 
 /** 质量降低步长 */
 const QUALITY_STEP = 0.15;
 
 /** 可用的分辨率档位（从高到低） */
-const RESOLUTION_LEVELS = [1920, 1280, 960, 640];
+const RESOLUTION_LEVELS = [1920, 1280, 960, 720, 640, 480, 360, 320];
 
 /** 最大压缩尝试次数 */
-const MAX_COMPRESSION_ATTEMPTS = 12;
+const MAX_COMPRESSION_ATTEMPTS = 16;
+
+/** 是否为 iOS Safari（在部分版本上禁用 Web Worker 更稳定） */
+function isIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iP(hone|ad|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua)
+  );
+}
 
 // ==================== 辅助函数 ====================
 
@@ -73,6 +82,8 @@ async function performCompression(
     ...COMPRESSION_OPTIONS,
     initialQuality: quality,
     maxWidthOrHeight,
+    // iOS Safari 对 Web Worker + canvas 支持较弱，禁用可提高成功率
+    useWebWorker: isIOSSafari() ? false : COMPRESSION_OPTIONS.useWebWorker,
   });
 }
 
@@ -88,7 +99,7 @@ async function performCompression(
  */
 export async function compressToWebP(
   file: File,
-  maxSizeMB: number = 0.9
+  maxSizeMB: number
 ): Promise<File> {
   const targetSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -159,6 +170,16 @@ export async function compressToWebP(
         );
         break;
       }
+    }
+
+    // 额外兜底：迭代结束仍未达标时，用最小分辨率和质量再尝试一次
+    if (bestResult && bestResult.size > targetSizeBytes) {
+      bestResult = await imageCompression(file, {
+        maxWidthOrHeight: RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1],
+        fileType: "image/webp",
+        initialQuality: MIN_QUALITY,
+        useWebWorker: isIOSSafari() ? false : COMPRESSION_OPTIONS.useWebWorker,
+      });
     }
 
     if (

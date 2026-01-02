@@ -12,6 +12,7 @@ import {
 } from "../renderers/canvasRenderers.js";
 import { createAnchorCanvas } from "../renderers/anchorRenderer.js";
 import { createAudioCanvas } from "../renderers/audioRenderer.js";
+import { createLinkCanvas } from "../renderers/linkRenderer.js";
 import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,
@@ -76,6 +77,8 @@ function createBillboard(asset, longitude, latitude, height) {
     scale = BILLBOARD_CONFIG.anchorScale || 1.0;
   } else if (asset.file_type === "audio") {
     scale = BILLBOARD_CONFIG.audioScale || 6.0;
+  } else if (asset.file_type === "link") {
+    scale = BILLBOARD_CONFIG.linkScale || 6.0;
   }
 
   const entity = viewer.entities.add({
@@ -141,6 +144,11 @@ function getBillboardImage(asset) {
   // 处理音频类型
   if (file_type === "audio") {
     return createAudioCanvas(name || file_url?.split("/").pop(), metadata);
+  }
+
+  // 处理链接类型
+  if (file_type === "link") {
+    return createLinkCanvas(name, metadata);
   }
 
   // 处理文本类型
