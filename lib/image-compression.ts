@@ -74,13 +74,19 @@ function formatSizeMB(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(2);
 }
 
-/** 将 canvas 转为 Blob（支持类型回退） */
+/** 获取按平台排序的输出类型列表 */
+function getOutputTypes(isIOS: boolean): string[] {
+  return isIOS ? ["image/jpeg", "image/webp"] : [...OUTPUT_TYPES];
+}
+
+/** 将 canvas 转为 Blob（支持类型回退，带输出类型日志） */
 function canvasToBlob(
   canvas: HTMLCanvasElement,
-  quality: number
+  quality: number,
+  preferJpeg: boolean
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const tryTypes = [...OUTPUT_TYPES];
+    const tryTypes = getOutputTypes(preferJpeg);
 
     const tryNext = () => {
       if (tryTypes.length === 0) {
@@ -91,6 +97,11 @@ function canvasToBlob(
       canvas.toBlob(
         (blob) => {
           if (blob) {
+            console.log(
+              `[canvasToBlob] 使用输出类型: ${type}, 质量=${quality.toFixed(
+                2
+              )}, 尺寸=${canvas.width}x${canvas.height}`
+            );
             resolve(blob);
           } else {
             tryNext();
@@ -141,7 +152,8 @@ function computeTargetSize(
 async function compressOnce(
   img: HTMLImageElement,
   quality: number,
-  maxSide: number
+  maxSide: number,
+  preferJpeg: boolean
 ): Promise<Blob> {
   const { width, height } = computeTargetSize(img, maxSide);
   const canvas = document.createElement("canvas");
@@ -150,7 +162,7 @@ async function compressOnce(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
   ctx.drawImage(img, 0, 0, width, height);
-  return await canvasToBlob(canvas, quality);
+  return await canvasToBlob(canvas, quality, preferJpeg);
 }
 
 /**
@@ -159,9 +171,10 @@ async function compressOnce(
 async function performCompression(
   img: HTMLImageElement,
   quality: number,
-  maxWidthOrHeight: number
+  maxWidthOrHeight: number,
+  preferJpeg: boolean
 ): Promise<Blob> {
-  return await compressOnce(img, quality, maxWidthOrHeight);
+  return await compressOnce(img, quality, maxWidthOrHeight, preferJpeg);
 }
 
 // ==================== 主函数 ====================
@@ -182,6 +195,7 @@ export async function compressToWebP(
   const isIOS = isIOSSafari();
   const minQuality = isIOS ? IOS_MIN_QUALITY : MIN_QUALITY;
   const qualityStep = isIOS ? IOS_QUALITY_STEP : QUALITY_STEP;
+  const preferJpeg = isIOS;
 
   // 步骤 1: 检查是否需要压缩
   if (file.size <= targetSizeBytes) {
@@ -211,7 +225,8 @@ export async function compressToWebP(
       const compressed = await performCompression(
         img,
         currentQuality,
-        currentResolution
+        currentResolution,
+        preferJpeg
       );
 
       console.log(
@@ -279,7 +294,8 @@ export async function compressToWebP(
       bestResult = await compressOnce(
         img,
         minQuality,
-        RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1]
+        RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1],
+        preferJpeg
       );
     }
 
@@ -298,7 +314,7 @@ export async function compressToWebP(
     console.error("压缩失败，尝试使用保守配置:", error);
 
     // 使用最保守的配置
-    bestResult = await compressOnce(img, 0.5, 640);
+    bestResult = await compressOnce(img, 0.5, 640, preferJpeg);
   }
 
   // 步骤 5: 创建最终文件
