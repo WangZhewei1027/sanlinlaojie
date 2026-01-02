@@ -312,5 +312,72 @@
     "link": "Link",
     "text": "Text",
     "anchor": "Anchor"
+  },
+  "assetEditor": {
+    "title": "Asset Editor",
+    "selectAsset": "Select an asset to edit",
+    "deleteConfirm": "Confirm Delete",
+    "deleteWarning": "Are you sure you want to delete this asset? This action cannot be undone.",
+    "deleteFailed": "Delete failed, please try again",
+    "saveFailed": "Save failed, please try again",
+    "deleting": "Deleting...",
+    "saving": "Saving...",
+    "unnamed": "Unnamed file",
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "Enter name",
+      "description": "Description",
+      "descriptionPlaceholder": "Enter description",
+      "noDescription": "No description",
+      "textContent": "Text Content",
+      "textContentPlaceholder": "Enter text content",
+      "noContent": "No content",
+      "location": "Location Info",
+      "longitude": "Longitude",
+      "latitude": "Latitude",
+      "height": "Height(m)",
+      "gpsSource": "Source:",
+      "metadata": "Full Metadata",
+      "assetId": "ID:"
+    },
+    "preview": {
+      "image": "Image Preview",
+      "audio": "Audio Preview",
+      "audioNotSupported": "Your browser does not support audio playback.",
+      "link": "Link Preview"
+    },
+    "anchor": {
+      "title": "Associated Anchor",
+      "none": "Not associated",
+      "unnamed": "Unnamed anchor",
+      "notAssociated": "No associated anchor",
+      "loading": "Loading...",
+      "fetchFailed": "Failed to fetch anchor list:"
+    },
+    "tags": {
+      "title": "Tags",
+      "loading": "Loading...",
+      "noTags": "No tags",
+      "loadFailed": "Failed to load tags:",
+      "createNew": "New Tag",
+      "createTitle": "Create New Tag",
+      "createDescription": "Create a new tag for this workspace",
+      "editTitle": "Edit Tag",
+      "editDescription": "Modify tag name and color",
+      "tagName": "Tag Name",
+      "tagNamePlaceholder": "Enter tag name",
+      "tagColor": "Tag Color",
+      "preview": "Preview",
+      "creating": "Creating...",
+      "deleteTag": "Delete Tag",
+      "deleteConfirm": "Are you sure you want to delete this tag?",
+      "createFailed": "Failed to create tag",
+      "updateFailed": "Failed to update tag",
+      "deleteFailed": "Failed to delete tag",
+      "selectTag": "Select tag",
+      "add": "Add",
+      "editTooltip": "Edit tag",
+      "removeTooltip": "Remove tag"
+    }
   }
 }

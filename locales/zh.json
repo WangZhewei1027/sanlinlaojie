@@ -313,5 +313,73 @@
     "link": "链接",
     "text": "文本",
     "anchor": "锚点"
+  },
+  "assetEditor": {
+    "title": "资源编辑器",
+    "selectAsset": "选择一个资源进行编辑",
+    "deleteConfirm": "确认删除",
+    "deleteWarning": "确定要删除这个资源吗？此操作无法撤销。",
+    "deleteFailed": "删除失败，请重试",
+    "saveFailed": "保存失败，请重试",
+    "deleting": "删除中...",
+    "saving": "保存中...",
+    "unnamed": "未命名文件",
+    "fields": {
+      "name": "名称",
+      "namePlaceholder": "输入名称",
+      "description": "描述",
+      "descriptionPlaceholder": "输入描述",
+      "noDescription": "无描述",
+      "textContent": "文本内容",
+      "textContentPlaceholder": "输入文本内容",
+      "noContent": "无内容",
+      "location": "位置信息",
+      "longitude": "经度",
+      "latitude": "纬度",
+      "height": "高度(m)",
+      "gpsSource": "来源:",
+      "metadata": "完整元数据",
+      "assetId": "ID:"
+    },
+    "preview": {
+      "image": "图片预览",
+      "audio": "音频预览",
+      "audioNotSupported": "您的浏览器不支持音频播放。",
+      "link": "链接预览"
+    },
+    "anchor": {
+      "title": "关联锚点",
+      "none": "不关联",
+      "unnamed": "未命名锚点",
+      "notAssociated": "未关联锚点",
+      "loading": "加载中...",
+      "fetchFailed": "获取锚点列表失败:"
+    },
+    "tags": {
+      "title": "标签",
+      "loading": "加载中...",
+      "noTags": "无标签",
+      "loadFailed": "加载标签失败:",
+      "createNew": "新建标签",
+      "createTitle": "创建新标签",
+      "createDescription": "为这个工作空间创建一个新标签",
+      "editTitle": "编辑标签",
+      "editDescription": "修改标签的名称和颜色",
+      "tagName": "标签名称",
+      "tagNamePlaceholder": "输入标签名称",
+      "tagColor": "标签颜色",
+      "preview": "预览",
+      "creating": "创建中...",
+      "deleteTag": "删除标签",
+      "deleteConfirm": "确定要删除这个标签吗？",
+      "createFailed": "创建标签失败",
+      "updateFailed": "更新标签失败",
+      "deleteFailed": "删除标签失败",
+      "selectTag": "选择标签",
+      "add": "添加",
+      "editTooltip": "编辑标签",
+      "removeTooltip": "移除标签"
+    }
   }
+}
 }

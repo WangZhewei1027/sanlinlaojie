@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,7 @@ export function AssetEditor({
   onUpdateAsset,
   onDeleteAsset,
 }: AssetEditorProps) {
+  const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const selectedWorkspaceId = useManageStore(
     (state) => state.selectedWorkspaceId
@@ -126,10 +128,11 @@ export function AssetEditor({
       setIsEditing(false);
     } catch (error) {
       console.error("保存失败:", error);
-      alert("保存失败，请重试");
+      alert(t("assetEditor.saveFailed"));
     } finally {
       setIsSaving(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAsset, editedData, onUpdateAsset]);
 
   const handleCancel = useCallback(() => {
@@ -157,10 +160,11 @@ export function AssetEditor({
       setSelectedAssetId(null);
     } catch (error) {
       console.error("删除失败:", error);
-      alert("删除失败，请重试");
+      alert(t("assetEditor.deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAsset, onDeleteAsset, setSelectedAssetId]);
 
   const handleClose = useCallback(() => {
@@ -173,7 +177,9 @@ export function AssetEditor({
       <Card className="p-6">
         <div className="flex flex-col items-center justify-center text-center space-y-2 py-8">
           <FileText className="h-12 w-12 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">选择一个资源进行编辑</p>
+          <p className="text-sm text-muted-foreground">
+            {t("assetEditor.selectAsset")}
+          </p>
         </div>
       </Card>
     );
@@ -184,7 +190,7 @@ export function AssetEditor({
     if (selectedAsset.file_type === "anchor" && selectedAsset.name) {
       return selectedAsset.name;
     }
-    return selectedAsset.file_url?.split("/").pop() || "未命名文件";
+    return selectedAsset.file_url?.split("/").pop() || t("assetEditor.unnamed");
   };
 
   const fileName = getDisplayName();
@@ -194,9 +200,9 @@ export function AssetEditor({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
+            <DialogTitle>{t("assetEditor.deleteConfirm")}</DialogTitle>
             <DialogDescription>
-              确定要删除这个资源吗？此操作无法撤销。
+              {t("assetEditor.deleteWarning")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -205,7 +211,7 @@ export function AssetEditor({
               onClick={() => setShowDeleteDialog(false)}
               disabled={isDeleting}
             >
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -215,12 +221,12 @@ export function AssetEditor({
               {isDeleting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  删除中...
+                  {t("assetEditor.deleting")}
                 </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-1" />
-                  删除
+                  {t("common.delete")}
                 </>
               )}
             </Button>
@@ -232,7 +238,9 @@ export function AssetEditor({
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b bg-muted/20">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm truncate">资源编辑器</h3>
+            <h3 className="font-semibold text-sm truncate">
+              {t("assetEditor.title")}
+            </h3>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
               {fileName}
             </p>
@@ -259,14 +267,14 @@ export function AssetEditor({
                 className="text-destructive hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-1" />
-                删除
+                {t("common.delete")}
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
               {!isEditing ? (
                 <Button size="sm" onClick={() => setIsEditing(true)}>
                   <Edit2 className="h-4 w-4 mr-1" />
-                  编辑
+                  {t("common.edit")}
                 </Button>
               ) : (
                 <>
@@ -277,18 +285,18 @@ export function AssetEditor({
                     disabled={isSaving}
                   >
                     <X className="h-4 w-4 mr-1" />
-                    取消
+                    {t("common.cancel")}
                   </Button>
                   <Button size="sm" onClick={handleSave} disabled={isSaving}>
                     {isSaving ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        保存中...
+                        {t("assetEditor.saving")}
                       </>
                     ) : (
                       <>
                         <Save className="h-4 w-4 mr-1" />
-                        保存
+                        {t("common.save")}
                       </>
                     )}
                   </Button>
@@ -321,7 +329,7 @@ export function AssetEditor({
                   {getFieldLabel(
                     selectedAsset.file_type,
                     "text_content",
-                    "描述"
+                    t("assetEditor.fields.description")
                   )}
                 </label>
                 {isEditing ? (
@@ -338,12 +346,13 @@ export function AssetEditor({
                     placeholder={getFieldPlaceholder(
                       selectedAsset.file_type,
                       "text_content",
-                      "输入描述"
+                      t("assetEditor.fields.descriptionPlaceholder")
                     )}
                   />
                 ) : (
                   <p className="text-sm p-3 bg-background rounded-md">
-                    {selectedAsset.text_content || "无描述"}
+                    {selectedAsset.text_content ||
+                      t("assetEditor.fields.noDescription")}
                   </p>
                 )}
               </div>

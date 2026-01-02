@@ -1,12 +1,18 @@
+import { useTranslation } from "react-i18next";
+
 interface AssetLinkPreviewProps {
   fileUrl: string;
   fileName: string;
 }
 
 export function AssetLinkPreview({ fileUrl, fileName }: AssetLinkPreviewProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">链接预览</label>
+      <label className="text-sm font-medium">
+        {t("assetEditor.preview.link")}
+      </label>
       <div className="rounded-md overflow-hidden border bg-background">
         <iframe
           src={fileUrl}

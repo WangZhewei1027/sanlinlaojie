@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ export function AssetTagEditor({
   isEditing,
   onTagIdsChange,
 }: AssetTagEditorProps) {
+  const { t } = useTranslation();
   const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -58,11 +60,11 @@ export function AssetTagEditor({
         setTags(data.tags || []);
       }
     } catch (error) {
-      console.error("加载标签失败:", error);
+      console.error(t("assetEditor.tags.loadFailed"), error);
     } finally {
       setIsLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, t]);
 
   useEffect(() => {
     loadTags();
@@ -94,11 +96,11 @@ export function AssetTagEditor({
         onTagIdsChange([...tagIds, data.tag.id]);
       } else {
         const error = await response.json();
-        alert(error.error || "创建标签失败");
+        alert(error.error || t("assetEditor.tags.createFailed"));
       }
     } catch (error) {
-      console.error("创建标签失败:", error);
-      alert("创建标签失败");
+      console.error(t("assetEditor.tags.createFailed"), error);
+      alert(t("assetEditor.tags.createFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -128,11 +130,11 @@ export function AssetTagEditor({
         setNewTagColor("#808080");
       } else {
         const error = await response.json();
-        alert(error.error || "更新标签失败");
+        alert(error.error || t("assetEditor.tags.updateFailed"));
       }
     } catch (error) {
-      console.error("更新标签失败:", error);
-      alert("更新标签失败");
+      console.error(t("assetEditor.tags.updateFailed"), error);
+      alert(t("assetEditor.tags.updateFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -140,7 +142,7 @@ export function AssetTagEditor({
 
   // 删除标签
   const handleDeleteTag = async (tagId: string) => {
-    if (!confirm("确定要删除这个标签吗？")) return;
+    if (!confirm(t("assetEditor.tags.deleteConfirm"))) return;
 
     try {
       const response = await fetch(`/api/tags/${tagId}`, {
@@ -153,11 +155,11 @@ export function AssetTagEditor({
         onTagIdsChange(tagIds.filter((id) => id !== tagId));
       } else {
         const error = await response.json();
-        alert(error.error || "删除标签失败");
+        alert(error.error || t("assetEditor.tags.deleteFailed"));
       }
     } catch (error) {
-      console.error("删除标签失败:", error);
-      alert("删除标签失败");
+      console.error(t("assetEditor.tags.deleteFailed"), error);
+      alert(t("assetEditor.tags.deleteFailed"));
     }
   };
 
@@ -193,17 +195,19 @@ export function AssetTagEditor({
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>创建新标签</DialogTitle>
-            <DialogDescription>为这个工作空间创建一个新标签</DialogDescription>
+            <DialogTitle>{t("assetEditor.tags.createTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("assetEditor.tags.createDescription")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="tag-name">标签名称</Label>
+              <Label htmlFor="tag-name">{t("assetEditor.tags.tagName")}</Label>
               <Input
                 id="tag-name"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
-                placeholder="输入标签名称"
+                placeholder={t("assetEditor.tags.tagNamePlaceholder")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     handleCreateTag();
@@ -212,7 +216,9 @@ export function AssetTagEditor({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tag-color">标签颜色</Label>
+              <Label htmlFor="tag-color">
+                {t("assetEditor.tags.tagColor")}
+              </Label>
               <div className="flex items-center gap-2">
                 <input
                   id="tag-color"
@@ -222,7 +228,7 @@ export function AssetTagEditor({
                   className="h-10 w-20 rounded border border-input cursor-pointer"
                 />
                 <Badge style={{ backgroundColor: newTagColor }}>
-                  {newTagName || "预览"}
+                  {newTagName || t("assetEditor.tags.preview")}
                 </Badge>
               </div>
             </div>
@@ -237,7 +243,7 @@ export function AssetTagEditor({
               }}
               disabled={isSaving}
             >
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreateTag}
@@ -246,10 +252,10 @@ export function AssetTagEditor({
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  创建中...
+                  {t("assetEditor.tags.creating")}
                 </>
               ) : (
-                "创建"
+                t("common.create")
               )}
             </Button>
           </DialogFooter>
@@ -260,17 +266,21 @@ export function AssetTagEditor({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑标签</DialogTitle>
-            <DialogDescription>修改标签的名称和颜色</DialogDescription>
+            <DialogTitle>{t("assetEditor.tags.editTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("assetEditor.tags.editDescription")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-tag-name">标签名称</Label>
+              <Label htmlFor="edit-tag-name">
+                {t("assetEditor.tags.tagName")}
+              </Label>
               <Input
                 id="edit-tag-name"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
-                placeholder="输入标签名称"
+                placeholder={t("assetEditor.tags.tagNamePlaceholder")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     handleUpdateTag();
@@ -279,7 +289,9 @@ export function AssetTagEditor({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-tag-color">标签颜色</Label>
+              <Label htmlFor="edit-tag-color">
+                {t("assetEditor.tags.tagColor")}
+              </Label>
               <div className="flex items-center gap-2">
                 <input
                   id="edit-tag-color"
@@ -289,7 +301,7 @@ export function AssetTagEditor({
                   className="h-10 w-20 rounded border border-input cursor-pointer"
                 />
                 <Badge style={{ backgroundColor: newTagColor }}>
-                  {newTagName || "预览"}
+                  {newTagName || t("assetEditor.tags.preview")}
                 </Badge>
               </div>
             </div>
@@ -303,7 +315,7 @@ export function AssetTagEditor({
               disabled={isSaving}
             >
               <Trash2 className="h-4 w-4 mr-1" />
-              删除标签
+              {t("assetEditor.tags.deleteTag")}
             </Button>
             <div className="flex gap-2">
               <Button
@@ -316,7 +328,7 @@ export function AssetTagEditor({
                 }}
                 disabled={isSaving}
               >
-                取消
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={handleUpdateTag}
@@ -325,10 +337,10 @@ export function AssetTagEditor({
                 {isSaving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    保存中...
+                    {t("assetEditor.saving")}
                   </>
                 ) : (
-                  "保存"
+                  t("common.save")
                 )}
               </Button>
             </div>
@@ -339,7 +351,9 @@ export function AssetTagEditor({
       {/* 标签编辑器主界面 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">标签</label>
+          <label className="text-sm font-medium">
+            {t("assetEditor.tags.title")}
+          </label>
           {isEditing && (
             <Button
               size="sm"
@@ -352,7 +366,7 @@ export function AssetTagEditor({
               className="h-7 text-xs"
             >
               <Plus className="h-3 w-3 mr-1" />
-              新建标签
+              {t("assetEditor.tags.createNew")}
             </Button>
           )}
         </div>
@@ -360,9 +374,13 @@ export function AssetTagEditor({
         {/* 已选中的标签 */}
         <div className="flex flex-wrap gap-2 min-h-[32px] p-2 bg-background rounded-md border">
           {isLoading ? (
-            <span className="text-xs text-muted-foreground">加载中...</span>
+            <span className="text-xs text-muted-foreground">
+              {t("assetEditor.tags.loading")}
+            </span>
           ) : tagIds.length === 0 ? (
-            <span className="text-xs text-muted-foreground">无标签</span>
+            <span className="text-xs text-muted-foreground">
+              {t("assetEditor.tags.noTags")}
+            </span>
           ) : (
             tagIds.map((tagId) => {
               const tag = getTag(tagId);
@@ -379,14 +397,14 @@ export function AssetTagEditor({
                       <button
                         onClick={() => openEditDialog(tag)}
                         className="ml-1 hover:bg-black/20 rounded-sm p-0.5"
-                        title="编辑标签"
+                        title={t("assetEditor.tags.editTooltip")}
                       >
                         <Edit2 className="h-3 w-3" />
                       </button>
                       <button
                         onClick={() => handleRemoveTag(tagId)}
                         className="hover:bg-black/20 rounded-sm p-0.5"
-                        title="移除标签"
+                        title={t("assetEditor.tags.removeTooltip")}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -403,7 +421,7 @@ export function AssetTagEditor({
           <div className="flex gap-2">
             <Select value={selectedTagId} onValueChange={setSelectedTagId}>
               <SelectTrigger className="text-xs h-8">
-                <SelectValue placeholder="选择标签" />
+                <SelectValue placeholder={t("assetEditor.tags.selectTag")} />
               </SelectTrigger>
               <SelectContent>
                 {availableTags.map((tag) => (
@@ -425,7 +443,7 @@ export function AssetTagEditor({
               disabled={!selectedTagId}
               className="h-8"
             >
-              添加
+              {t("assetEditor.tags.add")}
             </Button>
           </div>
         )}

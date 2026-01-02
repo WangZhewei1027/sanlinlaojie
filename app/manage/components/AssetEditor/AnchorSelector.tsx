@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ export function AnchorSelector({
   isEditing,
   onAnchorChange,
 }: AnchorSelectorProps) {
+  const { t } = useTranslation();
   const [anchors, setAnchors] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,29 +46,29 @@ export function AnchorSelector({
           setAnchors(anchorAssets);
         }
       } catch (error) {
-        console.error("获取锚点列表失败:", error);
+        console.error(t("assetEditor.anchor.fetchFailed"), error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchAnchors();
-  }, [workspaceId]);
+  }, [workspaceId, t]);
 
   const currentAnchor = anchors.find((a) => a.id === currentAnchorId);
 
   // 获取显示文本
   const getDisplayText = () => {
-    if (loading) return "加载中...";
-    if (!currentAnchorId) return "不关联";
-    return currentAnchor?.name || "未命名锚点";
+    if (loading) return t("assetEditor.anchor.loading");
+    if (!currentAnchorId) return t("assetEditor.anchor.none");
+    return currentAnchor?.name || t("assetEditor.anchor.unnamed");
   };
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium flex items-center gap-2">
         <Anchor className="h-4 w-4 text-amber-600" />
-        关联锚点
+        {t("assetEditor.anchor.title")}
       </label>
       {isEditing ? (
         <Select
@@ -87,12 +89,12 @@ export function AnchorSelector({
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">不关联</SelectItem>
+            <SelectItem value="none">{t("assetEditor.anchor.none")}</SelectItem>
             {anchors.map((anchor) => (
               <SelectItem key={anchor.id} value={anchor.id}>
                 <div className="flex items-center gap-2">
                   <Anchor className="h-3 w-3 text-amber-600" />
-                  <span>{anchor.name || "未命名锚点"}</span>
+                  <span>{anchor.name || t("assetEditor.anchor.unnamed")}</span>
                 </div>
               </SelectItem>
             ))}
@@ -103,10 +105,14 @@ export function AnchorSelector({
           {currentAnchor ? (
             <>
               <Anchor className="h-4 w-4 text-amber-600" />
-              <span>{currentAnchor.name || "未命名锚点"}</span>
+              <span>
+                {currentAnchor.name || t("assetEditor.anchor.unnamed")}
+              </span>
             </>
           ) : (
-            <span className="text-muted-foreground">未关联锚点</span>
+            <span className="text-muted-foreground">
+              {t("assetEditor.anchor.notAssociated")}
+            </span>
           )}
         </div>
       )}

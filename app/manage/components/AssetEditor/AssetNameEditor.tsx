@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 
 interface AssetNameEditorProps {
@@ -14,22 +15,26 @@ export function AssetNameEditor({
   isEditing,
   editedName,
   onNameChange,
-  label = "名称",
-  placeholder = "输入名称",
+  label,
+  placeholder,
 }: AssetNameEditorProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-medium">
+        {label || t("assetEditor.fields.name")}
+      </label>
       {isEditing ? (
         <Input
           value={editedName}
           onChange={(e) => onNameChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={placeholder || t("assetEditor.fields.namePlaceholder")}
           className="text-sm"
         />
       ) : (
         <p className="text-sm p-3 bg-background rounded-md">
-          {name || "未命名"}
+          {name || t("assetEditor.unnamed")}
         </p>
       )}
     </div>

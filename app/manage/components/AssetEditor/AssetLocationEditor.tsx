@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
 import { useManageStore } from "../../store";
@@ -33,6 +34,7 @@ export function AssetLocationEditor({
   onLatitudeChange,
   onHeightChange,
 }: AssetLocationEditorProps) {
+  const { t } = useTranslation();
   const clickedLocation = useManageStore((state) => state.clickedLocation);
 
   // 监听 clickedLocation 的变化，在编辑状态时自动填充
@@ -49,11 +51,13 @@ export function AssetLocationEditor({
     <div className="space-y-3">
       <label className="text-sm font-medium flex items-center gap-2">
         <MapPin className="h-4 w-4" />
-        位置信息
+        {t("assetEditor.fields.location")}
       </label>
       <div className="grid grid-cols-3 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">经度</label>
+          <label className="text-xs text-muted-foreground">
+            {t("assetEditor.fields.longitude")}
+          </label>
           {isEditing ? (
             <Input
               type="number"
@@ -69,7 +73,9 @@ export function AssetLocationEditor({
           )}
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">纬度</label>
+          <label className="text-xs text-muted-foreground">
+            {t("assetEditor.fields.latitude")}
+          </label>
           {isEditing ? (
             <Input
               type="number"
@@ -85,7 +91,9 @@ export function AssetLocationEditor({
           )}
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">高度(m)</label>
+          <label className="text-xs text-muted-foreground">
+            {t("assetEditor.fields.height")}
+          </label>
           {isEditing ? (
             <Input
               type="number"
@@ -103,7 +111,7 @@ export function AssetLocationEditor({
       </div>
       {metadata.gps_source && (
         <p className="text-xs text-muted-foreground">
-          来源: {metadata.gps_source}
+          {t("assetEditor.fields.gpsSource")} {metadata.gps_source}
         </p>
       )}
     </div>

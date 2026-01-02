@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Textarea } from "@/components/ui/textarea";
 
 interface AssetTextEditorProps {
@@ -14,23 +15,29 @@ export function AssetTextEditor({
   isEditing,
   editedText,
   onTextChange,
-  label = "文本内容",
-  placeholder = "输入文本内容",
+  label,
+  placeholder,
 }: AssetTextEditorProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-medium">
+        {label || t("assetEditor.fields.textContent")}
+      </label>
       {isEditing ? (
         <Textarea
           value={editedText}
           onChange={(e) => onTextChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={
+            placeholder || t("assetEditor.fields.textContentPlaceholder")
+          }
           rows={3}
           className="text-sm"
         />
       ) : (
         <p className="text-sm p-3 bg-background rounded-md">
-          {textContent || "无内容"}
+          {textContent || t("assetEditor.fields.noContent")}
         </p>
       )}
     </div>
