@@ -59,7 +59,13 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 文本类型
   text: {
-    editableFields: ["text_content", "anchor_id", "tag_ids", "location"],
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
     previewType: "text",
     fieldLabels: {
       text_content: "文本内容",
@@ -71,7 +77,7 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 图片类型
   image: {
-    editableFields: ["anchor_id", "tag_ids", "location"],
+    editableFields: ["name", "anchor_id", "tag_ids", "location"],
     previewType: "image",
   },
 
