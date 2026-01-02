@@ -9,16 +9,11 @@
  * - 通过质量和分辨率双重控制来达到目标大小
  */
 
-import imageCompression from "browser-image-compression";
-
 // ==================== 配置常量 ====================
 
-/** 压缩配置 */
-const COMPRESSION_OPTIONS = {
-  fileType: "image/webp" as const, // 输出格式
-  useWebWorker: true, // 使用 Web Worker 提升性能
-  initialQuality: 0.8, // 默认初始质量
-};
+/** 输出格式：优先 webp，若不支持则回退为 jpeg */
+const OUTPUT_TYPES = ["image/webp", "image/jpeg"] as const;
+const DEFAULT_QUALITY = 0.8;
 
 /** 最小压缩质量（对极小目标尺寸放宽） */
 const MIN_QUALITY = 0.2;
@@ -26,8 +21,17 @@ const MIN_QUALITY = 0.2;
 /** 质量降低步长 */
 const QUALITY_STEP = 0.15;
 
+/** iOS Safari 质量降低步长（质量参数在 WebP 上几乎无效，走更小步长并更快转向降分辨率） */
+const IOS_QUALITY_STEP = 0.1;
+
+/** iOS Safari 最低质量（避免过度糊化，更多依赖降分辨率） */
+const IOS_MIN_QUALITY = 0.5;
+
+/** 判断质量调整是否无效的尺寸波动阈值 */
+const QUALITY_INEFFECTIVE_DELTA = 0.03; // 3%
+
 /** 可用的分辨率档位（从高到低） */
-const RESOLUTION_LEVELS = [1920, 1280, 960, 720, 640, 480, 360, 320];
+const RESOLUTION_LEVELS = [1920, 1280, 960];
 
 /** 最大压缩尝试次数 */
 const MAX_COMPRESSION_ATTEMPTS = 16;
@@ -70,21 +74,94 @@ function formatSizeMB(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(2);
 }
 
+/** 将 canvas 转为 Blob（支持类型回退） */
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  quality: number
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const tryTypes = [...OUTPUT_TYPES];
+
+    const tryNext = () => {
+      if (tryTypes.length === 0) {
+        reject(new Error("canvas.toBlob failed for all mime types"));
+        return;
+      }
+      const type = tryTypes.shift()!;
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            tryNext();
+          }
+        },
+        type,
+        quality
+      );
+    };
+
+    tryNext();
+  });
+}
+
+/** 加载图片为 HTMLImageElement */
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** 计算目标尺寸，保持纵横比并限制最长边 */
+function computeTargetSize(
+  img: HTMLImageElement,
+  maxSide: number
+): { width: number; height: number } {
+  const { naturalWidth, naturalHeight } = img;
+  const longestSide = Math.max(naturalWidth, naturalHeight);
+  if (longestSide <= maxSide)
+    return { width: naturalWidth, height: naturalHeight };
+  const scale = maxSide / longestSide;
+  return {
+    width: Math.round(naturalWidth * scale),
+    height: Math.round(naturalHeight * scale),
+  };
+}
+
+/** 从原始图片按指定质量+分辨率生成 Blob */
+async function compressOnce(
+  img: HTMLImageElement,
+  quality: number,
+  maxSide: number
+): Promise<Blob> {
+  const { width, height } = computeTargetSize(img, maxSide);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
+  ctx.drawImage(img, 0, 0, width, height);
+  return await canvasToBlob(canvas, quality);
+}
+
 /**
  * 执行图片压缩
  */
 async function performCompression(
-  file: File,
+  img: HTMLImageElement,
   quality: number,
   maxWidthOrHeight: number
 ): Promise<Blob> {
-  return await imageCompression(file, {
-    ...COMPRESSION_OPTIONS,
-    initialQuality: quality,
-    maxWidthOrHeight,
-    // iOS Safari 对 Web Worker + canvas 支持较弱，禁用可提高成功率
-    useWebWorker: isIOSSafari() ? false : COMPRESSION_OPTIONS.useWebWorker,
-  });
+  return await compressOnce(img, quality, maxWidthOrHeight);
 }
 
 // ==================== 主函数 ====================
@@ -102,6 +179,9 @@ export async function compressToWebP(
   maxSizeMB: number
 ): Promise<File> {
   const targetSizeBytes = maxSizeMB * 1024 * 1024;
+  const isIOS = isIOSSafari();
+  const minQuality = isIOS ? IOS_MIN_QUALITY : MIN_QUALITY;
+  const qualityStep = isIOS ? IOS_QUALITY_STEP : QUALITY_STEP;
 
   // 步骤 1: 检查是否需要压缩
   if (file.size <= targetSizeBytes) {
@@ -114,11 +194,13 @@ export async function compressToWebP(
   console.log(`开始压缩: ${formatSizeMB(file.size)}MB，目标: ${maxSizeMB}MB`);
 
   // 步骤 2: 初始化压缩参数
+  const img = await loadImage(file);
   let resolutionIndex = 0;
   let currentResolution = RESOLUTION_LEVELS[resolutionIndex];
   let currentQuality = estimateInitialQuality(file.size);
   let bestResult: Blob | null = null;
   let attempt = 0;
+  let lastCompressedSize = file.size;
 
   try {
     // 步骤 3: 迭代压缩直到满足大小要求或达到最大尝试次数
@@ -127,7 +209,7 @@ export async function compressToWebP(
 
       // 始终从原始文件压缩
       const compressed = await performCompression(
-        file,
+        img,
         currentQuality,
         currentResolution
       );
@@ -139,6 +221,9 @@ export async function compressToWebP(
       );
 
       bestResult = compressed;
+      const sizeChangeRatio =
+        Math.abs(compressed.size - lastCompressedSize) / lastCompressedSize;
+      lastCompressedSize = compressed.size;
 
       // 检查是否满足大小要求
       if (compressed.size <= targetSizeBytes) {
@@ -147,10 +232,27 @@ export async function compressToWebP(
       }
 
       // 决定下一步策略
-      if (currentQuality > MIN_QUALITY) {
-        // 策略1: 降低质量
-        currentQuality = Math.max(currentQuality - QUALITY_STEP, MIN_QUALITY);
-        console.log(`降低质量至 ${currentQuality.toFixed(2)}`);
+      if (currentQuality > minQuality) {
+        // 策略1: 优先降质量；若质量参数几乎不生效（iOS Safari 常见），直接降分辨率
+        const qualitySeemsIneffective =
+          isIOS && sizeChangeRatio < QUALITY_INEFFECTIVE_DELTA;
+
+        if (
+          qualitySeemsIneffective &&
+          resolutionIndex < RESOLUTION_LEVELS.length - 1
+        ) {
+          resolutionIndex++;
+          currentResolution = RESOLUTION_LEVELS[resolutionIndex];
+          currentQuality = Math.max(currentQuality, 0.7);
+          console.log(
+            `质量调整无明显效果，降分辨率至 ${currentResolution}px，保持质量 ${currentQuality.toFixed(
+              2
+            )}`
+          );
+        } else {
+          currentQuality = Math.max(currentQuality - qualityStep, minQuality);
+          console.log(`降低质量至 ${currentQuality.toFixed(2)}`);
+        }
       } else if (resolutionIndex < RESOLUTION_LEVELS.length - 1) {
         // 策略2: 质量已达最低，降低分辨率并重置质量
         resolutionIndex++;
@@ -164,7 +266,7 @@ export async function compressToWebP(
       } else {
         // 策略3: 分辨率和质量都已达最低
         console.warn(
-          `⚠ 已达到最低分辨率 (${currentResolution}px) 和质量 (${MIN_QUALITY})，但文件仍为 ${formatSizeMB(
+          `⚠ 已达到最低分辨率 (${currentResolution}px) 和质量 (${minQuality})，但文件仍为 ${formatSizeMB(
             compressed.size
           )}MB`
         );
@@ -174,12 +276,11 @@ export async function compressToWebP(
 
     // 额外兜底：迭代结束仍未达标时，用最小分辨率和质量再尝试一次
     if (bestResult && bestResult.size > targetSizeBytes) {
-      bestResult = await imageCompression(file, {
-        maxWidthOrHeight: RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1],
-        fileType: "image/webp",
-        initialQuality: MIN_QUALITY,
-        useWebWorker: isIOSSafari() ? false : COMPRESSION_OPTIONS.useWebWorker,
-      });
+      bestResult = await compressOnce(
+        img,
+        minQuality,
+        RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1]
+      );
     }
 
     if (
@@ -197,12 +298,7 @@ export async function compressToWebP(
     console.error("压缩失败，尝试使用保守配置:", error);
 
     // 使用最保守的配置
-    bestResult = await imageCompression(file, {
-      maxWidthOrHeight: 640,
-      fileType: "image/webp",
-      initialQuality: 0.5,
-      useWebWorker: false,
-    });
+    bestResult = await compressOnce(img, 0.5, 640);
   }
 
   // 步骤 5: 创建最终文件
