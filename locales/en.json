@@ -73,7 +73,22 @@
     "microphoneError": "Unable to access microphone. Please check your permission settings.",
     "pleaseLogin": "Please login first",
     "imageCompressionNote": "Image will be automatically compressed to WebP format",
-    "browserNotSupported": "Browser does not support audio recording"
+    "browserNotSupported": "Browser does not support audio recording",
+    "tags": {
+      "title": "Tags",
+      "createNew": "New Tag",
+      "createTitle": "Create Tag",
+      "createDescription": "Create a new tag for the workspace",
+      "tagName": "Tag Name",
+      "tagNamePlaceholder": "Enter tag name...",
+      "tagColor": "Tag Color",
+      "preview": "Preview",
+      "creating": "Creating...",
+      "createFailed": "Failed to create tag",
+      "loading": "Loading tags...",
+      "noTagsAvailable": "No tags available. Create a new tag to get started.",
+      "selectedCount": "{{count}} tag(s) selected"
+    }
   },
   "manage": {
     "clickedLocation": {

@@ -130,6 +130,7 @@ export class FileUploadService {
       file_type: result.fileType,
       file_url: result.fileUrl,
       location: geometry,
+      tag_ids: result.tagIds && result.tagIds.length > 0 ? result.tagIds : null,
       metadata: {
         longitude: result.location?.longitude,
         latitude: result.location?.latitude,
@@ -180,7 +181,8 @@ export class FileUploadService {
     workspaceId: string,
     userId: string,
     text: string,
-    location?: LocationData
+    location?: LocationData,
+    tagIds?: string[]
   ): Promise<void> {
     const geometry = location
       ? `POINT(${location.longitude} ${location.latitude})`
@@ -192,6 +194,7 @@ export class FileUploadService {
       file_type: "text",
       text_content: text,
       location: geometry,
+      tag_ids: tagIds && tagIds.length > 0 ? tagIds : null,
       metadata: {
         longitude: location?.longitude,
         latitude: location?.latitude,

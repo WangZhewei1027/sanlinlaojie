@@ -19,24 +19,24 @@ export function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         className="flex-1"
         onClick={() => onModeChange("camera")}
       >
-        <Camera className="h-4 w-4 mr-2" />
-        {t("onsite.cameraMode")}
+        <Camera className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">{t("onsite.cameraMode")}</span>
       </Button>
       <Button
         variant={mode === "text" ? "default" : "outline"}
         className="flex-1"
         onClick={() => onModeChange("text")}
       >
-        <Type className="h-4 w-4 mr-2" />
-        {t("onsite.textMode")}
+        <Type className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">{t("onsite.textMode")}</span>
       </Button>
       <Button
         variant={mode === "audio" ? "default" : "outline"}
         className="flex-1"
         onClick={() => onModeChange("audio")}
       >
-        <Mic className="h-4 w-4 mr-2" />
-        {t("onsite.audioMode")}
+        <Mic className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">{t("onsite.audioMode")}</span>
       </Button>
     </div>
   );

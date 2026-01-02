@@ -11,6 +11,7 @@ import { CameraUpload } from "./components/CameraUpload";
 import { TextUpload } from "./components/TextUpload";
 import { AudioRecorder } from "./components/AudioRecorder";
 import { StatusMessages } from "./components/StatusMessages";
+import { TagSelector } from "./components/TagSelector";
 import { useGPS } from "./hooks/useGPS";
 import { useManageStore } from "../manage/store";
 
@@ -29,6 +30,7 @@ export default function UploadOnsitePage() {
   const [mode, setMode] = useState<UploadMode>("camera");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // 上传拍摄的照片
   const handlePhotoUpload = async (capturedImage: string) => {
@@ -85,6 +87,7 @@ export default function UploadOnsitePage() {
         fileUrl,
         location,
         gpsSource: "device_gps",
+        tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
       });
 
       setSuccess(true);
@@ -126,7 +129,8 @@ export default function UploadOnsitePage() {
         selectedWorkspaceId,
         user.id,
         textContent,
-        location
+        location,
+        selectedTagIds.length > 0 ? selectedTagIds : undefined
       );
 
       setSuccess(true);
@@ -188,6 +192,7 @@ export default function UploadOnsitePage() {
         fileUrl,
         location,
         gpsSource: "device_gps",
+        tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
       });
 
       setSuccess(true);
@@ -212,6 +217,15 @@ export default function UploadOnsitePage() {
           gpsError={gpsError}
           gpsLoading={gpsLoading}
         />
+
+        {/* 标签选择器 */}
+        {selectedWorkspaceId && (
+          <TagSelector
+            workspaceId={selectedWorkspaceId}
+            selectedTagIds={selectedTagIds}
+            onTagIdsChange={setSelectedTagIds}
+          />
+        )}
 
         <ModeSelector mode={mode} onModeChange={setMode} />
 

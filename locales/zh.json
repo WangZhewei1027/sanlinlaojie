@@ -73,7 +73,22 @@
     "microphoneError": "无法访问麦克风，请检查权限设置",
     "pleaseLogin": "请先登录",
     "imageCompressionNote": "图片将自动压缩为 WebP 格式上传",
-    "browserNotSupported": "浏览器不支持录音"
+    "browserNotSupported": "浏览器不支持录音",
+    "tags": {
+      "title": "标签",
+      "createNew": "新建标签",
+      "createTitle": "创建标签",
+      "createDescription": "为工作空间创建新标签",
+      "tagName": "标签名称",
+      "tagNamePlaceholder": "输入标签名称...",
+      "tagColor": "标签颜色",
+      "preview": "预览",
+      "creating": "创建中...",
+      "createFailed": "创建标签失败",
+      "loading": "加载标签中...",
+      "noTagsAvailable": "暂无可用标签，请创建新标签",
+      "selectedCount": "已选择 {{count}} 个标签"
+    }
   },
   "manage": {
     "clickedLocation": {
