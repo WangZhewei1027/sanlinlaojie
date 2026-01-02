@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
+  const { t } = useTranslation();
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <div className="flex-1 w-full flex flex-col gap-20 items-center">
@@ -10,30 +15,36 @@ export default function Home() {
             {/* Hero Title */}
             <section className="flex flex-col items-center gap-4 pt-12">
               <h1 className="text-4xl md:text-5xl font-bold text-center">
-                A Letter to the Future
+                {t("home.hero.title")}
               </h1>
               <p className="text-sm md:text-base text-muted-foreground text-center">
-                Experience studio, IMA, CEL, DHL, NYU Shanghai
+                {t("home.hero.subtitle")}
               </p>
             </section>
 
             {/* Quick Links */}
             <section className="flex flex-col items-center gap-6 py-12">
-              <h2 className="text-3xl font-bold">快速入口</h2>
+              <h2 className="text-3xl font-bold">
+                {t("home.quickLinks.title")}
+              </h2>
               <div className="grid md:grid-cols-2 gap-4 w-full max-w-2xl">
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/upload-onsite" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">现场上传</span>
+                    <span className="text-lg font-semibold">
+                      {t("home.quickLinks.onsite.title")}
+                    </span>
                     <span className="text-sm text-muted-foreground font-normal">
-                      基于 GPS 定位的现场采集
+                      {t("home.quickLinks.onsite.description")}
                     </span>
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/manage" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">资源管理</span>
+                    <span className="text-lg font-semibold">
+                      {t("home.quickLinks.manage.title")}
+                    </span>
                     <span className="text-sm text-muted-foreground font-normal">
-                      管理和编辑已采集的资源
+                      {t("home.quickLinks.manage.description")}
                     </span>
                   </Link>
                 </Button>
@@ -47,9 +58,11 @@ export default function Home() {
                 </Button> */}
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/admin" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">管理后台</span>
+                    <span className="text-lg font-semibold">
+                      {t("home.quickLinks.admin.title")}
+                    </span>
                     <span className="text-sm text-muted-foreground font-normal">
-                      工作区和用户管理（需管理员权限）
+                      {t("home.quickLinks.admin.description")}
                     </span>
                   </Link>
                 </Button>
@@ -59,9 +72,7 @@ export default function Home() {
         </div>
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p className="text-muted-foreground">
-            三林老街数字化平台. All rights reserved.
-          </p>
+          <p className="text-muted-foreground">{t("home.footer.copyright")}</p>
         </footer>
       </div>
     </main>

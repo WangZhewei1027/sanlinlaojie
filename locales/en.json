@@ -81,5 +81,29 @@
       "height": "Alt",
       "prompt": "Click on the map to view coordinates..."
     }
+  },
+  "home": {
+    "hero": {
+      "title": "A Letter to the Future",
+      "subtitle": "Experience studio, IMA, CEL, DHL, NYU Shanghai"
+    },
+    "quickLinks": {
+      "title": "Quick Links",
+      "onsite": {
+        "title": "Onsite Upload",
+        "description": "GPS-based onsite collection"
+      },
+      "manage": {
+        "title": "Asset Management",
+        "description": "Manage and edit collected assets"
+      },
+      "admin": {
+        "title": "Admin Panel",
+        "description": "Workspace and user management (admin only)"
+      }
+    },
+    "footer": {
+      "copyright": "Sanlin Old Street Digital Platform. All rights reserved."
+    }
   }
 }

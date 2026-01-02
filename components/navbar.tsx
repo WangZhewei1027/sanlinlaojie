@@ -14,7 +14,7 @@ export function Navbar() {
       <div className="w-full max-w-5xl flex justify-between items-center p-3 px-2 sm:px-5 text-sm gap-2">
         <div className="flex gap-2 sm:gap-3 items-center font-semibold min-w-0 flex-1">
           <Link href={"/"} className="whitespace-nowrap text-xs sm:text-sm">
-            Home Page
+            Home
           </Link>
           <div className="min-w-0 flex-1">
             <Suspense>

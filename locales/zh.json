@@ -81,5 +81,29 @@
       "height": "高",
       "prompt": "点击地图查看坐标..."
     }
+  },
+  "home": {
+    "hero": {
+      "title": "致未来的一封信",
+      "subtitle": "体验工作室, IMA, CEL, DHL, 上海纽约大学"
+    },
+    "quickLinks": {
+      "title": "快速入口",
+      "onsite": {
+        "title": "现场上传",
+        "description": "基于 GPS 定位的现场采集"
+      },
+      "manage": {
+        "title": "资源管理",
+        "description": "管理和编辑已采集的资源"
+      },
+      "admin": {
+        "title": "管理后台",
+        "description": "工作区和用户管理（需管理员权限）"
+      }
+    },
+    "footer": {
+      "copyright": "三林老街数字化平台. All rights reserved."
+    }
   }
 }
