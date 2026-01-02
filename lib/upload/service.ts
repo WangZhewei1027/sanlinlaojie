@@ -127,8 +127,10 @@ export class FileUploadService {
     const { error } = await this.supabase.from("asset").insert({
       workspace_id: [workspaceId],
       created_by: userId,
+      name: result.name || null,
       file_type: result.fileType,
       file_url: result.fileUrl,
+      text_content: result.textContent || null,
       location: geometry,
       tag_ids: result.tagIds && result.tagIds.length > 0 ? result.tagIds : null,
       metadata: {

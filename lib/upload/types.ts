@@ -35,6 +35,8 @@ export interface UploadResult {
   location?: LocationData;
   gpsSource?: GPSSource["type"];
   tagIds?: string[];
+  name?: string;
+  textContent?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
 }

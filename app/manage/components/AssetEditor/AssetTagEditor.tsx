@@ -25,19 +25,21 @@ import { Plus, X, Edit2, Trash2, Loader2 } from "lucide-react";
 import type { Tag } from "../../types";
 
 interface AssetTagEditorProps {
-  tagIds?: string[];
+  tagIds?: string[] | null;
   workspaceId: string;
   isEditing: boolean;
   onTagIdsChange: (tagIds: string[]) => void;
 }
 
 export function AssetTagEditor({
-  tagIds = [],
+  tagIds,
   workspaceId,
   isEditing,
   onTagIdsChange,
 }: AssetTagEditorProps) {
   const { t } = useTranslation();
+  // Ensure tagIds is always an array
+  const safeTagIds = tagIds ?? [];
   const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -93,7 +95,7 @@ export function AssetTagEditor({
         setNewTagName("");
         setNewTagColor("#808080");
         // 自动添加到选中的标签
-        onTagIdsChange([...tagIds, data.tag.id]);
+        onTagIdsChange([...safeTagIds, data.tag.id]);
       } else {
         const error = await response.json();
         alert(error.error || t("assetEditor.tags.createFailed"));
@@ -152,7 +154,7 @@ export function AssetTagEditor({
       if (response.ok) {
         setTags(tags.filter((t) => t.id !== tagId));
         // 从资产的标签中移除
-        onTagIdsChange(tagIds.filter((id) => id !== tagId));
+        onTagIdsChange(safeTagIds.filter((id) => id !== tagId));
       } else {
         const error = await response.json();
         alert(error.error || t("assetEditor.tags.deleteFailed"));
@@ -173,21 +175,21 @@ export function AssetTagEditor({
 
   // 添加标签到资产
   const handleAddTag = () => {
-    if (!selectedTagId || tagIds.includes(selectedTagId)) return;
-    onTagIdsChange([...tagIds, selectedTagId]);
+    if (!selectedTagId || safeTagIds.includes(selectedTagId)) return;
+    onTagIdsChange([...safeTagIds, selectedTagId]);
     setSelectedTagId("");
   };
 
   // 从资产移除标签
   const handleRemoveTag = (tagId: string) => {
-    onTagIdsChange(tagIds.filter((id) => id !== tagId));
+    onTagIdsChange(safeTagIds.filter((id) => id !== tagId));
   };
 
   // 获取标签对象
   const getTag = (tagId: string) => tags.find((t) => t.id === tagId);
 
   // 可以添加的标签（不在当前资产的标签中）
-  const availableTags = tags.filter((t) => !tagIds.includes(t.id));
+  const availableTags = tags.filter((t) => !safeTagIds.includes(t.id));
 
   return (
     <>
@@ -377,12 +379,12 @@ export function AssetTagEditor({
             <span className="text-xs text-muted-foreground">
               {t("assetEditor.tags.loading")}
             </span>
-          ) : tagIds.length === 0 ? (
+          ) : safeTagIds.length === 0 ? (
             <span className="text-xs text-muted-foreground">
               {t("assetEditor.tags.noTags")}
             </span>
           ) : (
-            tagIds.map((tagId) => {
+            safeTagIds.map((tagId) => {
               const tag = getTag(tagId);
               if (!tag) return null;
               return (

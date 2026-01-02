@@ -4,10 +4,17 @@ import { useRef, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Mic, Upload, RotateCcw, Play, Pause, StopCircle } from "lucide-react";
 
 interface AudioRecorderProps {
-  onUpload: (audioFile: File) => Promise<void>;
+  onUpload: (
+    audioFile: File,
+    title?: string,
+    description?: string
+  ) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -20,6 +27,8 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -147,6 +156,8 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
     setIsPlaying(false);
     setRecordingTime(0);
     setError(null);
+    setTitle("");
+    setDescription("");
   };
 
   // 播放/暂停录音
@@ -168,7 +179,7 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
 
     setIsUploading(true);
     try {
-      await onUpload(audioFile);
+      await onUpload(audioFile, title || undefined, description || undefined);
       resetRecording();
     } catch (error) {
       console.error("上传失败:", error);
@@ -287,6 +298,33 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
                 >
                   <RotateCcw className="h-5 w-5" />
                 </Button>
+              </div>
+
+              {/* 标题和描述输入 */}
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="audio-title">{t("onsite.audioTitle")}</Label>
+                  <Input
+                    id="audio-title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={t("onsite.audioTitlePlaceholder")}
+                    disabled={isUploading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audio-description">
+                    {t("onsite.audioDescription")}
+                  </Label>
+                  <Textarea
+                    id="audio-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder={t("onsite.audioDescriptionPlaceholder")}
+                    disabled={isUploading}
+                    rows={3}
+                  />
+                </div>
               </div>
 
               <Button

@@ -143,7 +143,11 @@ export default function UploadOnsitePage() {
   };
 
   // 上传录音
-  const handleAudioUpload = async (audioFile: File) => {
+  const handleAudioUpload = async (
+    audioFile: File,
+    title?: string,
+    description?: string
+  ) => {
     if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
       throw new Error(t("onsite.missingInfo"));
@@ -186,13 +190,15 @@ export default function UploadOnsitePage() {
         height: gpsPosition.altitude || 0,
       };
 
-      // 保存到数据库
+      // 保存到数据库，包含标题和描述
       await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
         fileType: processedFileData.type,
         fileUrl,
         location,
         gpsSource: "device_gps",
         tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+        name: title,
+        textContent: description,
       });
 
       setSuccess(true);
