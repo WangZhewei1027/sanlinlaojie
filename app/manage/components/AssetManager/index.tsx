@@ -47,7 +47,8 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       console.error(t("assetManager.fetchTagsFailed"), err);
       setTags([]);
     }
-  }, [selectedWorkspaceId, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkspaceId]);
 
   const fetchAssets = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -74,7 +75,8 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     } finally {
       setAssetsLoading(false);
     }
-  }, [selectedWorkspaceId, setAssets, setAssetsLoading, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkspaceId, setAssets, setAssetsLoading]);
 
   useEffect(() => {
     fetchTags();
