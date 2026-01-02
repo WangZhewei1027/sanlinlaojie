@@ -12,7 +12,13 @@ export type EditableField =
   | "location"; // 位置信息（longitude, latitude, height）
 
 // 预览组件类型
-export type PreviewType = "image" | "audio" | "text" | "anchor" | "none";
+export type PreviewType =
+  | "image"
+  | "audio"
+  | "text"
+  | "anchor"
+  | "link"
+  | "none";
 
 // 单个 asset 类型的配置
 export interface AssetTypeConfig {
@@ -79,6 +85,11 @@ export const assetFieldConfig: AssetFieldConfigMap = {
   video: {
     editableFields: ["anchor_id", "tag_ids", "location"],
     previewType: "none", // 可以后续添加视频预览
+  },
+
+  link: {
+    editableFields: ["anchor_id", "tag_ids", "location"],
+    previewType: "link",
   },
 
   // 默认/其他类型

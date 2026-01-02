@@ -17,6 +17,7 @@ import type { Asset } from "../../types";
 import { AssetTextEditor } from "./AssetTextEditor";
 import { AssetImagePreview } from "./AssetImagePreview";
 import { AssetAudioPreview } from "./AssetAudioPreview";
+import { AssetLinkPreview } from "./AssetLinkPreview";
 import { AssetLocationEditor } from "./AssetLocationEditor";
 import { AssetMetadata } from "./AssetMetadata";
 import { AssetNameEditor } from "./AssetNameEditor";
@@ -383,6 +384,14 @@ export function AssetEditor({
           {assetConfig?.previewType === "audio" && selectedAsset.file_url && (
             <AssetAudioPreview
               key={selectedAsset.file_url}
+              fileUrl={selectedAsset.file_url}
+              fileName={fileName}
+            />
+          )}
+
+          {/* 链接预览 */}
+          {assetConfig?.previewType === "link" && selectedAsset.file_url && (
+            <AssetLinkPreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
             />

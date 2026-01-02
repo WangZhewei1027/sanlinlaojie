@@ -160,7 +160,7 @@ export class FileUploadService {
       workspace_id: [workspaceId],
       created_by: userId,
       file_type: "link",
-      link,
+      file_url: link,
       location: geometry,
       metadata: {
         longitude: location?.longitude,
