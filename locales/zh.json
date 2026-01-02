@@ -25,7 +25,9 @@
     "title": "工作空间管理",
     "create": "创建工作空间",
     "select": "选择工作空间",
-    "manage": "管理工作空间"
+    "manage": "管理工作空间",
+    "selectPlaceholder": "选择工作空间...",
+    "loading": "加载中..."
   },
   "upload": {
     "title": "上传资源",

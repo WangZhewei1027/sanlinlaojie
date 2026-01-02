@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import { useManageStore } from "../store";
 import { WORKSPACE_ROUTES } from "./WorkspaceProvider";
 
 export function WorkspaceSelect() {
+  const { t } = useTranslation();
   const pathname = usePathname();
   const workspaces = useManageStore((state) => state.workspaces);
   const selectedWorkspaceId = useManageStore(
@@ -37,18 +39,27 @@ export function WorkspaceSelect() {
     setSelectedWorkspace(workspace || null);
   };
 
-  if (!shouldShow || workspaces.length === 0) {
+  if (!shouldShow) {
     return null;
+  }
+
+  // 加载中或没有工作空间时显示加载状态
+  if (loading || workspaces.length === 0) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 text-sm">
+        <div className="h-4 w-4 animate-pulse rounded-full bg-gray-400" />
+        <span className="text-muted-foreground">{t("workspace.loading")}</span>
+      </div>
+    );
   }
 
   return (
     <Select
       value={selectedWorkspaceId || undefined}
       onValueChange={handleChange}
-      disabled={loading}
     >
       <SelectTrigger className="w-full max-w-[120px] sm:max-w-[240px]">
-        <SelectValue placeholder="选择工作空间..." />
+        <SelectValue placeholder={t("workspace.selectPlaceholder")} />
       </SelectTrigger>
       <SelectContent>
         {workspaces.map((workspace) => (

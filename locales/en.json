@@ -25,7 +25,9 @@
     "title": "Workspace Management",
     "create": "Create Workspace",
     "select": "Select Workspace",
-    "manage": "Manage Workspace"
+    "manage": "Manage Workspace",
+    "selectPlaceholder": "Select workspace...",
+    "loading": "Loading..."
   },
   "upload": {
     "title": "Upload Assets",
