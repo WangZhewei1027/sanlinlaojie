@@ -42,6 +42,29 @@
     "edit": "编辑资源",
     "delete": "删除资源"
   },
+  "assetFields": {
+    "anchor": {
+      "name": "锁点名称",
+      "description": "锁点描述（可选）",
+      "namePlaceholder": "输入锁点名称",
+      "descriptionPlaceholder": "输入锁点描述（可选）"
+    },
+    "text": {
+      "content": "文本内容",
+      "contentPlaceholder": "输入文本内容"
+    }
+  },
+  "assetEditor": {
+    "fields": {
+      "name": "名称",
+      "namePlaceholder": "输入名称",
+      "textContent": "文本内容",
+      "textContentPlaceholder": "输入文本内容",
+      "description": "描述",
+      "descriptionPlaceholder": "输入描述",
+      "noDescription": "暂无描述"
+    }
+  },
   "onsite": {
     "title": "现场上传",
     "subtitle": "使用实时GPS定位记录现场信息",

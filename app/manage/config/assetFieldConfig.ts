@@ -48,12 +48,12 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     editableFields: ["name", "text_content", "tag_ids", "location"],
     previewType: "anchor",
     fieldLabels: {
-      name: "锁点名称",
-      text_content: "锁点描述（可选）",
+      name: "assetFields.anchor.name",
+      text_content: "assetFields.anchor.description",
     },
     fieldPlaceholders: {
-      name: "输入锁点名称",
-      text_content: "输入锁点描述（可选）",
+      name: "assetFields.anchor.namePlaceholder",
+      text_content: "assetFields.anchor.descriptionPlaceholder",
     },
   },
 
@@ -68,10 +68,10 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     ],
     previewType: "text",
     fieldLabels: {
-      text_content: "文本内容",
+      text_content: "assetFields.text.content",
     },
     fieldPlaceholders: {
-      text_content: "输入文本内容",
+      text_content: "assetFields.text.contentPlaceholder",
     },
   },
 

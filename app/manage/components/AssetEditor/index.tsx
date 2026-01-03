@@ -312,11 +312,19 @@ export function AssetEditor({
               isEditing={isEditing}
               editedName={editedData.name}
               onNameChange={(name) => setEditedData({ ...editedData, name })}
-              label={getFieldLabel(selectedAsset.file_type, "name", "名称")}
-              placeholder={getFieldPlaceholder(
-                selectedAsset.file_type,
-                "name",
-                "输入名称"
+              label={t(
+                getFieldLabel(
+                  selectedAsset.file_type,
+                  "name",
+                  "assetEditor.fields.name"
+                )
+              )}
+              placeholder={t(
+                getFieldPlaceholder(
+                  selectedAsset.file_type,
+                  "name",
+                  "assetEditor.fields.namePlaceholder"
+                )
               )}
             />
           )}
@@ -326,10 +334,12 @@ export function AssetEditor({
             assetConfig?.previewType === "anchor" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  {getFieldLabel(
-                    selectedAsset.file_type,
-                    "text_content",
-                    t("assetEditor.fields.description")
+                  {t(
+                    getFieldLabel(
+                      selectedAsset.file_type,
+                      "text_content",
+                      "assetEditor.fields.description"
+                    )
                   )}
                 </label>
                 {isEditing ? (
@@ -343,10 +353,12 @@ export function AssetEditor({
                     }
                     rows={3}
                     className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder={getFieldPlaceholder(
-                      selectedAsset.file_type,
-                      "text_content",
-                      t("assetEditor.fields.descriptionPlaceholder")
+                    placeholder={t(
+                      getFieldPlaceholder(
+                        selectedAsset.file_type,
+                        "text_content",
+                        "assetEditor.fields.descriptionPlaceholder"
+                      )
                     )}
                   />
                 ) : (
@@ -368,15 +380,19 @@ export function AssetEditor({
                 onTextChange={(text) =>
                   setEditedData({ ...editedData, text_content: text })
                 }
-                label={getFieldLabel(
-                  selectedAsset.file_type,
-                  "text_content",
-                  "文本内容"
+                label={t(
+                  getFieldLabel(
+                    selectedAsset.file_type,
+                    "text_content",
+                    "assetEditor.fields.textContent"
+                  )
                 )}
-                placeholder={getFieldPlaceholder(
-                  selectedAsset.file_type,
-                  "text_content",
-                  "输入文本内容"
+                placeholder={t(
+                  getFieldPlaceholder(
+                    selectedAsset.file_type,
+                    "text_content",
+                    "assetEditor.fields.textContentPlaceholder"
+                  )
                 )}
               />
             )}
