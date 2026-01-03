@@ -2,10 +2,17 @@ import { useRef, useState } from "react";
 import { Camera, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
 
 interface CameraUploadProps {
-  onUpload: (imageData: string) => Promise<void>;
+  onUpload: (
+    imageData: string,
+    title?: string,
+    description?: string
+  ) => Promise<void>;
   disabled: boolean;
 }
 
@@ -15,6 +22,8 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
 
   // 触发相机
   const triggerCamera = () => {
@@ -37,6 +46,8 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
   // 重新拍照
   const retakePhoto = () => {
     setCapturedImage(null);
+    setTitle("");
+    setDescription("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -48,8 +59,14 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
 
     setUploading(true);
     try {
-      await onUpload(capturedImage);
+      await onUpload(
+        capturedImage,
+        title || undefined,
+        description || undefined
+      );
       setCapturedImage(null);
+      setTitle("");
+      setDescription("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -95,6 +112,33 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
             className="w-full max-h-[70vh] object-contain bg-muted"
           />
           <div className="p-4 space-y-2">
+            {/* 标题和描述输入 */}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="image-title">{t("onsite.imageTitle")}</Label>
+                <Input
+                  id="image-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={t("onsite.imageTitlePlaceholder")}
+                  disabled={uploading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="image-description">
+                  {t("onsite.imageDescription")}
+                </Label>
+                <Textarea
+                  id="image-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t("onsite.imageDescriptionPlaceholder")}
+                  disabled={uploading}
+                  rows={3}
+                />
+              </div>
+            </div>
+
             <Button
               size="lg"
               className="w-full"

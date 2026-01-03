@@ -33,7 +33,11 @@ export default function UploadOnsitePage() {
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // 上传拍摄的照片
-  const handlePhotoUpload = async (capturedImage: string) => {
+  const handlePhotoUpload = async (
+    capturedImage: string,
+    title?: string,
+    description?: string
+  ) => {
     if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
       throw new Error(t("onsite.missingInfo"));
@@ -81,13 +85,15 @@ export default function UploadOnsitePage() {
         height: gpsPosition.altitude || 0,
       };
 
-      // 保存到数据库
+      // 保存到数据库，包含标题和描述
       await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
         fileType: processedFileData.type,
         fileUrl,
         location,
         gpsSource: "device_gps",
         tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+        name: title,
+        textContent: description,
       });
 
       setSuccess(true);
