@@ -17,9 +17,16 @@ import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,
 } from "./anchorConnectionManager.js";
+import {
+  createDotCanvas,
+  createDetailCanvas,
+  updateAllLODs,
+} from "../utils/lodManager.js";
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
+let currentAssets = []; // 存储当前显示的assets数据（用于LOD）
+let lodUpdateInterval = null; // LOD更新定时器
 
 /**
  * 在地图上显示 assets
@@ -34,6 +41,9 @@ export function displayAssets(assets) {
 
   // 清除之前的 billboards
   clearAssetBillboards();
+
+  // 保存assets数据
+  currentAssets = assets;
 
   console.log(`显示 ${assets.length} 个 assets`);
 
@@ -52,6 +62,9 @@ export function displayAssets(assets) {
 
   // 创建锚点关联线
   createAnchorConnectionLines(assets);
+
+  // 启动LOD更新
+  startLODUpdate();
 }
 
 /**
@@ -65,27 +78,14 @@ function createBillboard(asset, longitude, latitude, height) {
   const viewer = getViewer();
   if (!viewer) return;
 
-  const billboardImage = getBillboardImage(asset);
-
-  // 根据文件类型选择合适的scale
-  let scale = BILLBOARD_CONFIG.scale;
-  if (asset.file_type === "image" && asset.file_url) {
-    scale = BILLBOARD_CONFIG.imageScale;
-  } else if (asset.file_type === "text") {
-    scale = BILLBOARD_CONFIG.textScale;
-  } else if (asset.file_type === "anchor") {
-    scale = BILLBOARD_CONFIG.anchorScale || 1.0;
-  } else if (asset.file_type === "audio") {
-    scale = BILLBOARD_CONFIG.audioScale || 6.0;
-  } else if (asset.file_type === "link") {
-    scale = BILLBOARD_CONFIG.linkScale || 6.0;
-  }
+  // 初始使用点显示（LOD会根据距离自动切换）
+  const billboardImage = createDotCanvas(asset.file_type);
 
   const entity = viewer.entities.add({
     position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
     billboard: {
       image: billboardImage,
-      scale: scale,
+      scale: 1.0,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
       scaleByDistance: new Cesium.NearFarScalar(
@@ -102,6 +102,7 @@ function createBillboard(asset, longitude, latitude, height) {
       assetId: asset.id,
       fileType: asset.file_type,
       fileUrl: asset.file_url,
+      lodLevel: "dot", // 初始LOD级别
     },
   });
 
@@ -121,9 +122,13 @@ export function clearAssetBillboards() {
     viewer.entities.remove(entity);
   });
   assetBillboards = [];
+  currentAssets = [];
 
   // 清除锚点关联线
   clearAnchorConnectionLines();
+
+  // 停止LOD更新
+  stopLODUpdate();
 
   console.log(`已清除billboards，图片缓存保留: ${getImageCacheSize()} 个`);
 }
@@ -245,4 +250,42 @@ export function clearFocusMarker() {
  */
 export function getAssetBillboards() {
   return assetBillboards;
+}
+
+/**
+ * 启动LOD更新
+ */
+function startLODUpdate() {
+  const viewer = getViewer();
+  if (!viewer) return;
+
+  // 如果已经有定时器，先清除
+  stopLODUpdate();
+
+  // 监听相机移动事件
+  viewer.camera.moveEnd.addEventListener(updateLOD);
+
+  // 初始更新一次
+  updateLOD();
+
+  console.log("LOD更新已启动");
+}
+
+/**
+ * 停止LOD更新
+ */
+function stopLODUpdate() {
+  const viewer = getViewer();
+  if (!viewer) return;
+
+  viewer.camera.moveEnd.removeEventListener(updateLOD);
+
+  console.log("LOD更新已停止");
+}
+
+/**
+ * 更新LOD
+ */
+function updateLOD() {
+  updateAllLODs(assetBillboards, currentAssets);
 }

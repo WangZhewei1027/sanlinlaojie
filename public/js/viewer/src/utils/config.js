@@ -98,3 +98,14 @@ export const FOCUS_MARKER_CONFIG = {
   ellipseSemiAxis: 30.0,
   ellipseAlpha: 0.4,
 };
+
+// LOD (Level of Detail) 配置
+export const LOD_CONFIG = {
+  // 远距离阈值：超过此距离显示为点（米）
+  farThreshold: 300,
+  // 近距离阈值：小于此距离显示详细内容（米）
+  nearThreshold: 150,
+  // 点的大小配置
+  dotSize: 16,
+  dotPadding: 2,
+};
