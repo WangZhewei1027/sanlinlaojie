@@ -45,6 +45,13 @@ function isIOSSafari(): boolean {
   );
 }
 
+/** 是否为 iOS 平台（包括 Safari 和 Chrome） */
+function isIOSPlatform(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iP(hone|ad|od)/.test(ua);
+}
+
 // ==================== 辅助函数 ====================
 
 /**
@@ -76,7 +83,8 @@ function formatSizeMB(bytes: number): string {
 
 /** 获取按平台排序的输出类型列表 */
 function getOutputTypes(isIOS: boolean): string[] {
-  return isIOS ? ["image/jpeg", "image/webp"] : [...OUTPUT_TYPES];
+  // iOS 平台（包括 Safari 和 Chrome）上 WebP 压缩存在问题，优先使用 JPEG
+  return isIOS ? ["image/jpeg"] : [...OUTPUT_TYPES];
 }
 
 /** 将 canvas 转为 Blob（支持类型回退，带输出类型日志） */
@@ -191,7 +199,7 @@ export async function compressToWebP(
   file: File,
   maxSizeMB: number
 ): Promise<File> {
-  const targetSizeBytes = maxSizeMB * 1024 * 1024;
+  const targetSizeBytPlatform(); // 检测整个 iOS 平台，不仅是 SafariizeMB * 1024 * 1024;
   const isIOS = isIOSSafari();
   const minQuality = isIOS ? IOS_MIN_QUALITY : MIN_QUALITY;
   const qualityStep = isIOS ? IOS_QUALITY_STEP : QUALITY_STEP;
@@ -319,14 +327,21 @@ export async function compressToWebP(
 
   // 步骤 5: 创建最终文件
   const originalFileName = file.name.split(".")[0];
-  const compressedFile = new File([bestResult!], `${originalFileName}.webp`, {
-    type: "image/webp",
-  });
+  // 根据实际输出格式确定文件扩展名和 MIME 类型
+  const outputType = isIOS ? "image/jpeg" : "image/webp";
+  const extension = isIOS ? "jpg" : "webp";
+  const compressedFile = new File(
+    [bestResult!],
+    `${originalFileName}.${extension}`,
+    {
+      type: outputType,
+    }
+  );
 
   console.log(
     `✓ 压缩完成: ${formatSizeMB(file.size)}MB → ${formatSizeMB(
       compressedFile.size
-    )}MB`
+    )}MB (格式: ${extension})`
   );
 
   return compressedFile;
