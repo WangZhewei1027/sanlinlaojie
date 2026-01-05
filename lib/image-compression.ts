@@ -13,7 +13,6 @@
 
 /** 输出格式：优先 webp，若不支持则回退为 jpeg */
 const OUTPUT_TYPES = ["image/webp", "image/jpeg"] as const;
-const DEFAULT_QUALITY = 0.8;
 
 /** 最小压缩质量（对极小目标尺寸放宽） */
 const MIN_QUALITY = 0.2;
@@ -37,7 +36,7 @@ const RESOLUTION_LEVELS = [1920, 1280, 960];
 const MAX_COMPRESSION_ATTEMPTS = 16;
 
 /** 是否为 iOS Safari（在部分版本上禁用 Web Worker 更稳定） */
-function isIOSSafari(): boolean {
+function _isIOSSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
   return (
@@ -199,8 +198,8 @@ export async function compressToWebP(
   file: File,
   maxSizeMB: number
 ): Promise<File> {
-  const targetSizeBytPlatform(); // 检测整个 iOS 平台，不仅是 SafariizeMB * 1024 * 1024;
-  const isIOS = isIOSSafari();
+  const targetSizeBytes = maxSizeMB * 1024 * 1024;
+  const isIOS = isIOSPlatform(); // 检测整个 iOS 平台，不仅是 Safari
   const minQuality = isIOS ? IOS_MIN_QUALITY : MIN_QUALITY;
   const qualityStep = isIOS ? IOS_QUALITY_STEP : QUALITY_STEP;
   const preferJpeg = isIOS;
