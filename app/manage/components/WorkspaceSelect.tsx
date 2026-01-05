@@ -43,12 +43,23 @@ export function WorkspaceSelect() {
     return null;
   }
 
-  // 加载中或没有工作空间时显示加载状态
-  if (loading || workspaces.length === 0) {
+  // 加载中时显示加载状态
+  if (loading) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         <div className="h-4 w-4 animate-pulse rounded-full bg-gray-400" />
         <span className="text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
+
+  // 没有工作空间时显示提示
+  if (workspaces.length === 0) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 text-sm">
+        <span className="text-muted-foreground">
+          {t("workspace.noAssigned", "No assigned workspace")}
+        </span>
       </div>
     );
   }
