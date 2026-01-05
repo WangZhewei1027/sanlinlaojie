@@ -14,51 +14,14 @@ export async function GET() {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    // 获取用户角色
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-
-    if (userError) throw userError;
-
-    // 如果是 admin，返回所有 workspace
-    if (userData?.role === "admin") {
-      const { data, error } = await supabase
-        .from("workspace")
-        .select("id, name, description, create_date")
-        .order("create_date", { ascending: false });
-
-      if (error) throw error;
-
-      return NextResponse.json({ data });
-    }
-
-    // 如果是其他角色，返回用户被分配的 workspace
-    const { data, error } = await supabase
-      .from("workspace_assignment")
-      .select(
-        `
-        workspace_id,
-        workspace:workspace_id (
-          id,
-          name,
-          description,
-          create_date
-        )
-      `
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    // 使用数据库函数一次性获取所有数据
+    const { data, error } = await supabase.rpc("get_user_workspaces", {
+      p_user_id: user.id,
+    });
 
     if (error) throw error;
 
-    // 提取 workspace 数据
-    const workspaces =
-      data?.map((item) => item.workspace).filter(Boolean) || [];
-
-    return NextResponse.json({ data: workspaces });
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("获取 workspace 失败:", error);
     return NextResponse.json({ error: "获取工作空间失败" }, { status: 500 });
