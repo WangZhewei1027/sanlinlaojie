@@ -42,11 +42,11 @@ export function createDotCanvas(fileType) {
 
   // 根据文件类型选择颜色
   const colorMap = {
-    anchor: "#f59e0b", // 金色
-    audio: "#a855f7", // 紫色
-    link: "#6b7280", // 灰色
-    image: "#3b82f6", // 蓝色
-    text: "#10b981", // 绿色
+    anchor: "#FFFF1E", // 金色
+    audio: "#9700FF", // 紫色
+    link: "#FF45FF", // 粉色
+    image: "#00FFFF", // 蓝色
+    text: "#F00000", // 红色
     default: "#64748b", // 默认灰色
   };
 
