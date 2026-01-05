@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ interface TagData {
 }
 
 interface TagSelectorProps {
-  workspaceId: string;
+  workspaceId: string | null;
   selectedTagIds: string[];
   onTagIdsChange: (tagIds: string[]) => void;
 }
@@ -45,9 +46,11 @@ export function TagSelector({
 
   // 加载工作空间的所有标签
   const loadTags = useCallback(async () => {
-    if (!workspaceId) return;
-
     setIsLoading(true);
+
+    if (!workspaceId) {
+      return;
+    }
     try {
       const response = await fetch(`/api/tags?workspace_id=${workspaceId}`);
       if (response.ok) {
@@ -192,26 +195,31 @@ export function TagSelector({
               <Tag className="h-4 w-4" />
               {t("onsite.tags.title")}
             </CardTitle>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setNewTagName("");
-                setNewTagColor("#808080");
-                setShowCreateDialog(true);
-              }}
-              className="h-7 text-xs"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              {t("onsite.tags.createNew")}
-            </Button>
+            {workspaceId && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setNewTagName("");
+                  setNewTagColor("#808080");
+                  setShowCreateDialog(true);
+                }}
+                className="h-7 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                {t("onsite.tags.createNew")}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("onsite.tags.loading")}
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
             </div>
           ) : tags.length === 0 ? (
             <p className="text-sm text-muted-foreground">

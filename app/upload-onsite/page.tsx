@@ -231,13 +231,12 @@ export default function UploadOnsitePage() {
         />
 
         {/* 标签选择器 */}
-        {selectedWorkspaceId && (
-          <TagSelector
-            workspaceId={selectedWorkspaceId}
-            selectedTagIds={selectedTagIds}
-            onTagIdsChange={setSelectedTagIds}
-          />
-        )}
+
+        <TagSelector
+          workspaceId={selectedWorkspaceId}
+          selectedTagIds={selectedTagIds}
+          onTagIdsChange={setSelectedTagIds}
+        />
 
         <ModeSelector mode={mode} onModeChange={setMode} />
 
