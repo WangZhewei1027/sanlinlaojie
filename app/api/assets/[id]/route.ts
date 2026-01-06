@@ -22,30 +22,16 @@ export async function PATCH(
     const body = await request.json();
     const { name, text_content, anchor_id, tag_ids, metadata } = body;
 
-    // 首先检查该资产是否存在以及用户是否有权限
+    // 检查该资产是否存在
     const { data: asset, error: fetchError } = await supabase
       .from("asset")
-      .select("id, created_by")
+      .select("id")
       .eq("id", assetId)
       .single();
 
     if (fetchError || !asset) {
       console.error("查询资产失败:", fetchError);
       return NextResponse.json({ error: "资源不存在" }, { status: 404 });
-    }
-
-    // 检查用户权限（只能修改自己的资产，或者是admin）
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-
-    const isAdmin = profile?.role === "admin";
-    const isOwner = asset.created_by === user.id;
-
-    if (!isAdmin && !isOwner) {
-      return NextResponse.json({ error: "无权限修改此资源" }, { status: 403 });
     }
 
     // 构建更新对象
@@ -125,30 +111,16 @@ export async function DELETE(
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    // 首先检查该资产是否存在以及用户是否有权限
+    // 检查该资产是否存在
     const { data: asset, error: fetchError } = await supabase
       .from("asset")
-      .select("id, created_by, file_url")
+      .select("id, file_url")
       .eq("id", assetId)
       .single();
 
     if (fetchError || !asset) {
       console.error("查询资产失败:", fetchError);
       return NextResponse.json({ error: "资源不存在" }, { status: 404 });
-    }
-
-    // 检查用户权限（只能删除自己的资产，或者是admin）
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-
-    const isAdmin = profile?.role === "admin";
-    const isOwner = asset.created_by === user.id;
-
-    if (!isAdmin && !isOwner) {
-      return NextResponse.json({ error: "无权限删除此资源" }, { status: 403 });
     }
 
     // 如果有文件URL，尝试从storage中删除文件
