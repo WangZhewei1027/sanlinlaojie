@@ -16,9 +16,9 @@ import { createLinkCanvas } from "../renderers/linkRenderer.js";
 // LOD距离配置（米）
 export const LOD_CONFIG = {
   // 远距离阈值：超过此距离显示为点
-  farThreshold: 300,
+  farThreshold: 75,
   // 近距离阈值：小于此距离显示详细内容
-  nearThreshold: 150,
+  nearThreshold: 70,
   // 点的大小配置
   dotSize: 72,
   dotPadding: 2,
