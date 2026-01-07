@@ -21,7 +21,7 @@ export const TILESET_CONFIG = {
   url: "./terra_b3dms/tileset.json",
   options: {
     maximumScreenSpaceError: 2,
-    skipLevelOfDetail: false,
+    skipLevelOfDetail: true,
     immediatelyLoadDesiredLevelOfDetail: true,
     loadSiblings: true,
     cullWithChildrenBounds: false,
@@ -61,7 +61,7 @@ export const TEXT_CONFIG = {
 export const CAMERA_CONFIG = {
   defaultPitch: -45, // 度
   defaultHeading: 0,
-  focusHeight: 200, // 聚焦时相机高度偏移（米）
+  focusHeight: 30, // 聚焦时相机高度偏移（米）
   flyDuration: 2.0, // 飞行动画时长（秒）
 };
 
