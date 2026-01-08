@@ -102,10 +102,24 @@ export const FOCUS_MARKER_CONFIG = {
 // LOD (Level of Detail) 配置
 export const LOD_CONFIG = {
   // 远距离阈值：超过此距离显示为点（米）
-  farThreshold: 300,
+  farThreshold: 21,
   // 近距离阈值：小于此距离显示详细内容（米）
-  nearThreshold: 150,
+  nearThreshold: 20,
   // 点的大小配置
-  dotSize: 16,
+  dotSize: 72,
   dotPadding: 2,
+};
+
+// 音频播放配置
+export const AUDIO_CONFIG = {
+  // 音频开始播放的距离（米）
+  playDistance: 15,
+  // 音频停止播放的距离（米，添加滞后避免频繁切换）
+  stopDistance: 20,
+  // 最大音量距离（米，此距离内音量为1）
+  maxVolumeDistance: 5,
+  // 音量衰减曲线类型：'linear'（线性）或 'exponential'（指数）
+  volumeCurve: "exponential",
+  // 更新频率（毫秒）
+  updateInterval: 500,
 };

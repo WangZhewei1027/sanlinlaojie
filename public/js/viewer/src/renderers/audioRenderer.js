@@ -8,9 +8,10 @@ import { BILLBOARD_CONFIG } from "../utils/config.js";
  * 创建音频canvas
  * @param {string} name - 音频文件名
  * @param {Object} metadata - 音频元数据（可选，包含duration等）
+ * @param {boolean} isPlaying - 是否正在播放（可选，用于视觉提示）
  * @returns {HTMLCanvasElement} - Canvas元素
  */
-export function createAudioCanvas(name, metadata) {
+export function createAudioCanvas(name, metadata, isPlaying = false) {
   const iconSize = BILLBOARD_CONFIG.iconSize * 1.2;
   const padding = 4;
   const fontSize = 14;
@@ -45,15 +46,25 @@ export function createAudioCanvas(name, metadata) {
   const iconCenterY = iconSize / 2;
 
   // 绘制圆形背景
-  ctx.fillStyle = "#a855f7"; // 紫色
+  const bgColor = isPlaying ? "#10b981" : "#a855f7"; // 播放时绿色，否则紫色
+  ctx.fillStyle = bgColor;
   ctx.beginPath();
   ctx.arc(centerX, iconCenterY, iconSize / 2 - 2, 0, Math.PI * 2);
   ctx.fill();
 
-  // 绘制白色边框
+  // 绘制白色边框（播放时加粗）
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = isPlaying ? 3 : 2;
   ctx.stroke();
+
+  // 如果正在播放，添加动画波纹效果（外圈）
+  if (isPlaying) {
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.5)"; // 半透明绿色
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(centerX, iconCenterY, iconSize / 2 + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   // 绘制喇叭 emoji
   ctx.font = `${iconSize * 0.7}px Arial`;

@@ -17,16 +17,16 @@ import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,
 } from "./anchorConnectionManager.js";
+import { createDotCanvas, updateAllLODs } from "../utils/lodManager.js";
 import {
-  createDotCanvas,
-  createDetailCanvas,
-  updateAllLODs,
-} from "../utils/lodManager.js";
+  registerAudioAsset,
+  clearAllAudio,
+  startAudioUpdate,
+} from "./audioManager.js";
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
 let currentAssets = []; // 存储当前显示的assets数据（用于LOD）
-let lodUpdateInterval = null; // LOD更新定时器
 
 /**
  * 在地图上显示 assets
@@ -65,6 +65,9 @@ export function displayAssets(assets) {
 
   // 启动LOD更新
   startLODUpdate();
+
+  // 启动音频距离检测
+  startAudioUpdate();
 }
 
 /**
@@ -108,6 +111,11 @@ function createBillboard(asset, longitude, latitude, height) {
 
   assetBillboards.push(entity);
 
+  // 如果是音频类型，注册到音频管理器
+  if (asset.file_type === "audio") {
+    registerAudioAsset(asset, entity);
+  }
+
   console.log(`创建billboard: ${asset.id}, 类型: ${asset.file_type}`);
 }
 
@@ -130,6 +138,9 @@ export function clearAssetBillboards() {
   // 停止LOD更新
   stopLODUpdate();
 
+  // 清除所有音频
+  clearAllAudio();
+
   console.log(`已清除billboards，图片缓存保留: ${getImageCacheSize()} 个`);
 }
 
@@ -138,7 +149,7 @@ export function clearAssetBillboards() {
  * @param {Object} asset - 资产对象
  * @returns {HTMLCanvasElement|Promise<HTMLCanvasElement>} - Canvas元素或Promise
  */
-function getBillboardImage(asset) {
+function _getBillboardImage(asset) {
   const { file_type, file_url, text_content, name, metadata } = asset;
 
   // 处理锚点类型
