@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+
+interface Organization {
+  id: string;
+  name: string;
+}
 
 interface WorkspaceFormDialogProps {
   open: boolean;
@@ -21,7 +34,9 @@ interface WorkspaceFormDialogProps {
     id: string;
     name: string;
     description: string | null;
+    organization_id?: string;
   };
+  defaultOrganizationId?: string;
   onSuccess: () => void;
 }
 
@@ -29,14 +44,40 @@ export function WorkspaceFormDialog({
   open,
   onOpenChange,
   workspace,
+  defaultOrganizationId,
   onSuccess,
 }: WorkspaceFormDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(workspace?.name || "");
   const [description, setDescription] = useState(workspace?.description || "");
+  const [organizationId, setOrganizationId] = useState(
+    workspace?.organization_id || defaultOrganizationId || "",
+  );
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const isEditing = !!workspace;
+
+  useEffect(() => {
+    if (open) {
+      fetch("/api/organizations")
+        .then((res) => res.json())
+        .then((result) => {
+          const orgs = result.data || [];
+          setOrganizations(orgs);
+          // Use defaultOrganizationId if provided, otherwise auto-select first
+          if (!organizationId && orgs.length > 0) {
+            const defaultOrg = defaultOrganizationId
+              ? orgs.find((o: Organization) => o.id === defaultOrganizationId)
+              : null;
+            setOrganizationId(defaultOrg?.id || orgs[0].id);
+          }
+        })
+        .catch(console.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +90,15 @@ export function WorkspaceFormDialog({
         : "/api/workspaces";
       const method = isEditing ? "PUT" : "POST";
 
+      const body: Record<string, string> = { name, description };
+      if (!isEditing) {
+        body.organization_id = organizationId;
+      }
+
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name, description }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();
@@ -80,32 +124,62 @@ export function WorkspaceFormDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {isEditing ? "编辑工作空间" : "创建工作空间"}
+              {isEditing
+                ? t("admin.workspace.formDialog.editTitle")
+                : t("admin.workspace.formDialog.createTitle")}
             </DialogTitle>
             <DialogDescription>
               {isEditing
-                ? "修改工作空间的名称和描述"
-                : "创建一个新的工作空间，用于组织和管理资产"}
+                ? t("admin.workspace.formDialog.editDescription")
+                : t("admin.workspace.formDialog.createDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {!isEditing && organizations.length > 0 && (
+              <div className="grid gap-2">
+                <Label>{t("admin.organization.label")} *</Label>
+                <Select
+                  value={organizationId}
+                  onValueChange={setOrganizationId}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t("admin.organization.selectPlaceholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid gap-2">
-              <Label htmlFor="name">名称 *</Label>
+              <Label htmlFor="name">
+                {t("admin.workspace.formDialog.name")} *
+              </Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：三林老街项目"
+                placeholder={t("admin.workspace.formDialog.namePlaceholder")}
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">描述</Label>
+              <Label htmlFor="description">
+                {t("admin.workspace.formDialog.description")}
+              </Label>
               <Input
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="可选：添加工作空间的描述"
+                placeholder={t(
+                  "admin.workspace.formDialog.descriptionPlaceholder",
+                )}
               />
             </div>
             {error && (
@@ -121,11 +195,11 @@ export function WorkspaceFormDialog({
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              取消
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditing ? "保存" : "创建"}
+              {isEditing ? t("common.save") : t("common.create")}
             </Button>
           </DialogFooter>
         </form>

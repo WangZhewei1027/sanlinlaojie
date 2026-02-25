@@ -1,11 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Shield } from "lucide-react";
+import { isSuperAdmin } from "@/lib/permissions";
 
 export default function Home() {
   const { t } = useTranslation();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/role")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.role) setUserRole(data.role);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -21,6 +34,32 @@ export default function Home() {
                 {t("home.hero.subtitle")}
               </p>
             </section>
+
+            {/* Super Admin Entry */}
+            {isSuperAdmin(userRole) && (
+              <section className="flex justify-center">
+                <Button
+                  asChild
+                  variant="default"
+                  className="h-auto py-4 px-8 w-full max-w-2xl"
+                >
+                  <Link
+                    href="/super-admin"
+                    className="flex items-center justify-center gap-3"
+                  >
+                    <Shield className="h-5 w-5" />
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="text-lg font-semibold">
+                        {t("home.quickLinks.superAdmin.title")}
+                      </span>
+                      <span className="text-sm opacity-80 font-normal">
+                        {t("home.quickLinks.superAdmin.description")}
+                      </span>
+                    </div>
+                  </Link>
+                </Button>
+              </section>
+            )}
 
             {/* Quick Links */}
             <section className="flex flex-col items-center gap-6 py-12">
@@ -48,14 +87,6 @@ export default function Home() {
                     </span>
                   </Link>
                 </Button>
-                {/* <Button asChild variant="outline" className="h-auto py-6">
-                  <Link href="/ar" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">AR 体验</span>
-                    <span className="text-sm text-muted-foreground font-normal">
-                      增强现实内容浏览
-                    </span>
-                  </Link>
-                </Button> */}
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/admin" className="flex flex-col gap-2">
                     <span className="text-lg font-semibold">

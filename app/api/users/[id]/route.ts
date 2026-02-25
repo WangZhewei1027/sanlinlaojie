@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -24,14 +24,14 @@ export async function PUT(
       .eq("user_id", user.id)
       .single();
 
-    if (userData?.role !== "admin") {
+    if (userData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
     const body = await request.json();
     const { role } = body;
 
-    if (!role || !["admin", "student"].includes(role)) {
+    if (!role || !["super_admin", "user"].includes(role)) {
       return NextResponse.json({ error: "无效的角色" }, { status: 400 });
     }
 
@@ -39,7 +39,7 @@ export async function PUT(
     if (id === user.id) {
       return NextResponse.json(
         { error: "不能修改自己的角色" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

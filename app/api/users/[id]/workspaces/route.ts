@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // 获取用户的 workspace 分配
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -25,7 +25,7 @@ export async function GET(
       .eq("user_id", user.id)
       .single();
 
-    if (userData?.role !== "admin") {
+    if (userData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -42,7 +42,7 @@ export async function GET(
           name,
           description
         )
-      `
+      `,
       )
       .eq("user_id", id);
 
@@ -53,7 +53,7 @@ export async function GET(
     console.error("获取用户 workspace 分配失败:", error);
     return NextResponse.json(
       { error: "获取 workspace 分配失败" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -61,7 +61,7 @@ export async function GET(
 // 添加 workspace 分配
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -82,7 +82,7 @@ export async function POST(
       .eq("user_id", user.id)
       .single();
 
-    if (userData?.role !== "admin") {
+    if (userData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -104,7 +104,7 @@ export async function POST(
     if (existing) {
       return NextResponse.json(
         { error: "该用户已经被分配到此工作空间" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -125,7 +125,7 @@ export async function POST(
     console.error("添加 workspace 分配失败:", error);
     return NextResponse.json(
       { error: "添加 workspace 分配失败" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -133,7 +133,7 @@ export async function POST(
 // 删除 workspace 分配
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -154,7 +154,7 @@ export async function DELETE(
       .eq("user_id", user.id)
       .single();
 
-    if (userData?.role !== "admin") {
+    if (userData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -164,7 +164,7 @@ export async function DELETE(
     if (!assignment_id) {
       return NextResponse.json(
         { error: "缺少 assignment_id" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -181,7 +181,7 @@ export async function DELETE(
     console.error("删除 workspace 分配失败:", error);
     return NextResponse.json(
       { error: "删除 workspace 分配失败" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

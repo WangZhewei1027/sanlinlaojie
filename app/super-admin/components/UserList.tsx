@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,13 +35,19 @@ export function UserList({
   onChangeRole,
   onManageWorkspace,
 }: UserListProps) {
+  const { t } = useTranslation();
+
   if (users.length === 0) {
     return (
       <Card className="p-12">
         <div className="flex flex-col items-center justify-center text-center">
           <User className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold mb-2">暂无用户</h3>
-          <p className="text-sm text-muted-foreground">等待用户注册</p>
+          <h3 className="text-lg font-semibold mb-2">
+            {t("admin.users.noUsers", "暂无用户")}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {t("admin.users.noUsersHint", "等待用户注册")}
+          </p>
         </div>
       </Card>
     );
@@ -58,16 +65,16 @@ export function UserList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="font-semibold text-lg truncate">
-                    {user.name || "未命名用户"}
+                    {user.name || t("admin.users.unnamed", "未命名用户")}
                   </h3>
                   <Badge
-                    variant={user.role === "admin" ? "default" : "secondary"}
+                    variant={user.role === "super_admin" ? "default" : "secondary"}
                   >
-                    {user.role === "admin" ? "管理员" : "学生"}
+                    {t(`admin.users.roles.${user.role}`, user.role)}
                   </Badge>
                   {isCurrentUser && (
                     <Badge variant="outline" className="text-xs">
-                      当前用户
+                      {t("admin.users.currentUser", "当前用户")}
                     </Badge>
                   )}
                 </div>
@@ -83,13 +90,15 @@ export function UserList({
                   <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     <span>
-                      注册于{" "}
-                      {new Date(user.created_at).toLocaleDateString("zh-CN")}
+                      {t("admin.users.registeredOn", "注册于")}{" "}
+                      {new Date(user.created_at).toLocaleDateString()}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <FolderKanban className="h-3 w-3" />
-                    <span>{workspaceCount} 个工作空间</span>
+                    <span>
+                      {workspaceCount} {t("admin.users.workspaces", "个工作空间")}
+                    </span>
                   </div>
                 </div>
 
@@ -119,7 +128,7 @@ export function UserList({
                   disabled={isCurrentUser}
                 >
                   <UserCog className="h-4 w-4 mr-1" />
-                  修改角色
+                  {t("admin.users.changeRole", "修改角色")}
                 </Button>
                 <Button
                   variant="outline"
@@ -127,7 +136,7 @@ export function UserList({
                   onClick={() => onManageWorkspace(user)}
                 >
                   <FolderKanban className="h-4 w-4 mr-1" />
-                  分配工作空间
+                  {t("admin.users.assignWorkspace", "分配工作空间")}
                 </Button>
               </div>
             </div>

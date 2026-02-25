@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, ArrowLeft } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { WorkspaceList } from "./components/WorkspaceList";
 import { WorkspaceFormDialog } from "./components/WorkspaceFormDialog";
 import { DeleteWorkspaceDialog } from "./components/DeleteWorkspaceDialog";
-import Link from "next/link";
 
 interface Workspace {
   id: string;
@@ -23,7 +22,7 @@ export default function WorkspaceManagePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
-    null
+    null,
   );
 
   const fetchWorkspaces = async () => {
@@ -65,7 +64,7 @@ export default function WorkspaceManagePage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-10 px-4">
+      <div className="p-6 lg:p-8">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -74,18 +73,12 @@ export default function WorkspaceManagePage() {
   }
 
   return (
-    <div className="container mx-auto py-10 px-4">
+    <div className="p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/admin">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {t("admin.backToDashboard")}
-          </Button>
-        </Link>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-2xl font-bold mb-2">
               {t("admin.workspace.title")}
             </h1>
             <p className="text-muted-foreground">

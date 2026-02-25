@@ -29,13 +29,6 @@
     "selectPlaceholder": "选择工作空间...",
     "loading": "加载中..."
   },
-  "upload": {
-    "title": "上传资源",
-    "selectFile": "选择文件",
-    "uploading": "上传中...",
-    "success": "上传成功",
-    "failed": "上传失败"
-  },
   "assets": {
     "title": "资源管理",
     "list": "资源列表",
@@ -52,17 +45,6 @@
     "text": {
       "content": "文本内容",
       "contentPlaceholder": "输入文本内容"
-    }
-  },
-  "assetEditor": {
-    "fields": {
-      "name": "名称",
-      "namePlaceholder": "输入名称",
-      "textContent": "文本内容",
-      "textContentPlaceholder": "输入文本内容",
-      "description": "描述",
-      "descriptionPlaceholder": "输入描述",
-      "noDescription": "暂无描述"
     }
   },
   "onsite": {
@@ -149,15 +131,86 @@
       },
       "admin": {
         "title": "管理后台",
-        "description": "工作区和用户管理（需管理员权限）"
+        "description": "组织和工作区管理"
+      },
+      "superAdmin": {
+        "title": "超级管理员",
+        "description": "用户管理、全局角色分配（仅超级管理员）"
       }
     },
     "footer": {
       "copyright": "三林老街数字化平台. All rights reserved."
     }
   },
+  "organization": {
+    "selectPlaceholder": "选择组织...",
+    "switchTitle": "组织列表"
+  },
   "admin": {
     "backToDashboard": "返回管理后台",
+    "sidebar": {
+      "overview": "概览",
+      "settings": "设置",
+      "members": "成员",
+      "workspaces": "工作空间",
+      "users": "用户管理",
+      "cleanup": "资源清理",
+      "organizations": "组织管理",
+      "orgSection": "组织",
+      "globalSection": "系统管理"
+    },
+    "overview": {
+      "selectOrg": "请先选择一个组织",
+      "workspacesDesc": "管理该组织下的工作空间",
+      "membersDesc": "管理组织成员和角色",
+      "settingsDesc": "组织名称、描述和危险操作"
+    },
+    "members": {
+      "title": "成员管理",
+      "description": "管理 {{name}} 的成员",
+      "selectOrgFirst": "请先选择一个组织",
+      "addMember": "添加成员",
+      "selectUser": "选择用户...",
+      "noMembers": "暂无成员",
+      "unnamed": "未命名用户"
+    },
+    "settings": {
+      "title": "组织设置",
+      "description": "管理 {{name}} 的设置",
+      "selectOrgFirst": "请先选择一个组织",
+      "general": "基本信息",
+      "orgName": "组织名称",
+      "orgNamePlaceholder": "输入组织名称",
+      "orgDescription": "描述",
+      "orgDescPlaceholder": "可选：添加组织描述",
+      "saved": "设置已保存",
+      "dangerZone": "危险操作",
+      "deleteWarning": "删除组织将移除所有关联数据，此操作无法撤销。",
+      "confirmDelete": "输入 \"{{name}}\" 确认删除",
+      "deleteOrg": "删除组织"
+    },
+    "workspaces": {
+      "selectOrgFirst": "请先选择一个组织",
+      "description": "管理 {{name}} 下的工作空间"
+    },
+    "organization": {
+      "label": "所属组织",
+      "selectPlaceholder": "选择组织",
+      "roles": {
+        "owner": "拥有者",
+        "admin": "管理员",
+        "member": "成员"
+      },
+      "membersDialog": {
+        "title": "管理成员",
+        "description": "管理 {{name}} 的成员",
+        "addMember": "添加成员",
+        "selectUser": "选择用户...",
+        "currentMembers": "当前成员",
+        "noMembers": "暂无成员",
+        "close": "关闭"
+      }
+    },
     "dashboard": {
       "title": "管理后台",
       "welcome": "欢迎回来！这里可以管理系统的各个模块。",
@@ -214,21 +267,24 @@
       "noUsers": "暂无用户",
       "noUsersHint": "等待用户注册",
       "currentUser": "当前用户",
-      "admin": "管理员",
-      "student": "学生",
+      "unnamed": "未命名用户",
       "registeredOn": "注册于",
       "workspaces": "个工作空间",
       "changeRole": "修改角色",
       "assignWorkspace": "分配工作空间",
+      "roles": {
+        "super_admin": "超级管理员",
+        "user": "普通用户"
+      },
       "changeRoleDialog": {
         "title": "修改用户角色",
-        "description": "修改 {name} 的角色权限",
+        "description": "修改 {{name}} 的角色权限",
         "role": "角色",
         "selectRole": "选择角色",
-        "studentRole": "学生 (Student)",
-        "adminRole": "管理员 (Admin)",
-        "studentHint": "学生只能访问被分配的工作空间",
-        "adminHint": "管理员可以访问所有功能和管理后台"
+        "userRole": "普通用户 (User)",
+        "superAdminRole": "超级管理员 (Super Admin)",
+        "userHint": "普通用户通过组织角色控制权限",
+        "superAdminHint": "超级管理员可以管理所有组织和用户"
       },
       "manageWorkspaceDialog": {
         "title": "管理工作空间访问",

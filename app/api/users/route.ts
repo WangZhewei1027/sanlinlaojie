@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextResponse, connection } from "next/server";
 
 export async function GET() {
+  await connection();
   try {
     const supabase = await createClient();
 
@@ -20,7 +21,7 @@ export async function GET() {
       .eq("user_id", user.id)
       .single();
 
-    if (userData?.role !== "admin") {
+    if (userData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -44,7 +45,7 @@ export async function GET() {
             name
           )
         )
-      `
+      `,
       )
       .order("created_at", { ascending: false });
 

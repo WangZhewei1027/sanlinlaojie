@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +38,7 @@ export function ChangeRoleDialog({
   user,
   onSuccess,
 }: ChangeRoleDialogProps) {
+  const { t } = useTranslation();
   const [role, setRole] = useState<string>(user.role);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -58,13 +60,13 @@ export function ChangeRoleDialog({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "更新失败");
+        throw new Error(result.error || t("common.updateFailed", "更新失败"));
       }
 
       onSuccess();
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新失败");
+      setError(err instanceof Error ? err.message : t("common.updateFailed", "更新失败"));
     } finally {
       setLoading(false);
     }
@@ -75,31 +77,41 @@ export function ChangeRoleDialog({
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>修改用户角色</DialogTitle>
+            <DialogTitle>
+              {t("admin.users.changeRoleDialog.title", "修改用户角色")}
+            </DialogTitle>
             <DialogDescription>
-              修改 <strong>{user.name || "未命名用户"}</strong> 的角色权限
+              {t("admin.users.changeRoleDialog.description", "修改 {{name}} 的角色权限", {
+                name: user.name || t("admin.users.unnamed", "未命名用户"),
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="role">角色</Label>
+              <Label htmlFor="role">
+                {t("admin.users.changeRoleDialog.role", "角色")}
+              </Label>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger id="role">
-                  <SelectValue placeholder="选择角色" />
+                  <SelectValue placeholder={t("admin.users.changeRoleDialog.selectRole", "选择角色")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="student">学生 (Student)</SelectItem>
-                  <SelectItem value="admin">管理员 (Admin)</SelectItem>
+                  <SelectItem value="user">
+                    {t("admin.users.changeRoleDialog.userRole", "普通用户 (User)")}
+                  </SelectItem>
+                  <SelectItem value="super_admin">
+                    {t("admin.users.changeRoleDialog.superAdminRole", "超级管理员 (Super Admin)")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {role === "admin"
-                  ? "管理员可以访问所有功能和管理后台"
-                  : "学生只能访问被分配的工作空间"}
+                {role === "super_admin"
+                  ? t("admin.users.changeRoleDialog.superAdminHint", "超级管理员可以管理所有组织和用户")
+                  : t("admin.users.changeRoleDialog.userHint", "普通用户通过组织角色控制权限")}
               </p>
             </div>
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+              <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
                 {error}
               </div>
             )}
@@ -111,11 +123,11 @@ export function ChangeRoleDialog({
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              取消
+              {t("common.cancel", "取消")}
             </Button>
             <Button type="submit" disabled={loading || role === user.role}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              保存
+              {t("common.save", "保存")}
             </Button>
           </DialogFooter>
         </form>

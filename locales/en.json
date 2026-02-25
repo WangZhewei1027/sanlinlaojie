@@ -29,13 +29,6 @@
     "selectPlaceholder": "Select workspace...",
     "loading": "Loading..."
   },
-  "upload": {
-    "title": "Upload Assets",
-    "selectFile": "Select File",
-    "uploading": "Uploading...",
-    "success": "Upload Successful",
-    "failed": "Upload Failed"
-  },
   "assets": {
     "title": "Asset Management",
     "list": "Asset List",
@@ -52,17 +45,6 @@
     "text": {
       "content": "Text Content",
       "contentPlaceholder": "Enter text content"
-    }
-  },
-  "assetEditor": {
-    "fields": {
-      "name": "Name",
-      "namePlaceholder": "Enter name",
-      "textContent": "Text Content",
-      "textContentPlaceholder": "Enter text content",
-      "description": "Description",
-      "descriptionPlaceholder": "Enter description",
-      "noDescription": "No description"
     }
   },
   "onsite": {
@@ -149,15 +131,86 @@
       },
       "admin": {
         "title": "Admin Panel",
-        "description": "Workspace and user management (admin only)"
+        "description": "Organization and workspace management"
+      },
+      "superAdmin": {
+        "title": "Super Admin",
+        "description": "User management & global role assignment (super admin only)"
       }
     },
     "footer": {
       "copyright": "Sanlin Old Street Digital Platform. All rights reserved."
     }
   },
+  "organization": {
+    "selectPlaceholder": "Select organization...",
+    "switchTitle": "Organizations"
+  },
   "admin": {
     "backToDashboard": "Back to Admin Dashboard",
+    "sidebar": {
+      "overview": "Overview",
+      "settings": "Settings",
+      "members": "Members",
+      "workspaces": "Workspaces",
+      "users": "Users",
+      "cleanup": "Cleanup",
+      "organizations": "Organizations",
+      "orgSection": "Organization",
+      "globalSection": "Administration"
+    },
+    "overview": {
+      "selectOrg": "Please select an organization",
+      "workspacesDesc": "Manage workspaces under this organization",
+      "membersDesc": "Manage organization members and roles",
+      "settingsDesc": "Organization name, description, and danger zone"
+    },
+    "members": {
+      "title": "Members",
+      "description": "Manage members of {{name}}",
+      "selectOrgFirst": "Please select an organization first",
+      "addMember": "Add Member",
+      "selectUser": "Select user...",
+      "noMembers": "No members yet",
+      "unnamed": "Unnamed user"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Manage organization settings for {{name}}",
+      "selectOrgFirst": "Please select an organization first",
+      "general": "General",
+      "orgName": "Organization Name",
+      "orgNamePlaceholder": "Enter name",
+      "orgDescription": "Description",
+      "orgDescPlaceholder": "Optional description",
+      "saved": "Settings saved successfully",
+      "dangerZone": "Danger Zone",
+      "deleteWarning": "Deleting an organization will remove all associated data. This action cannot be undone.",
+      "confirmDelete": "Type \"{{name}}\" to confirm deletion",
+      "deleteOrg": "Delete Organization"
+    },
+    "workspaces": {
+      "selectOrgFirst": "Please select an organization first",
+      "description": "Manage workspaces under {{name}}"
+    },
+    "organization": {
+      "label": "Organization",
+      "selectPlaceholder": "Select organization",
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "member": "Member"
+      },
+      "membersDialog": {
+        "title": "Manage Members",
+        "description": "Manage members of {{name}}",
+        "addMember": "Add Member",
+        "selectUser": "Select user...",
+        "currentMembers": "Current Members",
+        "noMembers": "No members",
+        "close": "Close"
+      }
+    },
     "dashboard": {
       "title": "Admin Dashboard",
       "welcome": "Welcome back! Manage all system modules here.",
@@ -214,21 +267,24 @@
       "noUsers": "No Users",
       "noUsersHint": "Waiting for user registration",
       "currentUser": "Current User",
-      "admin": "Admin",
-      "student": "Student",
+      "unnamed": "Unnamed User",
       "registeredOn": "Registered on",
       "workspaces": "workspaces",
       "changeRole": "Change Role",
       "assignWorkspace": "Assign Workspace",
+      "roles": {
+        "super_admin": "Super Admin",
+        "user": "User"
+      },
       "changeRoleDialog": {
         "title": "Change User Role",
-        "description": "Modify role permissions for {name}",
+        "description": "Modify role permissions for {{name}}",
         "role": "Role",
         "selectRole": "Select role",
-        "studentRole": "Student",
-        "adminRole": "Admin",
-        "studentHint": "Students can only access assigned workspaces",
-        "adminHint": "Admins can access all features and admin dashboard"
+        "userRole": "User",
+        "superAdminRole": "Super Admin",
+        "userHint": "Users are controlled by organization roles",
+        "superAdminHint": "Super Admins can manage all organizations and users"
       },
       "manageWorkspaceDialog": {
         "title": "Manage Workspace Access",

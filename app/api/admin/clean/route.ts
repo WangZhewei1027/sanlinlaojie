@@ -35,7 +35,9 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (profile?.role !== "super_admin") {
+      // Check org-level role for cleanup permission
+      // super_admin or org owner/admin can run cleanup
       return NextResponse.json({ error: "需要管理员权限" }, { status: 403 });
     }
 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
             try {
               const url = new URL(asset.file_url);
               const pathMatch = url.pathname.match(
-                /\/storage\/v1\/object\/public\/assets\/(.+)/
+                /\/storage\/v1\/object\/public\/assets\/(.+)/,
               );
 
               if (pathMatch) {
@@ -104,7 +106,7 @@ export async function POST(request: Request) {
 
                   if (deleteError) {
                     result.errors.push(
-                      `删除记录 ${asset.id} 失败: ${deleteError.message}`
+                      `删除记录 ${asset.id} 失败: ${deleteError.message}`,
                     );
                   } else {
                     result.deletedRows.push(asset.id);
@@ -115,7 +117,7 @@ export async function POST(request: Request) {
               result.errors.push(
                 `处理资产 ${asset.id} 时出错: ${
                   err instanceof Error ? err.message : "未知错误"
-                }`
+                }`,
               );
             }
           }
@@ -124,7 +126,7 @@ export async function POST(request: Request) {
         result.errors.push(
           `清理数据库记录时出错: ${
             err instanceof Error ? err.message : "未知错误"
-          }`
+          }`,
         );
       }
     }
@@ -151,7 +153,7 @@ export async function POST(request: Request) {
             .not("file_url", "is", null);
 
           const fileUrlSet = new Set(
-            assets?.map((a) => a.file_url).filter(Boolean) || []
+            assets?.map((a) => a.file_url).filter(Boolean) || [],
           );
 
           // 检查每个文件是否在数据库中有记录
@@ -175,7 +177,7 @@ export async function POST(request: Request) {
 
               if (deleteError) {
                 result.errors.push(
-                  `删除文件 ${filePath} 失败: ${deleteError.message}`
+                  `删除文件 ${filePath} 失败: ${deleteError.message}`,
                 );
               } else {
                 result.deletedFiles.push(filePath);
@@ -187,7 +189,7 @@ export async function POST(request: Request) {
         result.errors.push(
           `清理存储文件时出错: ${
             err instanceof Error ? err.message : "未知错误"
-          }`
+          }`,
         );
       }
     }

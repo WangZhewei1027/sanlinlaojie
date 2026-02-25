@@ -4,10 +4,18 @@ export interface LocationData {
   height: number;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  description: string | null;
+  role?: string; // user's role in this organization
+}
+
 export interface Workspace {
   id: string;
   name: string;
   description: string | null;
+  organization_id?: string;
 }
 
 export interface Tag {

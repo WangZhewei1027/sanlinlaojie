@@ -17,8 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Trash2, Loader2, AlertCircle } from "lucide-react";
-import Link from "next/link";
+import { Trash2, Loader2, AlertCircle } from "lucide-react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { CleanLog } from "./components/CleanLog";
 
@@ -84,7 +83,7 @@ export default function CleanPage() {
               : ""
           }` +
           "\n" +
-          t("admin.clean.irreversible")
+          t("admin.clean.irreversible"),
       )
     ) {
       return;
@@ -117,7 +116,7 @@ export default function CleanPage() {
     } catch (error) {
       console.error("清理失败:", error);
       alert(
-        error instanceof Error ? error.message : t("admin.clean.cleanFailed")
+        error instanceof Error ? error.message : t("admin.clean.cleanFailed"),
       );
     } finally {
       setCleaning(false);
@@ -133,18 +132,12 @@ export default function CleanPage() {
   }
 
   return (
-    <div className="container mx-auto py-10 px-4">
-      <div className="mb-6">
-        <Link href="/admin">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t("admin.backToDashboard")}
-          </Button>
-        </Link>
-      </div>
-
+    <div className="p-6 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">{t("admin.clean.title")}</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <Trash2 className="h-7 w-7" />
+          <h1 className="text-2xl font-bold">{t("admin.clean.title")}</h1>
+        </div>
         <p className="text-muted-foreground">{t("admin.clean.description")}</p>
       </div>
 

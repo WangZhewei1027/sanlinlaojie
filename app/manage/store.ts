@@ -1,8 +1,22 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { Asset, Workspace, LocationData } from "./types";
+import type { Asset, Workspace, LocationData, Organization } from "./types";
 
 interface ManageStore {
+  // Current user state
+  currentUserRole: string | null;
+  setCurrentUserRole: (role: string | null) => void;
+
+  // Organization state
+  organizations: Organization[];
+  selectedOrganizationId: string | null;
+  selectedOrganization: Organization | null;
+  organizationLoading: boolean;
+  setOrganizations: (organizations: Organization[]) => void;
+  setSelectedOrganizationId: (id: string | null) => void;
+  setSelectedOrganization: (organization: Organization | null) => void;
+  setOrganizationLoading: (loading: boolean) => void;
+
   // Workspace state
   workspaces: Workspace[];
   selectedWorkspaceId: string | null;
@@ -35,6 +49,37 @@ interface ManageStore {
 export const useManageStore = create<ManageStore>()(
   devtools(
     (set) => ({
+      // Current user state
+      currentUserRole: null,
+      setCurrentUserRole: (role) =>
+        set({ currentUserRole: role }, undefined, "manage/setCurrentUserRole"),
+
+      // Organization state
+      organizations: [],
+      selectedOrganizationId: null,
+      selectedOrganization: null,
+      organizationLoading: false,
+      setOrganizations: (organizations) =>
+        set({ organizations }, undefined, "manage/setOrganizations"),
+      setSelectedOrganizationId: (id) =>
+        set(
+          { selectedOrganizationId: id },
+          undefined,
+          "manage/setSelectedOrganizationId",
+        ),
+      setSelectedOrganization: (organization) =>
+        set(
+          { selectedOrganization: organization },
+          undefined,
+          "manage/setSelectedOrganization",
+        ),
+      setOrganizationLoading: (loading) =>
+        set(
+          { organizationLoading: loading },
+          undefined,
+          "manage/setOrganizationLoading",
+        ),
+
       // Workspace state
       workspaces: [],
       selectedWorkspaceId: null,
@@ -46,19 +91,19 @@ export const useManageStore = create<ManageStore>()(
         set(
           { selectedWorkspaceId: id },
           undefined,
-          "manage/setSelectedWorkspaceId"
+          "manage/setSelectedWorkspaceId",
         ),
       setSelectedWorkspace: (workspace) =>
         set(
           { selectedWorkspace: workspace },
           undefined,
-          "manage/setSelectedWorkspace"
+          "manage/setSelectedWorkspace",
         ),
       setWorkspaceLoading: (loading) =>
         set(
           { workspaceLoading: loading },
           undefined,
-          "manage/setWorkspaceLoading"
+          "manage/setWorkspaceLoading",
         ),
 
       // Assets state
@@ -74,11 +119,11 @@ export const useManageStore = create<ManageStore>()(
         set(
           (state) => ({
             assets: state.assets.map((asset) =>
-              asset.id === id ? { ...asset, ...updates } : asset
+              asset.id === id ? { ...asset, ...updates } : asset,
             ),
           }),
           undefined,
-          "manage/updateAsset"
+          "manage/updateAsset",
         ),
       deleteAsset: (id) =>
         set(
@@ -86,7 +131,7 @@ export const useManageStore = create<ManageStore>()(
             assets: state.assets.filter((asset) => asset.id !== id),
           }),
           undefined,
-          "manage/deleteAsset"
+          "manage/deleteAsset",
         ),
 
       // Viewer state
@@ -97,7 +142,7 @@ export const useManageStore = create<ManageStore>()(
         set(
           { clickedLocation: location },
           undefined,
-          "manage/setClickedLocation"
+          "manage/setClickedLocation",
         ),
       setFocusedAssetId: (id) =>
         set({ focusedAssetId: id }, undefined, "manage/setFocusedAssetId"),
@@ -107,6 +152,6 @@ export const useManageStore = create<ManageStore>()(
     {
       name: "ManageStore",
       enabled: process.env.NODE_ENV === "development",
-    }
-  )
+    },
+  ),
 );
