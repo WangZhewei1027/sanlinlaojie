@@ -146,6 +146,45 @@
     "selectPlaceholder": "选择组织...",
     "switchTitle": "组织列表"
   },
+  "superAdmin": {
+    "title": "超级管理员",
+    "sidebar": {
+      "section": "超级管理员",
+      "users": "用户管理",
+      "organizations": "组织管理"
+    },
+    "orgs": {
+      "title": "组织管理",
+      "description": "管理所有组织，设置组织拥有者",
+      "totalOrgs": "总计",
+      "noOrgs": "暂无组织",
+      "members": "位成员",
+      "noOwner": "无拥有者",
+      "setOwner": "设置拥有者",
+      "currentOwners": "当前拥有者",
+      "addOwner": "添加拥有者",
+      "selectUser": "选择用户",
+      "demoteToMember": "降级为普通成员",
+      "setOwnerHint": "如果用户不是成员，将被添加为拥有者。如果已是成员，角色将变更为拥有者。",
+      "setOwnerDialog": {
+        "title": "设置组织拥有者",
+        "description": "管理 {{name}} 的拥有者"
+      },
+      "createOrg": "新建组织",
+      "createDialog": {
+        "title": "创建组织",
+        "description": "你将被设为该组织的拥有者。",
+        "name": "名称",
+        "namePlaceholder": "组织名称",
+        "desc": "描述",
+        "descPlaceholder": "可选描述"
+      },
+      "deleteDialog": {
+        "title": "删除组织",
+        "description": "确定要删除 \"{{name}}\" 吗？此操作不可撤销。"
+      }
+    }
+  },
   "admin": {
     "backToDashboard": "返回管理后台",
     "sidebar": {
@@ -172,7 +211,25 @@
       "addMember": "添加成员",
       "selectUser": "选择用户...",
       "noMembers": "暂无成员",
-      "unnamed": "未命名用户"
+      "noAvailableUsers": "无可添加成员",
+      "unnamed": "未命名用户",
+      "assignWorkspace": "分配工作空间",
+      "removeDialog": {
+        "title": "移除成员",
+        "description": "确定要将 {{name}} 从该组织中移除吗？",
+        "confirm": "移除"
+      },
+      "workspaceDialog": {
+        "title": "管理工作空间访问",
+        "description": "为 {{name}} 分配工作空间访问权限",
+        "addWorkspace": "添加工作空间",
+        "selectWorkspace": "选择工作空间",
+        "assignedWorkspaces": "已分配的工作空间",
+        "noAssignedWorkspaces": "暂无分配的工作空间",
+        "close": "关闭",
+        "addFailed": "添加失败",
+        "removeFailed": "删除失败"
+      }
     },
     "settings": {
       "title": "组织设置",

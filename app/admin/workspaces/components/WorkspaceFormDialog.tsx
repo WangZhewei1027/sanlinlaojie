@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,19 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-
-interface Organization {
-  id: string;
-  name: string;
-}
 
 interface WorkspaceFormDialogProps {
   open: boolean;
@@ -37,6 +25,7 @@ interface WorkspaceFormDialogProps {
     organization_id?: string;
   };
   defaultOrganizationId?: string;
+  defaultOrganizationName?: string;
   onSuccess: () => void;
 }
 
@@ -45,39 +34,16 @@ export function WorkspaceFormDialog({
   onOpenChange,
   workspace,
   defaultOrganizationId,
+  defaultOrganizationName,
   onSuccess,
 }: WorkspaceFormDialogProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(workspace?.name || "");
   const [description, setDescription] = useState(workspace?.description || "");
-  const [organizationId, setOrganizationId] = useState(
-    workspace?.organization_id || defaultOrganizationId || "",
-  );
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const isEditing = !!workspace;
-
-  useEffect(() => {
-    if (open) {
-      fetch("/api/organizations")
-        .then((res) => res.json())
-        .then((result) => {
-          const orgs = result.data || [];
-          setOrganizations(orgs);
-          // Use defaultOrganizationId if provided, otherwise auto-select first
-          if (!organizationId && orgs.length > 0) {
-            const defaultOrg = defaultOrganizationId
-              ? orgs.find((o: Organization) => o.id === defaultOrganizationId)
-              : null;
-            setOrganizationId(defaultOrg?.id || orgs[0].id);
-          }
-        })
-        .catch(console.error);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,8 +57,8 @@ export function WorkspaceFormDialog({
       const method = isEditing ? "PUT" : "POST";
 
       const body: Record<string, string> = { name, description };
-      if (!isEditing) {
-        body.organization_id = organizationId;
+      if (!isEditing && defaultOrganizationId) {
+        body.organization_id = defaultOrganizationId;
       }
 
       const response = await fetch(url, {
@@ -135,26 +101,10 @@ export function WorkspaceFormDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {!isEditing && organizations.length > 0 && (
+            {!isEditing && defaultOrganizationName && (
               <div className="grid gap-2">
                 <Label>{t("admin.organization.label")} *</Label>
-                <Select
-                  value={organizationId}
-                  onValueChange={setOrganizationId}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={t("admin.organization.selectPlaceholder")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input value={defaultOrganizationName} disabled readOnly />
               </div>
             )}
             <div className="grid gap-2">

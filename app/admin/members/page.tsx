@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -12,9 +13,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X, Users } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  Plus,
+  X,
+  Users,
+  ChevronsUpDown,
+  Check,
+  FolderKanban,
+} from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
+import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
 
 interface User {
   user_id: string;
@@ -56,9 +74,16 @@ export default function MembersPage() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>("member");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [error, setError] = useState("");
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
+  const [workspaceDialogMember, setWorkspaceDialogMember] =
+    useState<Member | null>(null);
+  const [removeMember, setRemoveMember] = useState<Member | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
     if (!selectedOrganization?.id) return;
@@ -170,6 +195,37 @@ export default function MembersPage() {
     (u) => !members.some((m) => m.user_id === u.user_id),
   );
 
+  const getUserLabel = (user: User) => {
+    return user.name || user.email || user.user_id.slice(0, 8);
+  };
+
+  const filteredUsers = availableUsers.filter((user) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(q) ||
+      user.email?.toLowerCase().includes(q) ||
+      user.user_id.toLowerCase().includes(q)
+    );
+  });
+
+  const selectedUserObj = allUsers.find((u) => u.user_id === selectedUserId);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dropdownOpen]);
+
   const roleColors: Record<string, string> = {
     owner:
       "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
@@ -215,32 +271,81 @@ export default function MembersPage() {
       ) : (
         <div className="space-y-6">
           {/* Add member form */}
-          {canAdd && availableUsers.length > 0 && (
+          {canAdd && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <Label className="text-sm font-medium mb-3 block">
                 {t("admin.members.addMember", "Add Member")}
               </Label>
               <div className="flex gap-2 flex-wrap">
-                <Select
-                  value={selectedUserId}
-                  onValueChange={setSelectedUserId}
+                <div
+                  className="relative flex-1 min-w-[200px]"
+                  ref={dropdownRef}
                 >
-                  <SelectTrigger className="flex-1 min-w-[200px]">
-                    <SelectValue
-                      placeholder={t(
-                        "admin.members.selectUser",
-                        "Select user...",
-                      )}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map((user) => (
-                      <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.name || user.email || user.user_id.slice(0, 8)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <span
+                      className={selectedUserObj ? "" : "text-muted-foreground"}
+                    >
+                      {selectedUserObj
+                        ? getUserLabel(selectedUserObj)
+                        : t("admin.members.selectUser", "Select user...")}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </button>
+
+                  {dropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+                      <div className="p-2">
+                        <Input
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder={t("common.search", "Search...")}
+                          className="h-8"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto p-1">
+                        {availableUsers.length === 0 ? (
+                          <p className="py-4 text-center text-sm text-muted-foreground">
+                            {t(
+                              "admin.members.noAvailableUsers",
+                              "No available users to add",
+                            )}
+                          </p>
+                        ) : filteredUsers.length === 0 ? (
+                          <p className="py-4 text-center text-sm text-muted-foreground">
+                            {t("common.noResults", "No results")}
+                          </p>
+                        ) : (
+                          filteredUsers.map((user) => (
+                            <button
+                              key={user.user_id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedUserId(user.user_id);
+                                setDropdownOpen(false);
+                                setSearchQuery("");
+                              }}
+                              className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                            >
+                              {selectedUserId === user.user_id ? (
+                                <Check className="mr-2 h-4 w-4" />
+                              ) : (
+                                <span className="mr-2 w-4" />
+                              )}
+                              <span className="truncate">
+                                {getUserLabel(user)}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <Select value={selectedRole} onValueChange={setSelectedRole}>
                   <SelectTrigger className="w-[120px]">
                     <SelectValue />
@@ -351,22 +456,97 @@ export default function MembersPage() {
                       </Badge>
                     )}
                   </div>
-                  {canRemove &&
-                    (member.role !== "owner" || canManageOwners) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemove(member.id)}
-                        className="flex-shrink-0 ml-2 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setWorkspaceDialogMember(member);
+                        setWorkspaceDialogOpen(true);
+                      }}
+                      title={t(
+                        "admin.members.assignWorkspace",
+                        "Assign Workspace",
+                      )}
+                    >
+                      <FolderKanban className="h-4 w-4" />
+                    </Button>
+                    {canRemove &&
+                      (member.role !== "owner" || canManageOwners) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setRemoveMember(member)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
+
+      {/* Remove Confirmation Dialog */}
+      <Dialog
+        open={!!removeMember}
+        onOpenChange={(open) => !open && setRemoveMember(null)}
+      >
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>
+              {t("admin.members.removeDialog.title", "Remove Member")}
+            </DialogTitle>
+            <DialogDescription>
+              {t(
+                "admin.members.removeDialog.description",
+                "Are you sure you want to remove {{name}} from this organization?",
+                {
+                  name:
+                    removeMember?.users?.name ||
+                    removeMember?.users?.email ||
+                    t("admin.members.unnamed", "Unnamed user"),
+                },
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setRemoveMember(null)}>
+              {t("common.cancel", "Cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (removeMember) {
+                  handleRemove(removeMember.id);
+                  setRemoveMember(null);
+                }
+              }}
+            >
+              {t("admin.members.removeDialog.confirm", "Remove")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workspace Dialog */}
+      {workspaceDialogMember && (
+        <ManageWorkspaceDialog
+          open={workspaceDialogOpen}
+          onOpenChange={setWorkspaceDialogOpen}
+          organizationId={selectedOrganization.id}
+          user={{
+            user_id: workspaceDialogMember.user_id,
+            name:
+              workspaceDialogMember.users?.name ||
+              workspaceDialogMember.users?.email ||
+              null,
+          }}
+          onSuccess={() => fetchData()}
+        />
       )}
     </div>
   );

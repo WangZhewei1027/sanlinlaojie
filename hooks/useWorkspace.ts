@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 
 export interface Organization {
   id: string;
@@ -17,7 +16,6 @@ export interface Workspace {
 }
 
 export function useWorkspace() {
-  const router = useRouter();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
@@ -68,61 +66,97 @@ export function useWorkspace() {
     [fetchWorkspaces],
   );
 
-  useEffect(() => {
-    const initializeUser = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const initializeUser = useCallback(async () => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        router.push("/auth/login");
+    if (!user) {
+      // Clear state when no user
+      setUserId(null);
+      setCurrentUserRole(null);
+      setOrganizations([]);
+      setSelectedOrganizationId(null);
+      setWorkspaces([]);
+      setSelectedWorkspaceId(null);
+      setLoading(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    try {
+      // Fetch user global role and organizations in parallel
+      const [roleResponse, orgResponse] = await Promise.all([
+        fetch("/api/auth/role"),
+        fetch("/api/organizations"),
+      ]);
+
+      const roleResult = await roleResponse.json();
+      if (roleResponse.ok && roleResult.role) {
+        setCurrentUserRole(roleResult.role);
+      } else {
+        setCurrentUserRole(null);
+      }
+
+      const orgResult = await orgResponse.json();
+
+      if (!orgResponse.ok) {
+        throw new Error(orgResult.error || "获取组织失败");
+      }
+
+      const orgList = orgResult.data || [];
+      setOrganizations(orgList);
+
+      // 默认选择第一个 organization
+      if (orgList.length > 0) {
+        const firstOrgId = orgList[0].id;
+        setSelectedOrganizationId(firstOrgId);
+
+        // 获取该 organization 下的 workspaces
+        await fetchWorkspaces(firstOrgId);
+      } else {
+        setError("未找到可用的组织");
+      }
+    } catch (err) {
+      console.error("初始化失败:", err);
+      setError(err instanceof Error ? err.message : "初始化失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchWorkspaces]);
+
+  // Initialize on mount
+  useEffect(() => {
+    initializeUser();
+  }, [initializeUser]);
+
+  // Re-initialize when auth state changes (login/logout)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      // Skip the initial INITIAL_SESSION event to avoid double-fetching
+      if (!initializedRef.current) {
+        initializedRef.current = true;
         return;
       }
-
-      setUserId(user.id);
-
-      try {
-        // Fetch user global role and organizations in parallel
-        const [roleResponse, orgResponse] = await Promise.all([
-          fetch("/api/auth/role"),
-          fetch("/api/organizations"),
-        ]);
-
-        const roleResult = await roleResponse.json();
-        if (roleResponse.ok && roleResult.role) {
-          setCurrentUserRole(roleResult.role);
-        }
-
-        const orgResult = await orgResponse.json();
-
-        if (!orgResponse.ok) {
-          throw new Error(orgResult.error || "获取组织失败");
-        }
-
-        const orgList = orgResult.data || [];
-        setOrganizations(orgList);
-
-        // 默认选择第一个 organization
-        if (orgList.length > 0) {
-          const firstOrgId = orgList[0].id;
-          setSelectedOrganizationId(firstOrgId);
-
-          // 获取该 organization 下的 workspaces
-          await fetchWorkspaces(firstOrgId);
-        } else {
-          setError("未找到可用的组织");
-        }
-      } catch (err) {
-        console.error("初始化失败:", err);
-        setError(err instanceof Error ? err.message : "初始化失败");
-      } finally {
-        setLoading(false);
+      if (
+        event === "SIGNED_IN" ||
+        event === "SIGNED_OUT" ||
+        event === "TOKEN_REFRESHED"
+      ) {
+        setLoading(true);
+        setError(null);
+        initializeUser();
       }
-    };
+    });
 
-    initializeUser();
-  }, [router, fetchWorkspaces]);
+    return () => subscription.unsubscribe();
+  }, [initializeUser]);
 
   const selectedOrganization = organizations.find(
     (o) => o.id === selectedOrganizationId,

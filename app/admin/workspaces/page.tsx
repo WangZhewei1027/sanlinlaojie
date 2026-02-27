@@ -15,8 +15,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
-import { WorkspaceFormDialog } from "@/app/admin/workspace/components/WorkspaceFormDialog";
-import { DeleteWorkspaceDialog } from "@/app/admin/workspace/components/DeleteWorkspaceDialog";
+import { WorkspaceFormDialog } from "@/app/admin/workspaces/components/WorkspaceFormDialog";
+import { DeleteWorkspaceDialog } from "@/app/admin/workspaces/components/DeleteWorkspaceDialog";
 
 interface Workspace {
   id: string;
@@ -209,6 +209,7 @@ export default function WorkspacesPage() {
         onOpenChange={setFormOpen}
         workspace={selectedWorkspace || undefined}
         defaultOrganizationId={selectedOrganization?.id}
+        defaultOrganizationName={selectedOrganization?.name}
         onSuccess={fetchWorkspaces}
       />
 

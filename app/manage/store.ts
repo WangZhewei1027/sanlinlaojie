@@ -44,6 +44,9 @@ interface ManageStore {
   setClickedLocation: (location: LocationData | null) => void;
   setFocusedAssetId: (id: string | null) => void;
   setSelectedAssetId: (id: string | null) => void;
+
+  // Reset all state (used on auth change)
+  reset: () => void;
 }
 
 export const useManageStore = create<ManageStore>()(
@@ -148,6 +151,30 @@ export const useManageStore = create<ManageStore>()(
         set({ focusedAssetId: id }, undefined, "manage/setFocusedAssetId"),
       setSelectedAssetId: (id) =>
         set({ selectedAssetId: id }, undefined, "manage/setSelectedAssetId"),
+
+      // Reset all state (used on auth change)
+      reset: () =>
+        set(
+          {
+            currentUserRole: null,
+            organizations: [],
+            selectedOrganizationId: null,
+            selectedOrganization: null,
+            organizationLoading: false,
+            workspaces: [],
+            selectedWorkspaceId: null,
+            selectedWorkspace: null,
+            workspaceLoading: false,
+            assets: [],
+            filteredAssets: [],
+            assetsLoading: false,
+            clickedLocation: null,
+            focusedAssetId: null,
+            selectedAssetId: null,
+          },
+          undefined,
+          "manage/reset",
+        ),
     }),
     {
       name: "ManageStore",

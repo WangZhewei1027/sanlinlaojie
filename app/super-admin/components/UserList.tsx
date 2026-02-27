@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserCog, FolderKanban, User, Calendar, Mail } from "lucide-react";
+import { UserCog, User, Calendar, Mail } from "lucide-react";
 
 interface UserData {
   user_id: string;
@@ -12,28 +12,18 @@ interface UserData {
   email: string | null;
   role: string;
   created_at: string;
-  workspace_assignment?: Array<{
-    id: string;
-    workspace_id: string;
-    workspace: {
-      id: string;
-      name: string;
-    };
-  }>;
 }
 
 interface UserListProps {
   users: UserData[];
   currentUserId: string;
   onChangeRole: (user: UserData) => void;
-  onManageWorkspace: (user: UserData) => void;
 }
 
 export function UserList({
   users,
   currentUserId,
   onChangeRole,
-  onManageWorkspace,
 }: UserListProps) {
   const { t } = useTranslation();
 
@@ -57,7 +47,6 @@ export function UserList({
     <div className="grid gap-4">
       {users.map((user) => {
         const isCurrentUser = user.user_id === currentUserId;
-        const workspaceCount = user.workspace_assignment?.length || 0;
 
         return (
           <Card key={user.user_id} className="p-6">
@@ -68,7 +57,9 @@ export function UserList({
                     {user.name || t("admin.users.unnamed", "未命名用户")}
                   </h3>
                   <Badge
-                    variant={user.role === "super_admin" ? "default" : "secondary"}
+                    variant={
+                      user.role === "super_admin" ? "default" : "secondary"
+                    }
                   >
                     {t(`admin.users.roles.${user.role}`, user.role)}
                   </Badge>
@@ -94,24 +85,7 @@ export function UserList({
                       {new Date(user.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <FolderKanban className="h-3 w-3" />
-                    <span>
-                      {workspaceCount} {t("admin.users.workspaces", "个工作空间")}
-                    </span>
-                  </div>
                 </div>
-
-                {/* 显示已分配的 workspaces */}
-                {workspaceCount > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {user.workspace_assignment?.map((assignment) => (
-                      <Badge key={assignment.id} variant="outline">
-                        {assignment.workspace.name}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
 
                 <div className="mt-3">
                   <p className="text-xs text-muted-foreground/75 font-mono truncate">
@@ -129,14 +103,6 @@ export function UserList({
                 >
                   <UserCog className="h-4 w-4 mr-1" />
                   {t("admin.users.changeRole", "修改角色")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onManageWorkspace(user)}
-                >
-                  <FolderKanban className="h-4 w-4 mr-1" />
-                  {t("admin.users.assignWorkspace", "分配工作空间")}
                 </Button>
               </div>
             </div>

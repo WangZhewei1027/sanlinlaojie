@@ -146,6 +146,45 @@
     "selectPlaceholder": "Select organization...",
     "switchTitle": "Organizations"
   },
+  "superAdmin": {
+    "title": "Super Admin",
+    "sidebar": {
+      "section": "Super Admin",
+      "users": "User Management",
+      "organizations": "Organizations"
+    },
+    "orgs": {
+      "title": "Organization Management",
+      "description": "Manage all organizations and set owners",
+      "totalOrgs": "Total",
+      "noOrgs": "No organizations",
+      "members": "members",
+      "noOwner": "No owner",
+      "setOwner": "Set Owner",
+      "currentOwners": "Current Owners",
+      "addOwner": "Add Owner",
+      "selectUser": "Select user",
+      "demoteToMember": "Demote to member",
+      "setOwnerHint": "If the user is not a member, they will be added as owner. If already a member, their role will be changed to owner.",
+      "setOwnerDialog": {
+        "title": "Set Organization Owner",
+        "description": "Manage owners for {{name}}"
+      },
+      "createOrg": "New Organization",
+      "createDialog": {
+        "title": "Create Organization",
+        "description": "You will be set as the owner of this organization.",
+        "name": "Name",
+        "namePlaceholder": "Organization name",
+        "desc": "Description",
+        "descPlaceholder": "Optional description"
+      },
+      "deleteDialog": {
+        "title": "Delete Organization",
+        "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+      }
+    }
+  },
   "admin": {
     "backToDashboard": "Back to Admin Dashboard",
     "sidebar": {
@@ -172,7 +211,25 @@
       "addMember": "Add Member",
       "selectUser": "Select user...",
       "noMembers": "No members yet",
-      "unnamed": "Unnamed user"
+      "noAvailableUsers": "No available users to add",
+      "unnamed": "Unnamed user",
+      "assignWorkspace": "Assign Workspace",
+      "removeDialog": {
+        "title": "Remove Member",
+        "description": "Are you sure you want to remove {{name}} from this organization?",
+        "confirm": "Remove"
+      },
+      "workspaceDialog": {
+        "title": "Manage Workspace Access",
+        "description": "Assign workspace access for {{name}}",
+        "addWorkspace": "Add Workspace",
+        "selectWorkspace": "Select workspace",
+        "assignedWorkspaces": "Assigned Workspaces",
+        "noAssignedWorkspaces": "No assigned workspaces",
+        "close": "Close",
+        "addFailed": "Failed to add",
+        "removeFailed": "Failed to remove"
+      }
     },
     "settings": {
       "title": "Settings",
