@@ -31,19 +31,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider
+        {/* <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
-        >
-          <I18nProvider>
-            <WorkspaceProvider>
-              <Navbar />
-              {children}
-            </WorkspaceProvider>
-          </I18nProvider>
-        </ThemeProvider>
+        > */}
+        <I18nProvider>
+          <WorkspaceProvider>
+            <Navbar />
+            {children}
+          </WorkspaceProvider>
+        </I18nProvider>
+        {/* </ThemeProvider> */}
       </body>
     </html>
   );

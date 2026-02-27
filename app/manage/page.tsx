@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useState } from "react";
 import { Responsive, useContainerWidth, Layout } from "react-grid-layout";
-import { useWorkspace } from "@/hooks/useWorkspace";
 import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { useManageStore } from "./store";
 import { ViewerFrame } from "./components/ViewerFrame";
@@ -38,44 +37,8 @@ export default function ManagePage() {
     };
   }, [containerRef, mounted]);
 
-  // 使用原有的 hooks 获取数据，但将状态存入 zustand
-  const {
-    workspaces,
-    selectedWorkspaceId,
-    selectedWorkspace,
-    setSelectedWorkspaceId: _setSelectedWorkspaceId,
-    loading,
-  } = useWorkspace();
-
-  // 同步数据到 zustand store
-  const setStoreWorkspaces = useManageStore((state) => state.setWorkspaces);
-  const setStoreSelectedWorkspaceId = useManageStore(
-    (state) => state.setSelectedWorkspaceId
-  );
-  const setStoreSelectedWorkspace = useManageStore(
-    (state) => state.setSelectedWorkspace
-  );
-  const setStoreWorkspaceLoading = useManageStore(
-    (state) => state.setWorkspaceLoading
-  );
+  // 直接从 zustand store 读取数据（WorkspaceProvider 负责同步）
   const filteredAssets = useManageStore((state) => state.filteredAssets);
-
-  // 同步 workspace 数据
-  useEffect(() => {
-    setStoreWorkspaces(workspaces);
-  }, [workspaces, setStoreWorkspaces]);
-
-  useEffect(() => {
-    setStoreSelectedWorkspaceId(selectedWorkspaceId);
-  }, [selectedWorkspaceId, setStoreSelectedWorkspaceId]);
-
-  useEffect(() => {
-    setStoreSelectedWorkspace(selectedWorkspace || null);
-  }, [selectedWorkspace, setStoreSelectedWorkspace]);
-
-  useEffect(() => {
-    setStoreWorkspaceLoading(loading);
-  }, [loading, setStoreWorkspaceLoading]);
 
   const { focusAsset } = useViewerMessaging({
     assets: filteredAssets,

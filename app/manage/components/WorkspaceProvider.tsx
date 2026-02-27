@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useManageStore } from "../store";
@@ -18,6 +18,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     organizations,
     selectedOrganizationId,
     selectedOrganization,
+    setSelectedOrganizationId: handleOrganizationChange,
     workspaces,
     selectedWorkspaceId,
     selectedWorkspace,
@@ -55,6 +56,31 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const setStoreWorkspaceLoading = useManageStore(
     (state) => state.setWorkspaceLoading,
   );
+
+  // Watch for org changes from OrgSwitcher (store) and refetch workspaces
+  const storeOrgId = useManageStore((state) => state.selectedOrganizationId);
+  const orgChangeRef = useRef(false);
+
+  useEffect(() => {
+    // Skip the initial sync (WorkspaceProvider sets the store value first)
+    if (!orgChangeRef.current) {
+      orgChangeRef.current = true;
+      return;
+    }
+    // When store orgId diverges from hook's internal value, it was changed externally (OrgSwitcher)
+    if (
+      shouldShowWorkspace &&
+      storeOrgId &&
+      storeOrgId !== selectedOrganizationId
+    ) {
+      handleOrganizationChange(storeOrgId);
+    }
+  }, [
+    storeOrgId,
+    selectedOrganizationId,
+    handleOrganizationChange,
+    shouldShowWorkspace,
+  ]);
 
   // Sync current user role to store
   useEffect(() => {
