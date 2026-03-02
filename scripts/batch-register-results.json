@@ -1,0 +1,137 @@
+[
+  {
+    "email": "aa8618@nyu.edu",
+    "success": false,
+    "error": "A user with this email address has already been registered"
+  },
+  {
+    "email": "lm4652@nyu.edu",
+    "success": false,
+    "error": "A user with this email address has already been registered"
+  },
+  {
+    "email": "xz4041@nyu.edu",
+    "success": true,
+    "userId": "b1b2fbfd-6b56-4476-859e-c3b813dd875e"
+  },
+  {
+    "email": "sd4835@nyu.edu",
+    "success": true,
+    "userId": "153e67de-b5b4-4cf8-9616-0f5bed93966c"
+  },
+  {
+    "email": "qc1097@nyu.edu",
+    "success": true,
+    "userId": "5e212bd0-aed0-494e-95ce-e4bb9fc182f1"
+  },
+  {
+    "email": "zz10330@nyu.edu",
+    "success": true,
+    "userId": "bc4236e2-2ab8-43b5-aedb-9d8c92631acc"
+  },
+  {
+    "email": "rch9284@nyu.edu",
+    "success": true,
+    "userId": "b3ce16ad-61cd-414b-9185-bfb40d0e8514"
+  },
+  {
+    "email": "yh5675@nyu.edu",
+    "success": true,
+    "userId": "3fcc56a1-5e2b-4e4b-a8f9-20837fb7190d"
+  },
+  {
+    "email": "sc10486@nyu.edu",
+    "success": true,
+    "userId": "b53e4ec0-0ce5-4ce8-b404-106a5ccb942f"
+  },
+  {
+    "email": "sy4301@nyu.edu",
+    "success": true,
+    "userId": "68732181-ad2e-4475-8009-b2dff8d64384"
+  },
+  {
+    "email": "cy2520@nyu.edu",
+    "success": true,
+    "userId": "36a08e53-7199-4eb6-8952-4416d9aeb84d"
+  },
+  {
+    "email": "tfr9406@nyu.edu",
+    "success": true,
+    "userId": "89873213-1cb2-43c5-afcb-aeda9a6ba016"
+  },
+  {
+    "email": "xc3083@nyu.edu",
+    "success": true,
+    "userId": "86ae61bb-e2e4-427a-88c3-a729ce843ace"
+  },
+  {
+    "email": "cy2767@nyu.edu",
+    "success": true,
+    "userId": "84c81ba9-f286-4cdc-97ed-3168d6d01790"
+  },
+  {
+    "email": "jz7112@nyu.edu",
+    "success": true,
+    "userId": "0690f7c1-e936-4265-9db4-1349ce222b5f"
+  },
+  {
+    "email": "vt2162@nyu.edu",
+    "success": true,
+    "userId": "094b1226-36d3-4c51-a86e-1ef6f5aaede0"
+  },
+  {
+    "email": "mrc697@nyu.edu",
+    "success": true,
+    "userId": "242aad9f-ee88-442a-b6e2-61255c4627ca"
+  },
+  {
+    "email": "tl4435@nyu.edu",
+    "success": true,
+    "userId": "bb4a3a4e-ceeb-4ce1-b38a-ab898fcbccac"
+  },
+  {
+    "email": "gan9743@nyu.edu",
+    "success": true,
+    "userId": "8bda6280-5ff3-4aec-9a17-a3f5ecd8fde1"
+  },
+  {
+    "email": "xw3378@nyu.edu",
+    "success": true,
+    "userId": "a78f02fa-54be-44ec-ab6e-bd5184028c45"
+  },
+  {
+    "email": "nh2530@nyu.edu",
+    "success": true,
+    "userId": "8b6cf168-55e9-4961-b100-bd532e948015"
+  },
+  {
+    "email": "ll5387@nyu.edu",
+    "success": true,
+    "userId": "594b8909-26fb-4bce-99ad-6a52729f84ce"
+  },
+  {
+    "email": "yh5850@nyu.edu",
+    "success": true,
+    "userId": "4014a1a7-8dd9-4db1-a4ac-c62712e3f4c3"
+  },
+  {
+    "email": "il2268@nyu.edu",
+    "success": true,
+    "userId": "28f65dd0-ca8d-494f-b9f5-be12bb861cd2"
+  },
+  {
+    "email": "dwm9023@nyu.edu",
+    "success": true,
+    "userId": "889e2b54-1559-4e2f-bdbc-689f2dc4530e"
+  },
+  {
+    "email": "ll4866@nyu.edu",
+    "success": true,
+    "userId": "5116f03f-1037-4410-a52c-8258a67810a1"
+  },
+  {
+    "email": "eu2094@nyu.edu",
+    "success": true,
+    "userId": "9a7c9366-8170-4b64-84ed-642791712f48"
+  }
+]

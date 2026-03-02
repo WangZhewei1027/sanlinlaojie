@@ -12,7 +12,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Sanlin Old Street - Interactive AR Heritage Experience",
+  title: "Interactive Heritage Experience",
   description:
     "Explore the rich history and culture of Sanlin Old Street through immersive augmented reality experiences and interactive maps",
 };
