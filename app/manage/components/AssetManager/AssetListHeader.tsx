@@ -1,4 +1,6 @@
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import type { Tag } from "../../types";
 import { TagFilter } from "./TagFilter";
 
@@ -8,6 +10,8 @@ interface AssetListHeaderProps {
   tags: Tag[];
   selectedTagIds: string[];
   onTagsChange: (tagIds: string[]) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 export function AssetListHeader({
@@ -16,6 +20,8 @@ export function AssetListHeader({
   tags,
   selectedTagIds,
   onTagsChange,
+  onRefresh,
+  refreshing = false,
 }: AssetListHeaderProps) {
   const { t } = useTranslation();
   const hasFilters = selectedTagIds.length > 0;
@@ -34,11 +40,24 @@ export function AssetListHeader({
               : t("assetManager.total", { count: totalCount })}
           </p>
         </div>
-        <TagFilter
-          tags={tags}
-          selectedTagIds={selectedTagIds}
-          onTagsChange={onTagsChange}
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefresh}
+            disabled={refreshing}
+            title={t("assetManager.refresh")}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+          </Button>
+          <TagFilter
+            tags={tags}
+            selectedTagIds={selectedTagIds}
+            onTagsChange={onTagsChange}
+          />
+        </div>
       </div>
     </div>
   );

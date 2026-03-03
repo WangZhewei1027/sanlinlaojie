@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useManageStore } from "../store";
@@ -14,6 +14,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     pathname.startsWith(route),
   );
 
+  // Read persisted selections from the Zustand store at mount time only.
+  // `persist` middleware hydrates the store synchronously on client, so these
+  // values will already reflect the last user choice on the first render.
+  const [initialOrgId] = useState(
+    () => useManageStore.getState().selectedOrganizationId,
+  );
+  const [initialWorkspaceId] = useState(
+    () => useManageStore.getState().selectedWorkspaceId,
+  );
+
   const {
     organizations,
     selectedOrganizationId,
@@ -22,9 +32,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     workspaces,
     selectedWorkspaceId,
     selectedWorkspace,
+    setPreferredWorkspaceId,
     currentUserRole,
     loading,
-  } = useWorkspace();
+  } = useWorkspace(initialOrgId, initialWorkspaceId);
 
   // Current user store setter
   const setStoreCurrentUserRole = useManageStore(
@@ -57,17 +68,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     (state) => state.setWorkspaceLoading,
   );
 
-  // Watch for org changes from OrgSwitcher (store) and refetch workspaces
+  // ── Org switcher: store → hook ──────────────────────────────────────────
+  // When the OrgSwitcher component writes directly to the Zustand store, we
+  // detect the divergence here and relay the change into useWorkspace so it
+  // can re-fetch workspaces for the new org.
   const storeOrgId = useManageStore((state) => state.selectedOrganizationId);
-  const orgChangeRef = useRef(false);
+  const orgSyncInitRef = useRef(false);
 
   useEffect(() => {
-    // Skip the initial sync (WorkspaceProvider sets the store value first)
-    if (!orgChangeRef.current) {
-      orgChangeRef.current = true;
+    // Skip the very first run – at that point WorkspaceProvider hasn't yet
+    // pushed the hook's initial value into the store, so any divergence is
+    // expected and should not trigger a redundant fetch.
+    if (!orgSyncInitRef.current) {
+      orgSyncInitRef.current = true;
       return;
     }
-    // When store orgId diverges from hook's internal value, it was changed externally (OrgSwitcher)
     if (
       shouldShowWorkspace &&
       storeOrgId &&
@@ -82,14 +97,36 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     shouldShowWorkspace,
   ]);
 
-  // Sync current user role to store
+  // ── Workspace switcher → hook ref ─────────────────────────────────────
+  // WorkspaceSwitcher writes to the store directly. Keep the hook's
+  // preference ref in sync so re-initialisation (e.g. TOKEN_REFRESHED)
+  // restores the correct workspace.
+  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  const wsSyncInitRef = useRef(false);
+
+  useEffect(() => {
+    if (!wsSyncInitRef.current) {
+      wsSyncInitRef.current = true;
+      return;
+    }
+    if (shouldShowWorkspace && storeWorkspaceId !== selectedWorkspaceId) {
+      setPreferredWorkspaceId(storeWorkspaceId);
+    }
+  }, [
+    storeWorkspaceId,
+    selectedWorkspaceId,
+    setPreferredWorkspaceId,
+    shouldShowWorkspace,
+  ]);
+
+  // ── Sync hook state → store ─────────────────────────────────────────────
+
   useEffect(() => {
     if (shouldShowWorkspace) {
       setStoreCurrentUserRole(currentUserRole);
     }
   }, [currentUserRole, setStoreCurrentUserRole, shouldShowWorkspace]);
 
-  // Sync organization data to store
   useEffect(() => {
     if (shouldShowWorkspace) {
       setStoreOrganizations(organizations);
@@ -118,7 +155,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loading, setStoreOrganizationLoading, shouldShowWorkspace]);
 
-  // Sync workspace data to store
   useEffect(() => {
     if (shouldShowWorkspace) {
       setStoreWorkspaces(workspaces);

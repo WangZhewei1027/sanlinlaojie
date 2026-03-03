@@ -17,7 +17,7 @@ interface AssetManagerProps {
 export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const { t } = useTranslation();
   const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId
+    (state) => state.selectedWorkspaceId,
   );
   const assets = useManageStore((state) => state.assets);
   const loading = useManageStore((state) => state.assetsLoading);
@@ -36,7 +36,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
     try {
       const response = await fetch(
-        `/api/tags?workspace_id=${selectedWorkspaceId}`
+        `/api/tags?workspace_id=${selectedWorkspaceId}`,
       );
       const result = await response.json();
 
@@ -60,7 +60,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
     try {
       const response = await fetch(
-        `/api/workspaces/${selectedWorkspaceId}/assets`
+        `/api/workspaces/${selectedWorkspaceId}/assets`,
       );
       const result = await response.json();
 
@@ -116,6 +116,11 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         tags={tags}
         selectedTagIds={selectedTagIds}
         onTagsChange={setSelectedTagIds}
+        onRefresh={() => {
+          fetchTags();
+          fetchAssets();
+        }}
+        refreshing={loading}
       />
 
       <div className="divide-y w-full overflow-y-auto max-h-[calc(100vh-200px)]">
@@ -146,7 +151,7 @@ export function useAssetAPI() {
 
   const handleUpdateAsset = async (
     assetId: string,
-    updates: Partial<Asset>
+    updates: Partial<Asset>,
   ) => {
     try {
       const response = await fetch(`/api/assets/${assetId}`, {

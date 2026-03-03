@@ -404,6 +404,7 @@
     "noAssets": "暂无资产",
     "loading": "加载中...",
     "noMatchingAssets": "没有符合筛选条件的资产",
+    "refresh": "刷新",
     "fetchTagsFailed": "获取标签失败:",
     "fetchAssetsFailed": "获取资源失败:",
     "updateAssetFailed": "更新资源失败",

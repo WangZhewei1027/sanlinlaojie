@@ -15,7 +15,10 @@ export interface Workspace {
   organization_id?: string;
 }
 
-export function useWorkspace() {
+export function useWorkspace(
+  initialOrgId?: string | null,
+  initialWorkspaceId?: string | null,
+) {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
@@ -29,38 +32,60 @@ export function useWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Track current selections via refs so initializeUser can access them without
+  // being added to useCallback deps (which would cause infinite re-runs).
+  const preferredOrgIdRef = useRef<string | null>(initialOrgId ?? null);
+  const preferredWorkspaceIdRef = useRef<string | null>(
+    initialWorkspaceId ?? null,
+  );
+
   // 根据 organization 获取 workspaces
-  const fetchWorkspaces = useCallback(async (orgId: string | null) => {
-    try {
-      const url = orgId
-        ? `/api/workspaces?organization_id=${orgId}`
-        : "/api/workspaces";
-      const response = await fetch(url);
-      const result = await response.json();
+  const fetchWorkspaces = useCallback(
+    async (orgId: string | null, preferWorkspaceId?: string | null) => {
+      try {
+        const url = orgId
+          ? `/api/workspaces?organization_id=${orgId}`
+          : "/api/workspaces";
+        const response = await fetch(url);
+        const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || "获取工作空间失败");
+        if (!response.ok) {
+          throw new Error(result.error || "获取工作空间失败");
+        }
+
+        const workspaceList = result.data || [];
+        setWorkspaces(workspaceList);
+
+        if (workspaceList.length > 0) {
+          // Prefer the provided workspace ID if it still exists in the new list,
+          // then fall back to the first item.
+          const preferred = preferWorkspaceId
+            ? workspaceList.find(
+                (w: { id: string }) => w.id === preferWorkspaceId,
+              )
+            : null;
+          const targetId = preferred ? preferred.id : workspaceList[0].id;
+          setSelectedWorkspaceId(targetId);
+          preferredWorkspaceIdRef.current = targetId;
+        } else {
+          setSelectedWorkspaceId(null);
+          preferredWorkspaceIdRef.current = null;
+        }
+      } catch (err) {
+        console.error("获取工作空间失败:", err);
+        setError(err instanceof Error ? err.message : "获取工作空间失败");
       }
-
-      const workspaceList = result.data || [];
-      setWorkspaces(workspaceList);
-
-      // 默认选择第一个 workspace
-      if (workspaceList.length > 0) {
-        setSelectedWorkspaceId(workspaceList[0].id);
-      } else {
-        setSelectedWorkspaceId(null);
-      }
-    } catch (err) {
-      console.error("获取工作空间失败:", err);
-      setError(err instanceof Error ? err.message : "获取工作空间失败");
-    }
-  }, []);
+    },
+    [],
+  );
 
   // 切换 organization 时重新获取 workspaces
   const handleOrganizationChange = useCallback(
     async (orgId: string) => {
       setSelectedOrganizationId(orgId);
+      preferredOrgIdRef.current = orgId;
+      // Reset workspace preference when org changes
+      preferredWorkspaceIdRef.current = null;
       await fetchWorkspaces(orgId);
     },
     [fetchWorkspaces],
@@ -109,13 +134,21 @@ export function useWorkspace() {
       const orgList = orgResult.data || [];
       setOrganizations(orgList);
 
-      // 默认选择第一个 organization
       if (orgList.length > 0) {
-        const firstOrgId = orgList[0].id;
-        setSelectedOrganizationId(firstOrgId);
+        // Prefer the previously selected org (persisted via ref) if it still
+        // exists in the fetched list; otherwise fall back to the first item.
+        const preferred = preferredOrgIdRef.current
+          ? orgList.find(
+              (o: { id: string }) => o.id === preferredOrgIdRef.current,
+            )
+          : null;
+        const targetOrgId = preferred ? preferred.id : orgList[0].id;
 
-        // 获取该 organization 下的 workspaces
-        await fetchWorkspaces(firstOrgId);
+        setSelectedOrganizationId(targetOrgId);
+        preferredOrgIdRef.current = targetOrgId;
+
+        // Restore preferred workspace across token refreshes / re-inits.
+        await fetchWorkspaces(targetOrgId, preferredWorkspaceIdRef.current);
       } else {
         setError("未找到可用的组织");
       }
@@ -175,6 +208,11 @@ export function useWorkspace() {
     selectedWorkspaceId,
     selectedWorkspace,
     setSelectedWorkspaceId,
+    // Call this when the user picks a workspace outside the hook so that the
+    // preference ref stays up-to-date for future re-initialisations.
+    setPreferredWorkspaceId: (id: string | null) => {
+      preferredWorkspaceIdRef.current = id;
+    },
     userId,
     currentUserRole,
     loading,

@@ -403,6 +403,7 @@
     "noAssets": "No assets",
     "loading": "Loading...",
     "noMatchingAssets": "No assets match the filter criteria",
+    "refresh": "Refresh",
     "fetchTagsFailed": "Failed to fetch tags:",
     "fetchAssetsFailed": "Failed to fetch assets:",
     "updateAssetFailed": "Failed to update asset",
