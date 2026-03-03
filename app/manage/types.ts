@@ -9,6 +9,8 @@ export interface Organization {
   name: string;
   description: string | null;
   role?: string; // user's role in this organization
+  map_center?: { lat: number; lng: number } | null;
+  allowed_file_types?: string[] | null;
 }
 
 export interface Workspace {

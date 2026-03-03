@@ -1,10 +1,10 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Calendar, Users, Crown, Trash2 } from "lucide-react";
+import { Building2, Calendar, Users, Crown } from "lucide-react";
 
 interface MemberData {
   id: string;
@@ -17,25 +17,27 @@ interface MemberData {
   };
 }
 
-interface OrgData {
+export interface OrgData {
   id: string;
   name: string;
   description: string | null;
   created_at: string;
   created_by: string;
   organization_member: MemberData[];
+  map_center: { lat: number; lng: number } | null;
+  allowed_file_types: string[] | null;
 }
 
 interface OrgListProps {
   organizations: OrgData[];
-  onManageOwner: (org: OrgData) => void;
-  onDelete: (org: OrgData) => void;
+  selectedOrgId?: string | null;
+  onSelectOrg: (org: OrgData) => void;
 }
 
 export function OrgList({
   organizations,
-  onManageOwner,
-  onDelete,
+  selectedOrgId,
+  onSelectOrg,
 }: OrgListProps) {
   const { t } = useTranslation();
 
@@ -53,82 +55,71 @@ export function OrgList({
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {organizations.map((org) => {
         const members = org.organization_member || [];
         const owners = members.filter((m) => m.role === "owner");
+        const isSelected = selectedOrgId === org.id;
 
         return (
-          <Card key={org.id} className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="font-semibold text-lg truncate">{org.name}</h3>
-                </div>
+          <Card
+            key={org.id}
+            onClick={() => onSelectOrg(org)}
+            className={cn(
+              "p-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/50",
+              isSelected && "border-primary ring-2 ring-primary/20 shadow-md",
+            )}
+          >
+            <div className="flex items-start gap-3 mb-3">
+              <Building2 className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <h3 className="font-semibold text-sm leading-tight line-clamp-2">
+                {org.name}
+              </h3>
+            </div>
 
-                {org.description && (
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {org.description}
-                  </p>
-                )}
+            {org.description && (
+              <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                {org.description}
+              </p>
+            )}
 
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    <span>{new Date(org.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    <span>
-                      {members.length} {t("superAdmin.orgs.members", "members")}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                <span>{new Date(org.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span>{members.length}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {owners.length > 0 ? (
+                owners.slice(0, 2).map((owner) => (
+                  <Badge
+                    key={owner.id}
+                    variant="default"
+                    className="flex items-center gap-1 text-xs py-0"
+                  >
+                    <Crown className="h-2.5 w-2.5" />
+                    <span className="max-w-[80px] truncate">
+                      {owner.users?.name ||
+                        owner.users?.email?.split("@")[0] ||
+                        owner.user_id.slice(0, 8)}
                     </span>
-                  </div>
-                </div>
-
-                {/* Current owners */}
-                <div className="flex flex-wrap gap-2">
-                  {owners.map((owner) => (
-                    <Badge
-                      key={owner.id}
-                      variant="default"
-                      className="flex items-center gap-1"
-                    >
-                      <Crown className="h-3 w-3" />
-                      {owner.users?.name || owner.users?.email || owner.user_id}
-                    </Badge>
-                  ))}
-                  {owners.length === 0 && (
-                    <Badge variant="destructive">
-                      {t("superAdmin.orgs.noOwner", "No owner")}
-                    </Badge>
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground/75 font-mono truncate mt-3">
-                  ID: {org.id}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onManageOwner(org)}
-                >
-                  <Crown className="h-4 w-4 mr-1" />
-                  {t("superAdmin.orgs.setOwner", "Set Owner")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onDelete(org)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {t("common.delete", "Delete")}
-                </Button>
-              </div>
+                  </Badge>
+                ))
+              ) : (
+                <Badge variant="destructive" className="text-xs py-0">
+                  {t("superAdmin.orgs.noOwner", "No owner")}
+                </Badge>
+              )}
+              {owners.length > 2 && (
+                <Badge variant="secondary" className="text-xs py-0">
+                  +{owners.length - 2}
+                </Badge>
+              )}
             </div>
           </Card>
         );

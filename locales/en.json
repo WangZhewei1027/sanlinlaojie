@@ -182,6 +182,24 @@
       "deleteDialog": {
         "title": "Delete Organization",
         "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+      },
+      "details": "Organization Details",
+      "saveChanges": "Save Changes",
+      "selectOrgHint": "Click a card to view and edit the organization",
+      "updateFailed": "Update failed",
+      "deleteOrg": "Delete Organization",
+      "section": {
+        "basicInfo": "Basic Info",
+        "mapCenter": "Map Center",
+        "fileTypes": "Allowed File Types"
+      },
+      "mapCenter": {
+        "lat": "Latitude",
+        "lng": "Longitude",
+        "incomplete": "Both lat and lng are required"
+      },
+      "fileTypes": {
+        "all": "All"
       }
     }
   },

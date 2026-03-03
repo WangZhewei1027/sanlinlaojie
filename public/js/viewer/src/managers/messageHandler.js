@@ -3,6 +3,8 @@
  */
 
 import { displayAssets, focusOnAsset } from "./assetManager.js";
+import { setOrigin } from "../utils/config.js";
+import { flyToOrigin } from "./viewerManager.js";
 
 /**
  * 监听来自父窗口的消息
@@ -27,6 +29,10 @@ function handleMessage(event) {
       case "FOCUS_ASSET":
         focusOnAsset(payload);
         break;
+      case "SET_ORIGIN":
+        setOrigin(payload);
+        flyToOrigin();
+        break;
       default:
         console.log("未知消息类型:", type);
     }
@@ -47,7 +53,7 @@ export function sendMessageToParent(type, payload) {
         source: "viewer",
         version: 1,
       },
-      "*"
+      "*",
     );
   }
 }
@@ -67,7 +73,7 @@ export function sendLocationClicked(longitude, latitude, height) {
 
   console.log(
     `点击坐标: ${longitude.toFixed(6)}°, ${latitude.toFixed(
-      6
-    )}°, ${height.toFixed(2)}m`
+      6,
+    )}°, ${height.toFixed(2)}m`,
   );
 }

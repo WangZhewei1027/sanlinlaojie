@@ -182,6 +182,24 @@
       "deleteDialog": {
         "title": "删除组织",
         "description": "确定要删除 \"{{name}}\" 吗？此操作不可撤销。"
+      },
+      "details": "组织详情",
+      "saveChanges": "保存更改",
+      "selectOrgHint": "点击卡片查看并编辑组织",
+      "updateFailed": "更新失败",
+      "deleteOrg": "删除组织",
+      "section": {
+        "basicInfo": "基本信息",
+        "mapCenter": "地图中心点",
+        "fileTypes": "允许的文件类型"
+      },
+      "mapCenter": {
+        "lat": "纬度",
+        "lng": "经度",
+        "incomplete": "纬度和经度都需要填写"
+      },
+      "fileTypes": {
+        "all": "全部"
       }
     }
   },

@@ -12,8 +12,39 @@ export function useViewerMessaging({
   iframeRef,
 }: UseViewerMessagingProps) {
   const setClickedLocation = useManageStore(
-    (state) => state.setClickedLocation
+    (state) => state.setClickedLocation,
   );
+  const selectedOrganization = useManageStore(
+    (state) => state.selectedOrganization,
+  );
+
+  // 发送 organization map_center (origin) 到 viewer iframe
+  useEffect(() => {
+    if (!iframeRef.current?.contentWindow) return;
+    if (!selectedOrganization?.map_center) return;
+
+    const sendOrigin = () => {
+      if (!iframeRef.current?.contentWindow) return;
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: "SET_ORIGIN",
+          payload: selectedOrganization.map_center,
+          source: "manage",
+          version: 1,
+        } as unknown as ViewerMessage,
+        "*",
+      );
+      console.log("发送 origin 到 viewer:", selectedOrganization.map_center);
+    };
+
+    const iframe = iframeRef.current;
+    iframe.addEventListener("load", sendOrigin);
+    sendOrigin();
+
+    return () => {
+      iframe.removeEventListener("load", sendOrigin);
+    };
+  }, [selectedOrganization?.map_center, iframeRef]);
 
   // 发送 assets 数据到 viewer iframe
   useEffect(() => {
@@ -28,7 +59,7 @@ export function useViewerMessaging({
             source: "manage",
             version: 1,
           } as ViewerMessage,
-          "*"
+          "*",
         );
         console.log("发送 assets 到 viewer:", assets.length);
       }
@@ -80,7 +111,7 @@ export function useViewerMessaging({
         source: "manage",
         version: 1,
       } as ViewerMessage,
-      "*"
+      "*",
     );
     console.log("聚焦到资产:", asset.id);
   };

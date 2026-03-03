@@ -6,15 +6,35 @@
 export const CESIUM_ION_TOKEN =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhOGY2YWFlOC01YWRlLTRlMTAtYmEwZC1hY2YyYTc3YTZmYmMiLCJpZCI6MzY3ODkyLCJpYXQiOjE3NjUyNTg2OTJ9.QOxskQVs1h4gUDRB7c_VvaBniXIgwuronD6__ZiPY_U";
 
-// 元数据配置
+// 元数据配置（origin 可由外部动态更新）
 export const METADATA = {
   srs: "EPSG:32651", // WGS 84 / UTM zone 51N
   origin: {
+    // GPS 坐标（经纬度），由外部 organization 配置传入
+    lat: null,
+    lng: null,
+    // UTM 坐标（向后兼容）
     easting: 356865.71708580491,
     northing: 3446141.014862847,
     altitude: 75.355000000997293,
   },
 };
+
+/**
+ * 更新 origin 坐标（从 organization.map_center 获取）
+ * @param {{ lat: number, lng: number }} center - GPS 中心点
+ */
+export function setOrigin(center) {
+  if (
+    center &&
+    typeof center.lat === "number" &&
+    typeof center.lng === "number"
+  ) {
+    METADATA.origin.lat = center.lat;
+    METADATA.origin.lng = center.lng;
+    console.log(`Origin 已更新: ${center.lat}, ${center.lng}`);
+  }
+}
 
 // 3D Tiles 配置
 export const TILESET_CONFIG = {

@@ -23,8 +23,8 @@ export function initViewer(containerId = "cesiumContainer") {
   const origin = getOriginCoordinates();
   console.log(
     `原点坐标: ${origin.longitude.toFixed(6)}°E, ${origin.latitude.toFixed(
-      6
-    )}°N`
+      6,
+    )}°N`,
   );
 
   return viewer;
@@ -53,8 +53,8 @@ export function resetCamera(tileset) {
     new Cesium.HeadingPitchRange(
       0,
       Cesium.Math.toRadians(CAMERA_CONFIG.defaultPitch),
-      tileset.boundingSphere.radius * 2
-    )
+      tileset.boundingSphere.radius * 2,
+    ),
   );
 }
 
@@ -82,7 +82,7 @@ export function flyTo(longitude, latitude, height = 0, options = {}) {
     destination: Cesium.Cartesian3.fromDegrees(
       longitude,
       latitude,
-      height + offset
+      height + offset,
     ),
     orientation: {
       heading: Cesium.Math.toRadians(heading),
@@ -111,7 +111,27 @@ export function zoomToTileset(tileset) {
     new Cesium.HeadingPitchRange(
       0,
       Cesium.Math.toRadians(CAMERA_CONFIG.defaultPitch),
-      tileset.boundingSphere.radius * 2
-    )
+      tileset.boundingSphere.radius * 2,
+    ),
   );
+}
+
+/**
+ * 飞行到 origin 坐标（organization map_center 更新时调用）
+ */
+export function flyToOrigin() {
+  if (!viewer) {
+    console.warn("Viewer not initialized");
+    return;
+  }
+
+  const origin = getOriginCoordinates();
+  console.log(
+    `飞行到 origin: ${origin.longitude.toFixed(6)}°E, ${origin.latitude.toFixed(6)}°N`,
+  );
+
+  flyTo(origin.longitude, origin.latitude, origin.altitude, {
+    pitch: CAMERA_CONFIG.defaultPitch,
+    duration: CAMERA_CONFIG.flyDuration,
+  });
 }

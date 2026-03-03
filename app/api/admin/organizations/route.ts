@@ -33,6 +33,8 @@ export async function GET() {
         description,
         created_at,
         created_by,
+        map_center,
+        allowed_file_types,
         organization_member (
           id,
           role,

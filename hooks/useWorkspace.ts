@@ -6,6 +6,8 @@ export interface Organization {
   name: string;
   description: string | null;
   role?: string;
+  map_center?: { lat: number; lng: number } | null;
+  allowed_file_types?: string[] | null;
 }
 
 export interface Workspace {

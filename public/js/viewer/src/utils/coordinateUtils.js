@@ -23,12 +23,23 @@ export function utm51NToWGS84(easting, northing) {
 
 /**
  * 计算并返回原点的经纬度坐标
+ * 优先使用 organization 配置的 GPS 坐标，否则回退到 UTM 转换
  * @returns {Object} 包含经度、纬度和高度的对象
  */
 export function getOriginCoordinates() {
+  // 优先使用动态配置的 GPS 坐标
+  if (METADATA.origin.lat != null && METADATA.origin.lng != null) {
+    return {
+      longitude: METADATA.origin.lng,
+      latitude: METADATA.origin.lat,
+      altitude: METADATA.origin.altitude,
+    };
+  }
+
+  // 回退：使用 UTM 坐标转换
   const originCartesian = utm51NToWGS84(
     METADATA.origin.easting,
-    METADATA.origin.northing
+    METADATA.origin.northing,
   );
   const originCartographic = Cesium.Cartographic.fromCartesian(originCartesian);
 
