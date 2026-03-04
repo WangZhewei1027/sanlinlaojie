@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,36 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const { t } = useTranslation();
   const workspaceId = useManageStore((state) => state.selectedWorkspaceId);
   const clickedLocation = useManageStore((state) => state.clickedLocation);
+  const selectedOrganization = useManageStore(
+    (state) => state.selectedOrganization,
+  );
   const router = useRouter();
   const uploadService = new FileUploadService();
 
+  // 从 organization 配置获取允许的文件类型
+  const allowedTypes = (selectedOrganization?.allowed_file_types ??
+    undefined) as UploadType[] | undefined;
+
+  const defaultTypes: UploadType[] = [
+    "image",
+    "audio",
+    "link",
+    "text",
+    "anchor",
+  ];
+  const effectiveTypes = allowedTypes ?? defaultTypes;
+
   // State
-  const [uploadType, setUploadType] = useState<UploadType>("image");
+  const [uploadType, setUploadType] = useState<UploadType>(
+    effectiveTypes[0] ?? "image",
+  );
+
+  // 当允许的文件类型变化时，确保当前选择有效
+  useEffect(() => {
+    if (!effectiveTypes.includes(uploadType)) {
+      setUploadType(effectiveTypes[0] ?? "image");
+    }
+  }, [effectiveTypes, uploadType]);
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const [text, setText] = useState("");
@@ -184,6 +209,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               <FileTypeSelector
                 selectedType={uploadType}
                 onTypeChange={setUploadType}
+                types={allowedTypes}
               />
 
               {/* 文件上传 */}
