@@ -284,7 +284,8 @@
       "roles": {
         "owner": "拥有者",
         "admin": "管理员",
-        "member": "成员"
+        "member": "成员",
+        "viewer": "访客"
       },
       "membersDialog": {
         "title": "管理成员",

@@ -37,11 +37,14 @@ import {
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
   onDeleteAsset?: (assetId: string) => Promise<void>;
+  /** When true, hides all editing controls and only renders the asset preview */
+  readOnly?: boolean;
 }
 
 export function AssetEditor({
   onUpdateAsset,
   onDeleteAsset,
+  readOnly = false,
 }: AssetEditorProps) {
   const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
@@ -284,56 +287,58 @@ export function AssetEditor({
 
         {/* 编辑内容 */}
         <div className="p-4 space-y-4">
-          {/* 操作按钮 */}
-          <div className="flex justify-between gap-2">
-            {onDeleteAsset && !isEditing && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                {t("common.delete")}
-              </Button>
-            )}
-            <div className="flex gap-2 ml-auto">
-              {!isEditing ? (
-                <Button size="sm" onClick={() => setIsEditing(true)}>
-                  <Edit2 className="h-4 w-4 mr-1" />
-                  {t("common.edit")}
+          {/* 操作按钮 - viewer 只读时隐藏 */}
+          {!readOnly && (
+            <div className="flex justify-between gap-2">
+              {onDeleteAsset && !isEditing && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {t("common.delete")}
                 </Button>
-              ) : (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSaving}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    {t("common.cancel")}
-                  </Button>
-                  <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        {t("assetEditor.saving")}
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-1" />
-                        {t("common.save")}
-                      </>
-                    )}
-                  </Button>
-                </>
               )}
+              <div className="flex gap-2 ml-auto">
+                {!isEditing ? (
+                  <Button size="sm" onClick={() => setIsEditing(true)}>
+                    <Edit2 className="h-4 w-4 mr-1" />
+                    {t("common.edit")}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCancel}
+                      disabled={isSaving}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      {t("common.cancel")}
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          {t("assetEditor.saving")}
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-1" />
+                          {t("common.save")}
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* 锁点名称编辑 */}
-          {isFieldEditable(selectedAsset.file_type, "name") && (
+          {/* 锁点名称编辑 - viewer 只读时隐藏 */}
+          {!readOnly && isFieldEditable(selectedAsset.file_type, "name") && (
             <AssetNameEditor
               name={selectedAsset.name}
               isEditing={isEditing}
@@ -356,8 +361,9 @@ export function AssetEditor({
             />
           )}
 
-          {/* 文本内容编辑 - 用于 anchor 类型的描述 */}
-          {isFieldEditable(selectedAsset.file_type, "text_content") &&
+          {/* 文本内容编辑 - 用于 anchor 类型的描述，viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "text_content") &&
             assetConfig?.previewType === "anchor" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
@@ -397,8 +403,9 @@ export function AssetEditor({
               </div>
             )}
 
-          {/* 文本内容编辑 - 用于 text 类型 */}
-          {isFieldEditable(selectedAsset.file_type, "text_content") &&
+          {/* 文本内容编辑 - 用于 text 类型，viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "text_content") &&
             assetConfig?.previewType !== "anchor" && (
               <AssetTextEditor
                 textContent={selectedAsset.text_content}
@@ -468,8 +475,9 @@ export function AssetEditor({
             />
           )}
 
-          {/* 锚点关联 */}
-          {isFieldEditable(selectedAsset.file_type, "anchor_id") &&
+          {/* 锚点关联 - viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "anchor_id") &&
             selectedWorkspaceId && (
               <AnchorSelector
                 currentAnchorId={
@@ -483,8 +491,9 @@ export function AssetEditor({
               />
             )}
 
-          {/* 标签编辑 */}
-          {isFieldEditable(selectedAsset.file_type, "tag_ids") &&
+          {/* 标签编辑 - viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "tag_ids") &&
             selectedWorkspaceId && (
               <AssetTagEditor
                 tagIds={isEditing ? editedData.tag_ids : selectedAsset.tag_ids}
@@ -496,31 +505,34 @@ export function AssetEditor({
               />
             )}
 
-          {/* 位置信息编辑 */}
-          {isFieldEditable(selectedAsset.file_type, "location") && (
-            <AssetLocationEditor
+          {/* 位置信息编辑 - viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "location") && (
+              <AssetLocationEditor
+                metadata={selectedAsset.metadata}
+                isEditing={isEditing}
+                editedLongitude={editedData.longitude}
+                editedLatitude={editedData.latitude}
+                editedHeight={editedData.height}
+                onLongitudeChange={(value) =>
+                  setEditedData((prev) => ({ ...prev, longitude: value }))
+                }
+                onLatitudeChange={(value) =>
+                  setEditedData((prev) => ({ ...prev, latitude: value }))
+                }
+                onHeightChange={(value) =>
+                  setEditedData((prev) => ({ ...prev, height: value }))
+                }
+              />
+            )}
+
+          {/* 元数据和资产ID - viewer 只读时隐藏 */}
+          {!readOnly && (
+            <AssetMetadata
               metadata={selectedAsset.metadata}
-              isEditing={isEditing}
-              editedLongitude={editedData.longitude}
-              editedLatitude={editedData.latitude}
-              editedHeight={editedData.height}
-              onLongitudeChange={(value) =>
-                setEditedData((prev) => ({ ...prev, longitude: value }))
-              }
-              onLatitudeChange={(value) =>
-                setEditedData((prev) => ({ ...prev, latitude: value }))
-              }
-              onHeightChange={(value) =>
-                setEditedData((prev) => ({ ...prev, height: value }))
-              }
+              assetId={selectedAsset.id}
             />
           )}
-
-          {/* 元数据和资产ID */}
-          <AssetMetadata
-            metadata={selectedAsset.metadata}
-            assetId={selectedAsset.id}
-          />
         </div>
       </Card>
     </>

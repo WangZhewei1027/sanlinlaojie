@@ -15,7 +15,7 @@
 export type GlobalRole = "super_admin" | "user";
 
 // --- Tier 2: Organization roles ---
-export type OrgRole = "owner" | "admin" | "member";
+export type OrgRole = "owner" | "admin" | "member" | "viewer";
 
 // --- Permission keys ---
 export type OrgPermission =
@@ -69,6 +69,7 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.cleanup",
   ],
   member: ["org.view", "org.members.view", "org.workspaces.view"],
+  viewer: ["org.view", "org.workspaces.view"],
 };
 
 // --- Permission matrix for global roles ---

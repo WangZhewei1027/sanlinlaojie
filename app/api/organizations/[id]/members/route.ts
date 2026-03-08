@@ -111,7 +111,7 @@ export async function POST(
       return NextResponse.json({ error: "缺少 user_id" }, { status: 400 });
     }
 
-    if (!["owner", "admin", "member"].includes(role)) {
+    if (!["owner", "admin", "member", "viewer"].includes(role)) {
       return NextResponse.json({ error: "无效的角色" }, { status: 400 });
     }
 
@@ -190,7 +190,7 @@ export async function PATCH(
       return NextResponse.json({ error: "缺少 member_id" }, { status: 400 });
     }
 
-    if (!role || !["owner", "admin", "member"].includes(role)) {
+    if (!role || !["owner", "admin", "member", "viewer"].includes(role)) {
       return NextResponse.json({ error: "无效的角色" }, { status: 400 });
     }
 

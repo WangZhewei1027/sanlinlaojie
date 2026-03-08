@@ -284,7 +284,8 @@
       "roles": {
         "owner": "Owner",
         "admin": "Admin",
-        "member": "Member"
+        "member": "Member",
+        "viewer": "Viewer"
       },
       "membersDialog": {
         "title": "Manage Members",

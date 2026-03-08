@@ -10,14 +10,28 @@ import { isSuperAdmin } from "@/lib/permissions";
 export default function Home() {
   const { t } = useTranslation();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isViewerOnly, setIsViewerOnly] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/role")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.role) setUserRole(data.role);
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/auth/role")
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+      fetch("/api/organizations")
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    ]).then(([roleData, orgsData]) => {
+      if (roleData?.role) setUserRole(roleData.role);
+
+      // 如果全局不是 super_admin，且所有 org 角色都是 viewer，则视为 viewer-only
+      const globalRole = roleData?.role ?? null;
+      if (!isSuperAdmin(globalRole)) {
+        const orgs: { role?: string }[] = orgsData?.data ?? [];
+        if (orgs.length > 0 && orgs.every((o) => o.role === "viewer")) {
+          setIsViewerOnly(true);
+        }
+      }
+    });
   }, []);
 
   return (
@@ -67,16 +81,18 @@ export default function Home() {
                 {t("home.quickLinks.title")}
               </h2>
               <div className="grid md:grid-cols-2 gap-4 w-full max-w-2xl">
-                <Button asChild variant="outline" className="h-auto py-6">
-                  <Link href="/upload-onsite" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">
-                      {t("home.quickLinks.onsite.title")}
-                    </span>
-                    <span className="text-sm text-muted-foreground font-normal">
-                      {t("home.quickLinks.onsite.description")}
-                    </span>
-                  </Link>
-                </Button>
+                {!isViewerOnly && (
+                  <Button asChild variant="outline" className="h-auto py-6">
+                    <Link href="/upload-onsite" className="flex flex-col gap-2">
+                      <span className="text-lg font-semibold">
+                        {t("home.quickLinks.onsite.title")}
+                      </span>
+                      <span className="text-sm text-muted-foreground font-normal">
+                        {t("home.quickLinks.onsite.description")}
+                      </span>
+                    </Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline" className="h-auto py-6">
                   <Link href="/manage" className="flex flex-col gap-2">
                     <span className="text-lg font-semibold">
@@ -87,16 +103,18 @@ export default function Home() {
                     </span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-auto py-6">
-                  <Link href="/admin" className="flex flex-col gap-2">
-                    <span className="text-lg font-semibold">
-                      {t("home.quickLinks.admin.title")}
-                    </span>
-                    <span className="text-sm text-muted-foreground font-normal">
-                      {t("home.quickLinks.admin.description")}
-                    </span>
-                  </Link>
-                </Button>
+                {!isViewerOnly && (
+                  <Button asChild variant="outline" className="h-auto py-6">
+                    <Link href="/admin" className="flex flex-col gap-2">
+                      <span className="text-lg font-semibold">
+                        {t("home.quickLinks.admin.title")}
+                      </span>
+                      <span className="text-sm text-muted-foreground font-normal">
+                        {t("home.quickLinks.admin.description")}
+                      </span>
+                    </Link>
+                  </Button>
+                )}
               </div>
             </section>
           </main>
