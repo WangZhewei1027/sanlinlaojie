@@ -51,7 +51,7 @@ export class FileUploadService {
         console.log(
           `文件处理完成: ${(file.size / 1024).toFixed(2)}KB -> ${(
             processedFile.size / 1024
-          ).toFixed(2)}KB`
+          ).toFixed(2)}KB`,
         );
       } catch (error) {
         console.error("文件处理失败:", error);
@@ -76,7 +76,7 @@ export class FileUploadService {
    */
   async uploadToStorage(file: File, userId: string): Promise<string> {
     console.log(
-      `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+      `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
     );
 
     // Supabase Storage 限制检查（实际配置为 1MB）
@@ -84,8 +84,8 @@ export class FileUploadService {
     if (file.size > maxStorageSize) {
       throw new Error(
         `文件大小 ${(file.size / 1024 / 1024).toFixed(
-          2
-        )}MB 超过 Supabase Storage 限制 (1MB)。请联系管理员。`
+          2,
+        )}MB 超过 Supabase Storage 限制 (1MB)。请联系管理员。`,
       );
     }
 
@@ -118,7 +118,7 @@ export class FileUploadService {
   async saveToDatabase(
     workspaceId: string,
     userId: string,
-    result: UploadResult
+    result: UploadResult,
   ): Promise<void> {
     const geometry = result.location
       ? `POINT(${result.location.longitude} ${result.location.latitude})`
@@ -139,6 +139,7 @@ export class FileUploadService {
         height: result.location?.height,
         upload_time: new Date().toISOString(),
         gps_source: result.gpsSource,
+        ...(result.checkinUrl ? { checkin_url: result.checkinUrl } : {}),
         ...result.metadata,
       },
     });
@@ -153,7 +154,7 @@ export class FileUploadService {
     workspaceId: string,
     userId: string,
     link: string,
-    location?: LocationData
+    location?: LocationData,
   ): Promise<void> {
     const geometry = location
       ? `POINT(${location.longitude} ${location.latitude})`
@@ -184,7 +185,7 @@ export class FileUploadService {
     userId: string,
     text: string,
     location?: LocationData,
-    tagIds?: string[]
+    tagIds?: string[],
   ): Promise<void> {
     const geometry = location
       ? `POINT(${location.longitude} ${location.latitude})`
@@ -215,7 +216,7 @@ export class FileUploadService {
   async saveAnchor(
     workspaceId: string,
     userId: string,
-    anchorData: AnchorData
+    anchorData: AnchorData,
   ): Promise<void> {
     const { name, location, text } = anchorData;
     const geometry = `POINT(${location.longitude} ${location.latitude})`;

@@ -55,7 +55,7 @@ function formatSizeMB(bytes: number): string {
 /** 将 canvas 转为 Blob（JPEG 格式） */
 function canvasToBlob(
   canvas: HTMLCanvasElement,
-  quality: number
+  quality: number,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -64,7 +64,7 @@ function canvasToBlob(
           console.log(
             `[canvasToBlob] 质量=${quality.toFixed(2)}, 尺寸=${canvas.width}x${
               canvas.height
-            }`
+            }`,
           );
           resolve(blob);
         } else {
@@ -72,7 +72,7 @@ function canvasToBlob(
         }
       },
       "image/jpeg",
-      quality
+      quality,
     );
   });
 }
@@ -96,7 +96,7 @@ async function loadImage(file: File): Promise<HTMLImageElement> {
 /** 计算目标尺寸，保持纵横比并限制最长边 */
 function computeTargetSize(
   img: HTMLImageElement,
-  maxSide: number
+  maxSide: number,
 ): { width: number; height: number } {
   const { naturalWidth, naturalHeight } = img;
   const longestSide = Math.max(naturalWidth, naturalHeight);
@@ -113,7 +113,7 @@ function computeTargetSize(
 async function compressOnce(
   img: HTMLImageElement,
   quality: number,
-  maxSide: number
+  maxSide: number,
 ): Promise<Blob> {
   const { width, height } = computeTargetSize(img, maxSide);
   const canvas = document.createElement("canvas");
@@ -131,7 +131,7 @@ async function compressOnce(
 async function performCompression(
   img: HTMLImageElement,
   quality: number,
-  maxWidthOrHeight: number
+  maxWidthOrHeight: number,
 ): Promise<Blob> {
   return await compressOnce(img, quality, maxWidthOrHeight);
 }
@@ -146,16 +146,16 @@ async function performCompression(
  * - 质量达到最低后，降低分辨率并重置质量
  * - 分辨率档位：1920px → 1280px → 960px
  */
-export async function compressToWebP(
+export async function compressImage(
   file: File,
-  maxSizeMB: number
+  maxSizeMB: number,
 ): Promise<File> {
   const targetSizeBytes = maxSizeMB * 1024 * 1024;
 
   // 步骤 1: 检查是否需要压缩
   if (file.size <= targetSizeBytes) {
     console.log(
-      `文件已小于 ${maxSizeMB}MB (${formatSizeKB(file.size)}KB)，跳过压缩`
+      `文件已小于 ${maxSizeMB}MB (${formatSizeKB(file.size)}KB)，跳过压缩`,
     );
     return file;
   }
@@ -179,13 +179,13 @@ export async function compressToWebP(
       const compressed = await performCompression(
         img,
         currentQuality,
-        currentResolution
+        currentResolution,
       );
 
       console.log(
         `第 ${attempt} 次压缩: ${formatSizeMB(
-          compressed.size
-        )}MB (分辨率=${currentResolution}px, 质量=${currentQuality.toFixed(2)})`
+          compressed.size,
+        )}MB (分辨率=${currentResolution}px, 质量=${currentQuality.toFixed(2)})`,
       );
 
       bestResult = compressed;
@@ -208,15 +208,15 @@ export async function compressToWebP(
         currentQuality = 0.7; // 重置为中等质量
         console.log(
           `降低分辨率至 ${currentResolution}px，重置质量为 ${currentQuality.toFixed(
-            2
-          )}`
+            2,
+          )}`,
         );
       } else {
         // 策略3: 分辨率和质量都已达最低
         console.warn(
           `⚠ 已达到最低分辨率 (${currentResolution}px) 和质量 (${MIN_QUALITY})，但文件仍为 ${formatSizeMB(
-            compressed.size
-          )}MB`
+            compressed.size,
+          )}MB`,
         );
         break;
       }
@@ -227,7 +227,7 @@ export async function compressToWebP(
       bestResult = await compressOnce(
         img,
         MIN_QUALITY,
-        RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1]
+        RESOLUTION_LEVELS[RESOLUTION_LEVELS.length - 1],
       );
     }
 
@@ -237,8 +237,8 @@ export async function compressToWebP(
     ) {
       console.warn(
         `⚠ 已达到最大尝试次数 (${MAX_COMPRESSION_ATTEMPTS})，最终大小: ${formatSizeMB(
-          bestResult!.size
-        )}MB`
+          bestResult!.size,
+        )}MB`,
       );
     }
   } catch (error) {
@@ -257,8 +257,8 @@ export async function compressToWebP(
 
   console.log(
     `✓ 压缩完成: ${formatSizeMB(file.size)}MB → ${formatSizeMB(
-      compressedFile.size
-    )}MB`
+      compressedFile.size,
+    )}MB`,
   );
 
   return compressedFile;

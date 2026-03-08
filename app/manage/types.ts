@@ -52,6 +52,8 @@ export interface Asset {
       width: number;
       height: number;
     };
+    // shop 类型：打卡凭证照片
+    checkin_url?: string;
   };
 }
 

@@ -48,6 +48,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
     "link",
     "text",
     "anchor",
+    "shop",
   ];
   const effectiveTypes = allowedTypes ?? defaultTypes;
 
@@ -63,6 +64,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
     }
   }, [effectiveTypes, uploadType]);
   const [file, setFile] = useState<File | null>(null);
+  const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const [text, setText] = useState("");
   const [name, setName] = useState("");
@@ -113,7 +115,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           workspaceId,
           user.id,
           link,
-          finalLocation || undefined
+          finalLocation || undefined,
         );
       } else if (uploadType === "text") {
         if (!text.trim()) throw new Error(t("upload.enterText"));
@@ -121,14 +123,50 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           workspaceId,
           user.id,
           text,
-          finalLocation || undefined
+          finalLocation || undefined,
         );
+      } else if (uploadType === "model") {
+        if (!file) throw new Error(t("upload.selectFile"));
+        const maxBytes = 3 * 1024 * 1024;
+        if (file.size > maxBytes) throw new Error(t("upload.modelTooLarge"));
+        const fileUrl = await uploadService.uploadToStorage(file, user.id);
+        await uploadService.saveToDatabase(workspaceId, user.id, {
+          fileUrl,
+          fileType: "model",
+          name: name.trim() || undefined,
+          location: finalLocation || undefined,
+          gpsSource: gpsSource || undefined,
+        });
+      } else if (uploadType === "shop") {
+        if (!file) throw new Error(t("upload.selectFile"));
+        const processedFile = await uploadService.processFile(file);
+        const fileUrl = await uploadService.uploadToStorage(
+          processedFile.file,
+          user.id,
+        );
+        let checkinUrl: string | undefined;
+        if (checkinFile) {
+          const processedCheckin = await uploadService.processFile(checkinFile);
+          checkinUrl = await uploadService.uploadToStorage(
+            processedCheckin.file,
+            user.id,
+          );
+        }
+        await uploadService.saveToDatabase(workspaceId, user.id, {
+          fileUrl,
+          fileType: "shop",
+          name: name.trim() || undefined,
+          textContent: text.trim() || undefined,
+          location: finalLocation || undefined,
+          gpsSource: gpsSource || undefined,
+          checkinUrl,
+        });
       } else if (file) {
         // 文件上传
         const processedFile = await uploadService.processFile(file);
         const fileUrl = await uploadService.uploadToStorage(
           processedFile.file,
-          user.id
+          user.id,
         );
 
         await uploadService.saveToDatabase(workspaceId, user.id, {
@@ -180,6 +218,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
   const resetForm = () => {
     setFile(null);
+    setCheckinFile(null);
     setLink("");
     setText("");
     setName("");
@@ -255,6 +294,62 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                     placeholder={t("upload.fields.textPlaceholder")}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* 3D 模型名称 */}
+              {uploadType === "model" && (
+                <div className="space-y-2">
+                  <Label htmlFor="model-name" className="text-xs">
+                    {t("upload.fields.modelName")}
+                  </Label>
+                  <Input
+                    id="model-name"
+                    type="text"
+                    placeholder={t("upload.fields.modelNamePlaceholder")}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              )}
+
+              {/* 店铺输入 */}
+              {uploadType === "shop" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="shop-name" className="text-xs">
+                      {t("upload.fields.shopName")}
+                    </Label>
+                    <Input
+                      id="shop-name"
+                      type="text"
+                      placeholder={t("upload.fields.shopNamePlaceholder")}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="shop-text" className="text-xs">
+                      {t("upload.fields.shopDescription")}
+                    </Label>
+                    <textarea
+                      id="shop-text"
+                      className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder={t("upload.fields.shopDescPlaceholder")}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                    />
+                  </div>
+                  <FileDropzone
+                    file={checkinFile}
+                    onFileSelect={setCheckinFile}
+                    onFileRemove={() => setCheckinFile(null)}
+                    accept="image/*"
+                    label={t("upload.fields.shopCheckinPhoto")}
+                    disabled={uploading}
                   />
                 </div>
               )}

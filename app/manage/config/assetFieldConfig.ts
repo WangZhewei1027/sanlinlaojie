@@ -18,6 +18,7 @@ export type PreviewType =
   | "text"
   | "anchor"
   | "link"
+  | "model"
   | "none";
 
 // 单个 asset 类型的配置
@@ -116,6 +117,38 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     previewType: "link",
   },
 
+  // 店铺类型
+  shop: {
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
+    previewType: "image",
+    fieldLabels: {
+      name: "assetFields.shop.name",
+      text_content: "assetFields.shop.description",
+    },
+    fieldPlaceholders: {
+      name: "assetFields.shop.namePlaceholder",
+      text_content: "assetFields.shop.descriptionPlaceholder",
+    },
+  },
+
+  // 3D 模型类型
+  model: {
+    editableFields: ["name", "anchor_id", "tag_ids", "location"],
+    previewType: "model",
+    fieldLabels: {
+      name: "assetFields.model.name",
+    },
+    fieldPlaceholders: {
+      name: "assetFields.model.namePlaceholder",
+    },
+  },
+
   // 默认/其他类型
   default: defaultConfig,
 };
@@ -137,7 +170,7 @@ export function getAssetConfig(fileType: string): AssetTypeConfig {
  */
 export function isFieldEditable(
   fileType: string,
-  field: EditableField
+  field: EditableField,
 ): boolean {
   const config = getAssetConfig(fileType);
   return config.editableFields.includes(field);
@@ -153,7 +186,7 @@ export function isFieldEditable(
 export function getFieldLabel(
   fileType: string,
   field: EditableField,
-  defaultLabel: string
+  defaultLabel: string,
 ): string {
   const config = getAssetConfig(fileType);
   return config.fieldLabels?.[field] || defaultLabel;
@@ -169,7 +202,7 @@ export function getFieldLabel(
 export function getFieldPlaceholder(
   fileType: string,
   field: EditableField,
-  defaultPlaceholder: string
+  defaultPlaceholder: string,
 ): string {
   const config = getAssetConfig(fileType);
   return config.fieldPlaceholders?.[field] || defaultPlaceholder;

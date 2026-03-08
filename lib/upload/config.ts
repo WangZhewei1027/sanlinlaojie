@@ -7,8 +7,10 @@ import {
   Link as LinkIcon,
   File,
   Anchor,
+  ShoppingBag,
+  Box,
 } from "lucide-react";
-import { compressToWebP } from "@/lib/image-compression";
+import { compressImage } from "@/lib/image-compression";
 import { extractGPSFromImage } from "@/lib/exif-reader";
 import {
   compressToOpusWebM,
@@ -25,7 +27,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     icon: ImageIcon,
     accept: "image/*",
     maxSize: 10,
-    process: (file: File) => compressToWebP(file, 0.2),
+    process: (file: File) => compressImage(file, 0.2),
     extractMetadata: async (file: File) => {
       const gps = await extractGPSFromImage(file);
       return {
@@ -75,13 +77,35 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     icon: Anchor,
     accept: "",
   },
+  shop: {
+    type: "shop",
+    label: "fileTypes.shop",
+    icon: ShoppingBag,
+    accept: "image/*",
+    maxSize: 10,
+    process: (file: File) => compressImage(file, 0.2),
+    extractMetadata: async (file: File) => {
+      const gps = await extractGPSFromImage(file);
+      return {
+        gps,
+        dimensions: await getImageDimensions(file),
+      };
+    },
+  },
+  model: {
+    type: "model",
+    label: "fileTypes.model",
+    icon: Box,
+    accept: ".gltf,.glb",
+    maxSize: 3,
+  },
 };
 
 /**
  * 获取图片尺寸
  */
 async function getImageDimensions(
-  file: File
+  file: File,
 ): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -108,6 +132,11 @@ export function inferUploadType(mimeType: string): UploadType {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
+  if (
+    mimeType === "model/gltf+json" ||
+    mimeType === "model/gltf-binary"
+  )
+    return "model";
   if (
     mimeType.includes("pdf") ||
     mimeType.includes("document") ||

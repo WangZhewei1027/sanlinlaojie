@@ -45,6 +45,16 @@
     "text": {
       "content": "文本内容",
       "contentPlaceholder": "输入文本内容"
+    },
+    "shop": {
+      "name": "店铺名称",
+      "description": "店铺描述",
+      "namePlaceholder": "输入店铺名称",
+      "descriptionPlaceholder": "输入店铺描述"
+    },
+    "model": {
+      "name": "模型名称",
+      "namePlaceholder": "输入模型名称"
     }
   },
   "onsite": {
@@ -476,6 +486,14 @@
       "anchorDescription": "锚点描述（可选）",
       "anchorDescPlaceholder": "输入锚点描述（可选）...",
       "anchorNote": "锚点必须指定位置和名称，其他资源可以挂靠到此锚点",
+      "shopName": "店铺名称",
+      "shopNamePlaceholder": "输入店铺名称（可选）",
+      "shopDescription": "店铺描述",
+      "shopDescPlaceholder": "输入店铺描述（可选）...",
+      "shopCheckinPhoto": "打卡凭证照片（可选）",
+      "modelTooLarge": "模型文件不能超过 3 MB",
+      "modelName": "模型名称",
+      "modelNamePlaceholder": "输入模型名称（可选）",
       "select": "选择{{type}}"
     },
     "location": {
@@ -492,7 +510,9 @@
     "document": "文档",
     "link": "链接",
     "text": "文本",
-    "anchor": "锚点"
+    "anchor": "锚点",
+    "shop": "店铺",
+    "model": "3D模型"
   },
   "assetEditor": {
     "title": "资源编辑器",
@@ -504,6 +524,12 @@
     "deleting": "删除中...",
     "saving": "保存中...",
     "unnamed": "未命名文件",
+    "shop": {
+      "checkinPhoto": "打卡凭证照片",
+      "checkinNone": "暂无打卡凭证照片",
+      "checkinDropHint": "拖拽图片到此，或点击选择",
+      "checkinReplace": "点击或拖拽替换照片"
+    },
     "fields": {
       "name": "名称",
       "namePlaceholder": "输入名称",
@@ -525,7 +551,8 @@
       "image": "图片预览",
       "audio": "音频预览",
       "audioNotSupported": "您的浏览器不支持音频播放。",
-      "link": "链接预览"
+      "link": "链接预览",
+      "model": "3D模型预览"
     },
     "anchor": {
       "title": "关联锚点",

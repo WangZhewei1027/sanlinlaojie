@@ -34,16 +34,11 @@ import {
   deleteOrganization,
 } from "../organizations/actions";
 import type { OrgData } from "./OrgList";
+import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
 
-const ALL_FILE_TYPES = [
-  "image",
-  "video",
-  "audio",
-  "document",
-  "link",
-  "text",
-  "anchor",
-] as const;
+const ALL_FILE_TYPES = Object.keys(FILE_TYPE_CONFIGS) as Array<
+  keyof typeof FILE_TYPE_CONFIGS
+>;
 
 interface OrgDetailPanelProps {
   org: OrgData;
@@ -57,7 +52,7 @@ function SectionHeader({
   icon: Icon,
   label,
 }: {
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
 }) {
   return (

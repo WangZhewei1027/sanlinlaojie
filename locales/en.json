@@ -45,6 +45,16 @@
     "text": {
       "content": "Text Content",
       "contentPlaceholder": "Enter text content"
+    },
+    "shop": {
+      "name": "Shop Name",
+      "description": "Shop Description",
+      "namePlaceholder": "Enter shop name",
+      "descriptionPlaceholder": "Enter shop description"
+    },
+    "model": {
+      "name": "Model Name",
+      "namePlaceholder": "Enter model name"
     }
   },
   "onsite": {
@@ -475,6 +485,14 @@
       "anchorDescription": "Anchor Description (Optional)",
       "anchorDescPlaceholder": "Enter anchor description (optional)...",
       "anchorNote": "Anchor must specify location and name, other assets can be attached to this anchor",
+      "shopName": "Shop Name",
+      "shopNamePlaceholder": "Enter shop name (optional)",
+      "shopDescription": "Shop Description",
+      "shopDescPlaceholder": "Enter shop description (optional)...",
+      "shopCheckinPhoto": "Check-in Proof Photo (Optional)",
+      "modelTooLarge": "Model file must be under 3 MB",
+      "modelName": "Model Name",
+      "modelNamePlaceholder": "Enter model name (optional)",
       "select": "Select {{type}}"
     },
     "location": {
@@ -491,7 +509,9 @@
     "document": "Document",
     "link": "Link",
     "text": "Text",
-    "anchor": "Anchor"
+    "anchor": "Anchor",
+    "shop": "Shop",
+    "model": "3D Model"
   },
   "assetEditor": {
     "title": "Asset Editor",
@@ -503,6 +523,12 @@
     "deleting": "Deleting...",
     "saving": "Saving...",
     "unnamed": "Unnamed file",
+    "shop": {
+      "checkinPhoto": "Check-in Proof Photo",
+      "checkinNone": "No check-in photo yet",
+      "checkinDropHint": "Drag image here or click to select",
+      "checkinReplace": "Click or drag to replace photo"
+    },
     "fields": {
       "name": "Name",
       "namePlaceholder": "Enter name",
@@ -524,7 +550,8 @@
       "image": "Image Preview",
       "audio": "Audio Preview",
       "audioNotSupported": "Your browser does not support audio playback.",
-      "link": "Link Preview"
+      "link": "Link Preview",
+      "model": "3D Model Preview"
     },
     "anchor": {
       "title": "Associated Anchor",

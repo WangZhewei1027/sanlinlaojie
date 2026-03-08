@@ -21,7 +21,9 @@ export type UploadType =
   | "document"
   | "link"
   | "text"
-  | "anchor";
+  | "anchor"
+  | "shop"
+  | "model";
 
 export interface UploadFile {
   file: File;
@@ -37,6 +39,7 @@ export interface UploadResult {
   tagIds?: string[];
   name?: string;
   textContent?: string;
+  checkinUrl?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
 }

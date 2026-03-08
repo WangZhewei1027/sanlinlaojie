@@ -24,6 +24,9 @@ import { AssetMetadata } from "./AssetMetadata";
 import { AssetNameEditor } from "./AssetNameEditor";
 import { AnchorSelector } from "./AnchorSelector";
 import { AssetTagEditor } from "./AssetTagEditor";
+import { AssetCheckinPhotoEditor } from "./AssetCheckinPhotoEditor";
+import { AssetModelPreview } from "./AssetModelPreview";
+import { FileUploadService } from "@/lib/upload/service";
 import {
   getAssetConfig,
   isFieldEditable,
@@ -43,17 +46,18 @@ export function AssetEditor({
   const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId
+    (state) => state.selectedWorkspaceId,
   );
   const assets = useManageStore((state) => state.assets);
   const setSelectedAssetId = useManageStore(
-    (state) => state.setSelectedAssetId
+    (state) => state.setSelectedAssetId,
   );
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [editedData, setEditedData] = useState({
     name: "",
     text_content: "",
@@ -84,6 +88,7 @@ export function AssetEditor({
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
       });
+      setCheckinFile(null);
       setIsEditing(false);
     }
   }, [selectedAsset]);
@@ -106,6 +111,27 @@ export function AssetEditor({
             : undefined,
           height: editedData.height ? parseFloat(editedData.height) : undefined,
         };
+      }
+
+      // shop 类型：如果选择了新的打卡凭证照片，先上传再将 URL 写入 metadata
+      if (selectedAsset.file_type === "shop" && checkinFile) {
+        const uploadService = new FileUploadService();
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const processed = await uploadService.processFile(checkinFile);
+          const checkinUrl = await uploadService.uploadToStorage(
+            processed.file,
+            user.id,
+          );
+          updates.metadata = {
+            ...updates.metadata,
+            checkin_url: checkinUrl,
+          };
+        }
       }
 
       if (isFieldEditable(selectedAsset.file_type, "name")) {
@@ -146,6 +172,7 @@ export function AssetEditor({
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
       });
+      setCheckinFile(null);
     }
     setIsEditing(false);
   }, [selectedAsset]);
@@ -316,15 +343,15 @@ export function AssetEditor({
                 getFieldLabel(
                   selectedAsset.file_type,
                   "name",
-                  "assetEditor.fields.name"
-                )
+                  "assetEditor.fields.name",
+                ),
               )}
               placeholder={t(
                 getFieldPlaceholder(
                   selectedAsset.file_type,
                   "name",
-                  "assetEditor.fields.namePlaceholder"
-                )
+                  "assetEditor.fields.namePlaceholder",
+                ),
               )}
             />
           )}
@@ -338,8 +365,8 @@ export function AssetEditor({
                     getFieldLabel(
                       selectedAsset.file_type,
                       "text_content",
-                      "assetEditor.fields.description"
-                    )
+                      "assetEditor.fields.description",
+                    ),
                   )}
                 </label>
                 {isEditing ? (
@@ -357,8 +384,8 @@ export function AssetEditor({
                       getFieldPlaceholder(
                         selectedAsset.file_type,
                         "text_content",
-                        "assetEditor.fields.descriptionPlaceholder"
-                      )
+                        "assetEditor.fields.descriptionPlaceholder",
+                      ),
                     )}
                   />
                 ) : (
@@ -384,15 +411,15 @@ export function AssetEditor({
                   getFieldLabel(
                     selectedAsset.file_type,
                     "text_content",
-                    "assetEditor.fields.textContent"
-                  )
+                    "assetEditor.fields.textContent",
+                  ),
                 )}
                 placeholder={t(
                   getFieldPlaceholder(
                     selectedAsset.file_type,
                     "text_content",
-                    "assetEditor.fields.textContentPlaceholder"
-                  )
+                    "assetEditor.fields.textContentPlaceholder",
+                  ),
                 )}
               />
             )}
@@ -402,6 +429,17 @@ export function AssetEditor({
             <AssetImagePreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
+            />
+          )}
+
+          {/* shop 类型：打卡凭证照片 */}
+          {selectedAsset.file_type === "shop" && (
+            <AssetCheckinPhotoEditor
+              checkinUrl={selectedAsset.metadata.checkin_url}
+              checkinFile={checkinFile}
+              isEditing={isEditing}
+              onFileSelect={setCheckinFile}
+              onFileRemove={() => setCheckinFile(null)}
             />
           )}
 
@@ -417,6 +455,14 @@ export function AssetEditor({
           {/* 链接预览 */}
           {assetConfig?.previewType === "link" && selectedAsset.file_url && (
             <AssetLinkPreview
+              fileUrl={selectedAsset.file_url}
+              fileName={fileName}
+            />
+          )}
+
+          {/* 3D 模型预览 */}
+          {assetConfig?.previewType === "model" && selectedAsset.file_url && (
+            <AssetModelPreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
             />
