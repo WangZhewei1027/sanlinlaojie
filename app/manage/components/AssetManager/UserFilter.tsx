@@ -100,7 +100,9 @@ export function UserFilter({
                       className="cursor-pointer flex-1 min-w-0"
                     >
                       <div className="text-sm font-medium truncate">
-                        {creator.name || creator.email || t("assetManager.userFilter.unnamed")}
+                        {creator.name ||
+                          creator.email ||
+                          t("assetManager.userFilter.unnamed")}
                       </div>
                       {creator.name && creator.email && (
                         <div className="text-xs text-muted-foreground truncate">
@@ -115,7 +117,6 @@ export function UserFilter({
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
-
     </div>
   );
 }

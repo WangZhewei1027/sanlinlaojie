@@ -112,7 +112,6 @@ export function TagFilter({
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
-
     </div>
   );
 }
