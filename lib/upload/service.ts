@@ -80,12 +80,12 @@ export class FileUploadService {
     );
 
     // Supabase Storage 限制检查（实际配置为 1MB）
-    const maxStorageSize = 1 * 1024 * 1024; // 1MB in bytes
+    const maxStorageSize = 5 * 1024 * 1024; // 1MB in bytes
     if (file.size > maxStorageSize) {
       throw new Error(
         `文件大小 ${(file.size / 1024 / 1024).toFixed(
           2,
-        )}MB 超过 Supabase Storage 限制 (1MB)。请联系管理员。`,
+        )}MB 超过 Supabase Storage 限制 (5MB)。请联系管理员。`,
       );
     }
 
