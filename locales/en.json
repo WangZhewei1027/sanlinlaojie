@@ -435,6 +435,15 @@
     "refresh": "Refresh",
     "viewCompact": "Switch to compact view",
     "viewDetailed": "Switch to detailed view",
+    "select": {
+      "enterSelectMode": "Select multiple",
+      "selectedCount": "{{count}} selected",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "deleteSelected": "Delete ({{count}})",
+      "deleting": "Deleting...",
+      "cancel": "Cancel"
+    },
     "fetchTagsFailed": "Failed to fetch tags:",
     "fetchAssetsFailed": "Failed to fetch assets:",
     "updateAssetFailed": "Failed to update asset",

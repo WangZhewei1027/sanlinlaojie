@@ -24,6 +24,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const setAssets = useManageStore((state) => state.setAssets);
   const setFilteredAssets = useManageStore((state) => state.setFilteredAssets);
   const setAssetsLoading = useManageStore((state) => state.setAssetsLoading);
+  const deleteAssetInStore = useManageStore((state) => state.deleteAsset);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -31,6 +32,9 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
   const [compact, setCompact] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [checkedAssetIds, setCheckedAssetIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchTags = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -149,6 +153,44 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     setFilteredAssets,
   ]);
 
+  const handleToggleSelectMode = () => {
+    setSelectMode((v) => !v);
+    setCheckedAssetIds([]);
+  };
+
+  const handleCheck = (id: string) => {
+    setCheckedAssetIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAll = () => {
+    setCheckedAssetIds(filteredAssets.map((a) => a.id));
+  };
+
+  const handleDeselectAll = () => {
+    setCheckedAssetIds([]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (checkedAssetIds.length === 0) return;
+    setDeleting(true);
+    try {
+      await Promise.all(
+        checkedAssetIds.map((id) =>
+          fetch(`/api/assets/${id}`, { method: "DELETE" }),
+        ),
+      );
+      checkedAssetIds.forEach((id) => deleteAssetInStore(id));
+      setCheckedAssetIds([]);
+      setSelectMode(false);
+    } catch (err) {
+      console.error(t("assetManager.deleteAssetFailed"), err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return <LoadingState />;
   }
@@ -173,6 +215,13 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         onFileTypesChange={setSelectedFileTypes}
         compact={compact}
         onCompactToggle={() => setCompact((v) => !v)}
+        selectMode={selectMode}
+        onSelectModeToggle={handleToggleSelectMode}
+        checkedCount={checkedAssetIds.length}
+        onSelectAll={handleSelectAll}
+        onDeselectAll={handleDeselectAll}
+        onDeleteSelected={handleBulkDelete}
+        deleting={deleting}
         onRefresh={() => {
           fetchTags();
           fetchAssets();
@@ -194,6 +243,9 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
               tags={tags}
               onFocusAsset={onFocusAsset}
               compact={compact}
+              selectMode={selectMode}
+              isChecked={checkedAssetIds.includes(asset.id)}
+              onCheck={handleCheck}
             />
           ))
         )}

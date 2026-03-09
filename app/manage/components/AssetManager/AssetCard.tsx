@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { Asset, Tag } from "../../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MapPin, Focus } from "lucide-react";
 import { AssetThumbnail } from "./AssetThumbnail";
 
@@ -11,13 +12,24 @@ interface AssetCardProps {
   tags: Tag[];
   onFocusAsset?: (asset: Asset) => void;
   compact?: boolean;
+  selectMode?: boolean;
+  isChecked?: boolean;
+  onCheck?: (id: string) => void;
 }
 
-export function AssetCard({ asset, tags, onFocusAsset, compact = false }: AssetCardProps) {
+export function AssetCard({
+  asset,
+  tags,
+  onFocusAsset,
+  compact = false,
+  selectMode = false,
+  isChecked = false,
+  onCheck,
+}: AssetCardProps) {
   const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useManageStore(
-    (state) => state.setSelectedAssetId
+    (state) => state.setSelectedAssetId,
   );
 
   const isSelected = selectedAssetId === asset.id;
@@ -38,7 +50,11 @@ export function AssetCard({ asset, tags, onFocusAsset, compact = false }: AssetC
   const fileName = getDisplayName();
 
   const handleClick = () => {
-    setSelectedAssetId(asset.id);
+    if (selectMode) {
+      onCheck?.(asset.id);
+    } else {
+      setSelectedAssetId(asset.id);
+    }
   };
 
   const handleFocus = (e: React.MouseEvent) => {
@@ -58,8 +74,17 @@ export function AssetCard({ asset, tags, onFocusAsset, compact = false }: AssetC
       onClick={handleClick}
     >
       <div className="flex items-center gap-3">
-        {/* 缩略图（仅详细视图） */}
-        {!compact && (
+        {/* 多选复选框 */}
+        {selectMode && (
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={() => onCheck?.(asset.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-shrink-0"
+          />
+        )}
+        {/* 缩略图（仅详细视图且非多选模式） */}
+        {!compact && !selectMode && (
           <div className="flex-shrink-0">
             <AssetThumbnail
               fileType={asset.file_type}
@@ -96,7 +121,7 @@ export function AssetCard({ asset, tags, onFocusAsset, compact = false }: AssetC
                   {Math.floor(asset.metadata.duration / 60)}:
                   {String(Math.floor(asset.metadata.duration % 60)).padStart(
                     2,
-                    "0"
+                    "0",
                   )}
                 </p>
               )}

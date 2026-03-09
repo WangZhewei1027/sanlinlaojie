@@ -1,4 +1,10 @@
-import { RefreshCw, List, AlignJustify } from "lucide-react";
+import {
+  RefreshCw,
+  List,
+  AlignJustify,
+  CheckSquare,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { Tag, Creator } from "../../types";
@@ -20,6 +26,14 @@ interface AssetListHeaderProps {
   onFileTypesChange: (types: string[]) => void;
   compact: boolean;
   onCompactToggle: () => void;
+  // select mode
+  selectMode: boolean;
+  onSelectModeToggle: () => void;
+  checkedCount: number;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+  onDeleteSelected: () => void;
+  deleting?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -38,6 +52,13 @@ export function AssetListHeader({
   onFileTypesChange,
   compact,
   onCompactToggle,
+  selectMode,
+  onSelectModeToggle,
+  checkedCount,
+  onSelectAll,
+  onDeselectAll,
+  onDeleteSelected,
+  deleting = false,
   onRefresh,
   refreshing = false,
 }: AssetListHeaderProps) {
@@ -47,9 +68,63 @@ export function AssetListHeader({
     selectedUserIds.length > 0 ||
     selectedFileTypes.length > 0;
 
+  if (selectMode) {
+    return (
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">
+            {t("assetManager.select.selectedCount", { count: checkedCount })}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8"
+              onClick={onSelectAll}
+            >
+              {t("assetManager.select.selectAll")}
+            </Button>
+            {checkedCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={onDeselectAll}
+              >
+                {t("assetManager.select.deselectAll")}
+              </Button>
+            )}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1"
+              onClick={onDeleteSelected}
+              disabled={checkedCount === 0 || deleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleting
+                ? t("assetManager.select.deleting")
+                : t("assetManager.select.deleteSelected", {
+                    count: checkedCount,
+                  })}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={onSelectModeToggle}
+            >
+              {t("assetManager.select.cancel")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 border-b space-y-2">
-      {/* Row 1: title + count + refresh */}
+      {/* Row 1: title + count + actions */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-semibold text-lg">{t("assetManager.title")}</h3>
@@ -66,8 +141,21 @@ export function AssetListHeader({
           <Button
             variant="ghost"
             size="icon"
+            onClick={onSelectModeToggle}
+            title={t("assetManager.select.enterSelectMode")}
+            className="shrink-0"
+          >
+            <CheckSquare className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onCompactToggle}
-            title={compact ? t("assetManager.viewDetailed") : t("assetManager.viewCompact")}
+            title={
+              compact
+                ? t("assetManager.viewDetailed")
+                : t("assetManager.viewCompact")
+            }
             className="shrink-0"
           >
             {compact ? (

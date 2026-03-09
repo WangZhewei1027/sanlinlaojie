@@ -436,6 +436,15 @@
     "refresh": "刷新",
     "viewCompact": "切换到紧凑视图",
     "viewDetailed": "切换到详细视图",
+    "select": {
+      "enterSelectMode": "多选",
+      "selectedCount": "已选 {{count}} 项",
+      "selectAll": "全选",
+      "deselectAll": "取消全选",
+      "deleteSelected": "删除 ({{count}})",
+      "deleting": "删除中...",
+      "cancel": "取消"
+    },
     "fetchTagsFailed": "获取标签失败:",
     "fetchAssetsFailed": "获取资源失败:",
     "updateAssetFailed": "更新资源失败",
