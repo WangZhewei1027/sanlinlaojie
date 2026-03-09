@@ -456,6 +456,22 @@
       "unnamed": "未命名用户",
       "removeFilter": "移除筛选"
     },
+    "fileTypeFilter": {
+      "title": "类型",
+      "selectTypes": "选择文件类型",
+      "clear": "清除",
+      "noTypes": "暂无类型",
+      "types": {
+        "anchor": "锚点",
+        "text": "文本",
+        "image": "图片",
+        "audio": "音频",
+        "video": "视频",
+        "link": "链接",
+        "shop": "打卡点",
+        "model": "3D 模型"
+      }
+    },
     "editActions": {
       "edit": "编辑",
       "cancel": "取消",

@@ -29,6 +29,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
 
   const fetchTags = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -108,7 +109,12 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     fetchCreators();
   }, [fetchTags, fetchAssets, fetchCreators]);
 
-  // 过滤资产：tag 和 user 过滤条件为 AND 关系；同一类型内部为 OR
+  // 从当前 assets 中派生出可用的 file_type 列表
+  const availableFileTypes = useMemo(() => {
+    return [...new Set(assets.map((a) => a.file_type))].sort();
+  }, [assets]);
+
+  // 过滤资产：tag、user、file_type 过滤条件为 AND 关系；同一类型内部为 OR
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) => {
       // tag 过滤
@@ -122,15 +128,25 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         if (!asset.created_by || !selectedUserIds.includes(asset.created_by))
           return false;
       }
+      // file_type 过滤
+      if (selectedFileTypes.length > 0) {
+        if (!selectedFileTypes.includes(asset.file_type)) return false;
+      }
       return true;
     });
-  }, [assets, selectedTagIds, selectedUserIds]);
+  }, [assets, selectedTagIds, selectedUserIds, selectedFileTypes]);
 
   // 将过滤后的结果同步到store，供viewer使用
   useEffect(() => {
     setFilteredAssets(filteredAssets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assets, selectedTagIds, selectedUserIds, setFilteredAssets]);
+  }, [
+    assets,
+    selectedTagIds,
+    selectedUserIds,
+    selectedFileTypes,
+    setFilteredAssets,
+  ]);
 
   if (loading) {
     return <LoadingState />;
@@ -151,6 +167,9 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         creators={creators}
         selectedUserIds={selectedUserIds}
         onUsersChange={setSelectedUserIds}
+        fileTypes={availableFileTypes}
+        selectedFileTypes={selectedFileTypes}
+        onFileTypesChange={setSelectedFileTypes}
         onRefresh={() => {
           fetchTags();
           fetchAssets();

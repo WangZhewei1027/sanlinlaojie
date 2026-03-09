@@ -455,6 +455,22 @@
       "unnamed": "Unnamed user",
       "removeFilter": "Remove filter"
     },
+    "fileTypeFilter": {
+      "title": "Type",
+      "selectTypes": "Select File Type",
+      "clear": "Clear",
+      "noTypes": "No types",
+      "types": {
+        "anchor": "Anchor",
+        "text": "Text",
+        "image": "Image",
+        "audio": "Audio",
+        "video": "Video",
+        "link": "Link",
+        "shop": "Shop",
+        "model": "3D Model"
+      }
+    },
     "editActions": {
       "edit": "Edit",
       "cancel": "Cancel",

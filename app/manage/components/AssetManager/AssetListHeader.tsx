@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { Tag, Creator } from "../../types";
 import { TagFilter } from "./TagFilter";
 import { UserFilter } from "./UserFilter";
+import { FileTypeFilter } from "./FileTypeFilter";
 
 interface AssetListHeaderProps {
   totalCount: number;
@@ -14,6 +15,9 @@ interface AssetListHeaderProps {
   creators: Creator[];
   selectedUserIds: string[];
   onUsersChange: (userIds: string[]) => void;
+  fileTypes: string[];
+  selectedFileTypes: string[];
+  onFileTypesChange: (types: string[]) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -27,11 +31,17 @@ export function AssetListHeader({
   creators,
   selectedUserIds,
   onUsersChange,
+  fileTypes,
+  selectedFileTypes,
+  onFileTypesChange,
   onRefresh,
   refreshing = false,
 }: AssetListHeaderProps) {
   const { t } = useTranslation();
-  const hasFilters = selectedTagIds.length > 0 || selectedUserIds.length > 0;
+  const hasFilters =
+    selectedTagIds.length > 0 ||
+    selectedUserIds.length > 0 ||
+    selectedFileTypes.length > 0;
 
   return (
     <div className="p-4 border-b space-y-2">
@@ -73,6 +83,11 @@ export function AssetListHeader({
           creators={creators}
           selectedUserIds={selectedUserIds}
           onUsersChange={onUsersChange}
+        />
+        <FileTypeFilter
+          fileTypes={fileTypes}
+          selectedFileTypes={selectedFileTypes}
+          onFileTypesChange={onFileTypesChange}
         />
       </div>
     </div>
