@@ -30,6 +30,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
+  const [compact, setCompact] = useState(false);
 
   const fetchTags = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -170,6 +171,8 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         fileTypes={availableFileTypes}
         selectedFileTypes={selectedFileTypes}
         onFileTypesChange={setSelectedFileTypes}
+        compact={compact}
+        onCompactToggle={() => setCompact((v) => !v)}
         onRefresh={() => {
           fetchTags();
           fetchAssets();
@@ -190,6 +193,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
               asset={asset}
               tags={tags}
               onFocusAsset={onFocusAsset}
+              compact={compact}
             />
           ))
         )}

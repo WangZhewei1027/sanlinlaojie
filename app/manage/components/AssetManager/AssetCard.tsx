@@ -10,9 +10,10 @@ interface AssetCardProps {
   asset: Asset;
   tags: Tag[];
   onFocusAsset?: (asset: Asset) => void;
+  compact?: boolean;
 }
 
-export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
+export function AssetCard({ asset, tags, onFocusAsset, compact = false }: AssetCardProps) {
   const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useManageStore(
@@ -47,7 +48,9 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
 
   return (
     <div
-      className={`px-3 py-2 cursor-pointer transition-all ${
+      className={`px-3 cursor-pointer transition-all ${
+        compact ? "py-1" : "py-2"
+      } ${
         isSelected
           ? "bg-primary/10 border-l-4 border-l-primary"
           : "hover:bg-muted/50 border-l-4 border-l-transparent"
@@ -55,15 +58,17 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
       onClick={handleClick}
     >
       <div className="flex items-center gap-3">
-        {/* 缩略图 */}
-        <div className="flex-shrink-0">
-          <AssetThumbnail
-            fileType={asset.file_type}
-            fileUrl={asset.file_url}
-            textContent={asset.text_content}
-            fileName={fileName}
-          />
-        </div>
+        {/* 缩略图（仅详细视图） */}
+        {!compact && (
+          <div className="flex-shrink-0">
+            <AssetThumbnail
+              fileType={asset.file_type}
+              fileUrl={asset.file_url}
+              textContent={asset.text_content}
+              fileName={fileName}
+            />
+          </div>
+        )}
 
         {/* 基本信息 */}
         <div className="flex-1 min-w-0">
@@ -74,47 +79,56 @@ export function AssetCard({ asset, tags, onFocusAsset }: AssetCardProps) {
             {hasLocation && (
               <MapPin className="h-3 w-3 text-muted-foreground" />
             )}
+            {compact && (
+              <p className="text-sm font-medium truncate leading-tight flex-1">
+                {fileName}
+              </p>
+            )}
           </div>
-          <p className="text-sm font-medium truncate leading-tight">
-            {fileName}
-          </p>
-          {asset.file_type === "audio" && asset.metadata?.duration && (
-            <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
-              {t("assetManager.duration")}{" "}
-              {Math.floor(asset.metadata.duration / 60)}:
-              {String(Math.floor(asset.metadata.duration % 60)).padStart(
-                2,
-                "0"
+          {!compact && (
+            <>
+              <p className="text-sm font-medium truncate leading-tight">
+                {fileName}
+              </p>
+              {asset.file_type === "audio" && asset.metadata?.duration && (
+                <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
+                  {t("assetManager.duration")}{" "}
+                  {Math.floor(asset.metadata.duration / 60)}:
+                  {String(Math.floor(asset.metadata.duration % 60)).padStart(
+                    2,
+                    "0"
+                  )}
+                </p>
               )}
-            </p>
-          )}
-          {asset.file_type === "text" && asset.text_content && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
-              {asset.text_content}
-            </p>
-          )}
-          {asset.file_type === "anchor" && asset.text_content && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
-              {asset.text_content}
-            </p>
-          )}
-          {/* 显示标签 */}
-          {asset.tag_ids && asset.tag_ids.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {asset.tag_ids.map((tagId) => {
-                const tag = tags.find((t) => t.id === tagId);
-                if (!tag) return null;
-                return (
-                  <Badge
-                    key={tagId}
-                    style={{ backgroundColor: tag.color }}
-                    className="text-[10px] px-1 py-0 h-4"
-                  >
-                    {tag.name}
-                  </Badge>
-                );
-              })}
-            </div>
+              {asset.file_type === "text" && asset.text_content && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
+                  {asset.text_content}
+                </p>
+              )}
+              {asset.file_type === "anchor" && asset.text_content && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
+                  {asset.text_content}
+                </p>
+              )}
+              {/* 显示标签 */}
+              {asset.tag_ids && asset.tag_ids.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {asset.tag_ids.map((tagId) => {
+                    const tag = tags.find((t) => t.id === tagId);
+                    if (!tag) return null;
+                    return (
+                      <Badge
+                        key={tagId}
+                        style={{ backgroundColor: tag.color }}
+                        className="text-[10px] px-1 py-0 h-4"
+                      >
+                        {tag.name}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 

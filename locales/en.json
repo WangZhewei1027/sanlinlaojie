@@ -433,6 +433,8 @@
     "loading": "Loading...",
     "noMatchingAssets": "No assets match the filter criteria",
     "refresh": "Refresh",
+    "viewCompact": "Switch to compact view",
+    "viewDetailed": "Switch to detailed view",
     "fetchTagsFailed": "Failed to fetch tags:",
     "fetchAssetsFailed": "Failed to fetch assets:",
     "updateAssetFailed": "Failed to update asset",

@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, List, AlignJustify } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { Tag, Creator } from "../../types";
@@ -18,6 +18,8 @@ interface AssetListHeaderProps {
   fileTypes: string[];
   selectedFileTypes: string[];
   onFileTypesChange: (types: string[]) => void;
+  compact: boolean;
+  onCompactToggle: () => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -34,6 +36,8 @@ export function AssetListHeader({
   fileTypes,
   selectedFileTypes,
   onFileTypesChange,
+  compact,
+  onCompactToggle,
   onRefresh,
   refreshing = false,
 }: AssetListHeaderProps) {
@@ -58,18 +62,33 @@ export function AssetListHeader({
               : t("assetManager.total", { count: totalCount })}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onRefresh}
-          disabled={refreshing}
-          title={t("assetManager.refresh")}
-          className="shrink-0"
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-          />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onCompactToggle}
+            title={compact ? t("assetManager.viewDetailed") : t("assetManager.viewCompact")}
+            className="shrink-0"
+          >
+            {compact ? (
+              <AlignJustify className="h-4 w-4" />
+            ) : (
+              <List className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefresh}
+            disabled={refreshing}
+            title={t("assetManager.refresh")}
+            className="shrink-0"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       </div>
 
       {/* Row 2: filters */}
