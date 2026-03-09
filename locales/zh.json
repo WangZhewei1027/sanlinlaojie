@@ -448,6 +448,14 @@
       "noTags": "暂无标签",
       "removeFilter": "移除筛选"
     },
+    "userFilter": {
+      "title": "创建者",
+      "selectUsers": "选择创建者",
+      "clear": "清除",
+      "noCreators": "暂无创建者",
+      "unnamed": "未命名用户",
+      "removeFilter": "移除筛选"
+    },
     "editActions": {
       "edit": "编辑",
       "cancel": "取消",

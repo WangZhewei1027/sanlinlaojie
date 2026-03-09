@@ -29,6 +29,12 @@ export interface Tag {
   created_by?: string | null;
 }
 
+export interface Creator {
+  user_id: string;
+  name: string;
+  email: string;
+}
+
 export interface Asset {
   id: string;
   name?: string | null; // 资源名称（特别是 anchor 类型）
@@ -37,6 +43,7 @@ export interface Asset {
   text_content?: string | null; // 文本类型的内容
   anchor_id?: string | null; // 关联的锚点ID
   tag_ids?: string[]; // 关联的标签ID数组
+  created_by?: string | null; // 创建者用户ID
   metadata: {
     longitude?: number;
     latitude?: number;

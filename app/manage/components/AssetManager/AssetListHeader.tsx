@@ -1,8 +1,9 @@
 import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import type { Tag } from "../../types";
+import type { Tag, Creator } from "../../types";
 import { TagFilter } from "./TagFilter";
+import { UserFilter } from "./UserFilter";
 
 interface AssetListHeaderProps {
   totalCount: number;
@@ -10,6 +11,9 @@ interface AssetListHeaderProps {
   tags: Tag[];
   selectedTagIds: string[];
   onTagsChange: (tagIds: string[]) => void;
+  creators: Creator[];
+  selectedUserIds: string[];
+  onUsersChange: (userIds: string[]) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -20,18 +24,22 @@ export function AssetListHeader({
   tags,
   selectedTagIds,
   onTagsChange,
+  creators,
+  selectedUserIds,
+  onUsersChange,
   onRefresh,
   refreshing = false,
 }: AssetListHeaderProps) {
   const { t } = useTranslation();
-  const hasFilters = selectedTagIds.length > 0;
+  const hasFilters = selectedTagIds.length > 0 || selectedUserIds.length > 0;
 
   return (
-    <div className="p-4 border-b space-y-3">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className="p-4 border-b space-y-2">
+      {/* Row 1: title + count + refresh */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
           <h3 className="font-semibold text-lg">{t("assetManager.title")}</h3>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-0.5">
             {hasFilters
               ? t("assetManager.showing", {
                   filtered: filteredCount,
@@ -40,24 +48,32 @@ export function AssetListHeader({
               : t("assetManager.total", { count: totalCount })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onRefresh}
-            disabled={refreshing}
-            title={t("assetManager.refresh")}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-            />
-          </Button>
-          <TagFilter
-            tags={tags}
-            selectedTagIds={selectedTagIds}
-            onTagsChange={onTagsChange}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRefresh}
+          disabled={refreshing}
+          title={t("assetManager.refresh")}
+          className="shrink-0"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
           />
-        </div>
+        </Button>
+      </div>
+
+      {/* Row 2: filters */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <TagFilter
+          tags={tags}
+          selectedTagIds={selectedTagIds}
+          onTagsChange={onTagsChange}
+        />
+        <UserFilter
+          creators={creators}
+          selectedUserIds={selectedUserIds}
+          onUsersChange={onUsersChange}
+        />
       </div>
     </div>
   );

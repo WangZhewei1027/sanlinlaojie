@@ -447,6 +447,14 @@
       "noTags": "No tags",
       "removeFilter": "Remove filter"
     },
+    "userFilter": {
+      "title": "Creator",
+      "selectUsers": "Select Creator",
+      "clear": "Clear",
+      "noCreators": "No creators",
+      "unnamed": "Unnamed user",
+      "removeFilter": "Remove filter"
+    },
     "editActions": {
       "edit": "Edit",
       "cancel": "Cancel",

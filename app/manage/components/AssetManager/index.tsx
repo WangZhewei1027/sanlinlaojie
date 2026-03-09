@@ -3,7 +3,7 @@
 import { useEffect, useCallback, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
-import type { Asset, Tag } from "../../types";
+import type { Asset, Tag, Creator } from "../../types";
 import { useManageStore } from "../../store";
 import { AssetCard } from "./AssetCard";
 import { AssetListHeader } from "./AssetListHeader";
@@ -27,6 +27,8 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   const fetchTags = useCallback(async () => {
     if (!selectedWorkspaceId) {
@@ -46,6 +48,28 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     } catch (err) {
       console.error(t("assetManager.fetchTagsFailed"), err);
       setTags([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkspaceId]);
+
+  const fetchCreators = useCallback(async () => {
+    if (!selectedWorkspaceId) {
+      setCreators([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${selectedWorkspaceId}/assets/creators`,
+      );
+      const result = await response.json();
+
+      if (response.ok) {
+        setCreators(result.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch creators:", err);
+      setCreators([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWorkspaceId]);
@@ -81,24 +105,32 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   useEffect(() => {
     fetchTags();
     fetchAssets();
-  }, [fetchTags, fetchAssets]);
+    fetchCreators();
+  }, [fetchTags, fetchAssets, fetchCreators]);
 
-  // 过滤资产：如果选中了标签，只显示包含这些标签的资产
+  // 过滤资产：tag 和 user 过滤条件为 AND 关系；同一类型内部为 OR
   const filteredAssets = useMemo(() => {
-    return selectedTagIds.length === 0
-      ? assets
-      : assets.filter((asset) => {
-          if (!asset.tag_ids || asset.tag_ids.length === 0) return false;
-          // 资产必须包含至少一个选中的标签
-          return selectedTagIds.some((tagId) => asset.tag_ids?.includes(tagId));
-        });
-  }, [assets, selectedTagIds]);
+    return assets.filter((asset) => {
+      // tag 过滤
+      if (selectedTagIds.length > 0) {
+        if (!asset.tag_ids || asset.tag_ids.length === 0) return false;
+        if (!selectedTagIds.some((tagId) => asset.tag_ids?.includes(tagId)))
+          return false;
+      }
+      // user 过滤
+      if (selectedUserIds.length > 0) {
+        if (!asset.created_by || !selectedUserIds.includes(asset.created_by))
+          return false;
+      }
+      return true;
+    });
+  }, [assets, selectedTagIds, selectedUserIds]);
 
   // 将过滤后的结果同步到store，供viewer使用
   useEffect(() => {
     setFilteredAssets(filteredAssets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assets, selectedTagIds, setFilteredAssets]);
+  }, [assets, selectedTagIds, selectedUserIds, setFilteredAssets]);
 
   if (loading) {
     return <LoadingState />;
@@ -116,9 +148,13 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         tags={tags}
         selectedTagIds={selectedTagIds}
         onTagsChange={setSelectedTagIds}
+        creators={creators}
+        selectedUserIds={selectedUserIds}
+        onUsersChange={setSelectedUserIds}
         onRefresh={() => {
           fetchTags();
           fetchAssets();
+          fetchCreators();
         }}
         refreshing={loading}
       />
