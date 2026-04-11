@@ -54,7 +54,8 @@
     },
     "model": {
       "name": "Model Name",
-      "namePlaceholder": "Enter model name"
+      "namePlaceholder": "Enter model name",
+      "isHuge": "Large Model"
     }
   },
   "onsite": {

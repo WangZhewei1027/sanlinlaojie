@@ -69,6 +69,7 @@ export function AssetEditor({
     longitude: "",
     latitude: "",
     height: "",
+    is_huge: false,
   });
 
   // 获取选中的资产
@@ -90,6 +91,7 @@ export function AssetEditor({
         longitude: selectedAsset.metadata.longitude?.toString() || "",
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
+        is_huge: selectedAsset.is_huge ?? false,
       });
       setCheckinFile(null);
       setIsEditing(false);
@@ -153,6 +155,10 @@ export function AssetEditor({
         updates.tag_ids = editedData.tag_ids;
       }
 
+      if (isFieldEditable(selectedAsset.file_type, "is_huge")) {
+        updates.is_huge = editedData.is_huge;
+      }
+
       await onUpdateAsset(selectedAsset.id, updates);
       setIsEditing(false);
     } catch (error) {
@@ -174,6 +180,7 @@ export function AssetEditor({
         longitude: selectedAsset.metadata.longitude?.toString() || "",
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
+        is_huge: selectedAsset.is_huge ?? false,
       });
       setCheckinFile(null);
     }
@@ -525,6 +532,38 @@ export function AssetEditor({
                 }
               />
             )}
+
+          {/* is_huge 字段 - 仅 model 类型可编辑，viewer 只读时隐藏 */}
+          {!readOnly && isFieldEditable(selectedAsset.file_type, "is_huge") && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_huge"
+                checked={
+                  isEditing
+                    ? editedData.is_huge
+                    : (selectedAsset.is_huge ?? false)
+                }
+                onChange={(e) =>
+                  setEditedData({ ...editedData, is_huge: e.target.checked })
+                }
+                disabled={!isEditing}
+                className="h-4 w-4 rounded border-input accent-primary disabled:opacity-50"
+              />
+              <label
+                htmlFor="is_huge"
+                className="text-sm font-medium leading-none"
+              >
+                {t(
+                  getFieldLabel(
+                    selectedAsset.file_type,
+                    "is_huge",
+                    "assetEditor.fields.isHuge",
+                  ),
+                )}
+              </label>
+            </div>
+          )}
 
           {/* 元数据和资产ID - viewer 只读时隐藏 */}
           {!readOnly && (

@@ -43,6 +43,7 @@ export interface Asset {
   text_content?: string | null; // 文本类型的内容
   anchor_id?: string | null; // 关联的锚点ID
   tag_ids?: string[]; // 关联的标签ID数组
+  is_huge?: boolean | null; // 是否为大型模型（仅 model 类型）
   created_by?: string | null; // 创建者用户ID
   metadata: {
     longitude?: number;

@@ -54,7 +54,8 @@
     },
     "model": {
       "name": "模型名称",
-      "namePlaceholder": "输入模型名称"
+      "namePlaceholder": "输入模型名称",
+      "isHuge": "大型模型"
     }
   },
   "onsite": {

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -20,7 +20,7 @@ export async function PATCH(
 
     // 解析请求体
     const body = await request.json();
-    const { name, text_content, anchor_id, tag_ids, metadata } = body;
+    const { name, text_content, anchor_id, tag_ids, metadata, is_huge } = body;
 
     // 检查该资产是否存在
     const { data: asset, error: fetchError } = await supabase
@@ -57,6 +57,11 @@ export async function PATCH(
       updates.tag_ids = tag_ids;
     }
 
+    // 更新 is_huge（如果提供）
+    if (is_huge !== undefined) {
+      updates.is_huge = is_huge;
+    }
+
     // 更新 metadata（合并而不是替换）
     if (metadata) {
       // 先获取当前的metadata
@@ -78,7 +83,7 @@ export async function PATCH(
       .update(updates)
       .eq("id", assetId)
       .select(
-        "id, name, file_type, file_url, text_content, anchor_id, tag_ids, metadata, workspace_id"
+        "id, name, file_type, file_url, text_content, anchor_id, tag_ids, metadata, workspace_id, is_huge",
       )
       .single();
 
@@ -96,7 +101,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const supabase = await createClient();
@@ -130,7 +135,7 @@ export async function DELETE(
         // URL 格式: https://{project}.supabase.co/storage/v1/object/public/assets/{workspace_id}/{filename}
         const url = new URL(asset.file_url);
         const pathMatch = url.pathname.match(
-          /\/storage\/v1\/object\/public\/assets\/(.+)/
+          /\/storage\/v1\/object\/public\/assets\/(.+)/,
         );
 
         if (pathMatch) {
