@@ -585,6 +585,7 @@
     },
     "preview": {
       "image": "Image Preview",
+      "imageReplace": "Click or drag to replace image",
       "audio": "Audio Preview",
       "audioNotSupported": "Your browser does not support audio playback.",
       "link": "Link Preview",

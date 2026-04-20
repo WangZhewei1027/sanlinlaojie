@@ -61,6 +61,7 @@ export function AssetEditor({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [checkinFile, setCheckinFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [editedData, setEditedData] = useState({
     name: "",
     text_content: "",
@@ -94,6 +95,7 @@ export function AssetEditor({
         is_huge: selectedAsset.is_huge ?? false,
       });
       setCheckinFile(null);
+      setImageFile(null);
       setIsEditing(false);
     }
   }, [selectedAsset]);
@@ -116,6 +118,24 @@ export function AssetEditor({
             : undefined,
           height: editedData.height ? parseFloat(editedData.height) : undefined,
         };
+      }
+
+      // 图片类型：如果选择了新图片，先上传再更新 file_url
+      if (assetConfig?.previewType === "image" && imageFile) {
+        const uploadService = new FileUploadService();
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const processed = await uploadService.processFile(imageFile);
+          const newFileUrl = await uploadService.uploadToStorage(
+            processed.file,
+            user.id,
+          );
+          updates.file_url = newFileUrl;
+        }
       }
 
       // shop 类型：如果选择了新的打卡凭证照片，先上传再将 URL 写入 metadata
@@ -183,6 +203,7 @@ export function AssetEditor({
         is_huge: selectedAsset.is_huge ?? false,
       });
       setCheckinFile(null);
+      setImageFile(null);
     }
     setIsEditing(false);
   }, [selectedAsset]);
@@ -443,6 +464,10 @@ export function AssetEditor({
             <AssetImagePreview
               fileUrl={selectedAsset.file_url}
               fileName={fileName}
+              isEditing={isEditing}
+              newImageFile={imageFile}
+              onFileSelect={setImageFile}
+              onFileRemove={() => setImageFile(null)}
             />
           )}
 

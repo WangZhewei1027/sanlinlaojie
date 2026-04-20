@@ -586,6 +586,7 @@
     },
     "preview": {
       "image": "图片预览",
+      "imageReplace": "点击或拖拽替换图片",
       "audio": "音频预览",
       "audioNotSupported": "您的浏览器不支持音频播放。",
       "link": "链接预览",
