@@ -64,6 +64,7 @@ export function AssetCard({
 
   return (
     <div
+      id={`asset-card-${asset.id}`}
       className={`px-3 cursor-pointer transition-all ${
         compact ? "py-1" : "py-2"
       } ${

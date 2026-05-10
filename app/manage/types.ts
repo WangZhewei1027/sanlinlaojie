@@ -70,6 +70,7 @@ export type ViewerMessageType =
   | "SET_WORKSPACE"
   | "SET_ASSETS"
   | "LOCATION_CLICKED"
+  | "ASSET_CLICKED"
   | "ASSETS_UPDATE"
   | "VIEWER_READY"
   | "FOCUS_ASSET"

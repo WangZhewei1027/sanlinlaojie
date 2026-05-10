@@ -17,6 +17,9 @@ export function useViewerMessaging({
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
+  const setSelectedAssetId = useManageStore(
+    (state) => state.setSelectedAssetId,
+  );
 
   // 发送 organization map_center (origin) 到 viewer iframe
   useEffect(() => {
@@ -82,18 +85,19 @@ export function useViewerMessaging({
   // 监听来自 viewer 的消息
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (event.data?.source !== "viewer") return;
       // 验证消息格式
-      if (
-        event.data?.type === "LOCATION_CLICKED" &&
-        event.data?.source === "viewer"
-      ) {
+      if (event.data?.type === "LOCATION_CLICKED") {
         setClickedLocation(event.data.payload as LocationData);
+      } else if (event.data?.type === "ASSET_CLICKED") {
+        const { assetId } = event.data.payload as { assetId: string };
+        setSelectedAssetId(assetId);
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [setClickedLocation]);
+  }, [setClickedLocation, setSelectedAssetId]);
 
   // 发送聚焦资产消息到 viewer
   const focusAsset = (asset: Asset) => {

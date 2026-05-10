@@ -25,6 +25,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const setFilteredAssets = useManageStore((state) => state.setFilteredAssets);
   const setAssetsLoading = useManageStore((state) => state.setAssetsLoading);
   const deleteAssetInStore = useManageStore((state) => state.deleteAsset);
+  const selectedAssetId = useManageStore((state) => state.selectedAssetId);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -152,6 +153,13 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     selectedFileTypes,
     setFilteredAssets,
   ]);
+
+  // 当 selectedAssetId 变化时（例如从地图点击触发），自动滚动到对应卡片
+  useEffect(() => {
+    if (!selectedAssetId) return;
+    const el = document.getElementById(`asset-card-${selectedAssetId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedAssetId]);
 
   const handleToggleSelectMode = () => {
     setSelectMode((v) => !v);

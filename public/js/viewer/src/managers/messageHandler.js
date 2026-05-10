@@ -77,3 +77,12 @@ export function sendLocationClicked(longitude, latitude, height) {
     )}°, ${height.toFixed(2)}m`,
   );
 }
+
+/**
+ * 发送资产点击事件到父窗口
+ * @param {string} assetId - 资产ID
+ */
+export function sendAssetClicked(assetId) {
+  sendMessageToParent("ASSET_CLICKED", { assetId });
+  console.log(`点击资产: ${assetId}`);
+}

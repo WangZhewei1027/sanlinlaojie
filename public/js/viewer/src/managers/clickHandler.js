@@ -5,7 +5,7 @@
 import { CLICK_MARKER_CONFIG } from "../utils/config.js";
 import { getViewer } from "./viewerManager.js";
 import { cartesianToLonLat } from "../utils/coordinateUtils.js";
-import { sendLocationClicked } from "./messageHandler.js";
+import { sendLocationClicked, sendAssetClicked } from "./messageHandler.js";
 
 let clickedPointEntity = null; // 存储点击位置的标记
 
@@ -36,10 +36,22 @@ function handleMapClick(movement) {
   const viewer = getViewer();
   if (!viewer) return;
 
+  // 优先检查是否点击了 asset 实体（billboard）
+  const picked = viewer.scene.pick(movement.position);
+  if (picked && picked.id) {
+    const assetId = picked.id.properties?.assetId?.getValue
+      ? picked.id.properties.assetId.getValue()
+      : picked.id.properties?.assetId;
+    if (assetId) {
+      sendAssetClicked(assetId);
+      return;
+    }
+  }
+
   // 获取点击位置的地球坐标
   const cartesian = viewer.camera.pickEllipsoid(
     movement.position,
-    viewer.scene.globe.ellipsoid
+    viewer.scene.globe.ellipsoid,
   );
 
   if (cartesian) {
@@ -84,8 +96,8 @@ function addClickMarker(longitude, latitude, height) {
       height: height,
       material: new Cesium.ColorMaterialProperty(
         CLICK_MARKER_CONFIG.pointColor.withAlpha(
-          CLICK_MARKER_CONFIG.ellipseAlpha
-        )
+          CLICK_MARKER_CONFIG.ellipseAlpha,
+        ),
       ),
       outline: true,
       outlineColor: CLICK_MARKER_CONFIG.pointColor,
