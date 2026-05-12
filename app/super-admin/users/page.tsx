@@ -1,68 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Users as UsersIcon } from "lucide-react";
-import { UserList } from "../components/UserList";
-import { ChangeRoleDialog } from "../components/ChangeRoleDialog";
-
-interface UserData {
-  user_id: string;
-  name: string | null;
-  email: string | null;
-  role: string;
-  created_at: string;
-  workspace_assignment?: Array<{
-    id: string;
-    workspace_id: string;
-    workspace: {
-      id: string;
-      name: string;
-    };
-  }>;
-}
+import { UserList } from "./components/UserList";
+import { ChangeRoleDialog } from "./components/ChangeRoleDialog";
+import { useUsers } from "./hooks/useUsers";
+import type { UserData } from "./types";
 
 export default function UsersPage() {
   const { t } = useTranslation();
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const { users, currentUserId, loading, refetch } = useUsers();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const [roleRes, usersRes] = await Promise.all([
-          fetch("/api/auth/role"),
-          fetch("/api/users"),
-        ]);
-        const [roleData, usersData] = await Promise.all([
-          roleRes.json(),
-          usersRes.json(),
-        ]);
-
-        if (roleData?.userId) setCurrentUserId(roleData.userId);
-        if (usersData?.data) setUsers(usersData.data);
-      } catch (error) {
-        console.error("Init failed:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
 
   const handleChangeRole = (user: UserData) => {
     setSelectedUser(user);
     setRoleDialogOpen(true);
   };
 
-  const handleSuccess = async () => {
-    const res = await fetch("/api/users");
-    const data = await res.json();
-    if (data.data) setUsers(data.data);
-  };
+  const handleSuccess = refetch;
 
   if (loading) {
     return (
@@ -106,14 +63,12 @@ export default function UsersPage() {
 
       {/* Dialogs */}
       {selectedUser && (
-        <>
-          <ChangeRoleDialog
-            open={roleDialogOpen}
-            onOpenChange={setRoleDialogOpen}
-            user={selectedUser}
-            onSuccess={handleSuccess}
-          />
-        </>
+        <ChangeRoleDialog
+          open={roleDialogOpen}
+          onOpenChange={setRoleDialogOpen}
+          user={selectedUser}
+          onSuccess={handleSuccess}
+        />
       )}
     </div>
   );

@@ -202,7 +202,8 @@
       "section": {
         "basicInfo": "基本信息",
         "mapCenter": "地图中心点",
-        "fileTypes": "允许的文件类型"
+        "fileTypes": "允许的文件类型",
+        "textAssetStyle": "文本资源样式（小程序端）"
       },
       "mapCenter": {
         "lat": "纬度",
@@ -211,6 +212,11 @@
       },
       "fileTypes": {
         "all": "全部"
+      },
+      "textAsset": {
+        "styleDesc": "控制文本类型资源在微信小程序中的展示形式",
+        "plain_white": "纯白文本",
+        "dialog_decorated": "对话框装饰"
       }
     }
   },

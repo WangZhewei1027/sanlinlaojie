@@ -3,11 +3,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+const VALID_MINIAPP_STYLES = ["plain_white", "dialog_decorated"] as const;
+export type TextAssetMiniappStyleValue = (typeof VALID_MINIAPP_STYLES)[number];
+
 interface UpdateOrgPayload {
   name?: string;
   description?: string | null;
   map_center?: { lat: number; lng: number } | null;
   allowed_file_types?: string[] | null;
+  text_asset_miniapp_style?: TextAssetMiniappStyleValue;
 }
 
 async function requireSuperAdmin() {
@@ -33,9 +37,18 @@ export async function updateOrganization(
 ): Promise<{ error?: string }> {
   try {
     const supabase = await requireSuperAdmin();
+    const safePayload: Omit<UpdateOrgPayload, "text_asset_miniapp_style"> & {
+      text_asset_miniapp_style?: string;
+    } = { ...payload };
+    if (
+      payload.text_asset_miniapp_style !== undefined &&
+      !VALID_MINIAPP_STYLES.includes(payload.text_asset_miniapp_style)
+    ) {
+      delete safePayload.text_asset_miniapp_style;
+    }
     const { error } = await supabase
       .from("organization")
-      .update(payload)
+      .update(safePayload)
       .eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/super-admin/organizations");

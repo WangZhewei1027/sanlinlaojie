@@ -5,28 +5,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Calendar, Users, Crown } from "lucide-react";
-
-interface MemberData {
-  id: string;
-  role: string;
-  user_id: string;
-  users: {
-    user_id: string;
-    name: string | null;
-    email: string | null;
-  };
-}
-
-export interface OrgData {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  created_by: string;
-  organization_member: MemberData[];
-  map_center: { lat: number; lng: number } | null;
-  allowed_file_types: string[] | null;
-}
+import type { OrgData } from "../types";
 
 interface OrgListProps {
   organizations: OrgData[];

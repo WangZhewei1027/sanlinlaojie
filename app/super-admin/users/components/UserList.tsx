@@ -5,14 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserCog, User, Calendar, Mail } from "lucide-react";
-
-interface UserData {
-  user_id: string;
-  name: string | null;
-  email: string | null;
-  role: string;
-  created_at: string;
-}
+import type { UserData } from "../types";
 
 interface UserListProps {
   users: UserData[];

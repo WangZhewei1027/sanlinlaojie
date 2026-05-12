@@ -1,38 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { OrgList, type OrgData } from "../components/OrgList";
-import { OrgDetailPanel } from "../components/OrgDetailPanel";
-import { CreateOrgDialog } from "../components/CreateOrgDialog";
+import { OrgList } from "./components/OrgList";
+import { OrgDetailPanel } from "./components/OrgDetailPanel";
+import { CreateOrgDialog } from "./components/CreateOrgDialog";
+import { useOrganizations } from "./hooks/useOrganizations";
+import type { OrgData } from "./types";
 
 export default function OrganizationsPage() {
   const { t } = useTranslation();
-  const [organizations, setOrganizations] = useState<OrgData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { organizations, loading, fetchOrgs } = useOrganizations();
   const [selectedOrg, setSelectedOrg] = useState<OrgData | null>(null);
-
-  const fetchOrgs = async (): Promise<OrgData[]> => {
-    try {
-      const res = await fetch("/api/admin/organizations");
-      const data = await res.json();
-      if (data.data) {
-        setOrganizations(data.data);
-        return data.data;
-      }
-    } catch (error) {
-      console.error("Fetch orgs failed:", error);
-    } finally {
-      setLoading(false);
-    }
-    return [];
-  };
-
-  useEffect(() => {
-    fetchOrgs();
-  }, []);
 
   const handleSelectOrg = (org: OrgData) => {
     setSelectedOrg((prev) => (prev?.id === org.id ? null : org));

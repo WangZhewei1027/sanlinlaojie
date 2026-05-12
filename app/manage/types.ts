@@ -4,6 +4,8 @@ export interface LocationData {
   height: number;
 }
 
+export type TextAssetMiniappStyle = "plain_white" | "dialog_decorated";
+
 export interface Organization {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ export interface Organization {
   role?: string; // user's role in this organization
   map_center?: { lat: number; lng: number } | null;
   allowed_file_types?: string[] | null;
+  text_asset_miniapp_style?: TextAssetMiniappStyle;
 }
 
 export interface Workspace {

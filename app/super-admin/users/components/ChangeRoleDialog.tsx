@@ -66,7 +66,11 @@ export function ChangeRoleDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("common.updateFailed", "更新失败"));
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("common.updateFailed", "更新失败"),
+      );
     } finally {
       setLoading(false);
     }
@@ -81,9 +85,13 @@ export function ChangeRoleDialog({
               {t("admin.users.changeRoleDialog.title", "修改用户角色")}
             </DialogTitle>
             <DialogDescription>
-              {t("admin.users.changeRoleDialog.description", "修改 {{name}} 的角色权限", {
-                name: user.name || t("admin.users.unnamed", "未命名用户"),
-              })}
+              {t(
+                "admin.users.changeRoleDialog.description",
+                "修改 {{name}} 的角色权限",
+                {
+                  name: user.name || t("admin.users.unnamed", "未命名用户"),
+                },
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -93,21 +101,38 @@ export function ChangeRoleDialog({
               </Label>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger id="role">
-                  <SelectValue placeholder={t("admin.users.changeRoleDialog.selectRole", "选择角色")} />
+                  <SelectValue
+                    placeholder={t(
+                      "admin.users.changeRoleDialog.selectRole",
+                      "选择角色",
+                    )}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">
-                    {t("admin.users.changeRoleDialog.userRole", "普通用户 (User)")}
+                    {t(
+                      "admin.users.changeRoleDialog.userRole",
+                      "普通用户 (User)",
+                    )}
                   </SelectItem>
                   <SelectItem value="super_admin">
-                    {t("admin.users.changeRoleDialog.superAdminRole", "超级管理员 (Super Admin)")}
+                    {t(
+                      "admin.users.changeRoleDialog.superAdminRole",
+                      "超级管理员 (Super Admin)",
+                    )}
                   </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 {role === "super_admin"
-                  ? t("admin.users.changeRoleDialog.superAdminHint", "超级管理员可以管理所有组织和用户")
-                  : t("admin.users.changeRoleDialog.userHint", "普通用户通过组织角色控制权限")}
+                  ? t(
+                      "admin.users.changeRoleDialog.superAdminHint",
+                      "超级管理员可以管理所有组织和用户",
+                    )
+                  : t(
+                      "admin.users.changeRoleDialog.userHint",
+                      "普通用户通过组织角色控制权限",
+                    )}
               </p>
             </div>
             {error && (
