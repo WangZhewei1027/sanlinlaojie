@@ -188,7 +188,14 @@ export function AssetEditor({
       setIsSaving(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAsset, editedData, onUpdateAsset]);
+  }, [
+    selectedAsset,
+    editedData,
+    imageFile,
+    checkinFile,
+    assetConfig,
+    onUpdateAsset,
+  ]);
 
   const handleCancel = useCallback(() => {
     if (selectedAsset) {

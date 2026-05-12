@@ -20,7 +20,15 @@ export async function PATCH(
 
     // 解析请求体
     const body = await request.json();
-    const { name, text_content, anchor_id, tag_ids, metadata, is_huge } = body;
+    const {
+      name,
+      text_content,
+      anchor_id,
+      tag_ids,
+      metadata,
+      is_huge,
+      file_url,
+    } = body;
 
     // 检查该资产是否存在
     const { data: asset, error: fetchError } = await supabase
@@ -60,6 +68,11 @@ export async function PATCH(
     // 更新 is_huge（如果提供）
     if (is_huge !== undefined) {
       updates.is_huge = is_huge;
+    }
+
+    // 更新 file_url（如果提供）—— 用于替换主图等场景
+    if (file_url !== undefined) {
+      updates.file_url = file_url;
     }
 
     // 更新 metadata（合并而不是替换）
