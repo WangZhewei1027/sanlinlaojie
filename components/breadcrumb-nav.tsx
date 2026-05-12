@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { WorkspaceQrButton } from "@/components/workspace-qr-button";
 
 interface BreadcrumbItem {
   label: string;
@@ -109,6 +110,9 @@ export function BreadcrumbNav() {
           <WorkspaceSwitcher />
         </div>
       )}
+
+      {/* QR code button on the right side, when an org is selected on org-scoped routes */}
+      {showOrgSwitcher && <WorkspaceQrButton />}
     </div>
   );
 }

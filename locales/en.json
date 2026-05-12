@@ -27,7 +27,11 @@
     "select": "Select Workspace",
     "manage": "Manage Workspace",
     "selectPlaceholder": "Select workspace...",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "qrButton": "Show QR Code",
+    "qrTitle": "Scan to enter mini-program",
+    "qrLoading": "Generating...",
+    "qrError": "Failed to load QR code"
   },
   "assets": {
     "title": "Asset Management",

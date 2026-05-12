@@ -27,7 +27,11 @@
     "select": "选择工作空间",
     "manage": "管理工作空间",
     "selectPlaceholder": "选择工作空间...",
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "qrButton": "显示二维码",
+    "qrTitle": "扫码进入小程序",
+    "qrLoading": "生成中…",
+    "qrError": "二维码加载失败"
   },
   "assets": {
     "title": "资源管理",
