@@ -35,6 +35,7 @@ export async function GET() {
         created_by,
         map_center,
         allowed_file_types,
+        text_asset_miniapp_style,
         organization_member (
           id,
           role,
