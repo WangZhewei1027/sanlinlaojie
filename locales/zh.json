@@ -592,7 +592,10 @@
       "height": "高度(m)",
       "gpsSource": "来源:",
       "metadata": "完整元数据",
-      "assetId": "ID:"
+      "assetId": "ID:",
+      "scaleMultiplier": "缩放倍率",
+      "scaleMultiplierPlaceholder": "例如 1.0（默认），2.0 放大两倍",
+      "scaleMultiplierDefault": "1.0（默认）"
     },
     "preview": {
       "image": "图片预览",

@@ -28,6 +28,7 @@ export async function PATCH(
       metadata,
       is_huge,
       file_url,
+      config,
     } = body;
 
     // 检查该资产是否存在
@@ -70,6 +71,20 @@ export async function PATCH(
       updates.is_huge = is_huge;
     }
 
+    // 更新 config（合并而不是替换）
+    if (config !== undefined) {
+      const { data: currentAsset } = await supabase
+        .from("asset")
+        .select("config")
+        .eq("id", assetId)
+        .single();
+
+      updates.config = {
+        ...(currentAsset?.config || {}),
+        ...config,
+      };
+    }
+
     // 更新 file_url（如果提供）—— 用于替换主图等场景
     if (file_url !== undefined) {
       updates.file_url = file_url;
@@ -96,7 +111,7 @@ export async function PATCH(
       .update(updates)
       .eq("id", assetId)
       .select(
-        "id, name, file_type, file_url, text_content, anchor_id, tag_ids, metadata, workspace_id, is_huge",
+        "id, name, file_type, file_url, text_content, anchor_id, tag_ids, metadata, workspace_id, is_huge, config",
       )
       .single();
 

@@ -10,7 +10,8 @@ export type EditableField =
   | "anchor_id" // 关联锚点
   | "tag_ids" // 标签
   | "location" // 位置信息（longitude, latitude, height）
-  | "is_huge"; // 是否为大型模型（仅 model 类型）
+  | "is_huge" // 是否为大型模型（仅 model 类型）
+  | "scale_multiplier"; // 模型缩放倍率（仅 model 类型）
 
 // 预览组件类型
 export type PreviewType =
@@ -140,7 +141,14 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 3D 模型类型
   model: {
-    editableFields: ["name", "anchor_id", "tag_ids", "location", "is_huge"],
+    editableFields: [
+      "name",
+      "anchor_id",
+      "tag_ids",
+      "location",
+      "is_huge",
+      "scale_multiplier",
+    ],
     previewType: "model",
     fieldLabels: {
       name: "assetFields.model.name",

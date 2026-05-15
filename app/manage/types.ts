@@ -47,6 +47,10 @@ export interface Asset {
   anchor_id?: string | null; // 关联的锚点ID
   tag_ids?: string[]; // 关联的标签ID数组
   is_huge?: boolean | null; // 是否为大型模型（仅 model 类型）
+  config?: {
+    scale_multiplier?: number; // 模型缩放倍率（相对于归一化后的大小）
+    [key: string]: unknown;
+  } | null;
   created_by?: string | null; // 创建者用户ID
   metadata: {
     longitude?: number;

@@ -591,7 +591,10 @@
       "height": "Height(m)",
       "gpsSource": "Source:",
       "metadata": "Full Metadata",
-      "assetId": "ID:"
+      "assetId": "ID:",
+      "scaleMultiplier": "Scale Multiplier",
+      "scaleMultiplierPlaceholder": "e.g. 1.0 (default), 2.0 to double size",
+      "scaleMultiplierDefault": "1.0 (default)"
     },
     "preview": {
       "image": "Image Preview",

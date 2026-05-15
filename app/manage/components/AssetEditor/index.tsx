@@ -71,6 +71,7 @@ export function AssetEditor({
     latitude: "",
     height: "",
     is_huge: false,
+    scale_multiplier: "",
   });
 
   // 获取选中的资产
@@ -93,6 +94,8 @@ export function AssetEditor({
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
         is_huge: selectedAsset.is_huge ?? false,
+        scale_multiplier:
+          selectedAsset.config?.scale_multiplier?.toString() || "",
       });
       setCheckinFile(null);
       setImageFile(null);
@@ -179,6 +182,19 @@ export function AssetEditor({
         updates.is_huge = editedData.is_huge;
       }
 
+      if (isFieldEditable(selectedAsset.file_type, "scale_multiplier")) {
+        const parsed = parseFloat(editedData.scale_multiplier);
+        updates.config = {
+          ...selectedAsset.config,
+          scale_multiplier:
+            editedData.scale_multiplier === ""
+              ? undefined
+              : isNaN(parsed)
+                ? undefined
+                : parsed,
+        };
+      }
+
       await onUpdateAsset(selectedAsset.id, updates);
       setIsEditing(false);
     } catch (error) {
@@ -208,6 +224,8 @@ export function AssetEditor({
         latitude: selectedAsset.metadata.latitude?.toString() || "",
         height: selectedAsset.metadata.height?.toString() || "",
         is_huge: selectedAsset.is_huge ?? false,
+        scale_multiplier:
+          selectedAsset.config?.scale_multiplier?.toString() || "",
       });
       setCheckinFile(null);
       setImageFile(null);
@@ -596,6 +614,39 @@ export function AssetEditor({
               </label>
             </div>
           )}
+
+          {/* scale_multiplier 字段 - 仅 model 类型可编辑，viewer 只读时隐藏 */}
+          {!readOnly &&
+            isFieldEditable(selectedAsset.file_type, "scale_multiplier") && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t("assetEditor.fields.scaleMultiplier")}
+                </label>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.01"
+                    value={editedData.scale_multiplier}
+                    onChange={(e) =>
+                      setEditedData({
+                        ...editedData,
+                        scale_multiplier: e.target.value,
+                      })
+                    }
+                    placeholder={t(
+                      "assetEditor.fields.scaleMultiplierPlaceholder",
+                    )}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                ) : (
+                  <p className="text-sm p-3 bg-background rounded-md">
+                    {selectedAsset.config?.scale_multiplier ??
+                      t("assetEditor.fields.scaleMultiplierDefault")}
+                  </p>
+                )}
+              </div>
+            )}
 
           {/* 元数据和资产ID - viewer 只读时隐藏 */}
           {!readOnly && (
