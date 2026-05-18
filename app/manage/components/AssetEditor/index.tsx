@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Loader2, Edit2, Save, X, FileText } from "lucide-react";
 import { useManageStore } from "../../store";
+import { isSpecificWorkspaceId } from "../../constants";
 import type { Asset } from "../../types";
 import { AssetTextEditor } from "./AssetTextEditor";
 import { AssetImagePreview } from "./AssetImagePreview";
@@ -48,9 +49,11 @@ export function AssetEditor({
 }: AssetEditorProps) {
   const { t } = useTranslation();
   const selectedAssetId = useManageStore((state) => state.selectedAssetId);
-  const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId,
-  );
+  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  // Treat the "All workspaces" sentinel as no specific workspace context.
+  const selectedWorkspaceId = isSpecificWorkspaceId(storeWorkspaceId)
+    ? storeWorkspaceId
+    : null;
   const assets = useManageStore((state) => state.assets);
   const setSelectedAssetId = useManageStore(
     (state) => state.setSelectedAssetId,

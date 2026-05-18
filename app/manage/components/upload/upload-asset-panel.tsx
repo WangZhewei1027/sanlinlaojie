@@ -23,6 +23,7 @@ import { LocationSelector } from "./location-selector";
 import { FileTypeSelector } from "./file-type-selector";
 import { FileDropzone } from "./file-dropzone";
 import { useManageStore } from "../../store";
+import { isSpecificWorkspaceId } from "../../constants";
 
 interface UploadAssetPanelProps {
   onUpload?: () => void;
@@ -30,7 +31,11 @@ interface UploadAssetPanelProps {
 
 export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const { t } = useTranslation();
-  const workspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  // Treat the "All workspaces" sentinel as no workspace for upload purposes.
+  const workspaceId = isSpecificWorkspaceId(storeWorkspaceId)
+    ? storeWorkspaceId
+    : null;
   const clickedLocation = useManageStore((state) => state.clickedLocation);
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,

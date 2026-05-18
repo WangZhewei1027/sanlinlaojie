@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ALL_WORKSPACES_ID } from "@/app/manage/constants";
 
 export interface Organization {
   id: string;
@@ -58,7 +59,11 @@ export function useWorkspace(
         const workspaceList = result.data || [];
         setWorkspaces(workspaceList);
 
-        if (workspaceList.length > 0) {
+        // Honor an explicit "All workspaces" preference: do not auto-pick.
+        if (preferWorkspaceId === ALL_WORKSPACES_ID) {
+          setSelectedWorkspaceId(ALL_WORKSPACES_ID);
+          preferredWorkspaceIdRef.current = ALL_WORKSPACES_ID;
+        } else if (workspaceList.length > 0) {
           // Prefer the provided workspace ID if it still exists in the new list,
           // then fall back to the first item.
           const preferred = preferWorkspaceId

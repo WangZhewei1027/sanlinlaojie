@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Asset } from "../types";
+import { isSpecificWorkspaceId } from "../constants";
 
 export function useAssets(workspaceId: string | null) {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -7,7 +8,8 @@ export function useAssets(workspaceId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAssets = useCallback(async () => {
-    if (!workspaceId) {
+    // Skip when no specific workspace is selected (null or "All workspaces").
+    if (!isSpecificWorkspaceId(workspaceId)) {
       setAssets([]);
       return;
     }
@@ -61,8 +63,8 @@ export function useAssets(workspaceId: string | null) {
         // 更新本地状态
         setAssets((prevAssets) =>
           prevAssets.map((asset) =>
-            asset.id === assetId ? { ...asset, ...result.data } : asset
-          )
+            asset.id === assetId ? { ...asset, ...result.data } : asset,
+          ),
         );
 
         return result.data;
@@ -71,7 +73,7 @@ export function useAssets(workspaceId: string | null) {
         throw err;
       }
     },
-    []
+    [],
   );
 
   const deleteAsset = useCallback(async (assetId: string) => {
@@ -88,7 +90,7 @@ export function useAssets(workspaceId: string | null) {
 
       // 从本地状态中移除
       setAssets((prevAssets) =>
-        prevAssets.filter((asset) => asset.id !== assetId)
+        prevAssets.filter((asset) => asset.id !== assetId),
       );
 
       return result;

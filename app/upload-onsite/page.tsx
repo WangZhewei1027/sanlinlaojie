@@ -14,6 +14,7 @@ import { StatusMessages } from "./components/StatusMessages";
 import { TagSelector } from "./components/TagSelector";
 import { useGPS } from "./hooks/useGPS";
 import { useManageStore } from "../manage/store";
+import { isSpecificWorkspaceId } from "../manage/constants";
 
 type UploadMode = "camera" | "text" | "audio";
 
@@ -22,10 +23,11 @@ export default function UploadOnsitePage() {
   const uploadService = new FileUploadService();
   const { gpsPosition, gpsError, gpsLoading } = useGPS();
 
-  // 从 store 获取 workspace 信息
-  const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId
-  );
+  // 从 store 获取 workspace 信息（将 "All workspaces" 哨兵视为未选择）
+  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  const selectedWorkspaceId = isSpecificWorkspaceId(storeWorkspaceId)
+    ? storeWorkspaceId
+    : null;
 
   const [mode, setMode] = useState<UploadMode>("camera");
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function UploadOnsitePage() {
   const handlePhotoUpload = async (
     capturedImage: string,
     title?: string,
-    description?: string
+    description?: string,
   ) => {
     if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
@@ -61,7 +63,7 @@ export default function UploadOnsitePage() {
       });
 
       console.log(
-        `原始文件大小: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB`
+        `原始文件大小: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB`,
       );
 
       // 使用 FileUploadService 处理文件（自动压缩）
@@ -69,14 +71,14 @@ export default function UploadOnsitePage() {
 
       console.log(
         `压缩后文件大小: ${(processedFileData.file.size / 1024 / 1024).toFixed(
-          2
-        )}MB`
+          2,
+        )}MB`,
       );
 
       // 上传到 Storage
       const fileUrl = await uploadService.uploadToStorage(
         processedFileData.file,
-        user.id
+        user.id,
       );
 
       const location: LocationData = {
@@ -136,7 +138,7 @@ export default function UploadOnsitePage() {
         user.id,
         textContent,
         location,
-        selectedTagIds.length > 0 ? selectedTagIds : undefined
+        selectedTagIds.length > 0 ? selectedTagIds : undefined,
       );
 
       setSuccess(true);
@@ -152,7 +154,7 @@ export default function UploadOnsitePage() {
   const handleAudioUpload = async (
     audioFile: File,
     title?: string,
-    description?: string
+    description?: string,
   ) => {
     if (!gpsPosition || !selectedWorkspaceId) {
       setError(t("onsite.missingInfo"));
@@ -172,7 +174,7 @@ export default function UploadOnsitePage() {
       }
 
       console.log(
-        `音频文件大小: ${(audioFile.size / 1024 / 1024).toFixed(2)}MB`
+        `音频文件大小: ${(audioFile.size / 1024 / 1024).toFixed(2)}MB`,
       );
 
       // 使用 FileUploadService 处理音频文件（支持压缩）
@@ -180,14 +182,14 @@ export default function UploadOnsitePage() {
 
       console.log(
         `处理后文件大小: ${(processedFileData.file.size / 1024 / 1024).toFixed(
-          2
-        )}MB`
+          2,
+        )}MB`,
       );
 
       // 上传到 Storage
       const fileUrl = await uploadService.uploadToStorage(
         processedFileData.file,
-        user.id
+        user.id,
       );
 
       const location: LocationData = {

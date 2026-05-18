@@ -28,6 +28,7 @@
     "manage": "管理工作空间",
     "selectPlaceholder": "选择工作空间...",
     "loading": "加载中...",
+    "allWorkspaces": "所有工作空间",
     "qrButton": "显示二维码",
     "qrTitle": "扫码进入小程序",
     "qrLoading": "生成中…",

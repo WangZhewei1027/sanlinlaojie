@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Loader2, AlertCircle } from "lucide-react";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { CleanLog } from "./components/CleanLog";
 
 type CleanAction = "clean-rows" | "clean-files" | "both";
@@ -55,7 +56,7 @@ export default function CleanPage() {
   const [summary, setSummary] = useState<CleanSummary | null>(null);
 
   const handleClean = async (action: CleanAction) => {
-    if (!selectedWorkspaceId) {
+    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
       alert(t("admin.clean.selectWorkspaceFirst"));
       return;
     }

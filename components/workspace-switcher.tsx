@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useManageStore } from "@/app/manage/store";
+import { ALL_WORKSPACES_ID } from "@/app/manage/constants";
 
 export function WorkspaceSwitcher() {
   const { t } = useTranslation();
@@ -29,10 +30,17 @@ export function WorkspaceSwitcher() {
   );
   const loading = useManageStore((state) => state.workspaceLoading);
 
+  const isAllSelected = selectedWorkspaceId === ALL_WORKSPACES_ID;
+
   const handleSelect = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);
     const workspace = workspaces.find((w) => w.id === workspaceId);
     setSelectedWorkspace(workspace || null);
+  };
+
+  const handleSelectAll = () => {
+    setSelectedWorkspaceId(ALL_WORKSPACES_ID);
+    setSelectedWorkspace(null);
   };
 
   if (loading) {
@@ -60,8 +68,10 @@ export function WorkspaceSwitcher() {
         >
           <FolderKanban className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
           <span className="truncate">
-            {selectedWorkspace?.name ||
-              t("workspace.selectPlaceholder", "Select workspace")}
+            {isAllSelected
+              ? t("workspace.allWorkspaces", "All workspaces")
+              : selectedWorkspace?.name ||
+                t("workspace.selectPlaceholder", "Select workspace")}
           </span>
           <ChevronsUpDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
         </Button>
@@ -70,6 +80,18 @@ export function WorkspaceSwitcher() {
         <DropdownMenuLabel>
           {t("workspace.selectPlaceholder", "Workspaces")}
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={handleSelectAll}
+          className="flex items-center justify-between cursor-pointer"
+        >
+          <span className="truncate">
+            {t("workspace.allWorkspaces", "All workspaces")}
+          </span>
+          {isAllSelected && (
+            <Check className="h-4 w-4 flex-shrink-0 text-primary" />
+          )}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {workspaces.map((ws) => (
           <DropdownMenuItem

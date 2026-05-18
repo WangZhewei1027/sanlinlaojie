@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useManageStore } from "@/app/manage/store";
+import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { getOrCreateWorkspaceQRCode } from "@/app/manage/actions/wechat-qr";
 
 export function WorkspaceQrButton() {
@@ -44,7 +45,9 @@ export function WorkspaceQrButton() {
     setError(null);
     const result = await getOrCreateWorkspaceQRCode({
       organizationId: selectedOrganizationId,
-      workspaceId: selectedWorkspaceId,
+      workspaceId: isSpecificWorkspaceId(selectedWorkspaceId)
+        ? selectedWorkspaceId
+        : null,
     });
     if (result.error) {
       setError(result.error);

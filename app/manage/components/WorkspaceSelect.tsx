@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useManageStore } from "../store";
+import { ALL_WORKSPACES_ID } from "../constants";
 import { WORKSPACE_ROUTES } from "./WorkspaceProvider";
 
 export function WorkspaceSelect() {
@@ -17,24 +18,28 @@ export function WorkspaceSelect() {
   const pathname = usePathname();
   const workspaces = useManageStore((state) => state.workspaces);
   const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId
+    (state) => state.selectedWorkspaceId,
   );
   const selectedWorkspace = useManageStore((state) => state.selectedWorkspace);
   const setSelectedWorkspaceId = useManageStore(
-    (state) => state.setSelectedWorkspaceId
+    (state) => state.setSelectedWorkspaceId,
   );
   const setSelectedWorkspace = useManageStore(
-    (state) => state.setSelectedWorkspace
+    (state) => state.setSelectedWorkspace,
   );
   const loading = useManageStore((state) => state.workspaceLoading);
 
   // 检查当前路由是否需要显示 WorkspaceSelect
   const shouldShow = WORKSPACE_ROUTES.some((route) =>
-    pathname.startsWith(route)
+    pathname.startsWith(route),
   );
 
   const handleChange = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);
+    if (workspaceId === ALL_WORKSPACES_ID) {
+      setSelectedWorkspace(null);
+      return;
+    }
     const workspace = workspaces.find((w) => w.id === workspaceId);
     setSelectedWorkspace(workspace || null);
   };
@@ -73,6 +78,9 @@ export function WorkspaceSelect() {
         <SelectValue placeholder={t("workspace.selectPlaceholder")} />
       </SelectTrigger>
       <SelectContent>
+        <SelectItem value={ALL_WORKSPACES_ID}>
+          {t("workspace.allWorkspaces", "All workspaces")}
+        </SelectItem>
         {workspaces.map((workspace) => (
           <SelectItem key={workspace.id} value={workspace.id}>
             {workspace.name}

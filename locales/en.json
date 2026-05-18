@@ -28,6 +28,7 @@
     "manage": "Manage Workspace",
     "selectPlaceholder": "Select workspace...",
     "loading": "Loading...",
+    "allWorkspaces": "All workspaces",
     "qrButton": "Show QR Code",
     "qrTitle": "Scan to enter mini-program",
     "qrLoading": "Generating...",

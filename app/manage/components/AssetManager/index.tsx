@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import type { Asset, Tag, Creator } from "../../types";
 import { useManageStore } from "../../store";
+import { ALL_WORKSPACES_ID, isSpecificWorkspaceId } from "../../constants";
 import { AssetCard } from "./AssetCard";
 import { AssetListHeader } from "./AssetListHeader";
 import { EmptyState } from "./EmptyState";
@@ -19,6 +20,10 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const selectedWorkspaceId = useManageStore(
     (state) => state.selectedWorkspaceId,
   );
+  const selectedOrganizationId = useManageStore(
+    (state) => state.selectedOrganizationId,
+  );
+  const isAllWorkspaces = selectedWorkspaceId === ALL_WORKSPACES_ID;
   const assets = useManageStore((state) => state.assets);
   const loading = useManageStore((state) => state.assetsLoading);
   const setAssets = useManageStore((state) => state.setAssets);
@@ -38,7 +43,8 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const [deleting, setDeleting] = useState(false);
 
   const fetchTags = useCallback(async () => {
-    if (!selectedWorkspaceId) {
+    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
+      // "All workspaces" 下不按 workspace 过滤标签
       setTags([]);
       return;
     }
@@ -60,7 +66,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   }, [selectedWorkspaceId]);
 
   const fetchCreators = useCallback(async () => {
-    if (!selectedWorkspaceId) {
+    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
       setCreators([]);
       return;
     }
@@ -82,7 +88,32 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   }, [selectedWorkspaceId]);
 
   const fetchAssets = useCallback(async () => {
-    if (!selectedWorkspaceId) {
+    // "All workspaces" 模式：拉取当前组织下所有 workspace 的 assets
+    if (isAllWorkspaces) {
+      if (!selectedOrganizationId) {
+        setAssets([]);
+        return;
+      }
+      setAssetsLoading(true);
+      try {
+        const response = await fetch(
+          `/api/organizations/${selectedOrganizationId}/assets`,
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || t("assetManager.fetchAssetsFailed"));
+        }
+        setAssets(result.data || []);
+      } catch (err) {
+        console.error(t("assetManager.fetchAssetsFailed"), err);
+        setAssets([]);
+      } finally {
+        setAssetsLoading(false);
+      }
+      return;
+    }
+
+    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
       setAssets([]);
       return;
     }
@@ -107,7 +138,13 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       setAssetsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWorkspaceId, setAssets, setAssetsLoading]);
+  }, [
+    selectedWorkspaceId,
+    selectedOrganizationId,
+    isAllWorkspaces,
+    setAssets,
+    setAssetsLoading,
+  ]);
 
   useEffect(() => {
     fetchTags();
