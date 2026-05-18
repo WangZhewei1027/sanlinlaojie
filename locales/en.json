@@ -603,7 +603,9 @@
       "audio": "Audio Preview",
       "audioNotSupported": "Your browser does not support audio playback.",
       "link": "Link Preview",
-      "model": "3D Model Preview"
+      "model": "3D Model Preview",
+      "loading": "Loading 3D model...",
+      "loadError": "Unable to preview this 3D model"
     },
     "anchor": {
       "title": "Associated Anchor",
