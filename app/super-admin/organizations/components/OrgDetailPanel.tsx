@@ -37,6 +37,8 @@ export function OrgDetailPanel({
     toggleFileType,
     textAssetMiniappStyle,
     setTextAssetMiniappStyle,
+    confettiEnabled,
+    setConfettiEnabled,
     saveError,
     hasChanged,
     handleSave,
@@ -80,6 +82,8 @@ export function OrgDetailPanel({
           toggleFileType={toggleFileType}
           textAssetMiniappStyle={textAssetMiniappStyle}
           setTextAssetMiniappStyle={setTextAssetMiniappStyle}
+          confettiEnabled={confettiEnabled}
+          setConfettiEnabled={setConfettiEnabled}
         />
 
         <div className="border-t" />

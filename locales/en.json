@@ -208,7 +208,8 @@
         "basicInfo": "Basic Info",
         "mapCenter": "Map Center",
         "fileTypes": "Allowed File Types",
-        "textAssetStyle": "Text Asset Style (Mini Program)"
+        "textAssetStyle": "Text Asset Style (Mini Program)",
+        "miniappConfig": "Mini Program Config"
       },
       "mapCenter": {
         "lat": "Latitude",
@@ -222,6 +223,10 @@
         "styleDesc": "Controls how text-type assets are displayed in the WeChat Mini Program",
         "plain_white": "Plain White Text",
         "dialog_decorated": "Dialog Decorated"
+      },
+      "miniappConfig": {
+        "confetti": "Confetti Effect",
+        "confettiDesc": "Show confetti ribbons in the mini program"
       }
     }
   },

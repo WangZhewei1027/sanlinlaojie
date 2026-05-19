@@ -9,6 +9,10 @@ export interface MemberData {
   };
 }
 
+export interface OrgConfig {
+  confetti_enabled?: boolean;
+}
+
 export interface OrgData {
   id: string;
   name: string;
@@ -19,4 +23,5 @@ export interface OrgData {
   map_center: { lat: number; lng: number } | null;
   allowed_file_types: string[] | null;
   text_asset_miniapp_style?: string;
+  config?: OrgConfig | null;
 }

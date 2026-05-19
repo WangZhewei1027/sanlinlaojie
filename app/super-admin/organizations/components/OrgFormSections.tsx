@@ -4,6 +4,7 @@ import type { TextAssetMiniappStyle } from "@/app/manage/types";
 import { MapCenterSection } from "./sections/MapCenterSection";
 import { FileTypesSection } from "./sections/FileTypesSection";
 import { TextAssetStyleSection } from "./sections/TextAssetStyleSection";
+import { MiniappConfigSection } from "./sections/MiniappConfigSection";
 
 interface OrgFormSectionsProps {
   lat: string;
@@ -14,6 +15,8 @@ interface OrgFormSectionsProps {
   toggleFileType: (type: string) => void;
   textAssetMiniappStyle: TextAssetMiniappStyle;
   setTextAssetMiniappStyle: (v: TextAssetMiniappStyle) => void;
+  confettiEnabled: boolean;
+  setConfettiEnabled: (v: boolean) => void;
 }
 
 export function OrgFormSections({
@@ -25,6 +28,8 @@ export function OrgFormSections({
   toggleFileType,
   textAssetMiniappStyle,
   setTextAssetMiniappStyle,
+  confettiEnabled,
+  setConfettiEnabled,
 }: OrgFormSectionsProps) {
   return (
     <>
@@ -38,6 +43,12 @@ export function OrgFormSections({
       <TextAssetStyleSection
         textAssetMiniappStyle={textAssetMiniappStyle}
         setTextAssetMiniappStyle={setTextAssetMiniappStyle}
+      />
+
+      <div className="border-t" />
+      <MiniappConfigSection
+        confettiEnabled={confettiEnabled}
+        setConfettiEnabled={setConfettiEnabled}
       />
     </>
   );

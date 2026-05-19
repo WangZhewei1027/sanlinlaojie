@@ -25,6 +25,9 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     useState<TextAssetMiniappStyle>(
       (org.text_asset_miniapp_style as TextAssetMiniappStyle) ?? "plain_white",
     );
+  const [confettiEnabled, setConfettiEnabled] = useState<boolean>(
+    org.config?.confetti_enabled ?? false,
+  );
   const [saveError, setSaveError] = useState("");
 
   const hasChanged =
@@ -36,7 +39,8 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
       JSON.stringify([...(org.allowed_file_types ?? ALL_FILE_TYPES)].sort()) ||
     textAssetMiniappStyle !==
       ((org.text_asset_miniapp_style as TextAssetMiniappStyle) ??
-        "plain_white");
+        "plain_white") ||
+    confettiEnabled !== (org.config?.confetti_enabled ?? false);
 
   const toggleFileType = (type: string) => {
     setFileTypes((prev) => {
@@ -68,6 +72,7 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
         map_center: mapCenter,
         allowed_file_types: allSelected ? null : selectedTypes,
         text_asset_miniapp_style: textAssetMiniappStyle,
+        config: { confetti_enabled: confettiEnabled },
       });
       if (result.error) {
         setSaveError(result.error);
@@ -90,6 +95,8 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     toggleFileType,
     textAssetMiniappStyle,
     setTextAssetMiniappStyle,
+    confettiEnabled,
+    setConfettiEnabled,
     saveError,
     hasChanged,
     handleSave,

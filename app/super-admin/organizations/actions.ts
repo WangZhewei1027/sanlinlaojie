@@ -6,12 +6,15 @@ import { revalidatePath } from "next/cache";
 const VALID_MINIAPP_STYLES = ["plain_white", "dialog_decorated"] as const;
 export type TextAssetMiniappStyleValue = (typeof VALID_MINIAPP_STYLES)[number];
 
+import type { OrgConfig } from "./types";
+
 interface UpdateOrgPayload {
   name?: string;
   description?: string | null;
   map_center?: { lat: number; lng: number } | null;
   allowed_file_types?: string[] | null;
   text_asset_miniapp_style?: TextAssetMiniappStyleValue;
+  config?: OrgConfig;
 }
 
 async function requireSuperAdmin() {
