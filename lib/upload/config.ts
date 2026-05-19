@@ -49,8 +49,9 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     label: "fileTypes.audio",
     icon: Music,
     accept: "audio/*",
-    maxSize: 50,
-    process: compressToOpusWebM,
+    maxSize: 3,
+    // TODO: 暂时跳过压缩，待压缩模块稳定后恢复
+    // process: compressToOpusWebM,
     extractMetadata: extractAudioMetadata,
   },
   document: {
