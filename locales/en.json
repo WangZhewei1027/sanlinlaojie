@@ -152,6 +152,12 @@
       "superAdmin": {
         "title": "Super Admin",
         "description": "User management & global role assignment (super admin only)"
+      },
+      "instructions": {
+        "title": "User Guide",
+        "description": "View platform instructions",
+        "en": "English Guide",
+        "zh": "Chinese Guide"
       }
     },
     "footer": {

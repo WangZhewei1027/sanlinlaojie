@@ -152,6 +152,12 @@
       "superAdmin": {
         "title": "超级管理员",
         "description": "用户管理、全局角色分配（仅超级管理员）"
+      },
+      "instructions": {
+        "title": "使用指南",
+        "description": "查看平台使用说明",
+        "en": "英文指南",
+        "zh": "中文指南"
       }
     },
     "footer": {

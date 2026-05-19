@@ -117,6 +117,25 @@ export default function Home() {
                 )}
               </div>
             </section>
+
+            {/* Instructions */}
+            <section className="flex flex-col items-center gap-3 pb-12">
+              <p className="text-sm text-muted-foreground">
+                {t("home.quickLinks.instructions.description")}
+              </p>
+              <div className="flex gap-3">
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/instructions/en">
+                    {t("home.quickLinks.instructions.en")}
+                  </Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/instructions/zh">
+                    {t("home.quickLinks.instructions.zh")}
+                  </Link>
+                </Button>
+              </div>
+            </section>
           </main>
         </div>
 
