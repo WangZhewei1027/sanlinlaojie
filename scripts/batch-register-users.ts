@@ -1,7 +1,7 @@
 /**
  * 批量注册User脚本
  *
- * 使用 Supabase Admin API (service_role key) 批量创建User。
+ * 使用 Supabase Admin API (service_role key) 批量创建User，并可选分配到组织和工作区。
  *
  * 用法:
  *   1. 在 .env.local 中配置:
@@ -14,12 +14,18 @@
  *        npx tsx scripts/batch-register-users.ts
  *
  *   可选参数:
- *     --dry-run    仅打印即将创建的User，不实际执行
- *     --file       从 JSON 文件读取User列表 (格式见下方 UserInput)
+ *     --dry-run                  仅打印即将创建的User，不实际执行
+ *     --file <path>              从 JSON 文件读取User列表 (格式见下方 UserInput)
+ *     --org <uuid>               将所有用户加入指定组织
+ *     --org-role <role>          组织角色 (owner/admin/member/viewer，默认 member)
+ *     --workspace <uuid>         将所有用户分配到指定工作区
+ *     --workspace-role <role>    工作区角色 (默认 member)
  *
  *   示例:
  *     npx tsx scripts/batch-register-users.ts --dry-run
  *     npx tsx scripts/batch-register-users.ts --file users.json
+ *     npx tsx scripts/batch-register-users.ts --file users.json --org <org_uuid> --workspace <ws_uuid>
+ *     npx tsx scripts/batch-register-users.ts --file users.json --org <org_uuid> --org-role admin
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -28,6 +34,8 @@ import * as path from "path";
 
 // ─── 类型定义 ────────────────────────────────────────────
 
+type OrgRole = "owner" | "admin" | "member" | "viewer";
+
 interface UserInput {
   email: string;
   password: string;
@@ -35,12 +43,22 @@ interface UserInput {
   name?: string;
   /** 额外的 user_metadata（可选） */
   metadata?: Record<string, unknown>;
+  /** 覆盖全局 --org（可选） */
+  orgId?: string;
+  /** 覆盖全局 --org-role（可选） */
+  orgRole?: OrgRole;
+  /** 覆盖全局 --workspace（可选） */
+  workspaceId?: string;
+  /** 覆盖全局 --workspace-role（可选） */
+  workspaceRole?: string;
 }
 
 interface Result {
   email: string;
   success: boolean;
   userId?: string;
+  orgAssigned?: boolean;
+  workspaceAssigned?: boolean;
   error?: string;
 }
 
@@ -107,6 +125,20 @@ async function main() {
   const dryRun = args.includes("--dry-run");
   const fileIndex = args.indexOf("--file");
 
+  // 解析 org / workspace 全局参数
+  const globalOrgId = getArg(args, "--org");
+  const globalOrgRole = (getArg(args, "--org-role") ?? "member") as OrgRole;
+  const globalWorkspaceId = getArg(args, "--workspace");
+  const globalWorkspaceRole = getArg(args, "--workspace-role") ?? "member";
+
+  const validOrgRoles: OrgRole[] = ["owner", "admin", "member", "viewer"];
+  if (!validOrgRoles.includes(globalOrgRole)) {
+    console.error(
+      `❌ 无效的 --org-role: "${globalOrgRole}"，允许值: ${validOrgRoles.join(", ")}`,
+    );
+    process.exit(1);
+  }
+
   // 确定User列表来源
   let users: UserInput[];
 
@@ -149,7 +181,16 @@ async function main() {
     },
   });
 
+  // 打印配置摘要
   console.log(`\n🚀 准备注册 ${users.length} 个User`);
+  if (globalOrgId) {
+    console.log(`   组织 ID  : ${globalOrgId} (角色: ${globalOrgRole})`);
+  }
+  if (globalWorkspaceId) {
+    console.log(
+      `   工作区 ID: ${globalWorkspaceId} (角色: ${globalWorkspaceRole})`,
+    );
+  }
   if (dryRun) {
     console.log("⚠️  DRY RUN 模式 — 不会实际创建User\n");
   }
@@ -163,6 +204,12 @@ async function main() {
   for (let i = 0; i < users.length; i++) {
     const user = users[i];
     const index = `[${i + 1}/${users.length}]`;
+
+    // 合并每用户覆盖与全局参数
+    const orgId = user.orgId ?? globalOrgId;
+    const orgRole = (user.orgRole ?? globalOrgRole) as OrgRole;
+    const workspaceId = user.workspaceId ?? globalWorkspaceId;
+    const workspaceRole = user.workspaceRole ?? globalWorkspaceRole;
 
     // 基本验证
     if (!user.email || !user.password) {
@@ -188,13 +235,21 @@ async function main() {
     }
 
     if (dryRun) {
-      console.log(`${index} 🔍 ${user.email} (name: ${user.name || "-"})`);
+      const tags = [
+        `name: ${user.name || "-"}`,
+        orgId ? `org: ${orgId} (${orgRole})` : null,
+        workspaceId ? `ws: ${workspaceId} (${workspaceRole})` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      console.log(`${index} 🔍 ${user.email} (${tags})`);
       results.push({ email: user.email, success: true });
       successCount++;
       continue;
     }
 
     try {
+      // ① 创建 auth 用户
       const { data, error } = await supabase.auth.admin.createUser({
         email: user.email,
         password: user.password,
@@ -213,15 +268,90 @@ async function main() {
           error: error.message,
         });
         failCount++;
-      } else {
-        console.log(`${index} ✅ ${user.email} (id: ${data.user.id})`);
-        results.push({
-          email: user.email,
-          success: true,
-          userId: data.user.id,
-        });
-        successCount++;
+        continue;
       }
+
+      const userId = data.user.id;
+
+      // ② 同步到 public.users（upsert，无触发器时手动维护）
+      const { error: userUpsertError } = await supabase.from("users").upsert(
+        {
+          user_id: userId,
+          email: user.email,
+          name: user.name ?? null,
+        },
+        { onConflict: "user_id" },
+      );
+
+      if (userUpsertError) {
+        console.warn(
+          `${index} ⚠️  ${user.email} — public.users 同步失败: ${userUpsertError.message}`,
+        );
+      }
+
+      // ③ 加入组织
+      let orgAssigned = false;
+      if (orgId) {
+        const { error: orgError } = await supabase
+          .from("organization_member")
+          .upsert(
+            {
+              organization_id: orgId,
+              user_id: userId,
+              role: orgRole,
+            },
+            { onConflict: "organization_id,user_id" },
+          );
+
+        if (orgError) {
+          console.warn(
+            `${index} ⚠️  ${user.email} — 加入组织失败: ${orgError.message}`,
+          );
+        } else {
+          orgAssigned = true;
+        }
+      }
+
+      // ④ 分配工作区
+      let workspaceAssigned = false;
+      if (workspaceId) {
+        const { error: wsError } = await supabase
+          .from("workspace_assignment")
+          .upsert(
+            {
+              workspace_id: workspaceId,
+              user_id: userId,
+              role: workspaceRole,
+            },
+            { onConflict: "user_id,workspace_id" },
+          );
+
+        if (wsError) {
+          console.warn(
+            `${index} ⚠️  ${user.email} — 分配工作区失败: ${wsError.message}`,
+          );
+        } else {
+          workspaceAssigned = true;
+        }
+      }
+
+      const tags = [
+        orgAssigned ? `org ✅` : null,
+        workspaceAssigned ? `ws ✅` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      console.log(
+        `${index} ✅ ${user.email} (id: ${userId})${tags ? " — " + tags : ""}`,
+      );
+      results.push({
+        email: user.email,
+        success: true,
+        userId,
+        orgAssigned,
+        workspaceAssigned,
+      });
+      successCount++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.log(`${index} ❌ ${user.email} — ${message}`);
@@ -257,6 +387,15 @@ async function main() {
   );
   fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), "utf-8");
   console.log(`\n📁 结果已保存到 ${outputPath}`);
+}
+
+/** 从 argv 中读取命名参数值，例如 getArg(args, '--org') */
+function getArg(args: string[], name: string): string | undefined {
+  const idx = args.indexOf(name);
+  if (idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("--")) {
+    return args[idx + 1];
+  }
+  return undefined;
 }
 
 function sleep(ms: number) {
