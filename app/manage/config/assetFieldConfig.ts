@@ -17,6 +17,7 @@ export type EditableField =
 export type PreviewType =
   | "image"
   | "audio"
+  | "video"
   | "text"
   | "anchor"
   | "link"
@@ -104,8 +105,14 @@ export const assetFieldConfig: AssetFieldConfigMap = {
 
   // 视频类型
   video: {
-    editableFields: ["anchor_id", "tag_ids", "location"],
-    previewType: "none", // 可以后续添加视频预览
+    editableFields: [
+      "name",
+      "text_content",
+      "anchor_id",
+      "tag_ids",
+      "location",
+    ],
+    previewType: "video",
   },
 
   link: {

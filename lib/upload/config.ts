@@ -40,8 +40,9 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     type: "video",
     label: "fileTypes.video",
     icon: Video,
-    accept: "video/*",
-    maxSize: 100,
+    accept:
+      "video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,video/3gpp,.mp4,.mov,.webm,.avi,.mkv,.3gp",
+    maxSize: 3,
   },
   audio: {
     type: "audio",
@@ -132,10 +133,7 @@ export function inferUploadType(mimeType: string): UploadType {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
-  if (
-    mimeType === "model/gltf+json" ||
-    mimeType === "model/gltf-binary"
-  )
+  if (mimeType === "model/gltf+json" || mimeType === "model/gltf-binary")
     return "model";
   if (
     mimeType.includes("pdf") ||

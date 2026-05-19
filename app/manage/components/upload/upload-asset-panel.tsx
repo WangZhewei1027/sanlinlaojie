@@ -49,6 +49,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
   const defaultTypes: UploadType[] = [
     "image",
+    "video",
     "audio",
     "link",
     "text",
@@ -133,12 +134,25 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       } else if (uploadType === "model") {
         if (!file) throw new Error(t("upload.selectFile"));
         const maxBytes = 3 * 1024 * 1024;
-        if (file.size > maxBytes) throw new Error(t("upload.modelTooLarge"));
+        if (file.size > maxBytes)
+          throw new Error(t("upload.fields.modelTooLarge"));
         const fileUrl = await uploadService.uploadToStorage(file, user.id);
         await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
           fileType: "model",
           name: name.trim() || undefined,
+          location: finalLocation || undefined,
+          gpsSource: gpsSource || undefined,
+        });
+      } else if (uploadType === "video") {
+        if (!file) throw new Error(t("upload.selectFile"));
+        const maxBytes = 3 * 1024 * 1024;
+        if (file.size > maxBytes)
+          throw new Error(t("upload.fields.videoTooLarge"));
+        const fileUrl = await uploadService.uploadToStorage(file, user.id);
+        await uploadService.saveToDatabase(workspaceId, user.id, {
+          fileUrl,
+          fileType: "video",
           location: finalLocation || undefined,
           gpsSource: gpsSource || undefined,
         });
@@ -253,7 +267,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               <FileTypeSelector
                 selectedType={uploadType}
                 onTypeChange={setUploadType}
-                types={allowedTypes}
+                types={effectiveTypes}
               />
 
               {/* 文件上传 */}
