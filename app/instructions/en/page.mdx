@@ -1,38 +1,140 @@
 # User Guide
 
-Welcome to the AR Memory platform. This guide will help you get started.
+Welcome to **AR Memory** — a platform for placing and exploring digital content anchored to real-world locations. This guide walks you through everything you need to know to get started.
 
-## Getting Started
+---
 
-1. **Log in** to your account using your email and password.
-2. From the **Home** page, choose the section you need.
+## Overview
 
-## Viewing AR Content
+AR Memory lets you attach media, stories, and information to specific places on a map. Once content is placed, anyone with access can open a map, find that location, and experience what's there — whether it's a photo, a piece of text, an audio clip, a video, or even a 3D model.
 
-- Go to **Manage** to browse all AR assets in your workspace.
-- Click on any asset card to preview it.
-- Use the **AR View** button to launch the augmented reality experience on your device.
+The platform is organized around **workspaces**. A workspace is a shared area where your team or community collects and manages content together. You may belong to one workspace or several, depending on how your organization is set up.
 
-## Uploading Assets
+---
 
-> This feature is available to editors and above.
+## How to Use the Platform
 
-1. Click **On-site Upload** from the home page.
-2. Select your workspace.
-3. Upload images, 3D models, audio, or video files.
-4. Fill in the asset name and description, then click **Save**.
+### Logging In
 
-## Workspace
+Open the app in your browser and sign in with your email and password. After signing in, you will land on the **Home** page.
 
-- All content is organized by **workspace**.
-- Use the workspace switcher in the top navigation to switch between workspaces.
-- Contact your administrator if you need access to a workspace.
+### Navigating the App
 
-## Account
+From the Home page you can reach three main areas:
 
-- To update your password, go to **Settings → Update Password**.
-- To log out, click the **Logout** button in the top navigation.
+- **Manage** — Browse, view, and edit all content in your workspace on an interactive map.
+- **On-site Upload** — Add new content to the map, typically while you are at a location.
+- **AR View** — Experience content through your device's camera in augmented reality.
 
-## Support
+Use the navigation bar at the top to move between these areas at any time.
 
-If you encounter any issues, please contact your organization administrator.
+### Switching Workspaces
+
+If you belong to more than one workspace, use the **workspace switcher** in the top navigation bar to switch between them. Each workspace has its own set of content.
+
+If you need access to a workspace that you cannot see, contact your organization administrator.
+
+### The Manage Page
+
+The Manage page is your main view of all content. It has three panels:
+
+1. **Content list (left)** — All items in your workspace. Use the search bar or tags to filter the list. Click any item to select it and see its details on the right.
+2. **Map (center)** — An interactive 3D map. Every item that has a location appears as an icon on the map. Click a map icon to highlight that item in the list. Click the **Locate** button on a list item to fly the map to that item's position.
+3. **Detail panel (right)** — Shows the selected item's name, description, preview, and other information. Editors can make changes here.
+
+The list and the map work together:
+
+- Click **Locate** in the list and the map will move to that place.
+- Click an item icon on the map and the matching item in the list will be highlighted automatically.
+- Click an empty spot on the map to choose a location manually when adding new content.
+
+While using the map, you can also adjust the view and display more easily: drag with the **middle mouse button**, or hold **Control** and drag with the **left mouse button**, to rotate the view and look at the scene from different angles. The **Reset** button in the top-right corner returns the view to its starting position, and the **Map** button in the same area lets you switch the basemap. If you are not sure which one to choose, **OpenStreetMap** works well.
+
+### On-site Upload
+
+To add something new to the map:
+
+1. Go to **On-site Upload** from the Home page.
+2. Choose your workspace.
+3. Select the type of content you want to add (see *Asset Types* below).
+4. Fill in the details and provide a location — either let the app read your device's GPS or tap a point on the map.
+5. Tap **Save** to publish the content to the map.
+
+When uploading **images, audio, or text**, you can usually choose the location in two ways: use the location information already stored in the file, or pick a location manually on the map.
+
+The platform automatically compresses uploaded assets to make saving and loading smoother. This normally does not affect the basic display or positioning of the asset.
+
+### QR Code Access
+
+On pages such as **Manage** and **On-site Upload**, once you have selected an organization, a small QR code button appears on the right side of the title bar. It stays in the top navigation area so it is easy to find when you need it.
+
+Click the button and a QR code panel will open directly below it. The QR code always matches your current workspace. If you switch to a different workspace, opening the button again will show the QR code for that new workspace. Scan it with WeChat to open the matching content more quickly.
+
+---
+
+## Asset Types
+
+Everything you place on the map is called an **asset**. AR Memory supports several types, each suited to a different kind of content.
+
+### Anchor
+
+An anchor is a named point of interest on the map. It marks a location and can carry a short description. Other assets (images, audio, text, etc.) can be linked to an anchor so that everything at one place is grouped together.
+
+Think of an anchor as a pin on the map with a title and a note.
+
+Anchors are a special asset type used to organize other assets. They appear on the map, and related assets are connected back to the anchor with red lines so the relationship is easier to understand.
+
+When uploading an anchor, you need to place its location manually on the map. Anchors are especially useful for grouping assets that belong to the same place, topic, or route.
+
+### Text
+
+A text asset displays a block of written content at a location. Use it to share a story, a historical note, an instruction, or any information that is best read as text.
+
+### Image
+
+An image asset places a photo on the map. Viewers can tap the image to see it in full size. You can also add a caption to give the image context.
+
+### Audio
+
+An audio asset places a sound clip at a location — a recorded narration, ambient sound, music, or interview. Viewers tap a play button to listen.
+
+### Link
+
+A link asset places a URL at a location. Viewers tap it to open the linked webpage. Use it to point to an external website, an article, or any online resource relevant to that place.
+
+Link upload works well for web content that can be embedded and viewed inside another page. For example, you can upload a Luma AI model link as a link asset.
+
+If you need to open the Luma AI capture management page, you can use this entry link: [https://lumalabs.ai/dashboard/captures](https://lumalabs.ai/dashboard/captures).
+
+A common workflow is to create the model in Luma AI and then copy the embed code it provides. If what you copied is a full iframe snippet, you do not need to upload the whole snippet. You only need the URL inside `src="..."`.
+
+For example, in code like this, the part you need is the link inside `src`:
+
+```html
+<iframe src="https://lumalabs.ai/embed/55b47e0e-3ed7-4d38-83ef-c34e8a08f7fe?..." width="500" height="500"></iframe>
+```
+
+So the actual value you upload is just:
+
+```text
+https://lumalabs.ai/embed/55b47e0e-3ed7-4d38-83ef-c34e8a08f7fe?...
+```
+
+### 3D Model
+
+A 3D model asset places a three-dimensional object on the map. It can be viewed on the map or experienced in augmented reality by pointing your device's camera at the location. Use it to showcase objects, sculptures, buildings, or any content that benefits from a spatial presentation.
+
+When previewing a 3D model, you can usually drag to look at it from different angles and zoom in for more detail. Some models may also play built-in motion automatically.
+
+---
+
+## Summary
+
+AR Memory connects digital content to real places. Here is a quick recap of the workflow:
+
+1. **Sign in** and select your workspace.
+2. Use **On-site Upload** to add photos, text, audio, links, anchors, or 3D models to specific locations.
+3. Open **Manage** to browse all content on the interactive map, filter by tags, and view or edit details.
+4. Use **AR View** to experience 3D models and other content through your device's camera.
+
+If you have questions or need help, reach out to your organization administrator.
