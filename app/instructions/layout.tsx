@@ -26,7 +26,9 @@ export default function InstructionsLayout({
           </Link>
         </div>
       </div>
-      <article>{children}</article>
+      <article className="prose prose-neutral dark:prose-invert max-w-none">
+        {children}
+      </article>
     </div>
   );
 }
