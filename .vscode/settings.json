@@ -6,5 +6,8 @@
   "i18n-ally.displayLanguage": "zh",
   "i18n-ally.enabledParsers": [
     "json"
-  ]
+  ],
+    "files.associations": {
+      "*.mdx": "markdown"
+  }
 }
