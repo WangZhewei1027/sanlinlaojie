@@ -3,7 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const BUCKET = "wechat-qrcodes";
-const ENV_VERSION: "develop" | "trial" | "release" = "develop";
+const ENV_VERSION: "develop" | "trial" | "release" = "release";
 const MINIPROGRAM_PAGE = "pages/index/index";
 const QR_WIDTH = 430;
 

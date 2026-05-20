@@ -39,10 +39,10 @@ locales/en.json / zh.json            # i18n 文案（workspace.qr* 键）
 
 | 场景 | 路径 |
 |------|------|
-| 仅选中组织，无工作空间 | `develop/abc-org-id__none.png` |
-| 选中组织 + 工作空间 | `develop/abc-org-id__ws-123.png` |
+| 仅选中组织，无工作空间 | `release/abc-org-id__none.png` |
+| 选中组织 + 工作空间 | `release/abc-org-id__ws-123.png` |
 
-`env_version` 当前硬编码为 `"develop"`，定义在 `app/manage/actions/wechat-qr.ts` 的常量 `ENV_VERSION`。升级到生产时改为 `"release"` 即可，旧的 `develop/` 文件不影响使用。
+`env_version` 当前硬编码为 `"release"`，定义在 `app/manage/actions/wechat-qr.ts` 的常量 `ENV_VERSION`。如果历史上生成过 `develop/` 目录下的二维码文件，它们不会自动删除，但也不会影响当前 `release/` 路径的使用。
 
 ---
 
@@ -68,7 +68,7 @@ export async function getOrCreateWorkspaceQRCode(input: {
 校验 organizationId 非空
    │
    ▼
-构建 storagePath = "develop/<orgId>__<wsId|none>.png"
+构建 storagePath = "release/<orgId>__<wsId|none>.png"
    │
    ▼
 storage.download(storagePath)
@@ -171,7 +171,7 @@ pages/index/index?organizationId=<orgId>[&workspaceId=<wsId>]
 
 ## 升级生产注意事项
 
-1. 将 `app/manage/actions/wechat-qr.ts` 中的 `ENV_VERSION` 常量改为 `"release"`。
+1. 当前二维码文件写入 `release/` 目录。
 2. 旧 `develop/` 目录下的文件不会被自动清理，可手动在 Supabase Dashboard → Storage → `wechat-qrcodes` 中删除。
 3. 若需按环境隔离更严格，可改为将 `ENV_VERSION` 读取自环境变量（如 `WECHAT_ENV_VERSION`）。
 4. 若将来需要支持"手动刷新二维码"，可在 Server Action 中增加 `force?: boolean` 参数，跳过 `download` 检查直接重新生成并以 `upsert: true` 覆盖上传。
