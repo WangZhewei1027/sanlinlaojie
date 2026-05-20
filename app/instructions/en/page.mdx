@@ -8,7 +8,21 @@ Welcome to **AR Memory** — a platform for placing and exploring digital conten
 
 AR Memory lets you attach media, stories, and information to specific places on a map. Once content is placed, anyone with access can open a map, find that location, and experience what's there — whether it's a photo, a piece of text, an audio clip, a video, or even a 3D model.
 
-The platform is organized around **workspaces**. A workspace is a shared area where your team or community collects and manages content together. You may belong to one workspace or several, depending on how your organization is set up.
+The product matrix includes three connected surfaces: the **Web Admin** for managing organizations, members, workspaces, and map content; the **Web AR** experience for viewing content in the browser through the device camera; and the **WeChat Mini Program AR** experience for QR-based, on-site GPS/AR access.
+
+These are not separate data systems. They share the same **organizations, workspaces, and asset data**. In practice, teams usually create and organize content in Web Admin, distribute a workspace through a QR code or link, and then let visitors open that same workspace in Web AR or the WeChat Mini Program AR experience.
+
+```mermaid
+flowchart LR
+	A[Web Admin] -->|Creates organizations and workspaces| B[Shared backend data]
+	A -->|Uploads and organizes assets| B
+	B -->|Distributed by QR code or link| C[Web AR]
+	B -->|Distributed by QR code or link| D[WeChat Mini Program AR]
+	C -->|Browser camera experience| E[On-site visitors]
+	D -->|QR-based GPS/AR experience| E
+```
+
+The platform is organized around **workspaces**. A workspace is a shared area where your team or community collects and manages content together, and it is also the main unit that connects all three surfaces. You may belong to one workspace or several, depending on how your organization is set up.
 
 ---
 
