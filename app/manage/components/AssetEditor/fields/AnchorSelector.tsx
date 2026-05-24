@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Anchor } from "lucide-react";
-import type { Asset } from "../../types";
+import type { Asset } from "../../../types";
 
 interface AnchorSelectorProps {
   currentAnchorId?: string | null;

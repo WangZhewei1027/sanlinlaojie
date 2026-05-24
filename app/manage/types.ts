@@ -49,6 +49,8 @@ export interface Asset {
   is_huge?: boolean | null; // 是否为大型模型（仅 model 类型）
   config?: {
     scale_multiplier?: number; // 模型缩放倍率（相对于归一化后的大小）
+    text_color?: string; // 文字颜色，十六进制 e.g. #FFFFFF（仅 text 类型）
+    text_size?: number; // 文字大小，XR-Frame size 单位（仅 text 类型）
     [key: string]: unknown;
   } | null;
   created_by?: string | null; // 创建者用户ID

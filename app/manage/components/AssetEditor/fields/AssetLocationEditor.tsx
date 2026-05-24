@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
-import { useManageStore } from "../../store";
+import { useManageStore } from "../../../store";
 
 interface LocationData {
   longitude?: number;

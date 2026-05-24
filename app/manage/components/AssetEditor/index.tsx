@@ -1,40 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { X, FileText } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Trash2, Loader2, Edit2, Save, X, FileText } from "lucide-react";
-import { useManageStore } from "../../store";
-import { isSpecificWorkspaceId } from "../../constants";
-import type { Asset } from "../../types";
-import { AssetTextEditor } from "./AssetTextEditor";
-import { AssetImagePreview } from "./AssetImagePreview";
-import { AssetAudioPreview } from "./AssetAudioPreview";
-import { AssetVideoPreview } from "./AssetVideoPreview";
-import { AssetLinkPreview } from "./AssetLinkPreview";
-import { AssetLocationEditor } from "./AssetLocationEditor";
-import { AssetMetadata } from "./AssetMetadata";
-import { AssetNameEditor } from "./AssetNameEditor";
-import { AnchorSelector } from "./AnchorSelector";
-import { AssetTagEditor } from "./AssetTagEditor";
-import { AssetCheckinPhotoEditor } from "./AssetCheckinPhotoEditor";
-import { AssetModelPreview } from "./AssetModelPreview";
-import { FileUploadService } from "@/lib/upload/service";
-import {
-  getAssetConfig,
   isFieldEditable,
   getFieldLabel,
   getFieldPlaceholder,
 } from "../../config";
+import type { Asset } from "../../types";
+import { AssetEditorDeleteDialog } from "./AssetEditorDeleteDialog";
+import { AssetEditorActions } from "./AssetEditorActions";
+import { AssetEditorModelConfigFields } from "./AssetEditorModelConfigFields";
+import { AssetEditorTextStyleFields } from "./AssetEditorTextStyleFields";
+import { useAssetEditor } from "./hooks/useAssetEditor";
+import {
+  AssetTextEditor,
+  AssetNameEditor,
+  AnchorSelector,
+  AssetTagEditor,
+  AssetLocationEditor,
+  AssetMetadata,
+} from "./fields";
+import { AssetEditorPreviewSection } from "./previews";
 
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
@@ -49,215 +38,27 @@ export function AssetEditor({
   readOnly = false,
 }: AssetEditorProps) {
   const { t } = useTranslation();
-  const selectedAssetId = useManageStore((state) => state.selectedAssetId);
-  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
-  // Treat the "All workspaces" sentinel as no specific workspace context.
-  const selectedWorkspaceId = isSpecificWorkspaceId(storeWorkspaceId)
-    ? storeWorkspaceId
-    : null;
-  const assets = useManageStore((state) => state.assets);
-  const setSelectedAssetId = useManageStore(
-    (state) => state.setSelectedAssetId,
-  );
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [checkinFile, setCheckinFile] = useState<File | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [editedData, setEditedData] = useState({
-    name: "",
-    text_content: "",
-    anchor_id: null as string | null,
-    tag_ids: [] as string[],
-    longitude: "",
-    latitude: "",
-    height: "",
-    is_huge: false,
-    scale_multiplier: "",
-  });
-
-  // 获取选中的资产
-  const selectedAsset = assets.find((a) => a.id === selectedAssetId);
-
-  // 获取当前资产类型的配置
-  const assetConfig = useMemo(() => {
-    return selectedAsset ? getAssetConfig(selectedAsset.file_type) : null;
-  }, [selectedAsset]);
-
-  // 当选中的资产变化时，重置编辑状态
-  useEffect(() => {
-    if (selectedAsset) {
-      setEditedData({
-        name: selectedAsset.name || "",
-        text_content: selectedAsset.text_content || "",
-        tag_ids: selectedAsset.tag_ids || [],
-        anchor_id: selectedAsset.anchor_id || null,
-        longitude: selectedAsset.metadata.longitude?.toString() || "",
-        latitude: selectedAsset.metadata.latitude?.toString() || "",
-        height: selectedAsset.metadata.height?.toString() || "",
-        is_huge: selectedAsset.is_huge ?? false,
-        scale_multiplier:
-          selectedAsset.config?.scale_multiplier?.toString() || "",
-      });
-      setCheckinFile(null);
-      setImageFile(null);
-      setIsEditing(false);
-    }
-  }, [selectedAsset]);
-
-  const handleSave = useCallback(async () => {
-    if (!selectedAsset || !onUpdateAsset) return;
-
-    setIsSaving(true);
-    try {
-      const updates: Partial<Asset> = {};
-
-      // 根据配置决定保存哪些字段
-      if (isFieldEditable(selectedAsset.file_type, "location")) {
-        updates.metadata = {
-          longitude: editedData.longitude
-            ? parseFloat(editedData.longitude)
-            : undefined,
-          latitude: editedData.latitude
-            ? parseFloat(editedData.latitude)
-            : undefined,
-          height: editedData.height ? parseFloat(editedData.height) : undefined,
-        };
-      }
-
-      // 图片类型：如果选择了新图片，先上传再更新 file_url
-      if (assetConfig?.previewType === "image" && imageFile) {
-        const uploadService = new FileUploadService();
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          const processed = await uploadService.processFile(imageFile);
-          const newFileUrl = await uploadService.uploadToStorage(
-            processed.file,
-            user.id,
-          );
-          updates.file_url = newFileUrl;
-        }
-      }
-
-      // shop 类型：如果选择了新的打卡凭证照片，先上传再将 URL 写入 metadata
-      if (selectedAsset.file_type === "shop" && checkinFile) {
-        const uploadService = new FileUploadService();
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          const processed = await uploadService.processFile(checkinFile);
-          const checkinUrl = await uploadService.uploadToStorage(
-            processed.file,
-            user.id,
-          );
-          updates.metadata = {
-            ...updates.metadata,
-            checkin_url: checkinUrl,
-          };
-        }
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "name")) {
-        updates.name = editedData.name;
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "text_content")) {
-        updates.text_content = editedData.text_content;
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "anchor_id")) {
-        updates.anchor_id = editedData.anchor_id;
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "tag_ids")) {
-        updates.tag_ids = editedData.tag_ids;
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "is_huge")) {
-        updates.is_huge = editedData.is_huge;
-      }
-
-      if (isFieldEditable(selectedAsset.file_type, "scale_multiplier")) {
-        const parsed = parseFloat(editedData.scale_multiplier);
-        updates.config = {
-          ...selectedAsset.config,
-          scale_multiplier:
-            editedData.scale_multiplier === ""
-              ? undefined
-              : isNaN(parsed)
-                ? undefined
-                : parsed,
-        };
-      }
-
-      await onUpdateAsset(selectedAsset.id, updates);
-      setIsEditing(false);
-    } catch (error) {
-      console.error("保存失败:", error);
-      alert(t("assetEditor.saveFailed"));
-    } finally {
-      setIsSaving(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  const {
     selectedAsset,
-    editedData,
-    imageFile,
-    checkinFile,
     assetConfig,
-    onUpdateAsset,
-  ]);
-
-  const handleCancel = useCallback(() => {
-    if (selectedAsset) {
-      setEditedData({
-        tag_ids: selectedAsset.tag_ids || [],
-        name: selectedAsset.name || "",
-        text_content: selectedAsset.text_content || "",
-        anchor_id: selectedAsset.anchor_id || null,
-        longitude: selectedAsset.metadata.longitude?.toString() || "",
-        latitude: selectedAsset.metadata.latitude?.toString() || "",
-        height: selectedAsset.metadata.height?.toString() || "",
-        is_huge: selectedAsset.is_huge ?? false,
-        scale_multiplier:
-          selectedAsset.config?.scale_multiplier?.toString() || "",
-      });
-      setCheckinFile(null);
-      setImageFile(null);
-    }
-    setIsEditing(false);
-  }, [selectedAsset]);
-
-  const handleDelete = useCallback(async () => {
-    if (!selectedAsset || !onDeleteAsset) return;
-
-    setIsDeleting(true);
-    try {
-      await onDeleteAsset(selectedAsset.id);
-      setShowDeleteDialog(false);
-      setSelectedAssetId(null);
-    } catch (error) {
-      console.error("删除失败:", error);
-      alert(t("assetEditor.deleteFailed"));
-    } finally {
-      setIsDeleting(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAsset, onDeleteAsset, setSelectedAssetId]);
-
-  const handleClose = useCallback(() => {
-    setSelectedAssetId(null);
-    setIsEditing(false);
-  }, [setSelectedAssetId]);
+    selectedWorkspaceId,
+    editedData,
+    setEditedData,
+    isEditing,
+    setIsEditing,
+    isSaving,
+    isDeleting,
+    showDeleteDialog,
+    setShowDeleteDialog,
+    checkinFile,
+    setCheckinFile,
+    imageFile,
+    setImageFile,
+    handleSave,
+    handleCancel,
+    handleDelete,
+    handleClose,
+  } = useAssetEditor({ onUpdateAsset, onDeleteAsset });
 
   if (!selectedAsset) {
     return (
@@ -272,54 +73,19 @@ export function AssetEditor({
     );
   }
 
-  // 获取显示名称
-  const getDisplayName = () => {
-    if (selectedAsset.file_type === "anchor" && selectedAsset.name) {
-      return selectedAsset.name;
-    }
-    return selectedAsset.file_url?.split("/").pop() || t("assetEditor.unnamed");
-  };
-
-  const fileName = getDisplayName();
+  const fileName =
+    selectedAsset.file_type === "anchor" && selectedAsset.name
+      ? selectedAsset.name
+      : selectedAsset.file_url?.split("/").pop() || t("assetEditor.unnamed");
 
   return (
     <>
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("assetEditor.deleteConfirm")}</DialogTitle>
-            <DialogDescription>
-              {t("assetEditor.deleteWarning")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={isDeleting}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  {t("assetEditor.deleting")}
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {t("common.delete")}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AssetEditorDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+      />
 
       <Card className="overflow-hidden">
         {/* 头部 */}
@@ -342,59 +108,21 @@ export function AssetEditor({
           </Button>
         </div>
 
-        {/* 编辑内容 */}
         <div className="p-4 space-y-4">
-          {/* 操作按钮 - viewer 只读时隐藏 */}
+          {/* 操作按钮 */}
           {!readOnly && (
-            <div className="flex justify-between gap-2">
-              {onDeleteAsset && !isEditing && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {t("common.delete")}
-                </Button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                {!isEditing ? (
-                  <Button size="sm" onClick={() => setIsEditing(true)}>
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    {t("common.edit")}
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCancel}
-                      disabled={isSaving}
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      {t("common.cancel")}
-                    </Button>
-                    <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          {t("assetEditor.saving")}
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-1" />
-                          {t("common.save")}
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
+            <AssetEditorActions
+              isEditing={isEditing}
+              isSaving={isSaving}
+              canDelete={!!onDeleteAsset}
+              onEditStart={() => setIsEditing(true)}
+              onSave={handleSave}
+              onCancel={handleCancel}
+              onDeleteRequest={() => setShowDeleteDialog(true)}
+            />
           )}
 
-          {/* 锁点名称编辑 - viewer 只读时隐藏 */}
+          {/* 名称 */}
           {!readOnly && isFieldEditable(selectedAsset.file_type, "name") && (
             <AssetNameEditor
               name={selectedAsset.name}
@@ -418,7 +146,7 @@ export function AssetEditor({
             />
           )}
 
-          {/* 文本内容编辑 - 用于 anchor 类型的描述，viewer 只读时隐藏 */}
+          {/* 文本内容（anchor 类型的描述） */}
           {!readOnly &&
             isFieldEditable(selectedAsset.file_type, "text_content") &&
             assetConfig?.previewType === "anchor" && (
@@ -460,7 +188,7 @@ export function AssetEditor({
               </div>
             )}
 
-          {/* 文本内容编辑 - 用于 text 类型，viewer 只读时隐藏 */}
+          {/* 文本内容（非 anchor 类型） */}
           {!readOnly &&
             isFieldEditable(selectedAsset.file_type, "text_content") &&
             assetConfig?.previewType !== "anchor" && (
@@ -488,64 +216,21 @@ export function AssetEditor({
               />
             )}
 
-          {/* 图片预览 */}
-          {assetConfig?.previewType === "image" && selectedAsset.file_url && (
-            <AssetImagePreview
-              fileUrl={selectedAsset.file_url}
-              fileName={fileName}
-              isEditing={isEditing}
-              newImageFile={imageFile}
-              onFileSelect={setImageFile}
-              onFileRemove={() => setImageFile(null)}
-            />
-          )}
+          {/* 预览区 */}
+          <AssetEditorPreviewSection
+            asset={selectedAsset}
+            assetConfig={assetConfig}
+            fileName={fileName}
+            isEditing={isEditing}
+            imageFile={imageFile}
+            checkinFile={checkinFile}
+            onImageFileSelect={setImageFile}
+            onImageFileRemove={() => setImageFile(null)}
+            onCheckinFileSelect={setCheckinFile}
+            onCheckinFileRemove={() => setCheckinFile(null)}
+          />
 
-          {/* shop 类型：打卡凭证照片 */}
-          {selectedAsset.file_type === "shop" && (
-            <AssetCheckinPhotoEditor
-              checkinUrl={selectedAsset.metadata.checkin_url}
-              checkinFile={checkinFile}
-              isEditing={isEditing}
-              onFileSelect={setCheckinFile}
-              onFileRemove={() => setCheckinFile(null)}
-            />
-          )}
-
-          {/* 音频预览 */}
-          {assetConfig?.previewType === "audio" && selectedAsset.file_url && (
-            <AssetAudioPreview
-              key={selectedAsset.file_url}
-              fileUrl={selectedAsset.file_url}
-              fileName={fileName}
-            />
-          )}
-
-          {/* 视频预览 */}
-          {assetConfig?.previewType === "video" && selectedAsset.file_url && (
-            <AssetVideoPreview
-              key={selectedAsset.file_url}
-              fileUrl={selectedAsset.file_url}
-              fileName={fileName}
-            />
-          )}
-
-          {/* 链接预览 */}
-          {assetConfig?.previewType === "link" && selectedAsset.file_url && (
-            <AssetLinkPreview
-              fileUrl={selectedAsset.file_url}
-              fileName={fileName}
-            />
-          )}
-
-          {/* 3D 模型预览 */}
-          {assetConfig?.previewType === "model" && selectedAsset.file_url && (
-            <AssetModelPreview
-              fileUrl={selectedAsset.file_url}
-              fileName={fileName}
-            />
-          )}
-
-          {/* 锚点关联 - viewer 只读时隐藏 */}
+          {/* 锚点关联 */}
           {!readOnly &&
             isFieldEditable(selectedAsset.file_type, "anchor_id") &&
             selectedWorkspaceId && (
@@ -561,7 +246,7 @@ export function AssetEditor({
               />
             )}
 
-          {/* 标签编辑 - viewer 只读时隐藏 */}
+          {/* 标签 */}
           {!readOnly &&
             isFieldEditable(selectedAsset.file_type, "tag_ids") &&
             selectedWorkspaceId && (
@@ -575,7 +260,7 @@ export function AssetEditor({
               />
             )}
 
-          {/* 位置信息编辑 - viewer 只读时隐藏 */}
+          {/* 位置 */}
           {!readOnly &&
             isFieldEditable(selectedAsset.file_type, "location") && (
               <AssetLocationEditor
@@ -596,72 +281,39 @@ export function AssetEditor({
               />
             )}
 
-          {/* is_huge 字段 - 仅 model 类型可编辑，viewer 只读时隐藏 */}
-          {!readOnly && isFieldEditable(selectedAsset.file_type, "is_huge") && (
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_huge"
-                checked={
-                  isEditing
-                    ? editedData.is_huge
-                    : (selectedAsset.is_huge ?? false)
-                }
-                onChange={(e) =>
-                  setEditedData({ ...editedData, is_huge: e.target.checked })
-                }
-                disabled={!isEditing}
-                className="h-4 w-4 rounded border-input accent-primary disabled:opacity-50"
-              />
-              <label
-                htmlFor="is_huge"
-                className="text-sm font-medium leading-none"
-              >
-                {t(
-                  getFieldLabel(
-                    selectedAsset.file_type,
-                    "is_huge",
-                    "assetEditor.fields.isHuge",
-                  ),
-                )}
-              </label>
-            </div>
+          {/* 模型配置（is_huge, scale_multiplier） */}
+          {!readOnly && (
+            <AssetEditorModelConfigFields
+              asset={selectedAsset}
+              isEditing={isEditing}
+              isHuge={editedData.is_huge}
+              scaleMultiplier={editedData.scale_multiplier}
+              onIsHugeChange={(value) =>
+                setEditedData({ ...editedData, is_huge: value })
+              }
+              onScaleMultiplierChange={(value) =>
+                setEditedData({ ...editedData, scale_multiplier: value })
+              }
+            />
           )}
 
-          {/* scale_multiplier 字段 - 仅 model 类型可编辑，viewer 只读时隐藏 */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "scale_multiplier") && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t("assetEditor.fields.scaleMultiplier")}
-                </label>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.01"
-                    value={editedData.scale_multiplier}
-                    onChange={(e) =>
-                      setEditedData({
-                        ...editedData,
-                        scale_multiplier: e.target.value,
-                      })
-                    }
-                    placeholder={t(
-                      "assetEditor.fields.scaleMultiplierPlaceholder",
-                    )}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
-                ) : (
-                  <p className="text-sm p-3 bg-background rounded-md">
-                    {selectedAsset.config?.scale_multiplier ??
-                      t("assetEditor.fields.scaleMultiplierDefault")}
-                  </p>
-                )}
-              </div>
-            )}
+          {/* 文字样式（text_color, text_size） */}
+          {!readOnly && (
+            <AssetEditorTextStyleFields
+              asset={selectedAsset}
+              isEditing={isEditing}
+              textColor={editedData.text_color}
+              textSize={editedData.text_size}
+              onTextColorChange={(value) =>
+                setEditedData({ ...editedData, text_color: value })
+              }
+              onTextSizeChange={(value) =>
+                setEditedData({ ...editedData, text_size: value })
+              }
+            />
+          )}
 
-          {/* 元数据和资产ID - viewer 只读时隐藏 */}
+          {/* 元数据 */}
           {!readOnly && (
             <AssetMetadata
               metadata={selectedAsset.metadata}

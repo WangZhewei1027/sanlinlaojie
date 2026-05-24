@@ -11,7 +11,9 @@ export type EditableField =
   | "tag_ids" // 标签
   | "location" // 位置信息（longitude, latitude, height）
   | "is_huge" // 是否为大型模型（仅 model 类型）
-  | "scale_multiplier"; // 模型缩放倍率（仅 model 类型）
+  | "scale_multiplier" // 模型缩放倍率（仅 model 类型）
+  | "text_color" // 文字颜色（仅 text 类型）
+  | "text_size"; // 文字大小（仅 text 类型）
 
 // 预览组件类型
 export type PreviewType =
@@ -69,6 +71,8 @@ export const assetFieldConfig: AssetFieldConfigMap = {
       "anchor_id",
       "tag_ids",
       "location",
+      "text_color",
+      "text_size",
     ],
     previewType: "text",
     fieldLabels: {

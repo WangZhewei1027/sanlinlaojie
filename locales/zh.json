@@ -608,7 +608,12 @@
       "assetId": "ID:",
       "scaleMultiplier": "缩放倍率",
       "scaleMultiplierPlaceholder": "例如 1.0（默认），2.0 放大两倍",
-      "scaleMultiplierDefault": "1.0（默认）"
+      "scaleMultiplierDefault": "1.0（默认）",
+      "textColor": "文字颜色",
+      "textColorDefault": "#ffffff（默认）",
+      "textSize": "文字大小",
+      "textSizePlaceholder": "例如 1.5（默认）",
+      "textSizeDefault": "1.5（默认）"
     },
     "preview": {
       "image": "图片预览",

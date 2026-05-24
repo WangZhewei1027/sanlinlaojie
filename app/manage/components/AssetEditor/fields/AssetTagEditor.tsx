@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, X, Edit2, Trash2, Loader2 } from "lucide-react";
-import type { Tag } from "../../types";
+import type { Tag } from "../../../types";
 
 interface AssetTagEditorProps {
   tagIds?: string[] | null;
