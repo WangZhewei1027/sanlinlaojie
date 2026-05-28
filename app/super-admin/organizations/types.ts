@@ -14,6 +14,7 @@ export interface MemberData {
 export interface OrgConfig {
   confetti_enabled?: boolean;
   shop_checkin_enabled?: boolean;
+  footer_enabled?: boolean;
   text_asset_miniapp_style?: TextAssetMiniappStyle;
 }
 

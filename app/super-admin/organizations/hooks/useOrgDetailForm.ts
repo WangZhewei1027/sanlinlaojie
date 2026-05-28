@@ -32,6 +32,9 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
   const [shopCheckinEnabled, setShopCheckinEnabled] = useState<boolean>(
     org.config?.shop_checkin_enabled ?? false,
   );
+  const [footerEnabled, setFooterEnabled] = useState<boolean>(
+    org.config?.footer_enabled ?? false,
+  );
   const [saveError, setSaveError] = useState("");
 
   const hasChanged =
@@ -45,7 +48,8 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
       ((org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
         "plain_white") ||
     confettiEnabled !== (org.config?.confetti_enabled ?? false) ||
-    shopCheckinEnabled !== (org.config?.shop_checkin_enabled ?? false);
+    shopCheckinEnabled !== (org.config?.shop_checkin_enabled ?? false) ||
+    footerEnabled !== (org.config?.footer_enabled ?? false);
 
   const toggleFileType = (type: string) => {
     setFileTypes((prev) => {
@@ -80,6 +84,7 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
           text_asset_miniapp_style: textAssetMiniappStyle,
           confetti_enabled: confettiEnabled,
           shop_checkin_enabled: shopCheckinEnabled,
+          footer_enabled: footerEnabled,
         },
       });
       if (result.error) {
@@ -107,6 +112,8 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     setConfettiEnabled,
     shopCheckinEnabled,
     setShopCheckinEnabled,
+    footerEnabled,
+    setFooterEnabled,
     saveError,
     hasChanged,
     handleSave,

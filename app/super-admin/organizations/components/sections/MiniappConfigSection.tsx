@@ -11,6 +11,8 @@ interface MiniappConfigSectionProps {
   setConfettiEnabled: (v: boolean) => void;
   shopCheckinEnabled: boolean;
   setShopCheckinEnabled: (v: boolean) => void;
+  footerEnabled: boolean;
+  setFooterEnabled: (v: boolean) => void;
 }
 
 export function MiniappConfigSection({
@@ -18,6 +20,8 @@ export function MiniappConfigSection({
   setConfettiEnabled,
   shopCheckinEnabled,
   setShopCheckinEnabled,
+  footerEnabled,
+  setFooterEnabled,
 }: MiniappConfigSectionProps) {
   const { t } = useTranslation();
 
@@ -65,6 +69,24 @@ export function MiniappConfigSection({
             {t(
               "superAdmin.orgs.miniappConfig.shopCheckinDesc",
               "Show the shop check-in module in the mini program",
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="footer-enabled"
+          checked={footerEnabled}
+          onCheckedChange={(v) => setFooterEnabled(v === true)}
+        />
+        <div className="space-y-0.5">
+          <Label htmlFor="footer-enabled" className="text-sm cursor-pointer">
+            {t("superAdmin.orgs.miniappConfig.footer", "Footer Logo")}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "superAdmin.orgs.miniappConfig.footerDesc",
+              "Show the footer logo on the mini program home page",
             )}
           </p>
         </div>

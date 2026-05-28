@@ -234,7 +234,9 @@
         "confetti": "Confetti Effect",
         "confettiDesc": "Show confetti ribbons in the mini program",
         "shopCheckin": "Shop Check-in",
-        "shopCheckinDesc": "Show the shop check-in module in the mini program"
+        "shopCheckinDesc": "Show the shop check-in module in the mini program",
+        "footer": "Watermark Logo",
+        "footerDesc": "Show the watermark logo in the mini program"
       }
     }
   },

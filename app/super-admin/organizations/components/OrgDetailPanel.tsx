@@ -41,6 +41,8 @@ export function OrgDetailPanel({
     setConfettiEnabled,
     shopCheckinEnabled,
     setShopCheckinEnabled,
+    footerEnabled,
+    setFooterEnabled,
     saveError,
     hasChanged,
     handleSave,
@@ -88,6 +90,8 @@ export function OrgDetailPanel({
           setConfettiEnabled={setConfettiEnabled}
           shopCheckinEnabled={shopCheckinEnabled}
           setShopCheckinEnabled={setShopCheckinEnabled}
+          footerEnabled={footerEnabled}
+          setFooterEnabled={setFooterEnabled}
         />
 
         <div className="border-t" />

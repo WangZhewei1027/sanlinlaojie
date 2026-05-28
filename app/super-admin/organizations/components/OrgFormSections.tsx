@@ -19,6 +19,8 @@ interface OrgFormSectionsProps {
   setConfettiEnabled: (v: boolean) => void;
   shopCheckinEnabled: boolean;
   setShopCheckinEnabled: (v: boolean) => void;
+  footerEnabled: boolean;
+  setFooterEnabled: (v: boolean) => void;
 }
 
 export function OrgFormSections({
@@ -34,6 +36,8 @@ export function OrgFormSections({
   setConfettiEnabled,
   shopCheckinEnabled,
   setShopCheckinEnabled,
+  footerEnabled,
+  setFooterEnabled,
 }: OrgFormSectionsProps) {
   return (
     <>
@@ -55,6 +59,8 @@ export function OrgFormSections({
         setConfettiEnabled={setConfettiEnabled}
         shopCheckinEnabled={shopCheckinEnabled}
         setShopCheckinEnabled={setShopCheckinEnabled}
+        footerEnabled={footerEnabled}
+        setFooterEnabled={setFooterEnabled}
       />
     </>
   );
