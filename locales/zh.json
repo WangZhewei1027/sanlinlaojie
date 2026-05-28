@@ -232,7 +232,9 @@
       },
       "miniappConfig": {
         "confetti": "彩带效果",
-        "confettiDesc": "在小程序中显示彩带动画"
+        "confettiDesc": "在小程序中显示彩带动画",
+        "shopCheckin": "店铺打卡",
+        "shopCheckinDesc": "在小程序中显示打卡店铺模块"
       }
     }
   },

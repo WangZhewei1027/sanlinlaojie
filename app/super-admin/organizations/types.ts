@@ -1,3 +1,5 @@
+import type { TextAssetMiniappStyle } from "@/app/manage/types";
+
 export interface MemberData {
   id: string;
   role: string;
@@ -11,6 +13,8 @@ export interface MemberData {
 
 export interface OrgConfig {
   confetti_enabled?: boolean;
+  shop_checkin_enabled?: boolean;
+  text_asset_miniapp_style?: TextAssetMiniappStyle;
 }
 
 export interface OrgData {
@@ -22,6 +26,5 @@ export interface OrgData {
   organization_member: MemberData[];
   map_center: { lat: number; lng: number } | null;
   allowed_file_types: string[] | null;
-  text_asset_miniapp_style?: string;
   config?: OrgConfig | null;
 }

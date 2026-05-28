@@ -17,6 +17,8 @@ interface OrgFormSectionsProps {
   setTextAssetMiniappStyle: (v: TextAssetMiniappStyle) => void;
   confettiEnabled: boolean;
   setConfettiEnabled: (v: boolean) => void;
+  shopCheckinEnabled: boolean;
+  setShopCheckinEnabled: (v: boolean) => void;
 }
 
 export function OrgFormSections({
@@ -30,6 +32,8 @@ export function OrgFormSections({
   setTextAssetMiniappStyle,
   confettiEnabled,
   setConfettiEnabled,
+  shopCheckinEnabled,
+  setShopCheckinEnabled,
 }: OrgFormSectionsProps) {
   return (
     <>
@@ -49,6 +53,8 @@ export function OrgFormSections({
       <MiniappConfigSection
         confettiEnabled={confettiEnabled}
         setConfettiEnabled={setConfettiEnabled}
+        shopCheckinEnabled={shopCheckinEnabled}
+        setShopCheckinEnabled={setShopCheckinEnabled}
       />
     </>
   );

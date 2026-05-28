@@ -9,11 +9,15 @@ import { SectionHeader } from "../SectionHeader";
 interface MiniappConfigSectionProps {
   confettiEnabled: boolean;
   setConfettiEnabled: (v: boolean) => void;
+  shopCheckinEnabled: boolean;
+  setShopCheckinEnabled: (v: boolean) => void;
 }
 
 export function MiniappConfigSection({
   confettiEnabled,
   setConfettiEnabled,
+  shopCheckinEnabled,
+  setShopCheckinEnabled,
 }: MiniappConfigSectionProps) {
   const { t } = useTranslation();
 
@@ -40,6 +44,27 @@ export function MiniappConfigSection({
             {t(
               "superAdmin.orgs.miniappConfig.confettiDesc",
               "Show confetti ribbons in the mini program",
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="shop-checkin-enabled"
+          checked={shopCheckinEnabled}
+          onCheckedChange={(v) => setShopCheckinEnabled(v === true)}
+        />
+        <div className="space-y-0.5">
+          <Label
+            htmlFor="shop-checkin-enabled"
+            className="text-sm cursor-pointer"
+          >
+            {t("superAdmin.orgs.miniappConfig.shopCheckin", "Shop Check-in")}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "superAdmin.orgs.miniappConfig.shopCheckinDesc",
+              "Show the shop check-in module in the mini program",
             )}
           </p>
         </div>

@@ -39,6 +39,8 @@ export function OrgDetailPanel({
     setTextAssetMiniappStyle,
     confettiEnabled,
     setConfettiEnabled,
+    shopCheckinEnabled,
+    setShopCheckinEnabled,
     saveError,
     hasChanged,
     handleSave,
@@ -84,6 +86,8 @@ export function OrgDetailPanel({
           setTextAssetMiniappStyle={setTextAssetMiniappStyle}
           confettiEnabled={confettiEnabled}
           setConfettiEnabled={setConfettiEnabled}
+          shopCheckinEnabled={shopCheckinEnabled}
+          setShopCheckinEnabled={setShopCheckinEnabled}
         />
 
         <div className="border-t" />

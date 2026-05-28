@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 const VALID_MINIAPP_STYLES = ["plain_white", "dialog_decorated"] as const;
-export type TextAssetMiniappStyleValue = (typeof VALID_MINIAPP_STYLES)[number];
 
 import type { OrgConfig } from "./types";
 
@@ -13,7 +12,6 @@ interface UpdateOrgPayload {
   description?: string | null;
   map_center?: { lat: number; lng: number } | null;
   allowed_file_types?: string[] | null;
-  text_asset_miniapp_style?: TextAssetMiniappStyleValue;
   config?: OrgConfig;
 }
 
@@ -40,14 +38,18 @@ export async function updateOrganization(
 ): Promise<{ error?: string }> {
   try {
     const supabase = await requireSuperAdmin();
-    const safePayload: Omit<UpdateOrgPayload, "text_asset_miniapp_style"> & {
-      text_asset_miniapp_style?: string;
-    } = { ...payload };
-    if (
-      payload.text_asset_miniapp_style !== undefined &&
-      !VALID_MINIAPP_STYLES.includes(payload.text_asset_miniapp_style)
-    ) {
-      delete safePayload.text_asset_miniapp_style;
+    const safePayload = { ...payload };
+    if (safePayload.config) {
+      const safeConfig = { ...safePayload.config };
+      if (
+        safeConfig.text_asset_miniapp_style !== undefined &&
+        !VALID_MINIAPP_STYLES.includes(
+          safeConfig.text_asset_miniapp_style as (typeof VALID_MINIAPP_STYLES)[number],
+        )
+      ) {
+        delete safeConfig.text_asset_miniapp_style;
+      }
+      safePayload.config = safeConfig;
     }
     const { error } = await supabase
       .from("organization")

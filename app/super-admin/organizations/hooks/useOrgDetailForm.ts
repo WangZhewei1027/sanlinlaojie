@@ -23,10 +23,14 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
   );
   const [textAssetMiniappStyle, setTextAssetMiniappStyle] =
     useState<TextAssetMiniappStyle>(
-      (org.text_asset_miniapp_style as TextAssetMiniappStyle) ?? "plain_white",
+      (org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
+        "plain_white",
     );
   const [confettiEnabled, setConfettiEnabled] = useState<boolean>(
     org.config?.confetti_enabled ?? false,
+  );
+  const [shopCheckinEnabled, setShopCheckinEnabled] = useState<boolean>(
+    org.config?.shop_checkin_enabled ?? false,
   );
   const [saveError, setSaveError] = useState("");
 
@@ -38,9 +42,10 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     JSON.stringify([...fileTypes].sort()) !==
       JSON.stringify([...(org.allowed_file_types ?? ALL_FILE_TYPES)].sort()) ||
     textAssetMiniappStyle !==
-      ((org.text_asset_miniapp_style as TextAssetMiniappStyle) ??
+      ((org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
         "plain_white") ||
-    confettiEnabled !== (org.config?.confetti_enabled ?? false);
+    confettiEnabled !== (org.config?.confetti_enabled ?? false) ||
+    shopCheckinEnabled !== (org.config?.shop_checkin_enabled ?? false);
 
   const toggleFileType = (type: string) => {
     setFileTypes((prev) => {
@@ -71,8 +76,11 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
         description: description.trim() || null,
         map_center: mapCenter,
         allowed_file_types: allSelected ? null : selectedTypes,
-        text_asset_miniapp_style: textAssetMiniappStyle,
-        config: { confetti_enabled: confettiEnabled },
+        config: {
+          text_asset_miniapp_style: textAssetMiniappStyle,
+          confetti_enabled: confettiEnabled,
+          shop_checkin_enabled: shopCheckinEnabled,
+        },
       });
       if (result.error) {
         setSaveError(result.error);
@@ -97,6 +105,8 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     setTextAssetMiniappStyle,
     confettiEnabled,
     setConfettiEnabled,
+    shopCheckinEnabled,
+    setShopCheckinEnabled,
     saveError,
     hasChanged,
     handleSave,

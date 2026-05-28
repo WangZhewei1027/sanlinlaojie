@@ -71,16 +71,9 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, description, text_asset_miniapp_style } = body;
+    const { name, description } = body;
 
-    const VALID_MINIAPP_STYLES = ["plain_white", "dialog_decorated"];
     const updatePayload: Record<string, unknown> = { name, description };
-    if (
-      text_asset_miniapp_style !== undefined &&
-      VALID_MINIAPP_STYLES.includes(text_asset_miniapp_style)
-    ) {
-      updatePayload.text_asset_miniapp_style = text_asset_miniapp_style;
-    }
 
     const { data, error } = await supabase
       .from("organization")
