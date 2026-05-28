@@ -174,25 +174,34 @@ export function useWorkspace(
 
   // Re-initialize when auth state changes (login/logout)
   const initializedRef = useRef(false);
+  const lastUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    lastUserIdRef.current = userId;
+  }, [userId]);
+
   useEffect(() => {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       // Skip the initial INITIAL_SESSION event to avoid double-fetching
       if (!initializedRef.current) {
         initializedRef.current = true;
         return;
       }
-      if (
-        event === "SIGNED_IN" ||
-        event === "SIGNED_OUT" ||
-        event === "TOKEN_REFRESHED"
-      ) {
+      const nextUserId = session?.user?.id ?? null;
+      const userChanged = nextUserId !== lastUserIdRef.current;
+
+      if (event === "SIGNED_OUT" || (event === "SIGNED_IN" && userChanged)) {
+        // Real auth transition: reload org/workspace data.
         setLoading(true);
         setError(null);
         initializeUser();
       }
+      // TOKEN_REFRESHED / same-user SIGNED_IN / USER_UPDATED: do nothing.
+      // Token rotation doesn't change org membership; server APIs enforce
+      // permission on every request. Avoid silent re-init to prevent
+      // cascading re-renders (workspace flip-flop, asset refetch).
     });
 
     return () => subscription.unsubscribe();
