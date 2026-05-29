@@ -19,7 +19,7 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     org.map_center?.lng != null ? String(org.map_center.lng) : "",
   );
   const [fileTypes, setFileTypes] = useState<Set<string>>(
-    new Set(org.allowed_file_types ?? ALL_FILE_TYPES),
+    new Set(org.allowed_file_types ?? []),
   );
   const [textAssetMiniappStyle, setTextAssetMiniappStyle] =
     useState<TextAssetMiniappStyle>(
@@ -43,7 +43,7 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
     lat !== (org.map_center?.lat != null ? String(org.map_center.lat) : "") ||
     lng !== (org.map_center?.lng != null ? String(org.map_center.lng) : "") ||
     JSON.stringify([...fileTypes].sort()) !==
-      JSON.stringify([...(org.allowed_file_types ?? ALL_FILE_TYPES)].sort()) ||
+      JSON.stringify([...(org.allowed_file_types ?? [])].sort()) ||
     textAssetMiniappStyle !==
       ((org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
         "plain_white") ||
