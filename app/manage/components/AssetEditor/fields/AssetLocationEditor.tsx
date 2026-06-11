@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
-import { MapPin } from "lucide-react";
 import { useManageStore } from "../../../store";
+import { FieldLabel } from "../FieldLabel";
 
 interface LocationData {
   longitude?: number;
@@ -49,13 +49,10 @@ export function AssetLocationEditor({
 
   return (
     <div className="space-y-3">
-      <label className="text-sm font-medium flex items-center gap-2">
-        <MapPin className="h-4 w-4" />
-        {t("assetEditor.fields.location")}
-      </label>
+      <FieldLabel>{t("assetEditor.fields.location")}</FieldLabel>
       <div className="grid grid-cols-3 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">
+          <label className="text-[11px] text-muted-foreground">
             {t("assetEditor.fields.longitude")}
           </label>
           {isEditing ? (
@@ -67,13 +64,13 @@ export function AssetLocationEditor({
               className="text-sm"
             />
           ) : (
-            <p className="text-sm p-2 bg-background rounded-md">
+            <p className="text-sm p-2 bg-muted/40 rounded-md">
               {metadata.longitude?.toFixed(6) ?? "N/A"}
             </p>
           )}
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">
+          <label className="text-[11px] text-muted-foreground">
             {t("assetEditor.fields.latitude")}
           </label>
           {isEditing ? (
@@ -85,13 +82,13 @@ export function AssetLocationEditor({
               className="text-sm"
             />
           ) : (
-            <p className="text-sm p-2 bg-background rounded-md">
+            <p className="text-sm p-2 bg-muted/40 rounded-md">
               {metadata.latitude?.toFixed(6) ?? "N/A"}
             </p>
           )}
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">
+          <label className="text-[11px] text-muted-foreground">
             {t("assetEditor.fields.height")}
           </label>
           {isEditing ? (
@@ -103,7 +100,7 @@ export function AssetLocationEditor({
               className="text-sm"
             />
           ) : (
-            <p className="text-sm p-2 bg-background rounded-md">
+            <p className="text-sm p-2 bg-muted/40 rounded-md">
               {metadata.height?.toFixed(2) ?? "N/A"}
             </p>
           )}

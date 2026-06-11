@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { FieldLabel } from "../FieldLabel";
 
 interface AssetNameEditorProps {
   name?: string | null;
@@ -22,9 +23,7 @@ export function AssetNameEditor({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">
-        {label || t("assetEditor.fields.name")}
-      </label>
+      <FieldLabel>{label || t("assetEditor.fields.name")}</FieldLabel>
       {isEditing ? (
         <Input
           value={editedName}
@@ -33,7 +32,7 @@ export function AssetNameEditor({
           className="text-sm"
         />
       ) : (
-        <p className="text-sm p-3 bg-background rounded-md">
+        <p className="text-sm p-3 bg-muted/40 rounded-md">
           {name || t("assetEditor.unnamed")}
         </p>
       )}

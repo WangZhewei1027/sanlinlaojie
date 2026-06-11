@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Anchor } from "lucide-react";
 import type { Asset } from "../../../types";
+import { FieldLabel } from "../FieldLabel";
 
 interface AnchorSelectorProps {
   currentAnchorId?: string | null;
@@ -34,14 +35,14 @@ export function AnchorSelector({
       setLoading(true);
       try {
         const response = await fetch(
-          `/api/workspaces/${workspaceId}/assets?type=anchor`
+          `/api/workspaces/${workspaceId}/assets?type=anchor`,
         );
         const result = await response.json();
 
         if (response.ok) {
           // 只获取 anchor 类型的资源
           const anchorAssets = (result.data || []).filter(
-            (asset: Asset) => asset.file_type === "anchor"
+            (asset: Asset) => asset.file_type === "anchor",
           );
           setAnchors(anchorAssets);
         }
@@ -66,10 +67,7 @@ export function AnchorSelector({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium flex items-center gap-2">
-        <Anchor className="h-4 w-4 text-amber-600" />
-        {t("assetEditor.anchor.title")}
-      </label>
+      <FieldLabel>{t("assetEditor.anchor.title")}</FieldLabel>
       {isEditing ? (
         <Select
           value={currentAnchorId || "none"}

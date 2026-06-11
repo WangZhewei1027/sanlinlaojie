@@ -4,7 +4,7 @@ Follow these guidelines when generating code or content strictly:
 
 ## Tech Stack
 
-Next.js + Supabase + OpenStreetMap + CesiumJS + WebAR（Zappar）
+Next.js + Supabase + OpenStreetMap + CesiumJS
 
 ShadcnUI + TailwindCSS
 

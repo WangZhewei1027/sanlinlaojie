@@ -13,10 +13,10 @@ export function AssetMetadata({ metadata, assetId }: AssetMetadataProps) {
       {/* 元数据 */}
       <div className="space-y-2">
         <details className="cursor-pointer">
-          <summary className="text-sm font-medium hover:text-foreground transition-colors">
+          <summary className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             {t("assetEditor.fields.metadata")}
           </summary>
-          <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto text-xs">
+          <pre className="mt-2 p-3 bg-muted/40 rounded-md overflow-x-auto text-xs">
             {JSON.stringify(metadata, null, 2)}
           </pre>
         </details>

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLabel } from "../FieldLabel";
 
 interface AssetTextEditorProps {
   textContent?: string | null;
@@ -8,6 +9,9 @@ interface AssetTextEditorProps {
   onTextChange: (text: string) => void;
   label?: string;
   placeholder?: string;
+  /** i18n key shown when there is no content (defaults to "no content") */
+  emptyLabel?: string;
+  rows?: number;
 }
 
 export function AssetTextEditor({
@@ -17,14 +21,14 @@ export function AssetTextEditor({
   onTextChange,
   label,
   placeholder,
+  emptyLabel,
+  rows = 3,
 }: AssetTextEditorProps) {
   const { t } = useTranslation();
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">
-        {label || t("assetEditor.fields.textContent")}
-      </label>
+      <FieldLabel>{label || t("assetEditor.fields.textContent")}</FieldLabel>
       {isEditing ? (
         <Textarea
           value={editedText}
@@ -32,12 +36,12 @@ export function AssetTextEditor({
           placeholder={
             placeholder || t("assetEditor.fields.textContentPlaceholder")
           }
-          rows={3}
+          rows={rows}
           className="text-sm"
         />
       ) : (
-        <p className="text-sm p-3 bg-background rounded-md">
-          {textContent || t("assetEditor.fields.noContent")}
+        <p className="text-sm p-3 bg-muted/40 rounded-md">
+          {textContent || t(emptyLabel || "assetEditor.fields.noContent")}
         </p>
       )}
     </div>

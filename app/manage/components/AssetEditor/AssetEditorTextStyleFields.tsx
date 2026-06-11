@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 import type { Asset } from "../../types";
 import { isFieldEditable } from "../../config";
+import { FieldLabel } from "./FieldLabel";
 
 interface AssetEditorTextStyleFieldsProps {
   asset: Asset;
@@ -28,9 +29,7 @@ export function AssetEditorTextStyleFields({
   return (
     <>
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          {t("assetEditor.fields.textColor")}
-        </label>
+        <FieldLabel>{t("assetEditor.fields.textColor")}</FieldLabel>
         {isEditing ? (
           <div className="flex items-center gap-2">
             <input
@@ -54,7 +53,7 @@ export function AssetEditorTextStyleFields({
                 <p className="text-sm">{asset.config.text_color}</p>
               </>
             ) : (
-              <p className="text-sm p-3 bg-background rounded-md">
+              <p className="text-sm p-3 bg-muted/40 rounded-md">
                 {t("assetEditor.fields.textColorDefault")}
               </p>
             )}
@@ -63,9 +62,7 @@ export function AssetEditorTextStyleFields({
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          {t("assetEditor.fields.textSize")}
-        </label>
+        <FieldLabel>{t("assetEditor.fields.textSize")}</FieldLabel>
         {isEditing ? (
           <input
             type="number"
@@ -77,7 +74,7 @@ export function AssetEditorTextStyleFields({
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         ) : (
-          <p className="text-sm p-3 bg-background rounded-md">
+          <p className="text-sm p-3 bg-muted/40 rounded-md">
             {asset.config?.text_size ?? t("assetEditor.fields.textSizeDefault")}
           </p>
         )}

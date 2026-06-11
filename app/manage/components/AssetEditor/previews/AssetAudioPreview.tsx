@@ -13,7 +13,7 @@ export function AssetAudioPreview({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">
+      <label className="text-xs font-medium text-muted-foreground">
         {t("assetEditor.preview.audio")}
       </label>
       <div className="rounded-md border p-4 bg-muted/30">

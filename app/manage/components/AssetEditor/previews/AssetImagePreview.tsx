@@ -44,13 +44,11 @@ export function AssetImagePreview({
   });
 
   // 优先显示本地选择的新图片
-  const previewUrl = newImageFile
-    ? URL.createObjectURL(newImageFile)
-    : fileUrl;
+  const previewUrl = newImageFile ? URL.createObjectURL(newImageFile) : fileUrl;
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">
+      <label className="text-xs font-medium text-muted-foreground">
         {t("assetEditor.preview.image")}
       </label>
       <div className="relative rounded-md overflow-hidden border">
@@ -62,7 +60,7 @@ export function AssetImagePreview({
           <img
             src={previewUrl}
             alt={fileName}
-            className="w-full h-auto"
+            className="w-full max-h-64 object-contain"
           />
         </div>
         {isEditing && newImageFile && (
@@ -99,7 +97,6 @@ export function AssetImagePreview({
           index={0}
         />
       )}
-      <p className="text-xs text-muted-foreground truncate">{fileUrl}</p>
     </div>
   );
 }

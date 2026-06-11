@@ -665,6 +665,17 @@
       "add": "添加",
       "editTooltip": "编辑标签",
       "removeTooltip": "移除标签"
+    },
+    "sections": {
+      "basics": "基本信息",
+      "basicsHint": "名称、描述与标签",
+      "preview": "预览",
+      "placement": "位置与锚点",
+      "placementHint": "关联锚点与地理位置",
+      "appearance": "外观样式",
+      "appearanceHint": "在 AR 中的呈现方式",
+      "advanced": "高级信息",
+      "advancedHint": "技术元数据"
     }
   }
 }

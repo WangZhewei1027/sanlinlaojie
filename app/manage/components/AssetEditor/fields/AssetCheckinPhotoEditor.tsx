@@ -47,7 +47,7 @@ export function AssetCheckinPhotoEditor({
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium">
+      <Label className="text-xs font-medium text-muted-foreground">
         {t("assetEditor.shop.checkinPhoto")}
       </Label>
 

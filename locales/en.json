@@ -664,6 +664,17 @@
       "add": "Add",
       "editTooltip": "Edit tag",
       "removeTooltip": "Remove tag"
+    },
+    "sections": {
+      "basics": "Basics",
+      "basicsHint": "Name, description and tags",
+      "preview": "Preview",
+      "placement": "Placement",
+      "placementHint": "Anchor and geographic location",
+      "appearance": "Appearance",
+      "appearanceHint": "How this asset renders in AR",
+      "advanced": "Advanced",
+      "advancedHint": "Technical metadata"
     }
   }
 }

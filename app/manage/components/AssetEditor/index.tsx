@@ -3,27 +3,20 @@
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, FileText } from "lucide-react";
-import {
-  isFieldEditable,
-  getFieldLabel,
-  getFieldPlaceholder,
-} from "../../config";
+import { X, FileText, Eye } from "lucide-react";
+import { getPreviewType } from "../../config";
 import type { Asset } from "../../types";
 import { AssetEditorDeleteDialog } from "./AssetEditorDeleteDialog";
 import { AssetEditorActions } from "./AssetEditorActions";
-import { AssetEditorModelConfigFields } from "./AssetEditorModelConfigFields";
-import { AssetEditorTextStyleFields } from "./AssetEditorTextStyleFields";
+import { FieldSection } from "./FieldSection";
 import { useAssetEditor } from "./hooks/useAssetEditor";
-import {
-  AssetTextEditor,
-  AssetNameEditor,
-  AnchorSelector,
-  AssetTagEditor,
-  AssetLocationEditor,
-  AssetMetadata,
-} from "./fields";
 import { AssetEditorPreviewSection } from "./previews";
+import {
+  AssetEditorBasicsSection,
+  AssetEditorPlacementSection,
+  AssetEditorAppearanceSection,
+  AssetEditorAdvancedSection,
+} from "./sections";
 
 interface AssetEditorProps {
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
@@ -31,6 +24,8 @@ interface AssetEditorProps {
   /** When true, hides all editing controls and only renders the asset preview */
   readOnly?: boolean;
 }
+
+const PREVIEWABLE_TYPES = ["image", "audio", "video", "link", "model"];
 
 export function AssetEditor({
   onUpdateAsset,
@@ -78,6 +73,11 @@ export function AssetEditor({
       ? selectedAsset.name
       : selectedAsset.file_url?.split("/").pop() || t("assetEditor.unnamed");
 
+  const previewType = getPreviewType(selectedAsset.file_type);
+  const hasPreview =
+    selectedAsset.file_type === "shop" ||
+    (PREVIEWABLE_TYPES.includes(previewType) && !!selectedAsset.file_url);
+
   return (
     <>
       <AssetEditorDeleteDialog
@@ -108,7 +108,7 @@ export function AssetEditor({
           </Button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-3">
           {/* 操作按钮 */}
           {!readOnly && (
             <AssetEditorActions
@@ -122,204 +122,60 @@ export function AssetEditor({
             />
           )}
 
-          {/* 名称 */}
-          {!readOnly && isFieldEditable(selectedAsset.file_type, "name") && (
-            <AssetNameEditor
-              name={selectedAsset.name}
+          {/* 基本信息：名称、描述、标签 */}
+          {!readOnly && (
+            <AssetEditorBasicsSection
+              asset={selectedAsset}
+              assetConfig={assetConfig}
               isEditing={isEditing}
-              editedName={editedData.name}
-              onNameChange={(name) => setEditedData({ ...editedData, name })}
-              label={t(
-                getFieldLabel(
-                  selectedAsset.file_type,
-                  "name",
-                  "assetEditor.fields.name",
-                ),
-              )}
-              placeholder={t(
-                getFieldPlaceholder(
-                  selectedAsset.file_type,
-                  "name",
-                  "assetEditor.fields.namePlaceholder",
-                ),
-              )}
+              editedData={editedData}
+              setEditedData={setEditedData}
+              selectedWorkspaceId={selectedWorkspaceId}
             />
           )}
 
-          {/* 文本内容（anchor 类型的描述） */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "text_content") &&
-            assetConfig?.previewType === "anchor" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t(
-                    getFieldLabel(
-                      selectedAsset.file_type,
-                      "text_content",
-                      "assetEditor.fields.description",
-                    ),
-                  )}
-                </label>
-                {isEditing ? (
-                  <textarea
-                    value={editedData.text_content}
-                    onChange={(e) =>
-                      setEditedData({
-                        ...editedData,
-                        text_content: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder={t(
-                      getFieldPlaceholder(
-                        selectedAsset.file_type,
-                        "text_content",
-                        "assetEditor.fields.descriptionPlaceholder",
-                      ),
-                    )}
-                  />
-                ) : (
-                  <p className="text-sm p-3 bg-background rounded-md">
-                    {selectedAsset.text_content ||
-                      t("assetEditor.fields.noDescription")}
-                  </p>
-                )}
-              </div>
-            )}
-
-          {/* 文本内容（非 anchor 类型） */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "text_content") &&
-            assetConfig?.previewType !== "anchor" && (
-              <AssetTextEditor
-                textContent={selectedAsset.text_content}
+          {/* 预览 */}
+          {hasPreview && (
+            <FieldSection title={t("assetEditor.sections.preview")} icon={Eye}>
+              <AssetEditorPreviewSection
+                asset={selectedAsset}
+                assetConfig={assetConfig}
+                fileName={fileName}
                 isEditing={isEditing}
-                editedText={editedData.text_content}
-                onTextChange={(text) =>
-                  setEditedData({ ...editedData, text_content: text })
-                }
-                label={t(
-                  getFieldLabel(
-                    selectedAsset.file_type,
-                    "text_content",
-                    "assetEditor.fields.textContent",
-                  ),
-                )}
-                placeholder={t(
-                  getFieldPlaceholder(
-                    selectedAsset.file_type,
-                    "text_content",
-                    "assetEditor.fields.textContentPlaceholder",
-                  ),
-                )}
+                imageFile={imageFile}
+                checkinFile={checkinFile}
+                onImageFileSelect={setImageFile}
+                onImageFileRemove={() => setImageFile(null)}
+                onCheckinFileSelect={setCheckinFile}
+                onCheckinFileRemove={() => setCheckinFile(null)}
               />
-            )}
+            </FieldSection>
+          )}
 
-          {/* 预览区 */}
-          <AssetEditorPreviewSection
-            asset={selectedAsset}
-            assetConfig={assetConfig}
-            fileName={fileName}
-            isEditing={isEditing}
-            imageFile={imageFile}
-            checkinFile={checkinFile}
-            onImageFileSelect={setImageFile}
-            onImageFileRemove={() => setImageFile(null)}
-            onCheckinFileSelect={setCheckinFile}
-            onCheckinFileRemove={() => setCheckinFile(null)}
-          />
-
-          {/* 锚点关联 */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "anchor_id") &&
-            selectedWorkspaceId && (
-              <AnchorSelector
-                currentAnchorId={
-                  isEditing ? editedData.anchor_id : selectedAsset.anchor_id
-                }
-                workspaceId={selectedWorkspaceId}
-                isEditing={isEditing}
-                onAnchorChange={(anchorId) =>
-                  setEditedData({ ...editedData, anchor_id: anchorId })
-                }
-              />
-            )}
-
-          {/* 标签 */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "tag_ids") &&
-            selectedWorkspaceId && (
-              <AssetTagEditor
-                tagIds={isEditing ? editedData.tag_ids : selectedAsset.tag_ids}
-                workspaceId={selectedWorkspaceId}
-                isEditing={isEditing}
-                onTagIdsChange={(tagIds) =>
-                  setEditedData({ ...editedData, tag_ids: tagIds })
-                }
-              />
-            )}
-
-          {/* 位置 */}
-          {!readOnly &&
-            isFieldEditable(selectedAsset.file_type, "location") && (
-              <AssetLocationEditor
-                metadata={selectedAsset.metadata}
-                isEditing={isEditing}
-                editedLongitude={editedData.longitude}
-                editedLatitude={editedData.latitude}
-                editedHeight={editedData.height}
-                onLongitudeChange={(value) =>
-                  setEditedData((prev) => ({ ...prev, longitude: value }))
-                }
-                onLatitudeChange={(value) =>
-                  setEditedData((prev) => ({ ...prev, latitude: value }))
-                }
-                onHeightChange={(value) =>
-                  setEditedData((prev) => ({ ...prev, height: value }))
-                }
-              />
-            )}
-
-          {/* 模型配置（is_huge, scale_multiplier） */}
+          {/* 位置与锚点 */}
           {!readOnly && (
-            <AssetEditorModelConfigFields
+            <AssetEditorPlacementSection
+              asset={selectedAsset}
+              assetConfig={assetConfig}
+              isEditing={isEditing}
+              editedData={editedData}
+              setEditedData={setEditedData}
+              selectedWorkspaceId={selectedWorkspaceId}
+            />
+          )}
+
+          {/* 外观样式 */}
+          {!readOnly && (
+            <AssetEditorAppearanceSection
               asset={selectedAsset}
               isEditing={isEditing}
-              isHuge={editedData.is_huge}
-              scaleMultiplier={editedData.scale_multiplier}
-              onIsHugeChange={(value) =>
-                setEditedData({ ...editedData, is_huge: value })
-              }
-              onScaleMultiplierChange={(value) =>
-                setEditedData({ ...editedData, scale_multiplier: value })
-              }
+              editedData={editedData}
+              setEditedData={setEditedData}
             />
           )}
 
-          {/* 文字样式（text_color, text_size） */}
-          {!readOnly && (
-            <AssetEditorTextStyleFields
-              asset={selectedAsset}
-              isEditing={isEditing}
-              textColor={editedData.text_color}
-              textSize={editedData.text_size}
-              onTextColorChange={(value) =>
-                setEditedData({ ...editedData, text_color: value })
-              }
-              onTextSizeChange={(value) =>
-                setEditedData({ ...editedData, text_size: value })
-              }
-            />
-          )}
-
-          {/* 元数据 */}
-          {!readOnly && (
-            <AssetMetadata
-              metadata={selectedAsset.metadata}
-              assetId={selectedAsset.id}
-            />
-          )}
+          {/* 高级信息：元数据、ID */}
+          {!readOnly && <AssetEditorAdvancedSection asset={selectedAsset} />}
         </div>
       </Card>
     </>

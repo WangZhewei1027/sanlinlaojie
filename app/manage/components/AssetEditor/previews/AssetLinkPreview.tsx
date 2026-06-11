@@ -10,7 +10,7 @@ export function AssetLinkPreview({ fileUrl, fileName }: AssetLinkPreviewProps) {
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">
+      <label className="text-xs font-medium text-muted-foreground">
         {t("assetEditor.preview.link")}
       </label>
       <div className="rounded-md overflow-hidden border bg-background">

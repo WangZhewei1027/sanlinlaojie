@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 import type { Asset } from "../../types";
 import { isFieldEditable, getFieldLabel } from "../../config";
+import { FieldLabel } from "./FieldLabel";
 
 interface AssetEditorModelConfigFieldsProps {
   asset: Asset;
@@ -34,7 +35,7 @@ export function AssetEditorModelConfigFields({
             disabled={!isEditing}
             className="h-4 w-4 rounded border-input accent-primary disabled:opacity-50"
           />
-          <label htmlFor="is_huge" className="text-sm font-medium leading-none">
+          <label htmlFor="is_huge" className="text-sm leading-none">
             {t(
               getFieldLabel(
                 asset.file_type,
@@ -48,9 +49,7 @@ export function AssetEditorModelConfigFields({
 
       {isFieldEditable(asset.file_type, "scale_multiplier") && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">
-            {t("assetEditor.fields.scaleMultiplier")}
-          </label>
+          <FieldLabel>{t("assetEditor.fields.scaleMultiplier")}</FieldLabel>
           {isEditing ? (
             <input
               type="number"
@@ -62,7 +61,7 @@ export function AssetEditorModelConfigFields({
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           ) : (
-            <p className="text-sm p-3 bg-background rounded-md">
+            <p className="text-sm p-3 bg-muted/40 rounded-md">
               {asset.config?.scale_multiplier ??
                 t("assetEditor.fields.scaleMultiplierDefault")}
             </p>

@@ -11,6 +11,24 @@ interface UseAssetEditorOptions {
   onDeleteAsset?: (assetId: string) => Promise<void>;
 }
 
+/**
+ * 编辑器中可被编辑的字段集合。
+ * 新增字段时，只需在此处补充一项，并在对应的 section 组件中渲染即可。
+ */
+export interface AssetEditedData {
+  name: string;
+  text_content: string;
+  anchor_id: string | null;
+  tag_ids: string[];
+  longitude: string;
+  latitude: string;
+  height: string;
+  is_huge: boolean;
+  scale_multiplier: string;
+  text_color: string;
+  text_size: string;
+}
+
 export function useAssetEditor({
   onUpdateAsset,
   onDeleteAsset,
@@ -32,7 +50,7 @@ export function useAssetEditor({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [editedData, setEditedData] = useState({
+  const [editedData, setEditedData] = useState<AssetEditedData>({
     name: "",
     text_content: "",
     anchor_id: null as string | null,
