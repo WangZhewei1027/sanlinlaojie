@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -188,31 +188,30 @@ export function TagSelector({
       </Dialog>
 
       {/* 标签选择器 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              {t("onsite.tags.title")}
-            </CardTitle>
-            {workspaceId && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setNewTagName("");
-                  setNewTagColor("#808080");
-                  setShowCreateDialog(true);
-                }}
-                className="h-7 text-xs"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                {t("onsite.tags.createNew")}
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
+            <Tag className="h-4 w-4 text-muted-foreground" />
+            {t("onsite.tags.title")}
+          </h2>
+          {workspaceId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setNewTagName("");
+                setNewTagColor("#808080");
+                setShowCreateDialog(true);
+              }}
+              className="h-7 text-xs"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              {t("onsite.tags.createNew")}
+            </Button>
+          )}
+        </div>
+
+        <div>
           {isLoading ? (
             <div className="flex flex-wrap gap-2">
               <Skeleton className="h-6 w-16 rounded-full" />
@@ -254,7 +253,7 @@ export function TagSelector({
               {t("onsite.tags.selectedCount", { count: selectedTagIds.length })}
             </p>
           )}
-        </CardContent>
+        </div>
       </Card>
     </>
   );

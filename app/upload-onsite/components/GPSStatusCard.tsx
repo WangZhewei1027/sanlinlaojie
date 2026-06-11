@@ -43,7 +43,12 @@ export function GPSStatusCard({
   }[state];
 
   return (
-    <Card className="p-3">
+    <Card className="space-y-3 p-4">
+      <div className="flex items-center gap-2">
+        <MapPin className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-medium">{t("onsite.gpsStatus")}</h2>
+      </div>
+
       <div className="flex items-center gap-3">
         <div
           className={cn(

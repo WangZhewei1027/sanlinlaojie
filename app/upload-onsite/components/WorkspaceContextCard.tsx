@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight, Layers } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -21,19 +21,24 @@ export function WorkspaceContextCard({
   return (
     <Card
       className={cn(
-        "p-3 space-y-2",
+        "space-y-3 p-4",
         needsSelection &&
           "border-amber-500/60 bg-amber-50 dark:bg-amber-950/30",
       )}
     >
-      <div className="text-xs font-medium text-muted-foreground">
-        {t("onsite.uploadingTo", "Uploading to")}
+      <div className="flex items-center gap-2">
+        <Layers className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-medium">
+          {t("onsite.uploadingTo", "Uploading to")}
+        </h2>
       </div>
-      <div className="flex items-center gap-1 min-w-0">
-        <OrgSwitcher className="max-w-none flex-shrink min-w-0" />
+
+      <div className="flex min-w-0 items-center gap-1">
+        <OrgSwitcher className="max-w-none min-w-0 flex-shrink" />
         <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground/60" />
-        <WorkspaceSwitcher className="max-w-none flex-1 min-w-0 justify-start" />
+        <WorkspaceSwitcher className="max-w-none min-w-0 flex-1 justify-start" />
       </div>
+
       {needsSelection && (
         <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
