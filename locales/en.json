@@ -12,7 +12,8 @@
     "delete": "Delete",
     "edit": "Edit",
     "create": "Create",
-    "search": "Search"
+    "search": "Search",
+    "close": "Close"
   },
   "workspace": {
     "selectPlaceholder": "Select workspace...",
@@ -564,5 +565,27 @@
       "advanced": "Advanced",
       "advancedHint": "Technical metadata"
     }
+  },
+  "account": {
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "logout": "Log out",
+    "userMenu": "User menu",
+    "signInPrompt": "Sign in to continue",
+    "defaultName": "User"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account information",
+    "profile": "Profile",
+    "profileDesc": "Update how your name appears to others",
+    "email": "Email",
+    "emailHint": "Your email cannot be changed",
+    "name": "Name",
+    "namePlaceholder": "Enter your name",
+    "nameRequired": "Name cannot be empty",
+    "saved": "Saved",
+    "loadError": "Failed to load profile",
+    "saveError": "Failed to save"
   }
 }

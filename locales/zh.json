@@ -12,7 +12,8 @@
     "delete": "删除",
     "edit": "编辑",
     "create": "创建",
-    "search": "搜索"
+    "search": "搜索",
+    "close": "关闭"
   },
   "workspace": {
     "selectPlaceholder": "选择工作空间...",
@@ -564,5 +565,27 @@
       "advanced": "高级信息",
       "advancedHint": "技术元数据"
     }
+  },
+  "account": {
+    "signIn": "登录",
+    "signUp": "注册",
+    "logout": "退出登录",
+    "userMenu": "用户菜单",
+    "signInPrompt": "登录以继续使用",
+    "defaultName": "用户"
+  },
+  "settings": {
+    "title": "个人设置",
+    "subtitle": "管理你的账户信息",
+    "profile": "个人资料",
+    "profileDesc": "更新你向他人展示的名称",
+    "email": "邮箱",
+    "emailHint": "邮箱无法修改",
+    "name": "名称",
+    "namePlaceholder": "请输入你的名称",
+    "nameRequired": "名称不能为空",
+    "saved": "已保存",
+    "loadError": "加载个人信息失败",
+    "saveError": "保存失败"
   }
 }
