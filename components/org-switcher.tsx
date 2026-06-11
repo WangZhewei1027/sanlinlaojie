@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useManageStore } from "@/app/manage/store";
+import { cn } from "@/lib/utils";
 
-export function OrgSwitcher() {
+export function OrgSwitcher({ className }: { className?: string }) {
   const { t } = useTranslation();
 
   const organizations = useManageStore((state) => state.organizations);
@@ -55,7 +56,10 @@ export function OrgSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-1.5 px-2 py-1.5 h-auto font-medium text-sm max-w-[180px]"
+          className={cn(
+            "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 h-auto min-w-0 font-medium text-sm max-w-[110px] sm:max-w-[180px]",
+            className,
+          )}
         >
           <Building2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
           <span className="truncate">

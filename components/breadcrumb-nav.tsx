@@ -7,6 +7,7 @@ import { ChevronRight } from "lucide-react";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { WorkspaceQrButton } from "@/components/workspace-qr-button";
+import { cn } from "@/lib/utils";
 
 interface BreadcrumbItem {
   label: string;
@@ -73,39 +74,68 @@ export function BreadcrumbNav() {
   }
 
   return (
-    <div className="flex items-center gap-1 min-w-0 flex-1 text-sm">
-      {breadcrumbItems.map((item, index) => (
-        <div key={index} className="flex items-center gap-1 min-w-0">
-          {index > 0 && (
-            <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60" />
-          )}
+    <div className="flex items-center gap-0.5 sm:gap-1 min-w-0 flex-1 text-sm">
+      {breadcrumbItems.map((item, index) => {
+        const isLast = index === breadcrumbItems.length - 1;
+        // On mobile, hide Home and intermediate links to leave room for switchers
+        const hiddenOnMobile = !isLast;
+        return (
+          <div
+            key={index}
+            className={cn(
+              "flex items-center gap-0.5 sm:gap-1 min-w-0",
+              hiddenOnMobile &&
+                !(index === 1 && showOrgSwitcher) &&
+                "hidden sm:flex",
+            )}
+          >
+            {index > 0 && (
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60",
+                  // Leading chevron only makes sense on mobile when the
+                  // org switcher is visible before the current page label
+                  !(index > 1 && isLast && showOrgSwitcher) &&
+                    "hidden sm:block",
+                )}
+              />
+            )}
 
-          {/* After Home, insert org switcher if applicable */}
-          {index === 1 && showOrgSwitcher && (
-            <>
-              <OrgSwitcher />
-              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60" />
-            </>
-          )}
+            {/* After Home, insert org switcher if applicable */}
+            {index === 1 && showOrgSwitcher && (
+              <>
+                <OrgSwitcher />
+                <ChevronRight
+                  className={cn(
+                    "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60",
+                    !isLast && "hidden sm:block",
+                  )}
+                />
+              </>
+            )}
 
-          {item.href ? (
-            <Link
-              href={item.href}
-              className="text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-            >
-              {item.label}
-            </Link>
-          ) : (
-            <span className="font-medium text-foreground whitespace-nowrap truncate">
-              {item.label}
-            </span>
-          )}
-        </div>
-      ))}
+            {item.href ? (
+              <Link
+                href={item.href}
+                className={cn(
+                  "text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap",
+                  hiddenOnMobile && "hidden sm:inline",
+                )}
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground whitespace-nowrap truncate">
+                {item.label}
+              </span>
+            )}
+          </div>
+        );
+      })}
 
       {/* Show workspace switcher for workspace-scoped routes */}
       {showWorkspace && (
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">
           <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60" />
           <WorkspaceSwitcher />
         </div>

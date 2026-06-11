@@ -13,8 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useManageStore } from "@/app/manage/store";
 import { ALL_WORKSPACES_ID } from "@/app/manage/constants";
+import { cn } from "@/lib/utils";
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher({ className }: { className?: string }) {
   const { t } = useTranslation();
 
   const workspaces = useManageStore((state) => state.workspaces);
@@ -64,7 +65,10 @@ export function WorkspaceSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-1.5 px-2 py-1.5 h-auto font-medium text-sm max-w-[160px]"
+          className={cn(
+            "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 h-auto min-w-0 font-medium text-sm max-w-[110px] sm:max-w-[160px]",
+            className,
+          )}
         >
           <FolderKanban className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
           <span className="truncate">

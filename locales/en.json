@@ -119,7 +119,9 @@
       "loading": "Loading tags...",
       "noTagsAvailable": "No tags available. Create a new tag to get started.",
       "selectedCount": "{{count}} tag(s) selected"
-    }
+    },
+    "uploadingTo": "Uploading to",
+    "selectWorkspaceFirst": "Please select a specific workspace before uploading"
   },
   "manage": {
     "clickedLocation": {

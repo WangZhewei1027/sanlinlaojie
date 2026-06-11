@@ -12,6 +12,7 @@ import { TextUpload } from "./components/TextUpload";
 import { AudioRecorder } from "./components/AudioRecorder";
 import { StatusMessages } from "./components/StatusMessages";
 import { TagSelector } from "./components/TagSelector";
+import { WorkspaceContextCard } from "./components/WorkspaceContextCard";
 import { useGPS } from "./hooks/useGPS";
 import { useManageStore } from "../manage/store";
 import { isSpecificWorkspaceId } from "../manage/constants";
@@ -226,6 +227,8 @@ export default function UploadOnsitePage() {
           <p className="text-muted-foreground">{t("onsite.subtitle")}</p>
         </div>
 
+        <WorkspaceContextCard workspaceId={selectedWorkspaceId} />
+
         <GPSStatusCard
           gpsPosition={gpsPosition}
           gpsError={gpsError}
@@ -243,15 +246,24 @@ export default function UploadOnsitePage() {
         <ModeSelector mode={mode} onModeChange={setMode} />
 
         {mode === "camera" && (
-          <CameraUpload onUpload={handlePhotoUpload} disabled={!gpsPosition} />
+          <CameraUpload
+            onUpload={handlePhotoUpload}
+            disabled={!gpsPosition || !selectedWorkspaceId}
+          />
         )}
 
         {mode === "text" && (
-          <TextUpload onUpload={handleTextUpload} disabled={!gpsPosition} />
+          <TextUpload
+            onUpload={handleTextUpload}
+            disabled={!gpsPosition || !selectedWorkspaceId}
+          />
         )}
 
         {mode === "audio" && (
-          <AudioRecorder onUpload={handleAudioUpload} disabled={!gpsPosition} />
+          <AudioRecorder
+            onUpload={handleAudioUpload}
+            disabled={!gpsPosition || !selectedWorkspaceId}
+          />
         )}
 
         <StatusMessages error={error} success={success} />

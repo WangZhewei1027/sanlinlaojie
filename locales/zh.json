@@ -119,7 +119,9 @@
       "loading": "加载标签中...",
       "noTagsAvailable": "暂无可用标签，请创建新标签",
       "selectedCount": "已选择 {{count}} 个标签"
-    }
+    },
+    "uploadingTo": "将上传到",
+    "selectWorkspaceFirst": "请先选择具体的工作区再上传"
   },
   "manage": {
     "clickedLocation": {
