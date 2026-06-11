@@ -2,43 +2,25 @@
   "nav": {
     "home": "Home",
     "admin": "Admin",
-    "workspace": "Workspace",
     "upload": "Upload",
-    "manage": "Manage",
-    "display": "Display"
+    "manage": "Manage"
   },
   "common": {
-    "welcome": "Welcome",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
     "create": "Create",
-    "search": "Search",
-    "filter": "Filter",
-    "logout": "Logout",
-    "login": "Login",
-    "signup": "Sign Up"
+    "search": "Search"
   },
   "workspace": {
-    "title": "Workspace Management",
-    "create": "Create Workspace",
-    "select": "Select Workspace",
-    "manage": "Manage Workspace",
     "selectPlaceholder": "Select workspace...",
-    "loading": "Loading...",
     "allWorkspaces": "All workspaces",
     "qrButton": "Show QR Code",
     "qrTitle": "Scan to enter mini-program",
     "qrLoading": "Generating...",
     "qrError": "Failed to load QR code"
-  },
-  "assets": {
-    "title": "Asset Management",
-    "list": "Asset List",
-    "edit": "Edit Asset",
-    "delete": "Delete Asset"
   },
   "assetFields": {
     "anchor": {
@@ -68,7 +50,6 @@
     "subtitle": "Record onsite information using real-time GPS location",
     "gpsStatus": "GPS Status",
     "gettingLocation": "Getting location...",
-    "location": "Location:",
     "altitude": "Altitude:",
     "accuracy": "Accuracy:",
     "cameraMode": "Photo Upload",
@@ -84,7 +65,6 @@
     "uploadSuccess": "Upload successful!",
     "uploadFailed": "Upload failed:",
     "missingInfo": "Missing required information",
-    "cameraError": "Unable to access camera:",
     "cameraPrompt": "open camera",
     "startRecording": "Start Recording",
     "stopRecording": "Stop Recording",
@@ -116,12 +96,12 @@
       "preview": "Preview",
       "creating": "Creating...",
       "createFailed": "Failed to create tag",
-      "loading": "Loading tags...",
       "noTagsAvailable": "No tags available. Create a new tag to get started.",
       "selectedCount": "{{count}} tag(s) selected"
     },
     "uploadingTo": "Uploading to",
-    "selectWorkspaceFirst": "Please select a specific workspace before uploading"
+    "selectWorkspaceFirst": "Please select a specific workspace before uploading",
+    "selectFromGallery": "Select from Gallery"
   },
   "manage": {
     "clickedLocation": {
@@ -156,7 +136,6 @@
         "description": "User management & global role assignment (super admin only)"
       },
       "instructions": {
-        "title": "User Guide",
         "description": "View platform instructions",
         "en": "English Guide",
         "zh": "Chinese Guide"
@@ -210,7 +189,6 @@
       "details": "Organization Details",
       "saveChanges": "Save Changes",
       "selectOrgHint": "Click a card to view and edit the organization",
-      "updateFailed": "Update failed",
       "deleteOrg": "Delete Organization",
       "section": {
         "basicInfo": "Basic Info",
@@ -243,7 +221,6 @@
     }
   },
   "admin": {
-    "backToDashboard": "Back to Admin Dashboard",
     "sidebar": {
       "overview": "Overview",
       "settings": "Settings",
@@ -309,52 +286,15 @@
     },
     "organization": {
       "label": "Organization",
-      "selectPlaceholder": "Select organization",
       "roles": {
         "owner": "Owner",
         "admin": "Admin",
         "member": "Member",
         "viewer": "Viewer"
-      },
-      "membersDialog": {
-        "title": "Manage Members",
-        "description": "Manage members of {{name}}",
-        "addMember": "Add Member",
-        "selectUser": "Select user...",
-        "currentMembers": "Current Members",
-        "noMembers": "No members",
-        "close": "Close"
-      }
-    },
-    "dashboard": {
-      "title": "Admin Dashboard",
-      "welcome": "Welcome back! Manage all system modules here.",
-      "clickToManage": "Click to manage",
-      "developing": "Feature in development...",
-      "comingSoon": "Coming Soon",
-      "workspace": {
-        "title": "Workspace Management",
-        "description": "Create, edit and delete workspaces, manage region restrictions and map models"
-      },
-      "users": {
-        "title": "User Management",
-        "description": "Manage user permissions and workspace access"
-      },
-      "clean": {
-        "title": "Resource Cleanup",
-        "description": "Clean up orphaned resources in database and storage"
-      },
-      "resources": {
-        "title": "Resource Management",
-        "description": "Manage resources and assets across all workspaces"
       }
     },
     "workspace": {
-      "title": "Workspace Management",
-      "description": "Create, edit and delete workspaces to organize project structure",
       "create": "Create Workspace",
-      "edit": "Edit",
-      "delete": "Delete",
       "noWorkspaces": "No Workspaces",
       "noWorkspacesHint": "Click the button above to create your first workspace",
       "createdAt": "Created on",
@@ -366,13 +306,7 @@
         "name": "Name",
         "namePlaceholder": "e.g., Sanlin Old Street Project",
         "description": "Description",
-        "descriptionPlaceholder": "Optional: Add workspace description",
-        "required": "*"
-      },
-      "deleteDialog": {
-        "title": "Confirm Delete",
-        "description": "Are you sure you want to delete workspace {name}? This action cannot be undone.",
-        "confirmDelete": "Delete"
+        "descriptionPlaceholder": "Optional: Add workspace description"
       }
     },
     "users": {
@@ -384,9 +318,7 @@
       "currentUser": "Current User",
       "unnamed": "Unnamed User",
       "registeredOn": "Registered on",
-      "workspaces": "workspaces",
       "changeRole": "Change Role",
-      "assignWorkspace": "Assign Workspace",
       "roles": {
         "super_admin": "Super Admin",
         "user": "User"
@@ -400,15 +332,6 @@
         "superAdminRole": "Super Admin",
         "userHint": "Users are controlled by organization roles",
         "superAdminHint": "Super Admins can manage all organizations and users"
-      },
-      "manageWorkspaceDialog": {
-        "title": "Manage Workspace Access",
-        "description": "Assign workspace access permissions for {name}",
-        "addWorkspace": "Add Workspace",
-        "selectWorkspace": "Select workspace",
-        "assignedWorkspaces": "Assigned Workspaces",
-        "noAssignedWorkspaces": "No assigned workspaces",
-        "close": "Close"
       }
     },
     "clean": {
@@ -419,39 +342,7 @@
       "willDeleteRows": "- Will delete database records with missing files",
       "willDeleteFiles": "- Will delete files without database records",
       "irreversible": "This action cannot be undone!",
-      "cleanFailed": "Cleanup failed",
-      "cleanOperation": "Cleanup Operation",
-      "selectCleanType": "Select workspace and cleanup type",
-      "selectWorkspace": "Select workspace",
-      "cleanOrphanedRows": "Clean Orphaned Database Records",
-      "cleanOrphanedFiles": "Clean Orphaned Storage Files",
-      "fullCleanup": "Full Cleanup",
-      "notes": "Important Notes:",
-      "note1": "Cleanup operations cannot be undone, please proceed with caution",
-      "note2": "Orphaned records: Records exist in database but files are deleted",
-      "note3": "Orphaned files: Files exist in storage but no database records",
-      "note4": "Recommend cleaning separately first, then full cleanup after confirmation",
-      "cleanupSummary": "Cleanup Summary",
-      "orphanedRowsFound": "Orphaned Records",
-      "orphanedFilesFound": "Orphaned Files",
-      "rowsDeleted": "Records Deleted",
-      "filesDeleted": "Files Deleted",
-      "errors": "Errors",
-      "selectToStart": "Select workspace and cleanup type to start",
-      "log": {
-        "orphanedRows": "Orphaned Database Records",
-        "orphanedRowsDesc": "Records exist in database but files are deleted ({count} records)",
-        "orphanedFiles": "Orphaned Storage Files",
-        "orphanedFilesDesc": "Files exist in storage but no database records ({count} files)",
-        "deleted": "Deleted",
-        "deleteFailed": "Delete Failed",
-        "cleanupComplete": "Cleanup Complete",
-        "deletedRecords": "✓ Deleted {count} database records",
-        "deletedFiles": "✓ Deleted {count} storage files",
-        "errorLog": "Error Log ({count})",
-        "noIssues": "No resources need cleaning",
-        "databaseHealthy": "Database and storage are in good condition"
-      }
+      "cleanFailed": "Cleanup failed"
     }
   },
   "assetManager": {
@@ -484,16 +375,14 @@
       "title": "Tag Filter",
       "selectTags": "Select Tags",
       "clear": "Clear",
-      "noTags": "No tags",
-      "removeFilter": "Remove filter"
+      "noTags": "No tags"
     },
     "userFilter": {
       "title": "Creator",
       "selectUsers": "Select Creator",
       "clear": "Clear",
       "noCreators": "No creators",
-      "unnamed": "Unnamed user",
-      "removeFilter": "Remove filter"
+      "unnamed": "Unnamed user"
     },
     "fileTypeFilter": {
       "title": "Type",
@@ -532,7 +421,6 @@
     "uploading": "Uploading...",
     "uploadButton": "Upload",
     "fileDropzone": {
-      "label": "{{type}}",
       "dropActive": "Release to upload file",
       "dropInactive": "Drag file here or click to select",
       "supports": "Supports: {{accept}}",

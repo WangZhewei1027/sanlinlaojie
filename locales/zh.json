@@ -2,43 +2,25 @@
   "nav": {
     "home": "首页",
     "admin": "管理后台",
-    "workspace": "工作空间",
     "upload": "上传",
-    "manage": "管理",
-    "display": "展示"
+    "manage": "管理"
   },
   "common": {
-    "welcome": "欢迎",
     "loading": "加载中...",
     "save": "保存",
     "cancel": "取消",
     "delete": "删除",
     "edit": "编辑",
     "create": "创建",
-    "search": "搜索",
-    "filter": "筛选",
-    "logout": "退出登录",
-    "login": "登录",
-    "signup": "注册"
+    "search": "搜索"
   },
   "workspace": {
-    "title": "工作空间管理",
-    "create": "创建工作空间",
-    "select": "选择工作空间",
-    "manage": "管理工作空间",
     "selectPlaceholder": "选择工作空间...",
-    "loading": "加载中...",
     "allWorkspaces": "所有工作空间",
     "qrButton": "显示二维码",
     "qrTitle": "扫码进入小程序",
     "qrLoading": "生成中…",
     "qrError": "二维码加载失败"
-  },
-  "assets": {
-    "title": "资源管理",
-    "list": "资源列表",
-    "edit": "编辑资源",
-    "delete": "删除资源"
   },
   "assetFields": {
     "anchor": {
@@ -68,7 +50,6 @@
     "subtitle": "使用实时GPS定位记录现场信息",
     "gpsStatus": "GPS定位状态",
     "gettingLocation": "正在获取位置...",
-    "location": "位置：",
     "altitude": "海拔：",
     "accuracy": "精度：",
     "cameraMode": "拍照上传",
@@ -84,7 +65,6 @@
     "uploadSuccess": "上传成功！",
     "uploadFailed": "上传失败：",
     "missingInfo": "缺少必要信息",
-    "cameraError": "无法访问相机：",
     "cameraPrompt": "打开相机",
     "startRecording": "开始录音",
     "stopRecording": "停止录音",
@@ -116,12 +96,12 @@
       "preview": "预览",
       "creating": "创建中...",
       "createFailed": "创建标签失败",
-      "loading": "加载标签中...",
       "noTagsAvailable": "暂无可用标签，请创建新标签",
       "selectedCount": "已选择 {{count}} 个标签"
     },
     "uploadingTo": "将上传到",
-    "selectWorkspaceFirst": "请先选择具体的工作区再上传"
+    "selectWorkspaceFirst": "请先选择具体的工作区再上传",
+    "selectFromGallery": "从相册选择"
   },
   "manage": {
     "clickedLocation": {
@@ -156,7 +136,6 @@
         "description": "用户管理、全局角色分配（仅超级管理员）"
       },
       "instructions": {
-        "title": "使用指南",
         "description": "查看平台使用说明",
         "en": "英文指南",
         "zh": "中文指南"
@@ -210,7 +189,6 @@
       "details": "组织详情",
       "saveChanges": "保存更改",
       "selectOrgHint": "点击卡片查看并编辑组织",
-      "updateFailed": "更新失败",
       "deleteOrg": "删除组织",
       "section": {
         "basicInfo": "基本信息",
@@ -243,7 +221,6 @@
     }
   },
   "admin": {
-    "backToDashboard": "返回管理后台",
     "sidebar": {
       "overview": "概览",
       "settings": "设置",
@@ -309,52 +286,15 @@
     },
     "organization": {
       "label": "所属组织",
-      "selectPlaceholder": "选择组织",
       "roles": {
         "owner": "拥有者",
         "admin": "管理员",
         "member": "成员",
         "viewer": "访客"
-      },
-      "membersDialog": {
-        "title": "管理成员",
-        "description": "管理 {{name}} 的成员",
-        "addMember": "添加成员",
-        "selectUser": "选择用户...",
-        "currentMembers": "当前成员",
-        "noMembers": "暂无成员",
-        "close": "关闭"
-      }
-    },
-    "dashboard": {
-      "title": "管理后台",
-      "welcome": "欢迎回来！这里可以管理系统的各个模块。",
-      "clickToManage": "点击进入管理",
-      "developing": "功能开发中...",
-      "comingSoon": "即将推出",
-      "workspace": {
-        "title": "Workspace 管理",
-        "description": "创建、编辑和删除工作空间，管理区域限制和地图模型"
-      },
-      "users": {
-        "title": "用户管理",
-        "description": "管理用户权限，分配工作空间访问权限"
-      },
-      "clean": {
-        "title": "资源清理",
-        "description": "清理数据库和存储桶中的孤立资源"
-      },
-      "resources": {
-        "title": "资源管理",
-        "description": "管理所有工作空间下的资源和资产"
       }
     },
     "workspace": {
-      "title": "工作空间管理",
-      "description": "创建、编辑和删除工作空间，管理项目的组织结构",
       "create": "创建工作空间",
-      "edit": "编辑",
-      "delete": "删除",
       "noWorkspaces": "暂无工作空间",
       "noWorkspacesHint": "点击上方按钮创建第一个工作空间",
       "createdAt": "创建于",
@@ -366,13 +306,7 @@
         "name": "名称",
         "namePlaceholder": "例如：三林老街项目",
         "description": "描述",
-        "descriptionPlaceholder": "可选：添加工作空间的描述",
-        "required": "*"
-      },
-      "deleteDialog": {
-        "title": "确认删除",
-        "description": "你确定要删除工作空间 {name} 吗？此操作无法撤销。",
-        "confirmDelete": "删除"
+        "descriptionPlaceholder": "可选：添加工作空间的描述"
       }
     },
     "users": {
@@ -384,9 +318,7 @@
       "currentUser": "当前用户",
       "unnamed": "未命名用户",
       "registeredOn": "注册于",
-      "workspaces": "个工作空间",
       "changeRole": "修改角色",
-      "assignWorkspace": "分配工作空间",
       "roles": {
         "super_admin": "超级管理员",
         "user": "普通用户"
@@ -400,15 +332,6 @@
         "superAdminRole": "超级管理员 (Super Admin)",
         "userHint": "普通用户通过组织角色控制权限",
         "superAdminHint": "超级管理员可以管理所有组织和用户"
-      },
-      "manageWorkspaceDialog": {
-        "title": "管理工作空间访问",
-        "description": "为 {name} 分配工作空间访问权限",
-        "addWorkspace": "添加工作空间",
-        "selectWorkspace": "选择工作空间",
-        "assignedWorkspaces": "已分配的工作空间",
-        "noAssignedWorkspaces": "暂无分配的工作空间",
-        "close": "关闭"
       }
     },
     "clean": {
@@ -419,40 +342,7 @@
       "willDeleteRows": "- 将删除文件不存在的数据库记录",
       "willDeleteFiles": "- 将删除数据库中没有记录的文件",
       "irreversible": "此操作不可逆！",
-      "cleanFailed": "清理失败",
-      "cleanOperation": "清理操作",
-      "selectCleanType": "选择工作空间和清理类型",
-      "workspace": "工作空间",
-      "selectWorkspace": "选择工作空间",
-      "cleanOrphanedRows": "清理孤立数据库记录",
-      "cleanOrphanedFiles": "清理孤立存储文件",
-      "fullCleanup": "全面清理",
-      "notes": "注意事项：",
-      "note1": "清理操作不可逆，请谨慎操作",
-      "note2": "孤立记录：数据库中存在但文件已被删除",
-      "note3": "孤立文件：存储桶中存在但数据库无记录",
-      "note4": "建议先单独清理，确认无误后再全面清理",
-      "cleanupSummary": "清理摘要",
-      "orphanedRowsFound": "孤立记录",
-      "orphanedFilesFound": "孤立文件",
-      "rowsDeleted": "已删记录",
-      "filesDeleted": "已删文件",
-      "errors": "错误",
-      "selectToStart": "选择工作空间和清理类型开始清理",
-      "log": {
-        "orphanedRows": "孤立的数据库记录",
-        "orphanedRowsDesc": "数据库中存在但文件已被删除的记录 ({count} 条)",
-        "orphanedFiles": "孤立的存储文件",
-        "orphanedFilesDesc": "存储桶中存在但数据库无记录的文件 ({count} 个)",
-        "deleted": "已删除",
-        "deleteFailed": "删除失败",
-        "cleanupComplete": "清理完成",
-        "deletedRecords": "✓ 已删除 {count} 条数据库记录",
-        "deletedFiles": "✓ 已删除 {count} 个存储文件",
-        "errorLog": "错误记录 ({count})",
-        "noIssues": "未发现需要清理的资源",
-        "databaseHealthy": "数据库和存储桶状态良好"
-      }
+      "cleanFailed": "清理失败"
     }
   },
   "assetManager": {
@@ -485,16 +375,14 @@
       "title": "标签筛选",
       "selectTags": "选择标签",
       "clear": "清除",
-      "noTags": "暂无标签",
-      "removeFilter": "移除筛选"
+      "noTags": "暂无标签"
     },
     "userFilter": {
       "title": "创建者",
       "selectUsers": "选择创建者",
       "clear": "清除",
       "noCreators": "暂无创建者",
-      "unnamed": "未命名用户",
-      "removeFilter": "移除筛选"
+      "unnamed": "未命名用户"
     },
     "fileTypeFilter": {
       "title": "类型",
@@ -533,7 +421,6 @@
     "uploading": "上传中...",
     "uploadButton": "上传",
     "fileDropzone": {
-      "label": "{{type}}",
       "dropActive": "松开以上传文件",
       "dropInactive": "拖拽文件到这里，或点击选择",
       "supports": "支持: {{accept}}",

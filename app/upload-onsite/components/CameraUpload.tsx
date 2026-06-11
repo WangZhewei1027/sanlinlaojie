@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Camera, Loader2, Check } from "lucide-react";
+import { Camera, ImageIcon, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ interface CameraUploadProps {
   onUpload: (
     imageData: string,
     title?: string,
-    description?: string
+    description?: string,
   ) => Promise<void>;
   disabled: boolean;
 }
@@ -19,6 +19,7 @@ interface CameraUploadProps {
 export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -28,6 +29,11 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
   // 触发相机
   const triggerCamera = () => {
     fileInputRef.current?.click();
+  };
+
+  // 触发相册
+  const triggerGallery = () => {
+    galleryInputRef.current?.click();
   };
 
   // 处理文件选择
@@ -51,6 +57,9 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = "";
+    }
   };
 
   // 上传照片
@@ -62,13 +71,16 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
       await onUpload(
         capturedImage,
         title || undefined,
-        description || undefined
+        description || undefined,
       );
       setCapturedImage(null);
       setTitle("");
       setDescription("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = "";
       }
     } finally {
       setUploading(false);
@@ -86,6 +98,14 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
         onChange={handleFileChange}
         disabled={disabled}
       />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={disabled}
+      />
 
       {!capturedImage ? (
         <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
@@ -95,12 +115,22 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
           </p>
           <Button
             size="lg"
-            className="w-full max-w-xs"
+            className="w-full max-w-xs mb-4"
             onClick={triggerCamera}
             disabled={disabled}
           >
             <Camera className="h-5 w-5 mr-2" />
             {t("onsite.takePhoto")}
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full max-w-xs"
+            onClick={triggerGallery}
+            disabled={disabled}
+          >
+            <ImageIcon className="h-5 w-5 mr-2" />
+            {t("onsite.selectFromGallery")}
           </Button>
         </div>
       ) : (
