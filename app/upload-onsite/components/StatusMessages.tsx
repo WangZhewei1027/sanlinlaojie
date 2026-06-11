@@ -1,5 +1,4 @@
-import { AlertCircle, Check } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface StatusMessagesProps {
@@ -10,25 +9,21 @@ interface StatusMessagesProps {
 export function StatusMessages({ error, success }: StatusMessagesProps) {
   const { t } = useTranslation();
 
-  return (
-    <>
-      {error && (
-        <Card className="p-4 border-destructive bg-destructive/10">
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-5 w-5" />
-            <span>{error}</span>
-          </div>
-        </Card>
-      )}
+  if (!error && !success) return null;
 
-      {success && (
-        <Card className="p-4 border-green-500 bg-green-50 dark:bg-green-950">
-          <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-            <Check className="h-5 w-5" />
-            <span>{t("onsite.uploadSuccess")}</span>
-          </div>
-        </Card>
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-4">
+      {error ? (
+        <div className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl border border-destructive/30 bg-destructive px-4 py-3 text-sm text-destructive-foreground shadow-lg">
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+          <span className="leading-snug">{error}</span>
+        </div>
+      ) : (
+        <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+          <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
+          <span>{t("onsite.uploadSuccess")}</span>
+        </div>
       )}
-    </>
+    </div>
   );
 }

@@ -220,51 +220,59 @@ export default function UploadOnsitePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-4">
-      <div className="max-w-2xl mx-auto space-y-4">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">{t("onsite.title")}</h1>
-          <p className="text-muted-foreground">{t("onsite.subtitle")}</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
+      <div className="mx-auto max-w-2xl space-y-5">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {t("onsite.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("onsite.subtitle")}
+          </p>
+        </header>
 
-        <WorkspaceContextCard workspaceId={selectedWorkspaceId} />
+        {/* 上传上下文：目标工作区、定位、标签 */}
+        <section className="space-y-3">
+          <WorkspaceContextCard workspaceId={selectedWorkspaceId} />
 
-        <GPSStatusCard
-          gpsPosition={gpsPosition}
-          gpsError={gpsError}
-          gpsLoading={gpsLoading}
-        />
-
-        {/* 标签选择器 */}
-
-        <TagSelector
-          workspaceId={selectedWorkspaceId}
-          selectedTagIds={selectedTagIds}
-          onTagIdsChange={setSelectedTagIds}
-        />
-
-        <ModeSelector mode={mode} onModeChange={setMode} />
-
-        {mode === "camera" && (
-          <CameraUpload
-            onUpload={handlePhotoUpload}
-            disabled={!gpsPosition || !selectedWorkspaceId}
+          <GPSStatusCard
+            gpsPosition={gpsPosition}
+            gpsError={gpsError}
+            gpsLoading={gpsLoading}
           />
-        )}
 
-        {mode === "text" && (
-          <TextUpload
-            onUpload={handleTextUpload}
-            disabled={!gpsPosition || !selectedWorkspaceId}
+          <TagSelector
+            workspaceId={selectedWorkspaceId}
+            selectedTagIds={selectedTagIds}
+            onTagIdsChange={setSelectedTagIds}
           />
-        )}
+        </section>
 
-        {mode === "audio" && (
-          <AudioRecorder
-            onUpload={handleAudioUpload}
-            disabled={!gpsPosition || !selectedWorkspaceId}
-          />
-        )}
+        {/* 采集方式与上传 */}
+        <section className="space-y-3">
+          <ModeSelector mode={mode} onModeChange={setMode} />
+
+          {mode === "camera" && (
+            <CameraUpload
+              onUpload={handlePhotoUpload}
+              disabled={!gpsPosition || !selectedWorkspaceId}
+            />
+          )}
+
+          {mode === "text" && (
+            <TextUpload
+              onUpload={handleTextUpload}
+              disabled={!gpsPosition || !selectedWorkspaceId}
+            />
+          )}
+
+          {mode === "audio" && (
+            <AudioRecorder
+              onUpload={handleAudioUpload}
+              disabled={!gpsPosition || !selectedWorkspaceId}
+            />
+          )}
+        </section>
 
         <StatusMessages error={error} success={success} />
       </div>

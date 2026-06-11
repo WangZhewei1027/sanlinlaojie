@@ -1,5 +1,6 @@
 import { MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
 interface GPSPosition {
@@ -23,41 +24,71 @@ export function GPSStatusCard({
 }: GPSStatusCardProps) {
   const { t } = useTranslation();
 
+  const ready = !!gpsPosition && !gpsError;
+  const state = gpsError ? "error" : ready ? "ready" : "loading";
+
+  const tone = {
+    ready: {
+      ring: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
+      dot: "bg-emerald-500",
+    },
+    loading: {
+      ring: "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
+      dot: "bg-amber-500",
+    },
+    error: {
+      ring: "bg-destructive/10 text-destructive",
+      dot: "bg-destructive",
+    },
+  }[state];
+
   return (
-    <Card className="p-4">
-      <div className="flex items-start gap-3">
-        <MapPin className="h-5 w-5 mt-0.5 text-primary" />
-        <div className="flex-1 space-y-1">
-          <div className="font-medium">{t("onsite.gpsStatus")}</div>
-          {gpsLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>{t("onsite.gettingLocation")}</span>
-            </div>
+    <Card className="p-3">
+      <div className="flex items-center gap-3">
+        <div
+          className={cn(
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full",
+            tone.ring,
           )}
-          {gpsError && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span>{gpsError}</span>
-            </div>
+        >
+          {gpsLoading && !gpsPosition ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : gpsError ? (
+            <AlertCircle className="h-5 w-5" />
+          ) : (
+            <MapPin className="h-5 w-5" />
           )}
-          {gpsPosition && !gpsError && (
-            <div className="text-sm space-y-1">
-              <div className="text-muted-foreground">
-                <span className="font-medium">{t("onsite.location")}</span>
-                {gpsPosition.latitude.toFixed(6)},{" "}
-                {gpsPosition.longitude.toFixed(6)}
-              </div>
-              {gpsPosition.altitude !== null && (
-                <div className="text-muted-foreground">
-                  <span className="font-medium">{t("onsite.altitude")}</span>
-                  {gpsPosition.altitude.toFixed(1)}m
-                </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2 w-2 flex-shrink-0 rounded-full",
+                tone.dot,
+                ready && "animate-pulse",
               )}
-              <div className="text-muted-foreground">
-                <span className="font-medium">{t("onsite.accuracy")}</span>±
-                {gpsPosition.accuracy.toFixed(1)}m
-              </div>
+            />
+            <span className="text-sm font-medium">
+              {gpsError
+                ? gpsError
+                : ready
+                  ? `${gpsPosition.latitude.toFixed(5)}, ${gpsPosition.longitude.toFixed(5)}`
+                  : t("onsite.gettingLocation")}
+            </span>
+          </div>
+
+          {ready && (
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              <span>
+                {t("onsite.accuracy")}±{gpsPosition.accuracy.toFixed(0)}m
+              </span>
+              {gpsPosition.altitude !== null && (
+                <span>
+                  {t("onsite.altitude")}
+                  {gpsPosition.altitude.toFixed(0)}m
+                </span>
+              )}
             </div>
           )}
         </div>
