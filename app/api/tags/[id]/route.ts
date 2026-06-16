@@ -22,24 +22,12 @@ export async function PATCH(
     // 获取标签信息
     const { data: tag, error: fetchError } = await supabase
       .from("tag")
-      .select("*, workspace_id")
+      .select("id")
       .eq("id", tagId)
       .single();
 
     if (fetchError || !tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
-    }
-
-    // 检查用户是否有权限修改此标签（需要在该工作空间中）
-    const { data: assignment } = await supabase
-      .from("workspace_assignment")
-      .select("id")
-      .eq("workspace_id", tag.workspace_id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (!assignment) {
-      return NextResponse.json({ error: "无权限修改此标签" }, { status: 403 });
     }
 
     // 解析请求体
@@ -103,24 +91,12 @@ export async function DELETE(
     // 获取标签信息
     const { data: tag, error: fetchError } = await supabase
       .from("tag")
-      .select("workspace_id")
+      .select("id")
       .eq("id", tagId)
       .single();
 
     if (fetchError || !tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
-    }
-
-    // 检查用户是否有权限删除此标签（需要在该工作空间中）
-    const { data: assignment } = await supabase
-      .from("workspace_assignment")
-      .select("id")
-      .eq("workspace_id", tag.workspace_id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (!assignment) {
-      return NextResponse.json({ error: "无权限删除此标签" }, { status: 403 });
     }
 
     // 删除标签
