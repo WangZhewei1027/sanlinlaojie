@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextResponse } from "next/server";
 
 // 获取 organization 下所有 workspace 的 assets（用于 "All workspaces" 视图）
@@ -40,21 +41,24 @@ export async function GET(
       return NextResponse.json({ data: [] });
     }
 
-    // asset.workspace_id 是数组，使用 overlaps 判断是否与本组织的任一 workspace 相交
-    let query = supabase
-      .from("asset")
-      .select("*")
-      .overlaps("workspace_id", workspaceIds);
+    // asset.workspace_id 是数组，使用 overlaps 判断是否与本组织的任一 workspace 相交。
+    // 分页拉全量，避免 PostgREST 默认 1000 行上限截断（否则派生的 file_type 选项与列表都会缺失）。
+    const { data, error } = await fetchAllRows(() => {
+      let query = supabase
+        .from("asset")
+        .select("*")
+        .overlaps("workspace_id", workspaceIds);
 
-    if (type) {
-      query = query.eq("file_type", type);
-    }
+      if (type) {
+        query = query.eq("file_type", type);
+      }
 
-    if (requireLocation) {
-      query = query.not("location", "is", null);
-    }
+      if (requireLocation) {
+        query = query.not("location", "is", null);
+      }
 
-    const { data, error } = await query;
+      return query;
+    });
 
     if (error) {
       console.error("查询 assets 失败:", error);

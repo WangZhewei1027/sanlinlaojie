@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -24,23 +25,26 @@ export async function GET(
     const requireLocation = searchParams.get("requireLocation") === "true"; // 是否只返回有坐标的
 
     // 查询该 workspace 下的 assets
-    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
-    let query = supabase
-      .from("asset")
-      .select("*")
-      .contains("workspace_id", [workspaceId]);
+    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace。
+    // 分页拉全量，避免 PostgREST 默认 1000 行上限截断。
+    const { data, error } = await fetchAllRows(() => {
+      let query = supabase
+        .from("asset")
+        .select("*")
+        .contains("workspace_id", [workspaceId]);
 
-    // 如果需要，过滤特定类型
-    if (type) {
-      query = query.eq("file_type", type);
-    }
+      // 如果需要，过滤特定类型
+      if (type) {
+        query = query.eq("file_type", type);
+      }
 
-    // 如果需要，只返回有坐标的资源
-    if (requireLocation) {
-      query = query.not("location", "is", null);
-    }
+      // 如果需要，只返回有坐标的资源
+      if (requireLocation) {
+        query = query.not("location", "is", null);
+      }
 
-    const { data, error } = await query;
+      return query;
+    });
 
     if (error) {
       console.error("查询 assets 失败:", error);

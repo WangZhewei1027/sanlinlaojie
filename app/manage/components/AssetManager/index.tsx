@@ -43,16 +43,23 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   const [deleting, setDeleting] = useState(false);
 
   const fetchTags = useCallback(async () => {
-    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
-      // "All workspaces" 下不按 workspace 过滤标签
+    // "All workspaces" 下按组织聚合所有 workspace 的标签；否则按单个 workspace
+    let url: string | null = null;
+    if (isAllWorkspaces) {
+      url = selectedOrganizationId
+        ? `/api/tags?organization_id=${selectedOrganizationId}`
+        : null;
+    } else if (isSpecificWorkspaceId(selectedWorkspaceId)) {
+      url = `/api/tags?workspace_id=${selectedWorkspaceId}`;
+    }
+
+    if (!url) {
       setTags([]);
       return;
     }
 
     try {
-      const response = await fetch(
-        `/api/tags?workspace_id=${selectedWorkspaceId}`,
-      );
+      const response = await fetch(url);
       const result = await response.json();
 
       if (response.ok) {
@@ -63,29 +70,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       setTags([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWorkspaceId]);
-
-  const fetchCreators = useCallback(async () => {
-    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
-      setCreators([]);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/workspaces/${selectedWorkspaceId}/assets/creators`,
-      );
-      const result = await response.json();
-
-      if (response.ok) {
-        setCreators(result.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch creators:", err);
-      setCreators([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWorkspaceId]);
+  }, [selectedWorkspaceId, selectedOrganizationId, isAllWorkspaces]);
 
   const fetchAssets = useCallback(async () => {
     // "All workspaces" 模式：拉取当前组织下所有 workspace 的 assets
@@ -149,13 +134,52 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
   useEffect(() => {
     fetchTags();
     fetchAssets();
-    fetchCreators();
-  }, [fetchTags, fetchAssets, fetchCreators]);
+  }, [fetchTags, fetchAssets]);
 
   // 从当前 assets 中派生出可用的 file_type 列表
   const availableFileTypes = useMemo(() => {
     return [...new Set(assets.map((a) => a.file_type))].sort();
   }, [assets]);
+
+  // 从当前 assets 中派生出去重后的创建者ID。资产已全量加载，无需再扫一遍 asset 表，
+  // 单/全部 workspace 两种模式都走同一套逻辑。
+  const creatorIds = useMemo(() => {
+    return [
+      ...new Set(
+        assets
+          .map((a) => a.created_by)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+  }, [assets]);
+
+  // 只把这批ID解析成显示名（结果集很小），填充 creator 过滤器选项
+  useEffect(() => {
+    if (creatorIds.length === 0) {
+      setCreators([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `/api/users/by-ids?ids=${creatorIds.join(",")}`,
+        );
+        const result = await response.json();
+        if (!cancelled && response.ok) {
+          setCreators(result.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch creators:", err);
+        if (!cancelled) setCreators([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creatorIds]);
 
   // 过滤资产：tag、user、file_type 过滤条件为 AND 关系；同一类型内部为 OR
   const filteredAssets = useMemo(() => {
@@ -270,7 +294,7 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         onRefresh={() => {
           fetchTags();
           fetchAssets();
-          fetchCreators();
+          // creator 选项随 assets 变化自动重算，无需单独刷新
         }}
         refreshing={loading}
       />
