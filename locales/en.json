@@ -320,6 +320,18 @@
       "unnamed": "Unnamed User",
       "registeredOn": "Registered on",
       "changeRole": "Change Role",
+      "searchPlaceholder": "Search name or email",
+      "filterAll": "All roles",
+      "matchCount": "{{count}} results",
+      "workspaceCount": "{{count}} workspaces",
+      "neverSignedIn": "Never signed in",
+      "columns": {
+        "user": "User",
+        "role": "Role",
+        "workspaces": "Workspaces",
+        "lastSignIn": "Last sign-in",
+        "registered": "Registered"
+      },
       "roles": {
         "super_admin": "Super Admin",
         "user": "User"

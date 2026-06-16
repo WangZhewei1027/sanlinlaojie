@@ -320,6 +320,18 @@
       "unnamed": "未命名用户",
       "registeredOn": "注册于",
       "changeRole": "修改角色",
+      "searchPlaceholder": "搜索姓名或邮箱",
+      "filterAll": "全部角色",
+      "matchCount": "{{count}} 条结果",
+      "workspaceCount": "{{count}} 个工作空间",
+      "neverSignedIn": "从未登录",
+      "columns": {
+        "user": "用户",
+        "role": "角色",
+        "workspaces": "工作空间",
+        "lastSignIn": "最近登录",
+        "registered": "注册时间"
+      },
       "roles": {
         "super_admin": "超级管理员",
         "user": "普通用户"

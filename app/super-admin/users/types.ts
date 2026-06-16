@@ -1,10 +1,12 @@
 export interface UserWorkspaceAssignment {
   id: string;
   workspace_id: string;
+  role?: string;
+  created_at?: string;
   workspace: {
     id: string;
     name: string;
-  };
+  } | null;
 }
 
 export interface UserData {
@@ -13,5 +15,6 @@ export interface UserData {
   email: string | null;
   role: string;
   created_at: string;
+  last_sign_in_at?: string | null;
   workspace_assignment?: UserWorkspaceAssignment[];
 }

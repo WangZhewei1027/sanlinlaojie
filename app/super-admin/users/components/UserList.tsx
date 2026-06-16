@@ -1,10 +1,15 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserCog, User, Calendar, Mail } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { MoreHorizontal, UserCog, User, Layers } from "lucide-react";
 import type { UserData } from "../types";
 
 interface UserListProps {
@@ -13,95 +18,197 @@ interface UserListProps {
   onChangeRole: (user: UserData) => void;
 }
 
-export function UserList({
-  users,
-  currentUserId,
-  onChangeRole,
-}: UserListProps) {
-  const { t } = useTranslation();
+function initials(name: string | null, email: string | null) {
+  const src = (name || email || "?").trim();
+  return src.slice(0, 2).toUpperCase();
+}
+
+// Compact, locale-aware relative time, e.g. "3 天前" / "3 days ago".
+function relativeTime(iso: string | null | undefined, locale?: string) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  const diffMs = date.getTime() - Date.now();
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["year", 31536000000],
+    ["month", 2592000000],
+    ["day", 86400000],
+    ["hour", 3600000],
+    ["minute", 60000],
+  ];
+  for (const [unit, ms] of units) {
+    if (Math.abs(diffMs) >= ms) {
+      return rtf.format(Math.round(diffMs / ms), unit);
+    }
+  }
+  return rtf.format(0, "minute");
+}
+
+export function UserList({ users, currentUserId, onChangeRole }: UserListProps) {
+  const { t, i18n } = useTranslation();
 
   if (users.length === 0) {
     return (
-      <Card className="p-12">
-        <div className="flex flex-col items-center justify-center text-center">
-          <User className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold mb-2">
-            {t("admin.users.noUsers", "暂无用户")}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {t("admin.users.noUsersHint", "等待用户注册")}
-          </p>
-        </div>
-      </Card>
+      <div className="flex flex-col items-center justify-center text-center rounded-lg border border-dashed py-16">
+        <User className="h-10 w-10 text-muted-foreground/40 mb-3" />
+        <h3 className="text-sm font-medium">
+          {t("admin.users.noUsers", "暂无用户")}
+        </h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t("admin.users.noUsersHint", "等待用户注册")}
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      {users.map((user) => {
-        const isCurrentUser = user.user_id === currentUserId;
+    <div className="rounded-lg border overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+              <th className="text-left font-medium px-4 py-2.5">
+                {t("admin.users.columns.user", "用户")}
+              </th>
+              <th className="text-left font-medium px-3 py-2.5">
+                {t("admin.users.columns.role", "角色")}
+              </th>
+              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">
+                {t("admin.users.columns.workspaces", "工作空间")}
+              </th>
+              <th className="text-left font-medium px-3 py-2.5 hidden lg:table-cell">
+                {t("admin.users.columns.lastSignIn", "最近登录")}
+              </th>
+              <th className="text-left font-medium px-3 py-2.5 hidden xl:table-cell">
+                {t("admin.users.columns.registered", "注册时间")}
+              </th>
+              <th className="w-10 px-2 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => {
+              const isCurrentUser = user.user_id === currentUserId;
+              const workspaces = (user.workspace_assignment ?? [])
+                .map((a) => a.workspace?.name)
+                .filter(Boolean) as string[];
 
-        return (
-          <Card key={user.user_id} className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-semibold text-lg truncate">
-                    {user.name || t("admin.users.unnamed", "未命名用户")}
-                  </h3>
-                  <Badge
-                    variant={
-                      user.role === "super_admin" ? "default" : "secondary"
-                    }
-                  >
-                    {t(`admin.users.roles.${user.role}`, user.role)}
-                  </Badge>
-                  {isCurrentUser && (
-                    <Badge variant="outline" className="text-xs">
-                      {t("admin.users.currentUser", "当前用户")}
-                    </Badge>
-                  )}
-                </div>
-
-                {user.email && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <Mail className="h-3 w-3" />
-                    <span className="truncate">{user.email}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      {t("admin.users.registeredOn", "注册于")}{" "}
-                      {new Date(user.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground/75 font-mono truncate">
-                    ID: {user.user_id}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onChangeRole(user)}
-                  disabled={isCurrentUser}
+              return (
+                <tr
+                  key={user.user_id}
+                  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  <UserCog className="h-4 w-4 mr-1" />
-                  {t("admin.users.changeRole", "修改角色")}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
+                  {/* User */}
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                        {initials(user.name, user.email)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium truncate">
+                            {user.name ||
+                              t("admin.users.unnamed", "未命名用户")}
+                          </span>
+                          {isCurrentUser && (
+                            <Badge
+                              variant="outline"
+                              className="px-1 py-0 text-[10px] leading-4"
+                            >
+                              {t("admin.users.currentUser", "当前")}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="block text-xs text-muted-foreground truncate">
+                          {user.email || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Role */}
+                  <td className="px-3 py-2.5">
+                    <Badge
+                      variant={
+                        user.role === "super_admin" ? "default" : "secondary"
+                      }
+                      className="font-normal"
+                    >
+                      {t(`admin.users.roles.${user.role}`, user.role)}
+                    </Badge>
+                  </td>
+
+                  {/* Workspaces */}
+                  <td className="px-3 py-2.5 hidden md:table-cell">
+                    {workspaces.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <div
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                        title={workspaces.join("、")}
+                      >
+                        <Layers className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate max-w-[200px]">
+                          {workspaces.length <= 2
+                            ? workspaces.join("、")
+                            : t(
+                                "admin.users.workspaceCount",
+                                "{{count}} 个工作空间",
+                                { count: workspaces.length },
+                              )}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Last sign-in */}
+                  <td className="px-3 py-2.5 hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">
+                    {user.last_sign_in_at ? (
+                      <span
+                        title={new Date(user.last_sign_in_at).toLocaleString()}
+                      >
+                        {relativeTime(user.last_sign_in_at, i18n.language)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/60">
+                        {t("admin.users.neverSignedIn", "从未登录")}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Registered */}
+                  <td className="px-3 py-2.5 hidden xl:table-cell text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-2 py-2.5 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => onChangeRole(user)}
+                          disabled={isCurrentUser}
+                        >
+                          <UserCog className="h-4 w-4 mr-2" />
+                          {t("admin.users.changeRole", "修改角色")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
