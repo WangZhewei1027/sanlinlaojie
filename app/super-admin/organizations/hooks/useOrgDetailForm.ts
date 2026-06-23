@@ -81,6 +81,7 @@ export function useOrgDetailForm(org: OrgData, onSuccess: () => void) {
         map_center: mapCenter,
         allowed_file_types: allSelected ? null : selectedTypes,
         config: {
+          ...org.config,
           text_asset_miniapp_style: textAssetMiniappStyle,
           confetti_enabled: confettiEnabled,
           shop_checkin_enabled: shopCheckinEnabled,
