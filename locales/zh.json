@@ -13,7 +13,8 @@
     "edit": "编辑",
     "create": "创建",
     "search": "搜索",
-    "close": "关闭"
+    "close": "关闭",
+    "copyFailed": "复制失败"
   },
   "workspace": {
     "selectPlaceholder": "选择工作空间...",
@@ -102,7 +103,8 @@
     },
     "uploadingTo": "将上传到",
     "selectWorkspaceFirst": "请先选择具体的工作区再上传",
-    "selectFromGallery": "从相册选择"
+    "selectFromGallery": "从相册选择",
+    "readOnly": "你在此组织为只读角色，无法上传资产"
   },
   "manage": {
     "clickedLocation": {
@@ -264,6 +266,23 @@
         "close": "关闭",
         "addFailed": "添加失败",
         "removeFailed": "删除失败"
+      },
+      "searchByEmail": "按邮箱或姓名搜索（≥3 字符）",
+      "searchHint": "输入至少 3 个字符搜索用户",
+      "invite": {
+        "button": "邀请链接",
+        "title": "生成邀请链接",
+        "description": "分享链接，对方登录后自动加入本组织。",
+        "role": "角色",
+        "workspace": "工作区（可选）",
+        "noWorkspace": "仅加入组织",
+        "expiry": "有效期",
+        "expiry1d": "1 天",
+        "expiry7d": "7 天",
+        "expiry30d": "30 天",
+        "expiryNever": "永不过期",
+        "generate": "生成链接",
+        "copied": "链接已复制"
       }
     },
     "settings": {
@@ -279,7 +298,8 @@
       "dangerZone": "危险操作",
       "deleteWarning": "删除组织将移除所有关联数据，此操作无法撤销。",
       "confirmDelete": "输入 \"{{name}}\" 确认删除",
-      "deleteOrg": "删除组织"
+      "deleteOrg": "删除组织",
+      "noPermission": "你没有权限管理此组织设置"
     },
     "workspaces": {
       "selectOrgFirst": "请先选择一个组织",

@@ -13,7 +13,8 @@
     "edit": "Edit",
     "create": "Create",
     "search": "Search",
-    "close": "Close"
+    "close": "Close",
+    "copyFailed": "Copy failed"
   },
   "workspace": {
     "selectPlaceholder": "Select workspace...",
@@ -102,7 +103,8 @@
     },
     "uploadingTo": "Uploading to",
     "selectWorkspaceFirst": "Please select a specific workspace before uploading",
-    "selectFromGallery": "Select from Gallery"
+    "selectFromGallery": "Select from Gallery",
+    "readOnly": "You are a read-only member in this organization and cannot upload assets"
   },
   "manage": {
     "clickedLocation": {
@@ -264,6 +266,23 @@
         "close": "Close",
         "addFailed": "Failed to add",
         "removeFailed": "Failed to remove"
+      },
+      "searchByEmail": "Search by email or name (≥3 chars)",
+      "searchHint": "Type at least 3 characters to search",
+      "invite": {
+        "button": "Invite Link",
+        "title": "Generate Invite Link",
+        "description": "Share the link; the invitee joins this organization automatically after signing in.",
+        "role": "Role",
+        "workspace": "Workspace (optional)",
+        "noWorkspace": "Organization only",
+        "expiry": "Expires in",
+        "expiry1d": "1 day",
+        "expiry7d": "7 days",
+        "expiry30d": "30 days",
+        "expiryNever": "Never",
+        "generate": "Generate Link",
+        "copied": "Link copied"
       }
     },
     "settings": {
@@ -279,7 +298,8 @@
       "dangerZone": "Danger Zone",
       "deleteWarning": "Deleting an organization will remove all associated data. This action cannot be undone.",
       "confirmDelete": "Type \"{{name}}\" to confirm deletion",
-      "deleteOrg": "Delete Organization"
+      "deleteOrg": "Delete Organization",
+      "noPermission": "You don't have permission to manage this organization's settings"
     },
     "workspaces": {
       "selectOrgFirst": "Please select an organization first",
