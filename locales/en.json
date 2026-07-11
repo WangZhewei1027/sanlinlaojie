@@ -157,7 +157,8 @@
     "sidebar": {
       "section": "Super Admin",
       "users": "User Management",
-      "organizations": "Organizations"
+      "organizations": "Organizations",
+      "errorLogs": "Error Logs"
     },
     "orgs": {
       "title": "Organization Management",
@@ -220,6 +221,54 @@
         "shopCheckinDesc": "Show the shop check-in module in the mini program",
         "footer": "Watermark Logo",
         "footerDesc": "Show the watermark logo in the mini program"
+      }
+    },
+    "errorLogs": {
+      "title": "Error Logs",
+      "description": "Analyze and filter client & API errors",
+      "empty": "No error logs",
+      "emptyHint": "No records match your filters",
+      "loadError": "Failed to load error logs",
+      "scope": {
+        "client": "Client",
+        "api": "API"
+      },
+      "columns": {
+        "time": "Time",
+        "scope": "Scope",
+        "status": "Status",
+        "path": "Path",
+        "message": "Message"
+      },
+      "detail": {
+        "userId": "User ID",
+        "message": "Message",
+        "context": "Context"
+      },
+      "filters": {
+        "searchPlaceholder": "Search message or path",
+        "allScopes": "All scopes",
+        "allStatus": "All status",
+        "network": "Network / 0",
+        "from": "From",
+        "to": "To",
+        "reset": "Reset",
+        "refresh": "Refresh"
+      },
+      "stats": {
+        "total": "Total",
+        "client": "Client",
+        "api": "API",
+        "client4xx": "4xx",
+        "client5xx": "5xx",
+        "network": "Network / 0",
+        "topPaths": "Top paths",
+        "dailyTrend": "Daily trend"
+      },
+      "pagination": {
+        "range": "{{start}}–{{end}} of {{total}}",
+        "prev": "Prev",
+        "next": "Next"
       }
     }
   },

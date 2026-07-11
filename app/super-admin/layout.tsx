@@ -11,6 +11,7 @@ import {
   Menu,
   Loader2,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,11 @@ export default function SuperAdminLayout({
       label: t("superAdmin.sidebar.organizations", "Organizations"),
       href: "/super-admin/organizations",
       icon: Building2,
+    },
+    {
+      label: t("superAdmin.sidebar.errorLogs", "Error Logs"),
+      href: "/super-admin/error-logs",
+      icon: AlertTriangle,
     },
   ];
 
