@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Plus, X, Loader2, Tag } from "lucide-react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface TagData {
   id: string;
@@ -74,7 +75,7 @@ export function TagSelector({
 
     setIsSaving(true);
     try {
-      const response = await fetch("/api/tags", {
+      const data = await fetchJson<{ tag: TagData }>("/api/tags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -84,21 +85,15 @@ export function TagSelector({
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setTags([...tags, data.tag]);
-        setShowCreateDialog(false);
-        setNewTagName("");
-        setNewTagColor("#808080");
-        // 自动选中新创建的标签
-        onTagIdsChange([...selectedTagIds, data.tag.id]);
-      } else {
-        const error = await response.json();
-        alert(error.error || t("onsite.tags.createFailed"));
-      }
+      setTags([...tags, data.tag]);
+      setShowCreateDialog(false);
+      setNewTagName("");
+      setNewTagColor("#808080");
+      // 自动选中新创建的标签
+      onTagIdsChange([...selectedTagIds, data.tag.id]);
     } catch (error) {
+      // fetchJson 已弹 toast
       console.error("创建标签失败:", error);
-      alert(t("onsite.tags.createFailed"));
     } finally {
       setIsSaving(false);
     }

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // GET /api/tags?workspace_id=xxx - 获取工作空间的所有标签
 // GET /api/tags?organization_id=xxx - 获取该组织下所有 workspace 的标签（"All workspaces" 视图）
@@ -66,6 +67,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ tags });
   } catch (error) {
     console.error("获取标签失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/tags",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -119,6 +126,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ tag });
   } catch (error) {
     console.error("创建标签失败:", error);
+    await logErrorSafe({
+      method: "POST",
+      path: "/api/tags",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

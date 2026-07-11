@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { fetchJson } from "@/lib/fetch-json";
 import {
   Check,
   ChevronLeft,
@@ -125,7 +126,7 @@ export function AssetTagEditor({
     if (!trimmed || busy) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/tags", {
+      const data = await fetchJson<{ tag: Tag }>("/api/tags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -134,20 +135,14 @@ export function AssetTagEditor({
           workspace_id: workspaceId,
         }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setTags((prev) =>
-          [...prev, data.tag].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        onTagIdsChange([...safeTagIds, data.tag.id]);
-        setSearch("");
-      } else {
-        const error = await response.json();
-        alert(error.error || t("assetEditor.tags.createFailed"));
-      }
+      setTags((prev) =>
+        [...prev, data.tag].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      onTagIdsChange([...safeTagIds, data.tag.id]);
+      setSearch("");
     } catch (error) {
+      // fetchJson 已弹 toast
       console.error(t("assetEditor.tags.createFailed"), error);
-      alert(t("assetEditor.tags.createFailed"));
     } finally {
       setBusy(false);
     }
@@ -157,25 +152,19 @@ export function AssetTagEditor({
   const patchTag = async (tagId: string, body: Partial<Pick<Tag, "name" | "color">>) => {
     setBusy(true);
     try {
-      const response = await fetch(`/api/tags/${tagId}`, {
+      const data = await fetchJson<{ tag: Tag }>(`/api/tags/${tagId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setTags((prev) =>
-          prev
-            .map((tag) => (tag.id === data.tag.id ? data.tag : tag))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        );
-      } else {
-        const error = await response.json();
-        alert(error.error || t("assetEditor.tags.updateFailed"));
-      }
+      setTags((prev) =>
+        prev
+          .map((tag) => (tag.id === data.tag.id ? data.tag : tag))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
     } catch (error) {
+      // fetchJson 已弹 toast
       console.error(t("assetEditor.tags.updateFailed"), error);
-      alert(t("assetEditor.tags.updateFailed"));
     } finally {
       setBusy(false);
     }
@@ -195,18 +184,13 @@ export function AssetTagEditor({
     if (!confirm(t("assetEditor.tags.deleteConfirm"))) return;
     setBusy(true);
     try {
-      const response = await fetch(`/api/tags/${tagId}`, { method: "DELETE" });
-      if (response.ok) {
-        setTags((prev) => prev.filter((tag) => tag.id !== tagId));
-        onTagIdsChange(safeTagIds.filter((id) => id !== tagId));
-        goToList();
-      } else {
-        const error = await response.json();
-        alert(error.error || t("assetEditor.tags.deleteFailed"));
-      }
+      await fetchJson(`/api/tags/${tagId}`, { method: "DELETE" });
+      setTags((prev) => prev.filter((tag) => tag.id !== tagId));
+      onTagIdsChange(safeTagIds.filter((id) => id !== tagId));
+      goToList();
     } catch (error) {
+      // fetchJson 已弹 toast
       console.error(t("assetEditor.tags.deleteFailed"), error);
-      alert(t("assetEditor.tags.deleteFailed"));
     } finally {
       setBusy(false);
     }

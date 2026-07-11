@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // 获取 organization 下所有 workspace 的 assets（用于 "All workspaces" 视图）
 export async function GET(
@@ -68,6 +69,12 @@ export async function GET(
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取 organization assets 失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/organizations/[id]/assets",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

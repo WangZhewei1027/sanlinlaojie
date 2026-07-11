@@ -1,15 +1,97 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getWorkspaceOrgIds } from "@/lib/permissions.server";
+import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
+import { logError } from "@/lib/log-error";
+
+type Supa = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Gate an asset write (edit/delete). Requires super_admin, or `org.assets.write`
+ * in EVERY organization the asset's workspaces belong to (an asset's
+ * workspace_id is an array and may span workspaces/orgs — the strictest rule
+ * prevents using a cross-org asset to sidestep a missing permission).
+ */
+async function authorizeAssetWrite(
+  supabase: Supa,
+  assetId: string,
+  userId: string,
+  method: string,
+): Promise<
+  | { ok: true; asset: { id: string; file_url?: string | null } }
+  | { ok: false; response: NextResponse }
+> {
+  const { data: asset } = await supabase
+    .from("asset")
+    .select("id, file_url, workspace_id")
+    .eq("id", assetId)
+    .single();
+
+  if (!asset) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "资源不存在" }, { status: 404 }),
+    };
+  }
+
+  const { data: userData } = await supabase
+    .from("users")
+    .select("role")
+    .eq("user_id", userId)
+    .single();
+
+  if (isSuperAdmin(userData?.role as string | undefined)) {
+    return { ok: true, asset };
+  }
+
+  const workspaceIds = (asset.workspace_id as string[] | null) ?? [];
+  const orgIds = await getWorkspaceOrgIds(supabase, workspaceIds);
+
+  const deny = async (msg: string) => {
+    await logError(supabase, {
+      userId,
+      method,
+      path: `/api/assets/${assetId}`,
+      status: 403,
+      message: msg,
+      context: { orgIds },
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: "权限不足" }, { status: 403 }),
+    };
+  };
+
+  if (orgIds.length === 0) {
+    return deny("权限不足: 资产无有效 org 归属");
+  }
+
+  const { data: memberships } = await supabase
+    .from("organization_member")
+    .select("organization_id, role")
+    .eq("user_id", userId)
+    .in("organization_id", orgIds);
+
+  const roleByOrg = new Map(
+    (memberships ?? []).map((m) => [m.organization_id as string, m.role as string]),
+  );
+
+  for (const orgId of orgIds) {
+    if (!hasOrgPermission(roleByOrg.get(orgId), "org.assets.write")) {
+      return deny("权限不足: org.assets.write");
+    }
+  }
+
+  return { ok: true, asset };
+}
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const supabase = await createClient();
+  const { id: assetId } = await params;
   try {
-    const supabase = await createClient();
-    const { id: assetId } = await params;
-
-    // 获取当前用户
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -17,6 +99,9 @@ export async function PATCH(
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
+
+    const auth = await authorizeAssetWrite(supabase, assetId, user.id, "PATCH");
+    if (!auth.ok) return auth.response;
 
     // 解析请求体
     const body = await request.json();
@@ -31,42 +116,25 @@ export async function PATCH(
       config,
     } = body;
 
-    // 检查该资产是否存在
-    const { data: asset, error: fetchError } = await supabase
-      .from("asset")
-      .select("id")
-      .eq("id", assetId)
-      .single();
-
-    if (fetchError || !asset) {
-      console.error("查询资产失败:", fetchError);
-      return NextResponse.json({ error: "资源不存在" }, { status: 404 });
-    }
-
     // 构建更新对象
     const updates: Record<string, unknown> = {};
 
-    // 更新 name（如果提供）
     if (name !== undefined) {
       updates.name = name;
     }
 
-    // 更新 text_content（如果提供）
     if (text_content !== undefined) {
       updates.text_content = text_content;
     }
 
-    // 更新 anchor_id（如果提供）
     if (anchor_id !== undefined) {
       updates.anchor_id = anchor_id;
     }
 
-    // 更新 tag_ids（如果提供）
     if (tag_ids !== undefined) {
       updates.tag_ids = tag_ids;
     }
 
-    // 更新 is_huge（如果提供）
     if (is_huge !== undefined) {
       updates.is_huge = is_huge;
     }
@@ -85,14 +153,12 @@ export async function PATCH(
       };
     }
 
-    // 更新 file_url（如果提供）—— 用于替换主图等场景
     if (file_url !== undefined) {
       updates.file_url = file_url;
     }
 
     // 更新 metadata（合并而不是替换）
     if (metadata) {
-      // 先获取当前的metadata
       const { data: currentAsset } = await supabase
         .from("asset")
         .select("metadata")
@@ -105,7 +171,6 @@ export async function PATCH(
       };
     }
 
-    // 执行更新
     const { data: updatedAsset, error: updateError } = await supabase
       .from("asset")
       .update(updates)
@@ -116,13 +181,18 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error("更新资源失败:", updateError);
-      return NextResponse.json({ error: "更新资源失败" }, { status: 500 });
+      throw updateError;
     }
 
     return NextResponse.json({ data: updatedAsset });
   } catch (error) {
     console.error("更新资源失败:", error);
+    await logError(supabase, {
+      method: "PATCH",
+      path: `/api/assets/${assetId}`,
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -131,11 +201,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const supabase = await createClient();
+  const { id: assetId } = await params;
   try {
-    const supabase = await createClient();
-    const { id: assetId } = await params;
-
-    // 获取当前用户
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -144,64 +212,51 @@ export async function DELETE(
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    // 检查该资产是否存在
-    const { data: asset, error: fetchError } = await supabase
-      .from("asset")
-      .select("id, file_url")
-      .eq("id", assetId)
-      .single();
-
-    if (fetchError || !asset) {
-      console.error("查询资产失败:", fetchError);
-      return NextResponse.json({ error: "资源不存在" }, { status: 404 });
-    }
+    const auth = await authorizeAssetWrite(supabase, assetId, user.id, "DELETE");
+    if (!auth.ok) return auth.response;
+    const asset = auth.asset;
 
     // 如果有文件URL，尝试从storage中删除文件
     if (asset.file_url) {
       try {
-        // 从 URL 中提取文件路径
-        // URL 格式: https://{project}.supabase.co/storage/v1/object/public/assets/{workspace_id}/{filename}
         const url = new URL(asset.file_url);
         const pathMatch = url.pathname.match(
           /\/storage\/v1\/object\/public\/assets\/(.+)/,
         );
 
         if (pathMatch) {
-          // pathMatch[1] 是 {workspace_id}/{filename}，这正是我们需要的路径
           const filePath = pathMatch[1];
-          console.log("尝试删除文件:", filePath);
-
           const { error: storageError } = await supabase.storage
             .from("assets")
             .remove([filePath]);
 
           if (storageError) {
             console.warn("删除存储文件失败:", storageError);
-            // 不阻止删除数据库记录
-          } else {
-            console.log("文件删除成功");
           }
         }
       } catch (err) {
         console.warn("解析文件URL失败:", err);
-        // 继续删除数据库记录
       }
     }
 
-    // 从数据库中删除资产记录
     const { error: deleteError } = await supabase
       .from("asset")
       .delete()
       .eq("id", assetId);
 
     if (deleteError) {
-      console.error("删除资源失败:", deleteError);
-      return NextResponse.json({ error: "删除资源失败" }, { status: 500 });
+      throw deleteError;
     }
 
     return NextResponse.json({ success: true, message: "资源已删除" });
   } catch (error) {
     console.error("删除资源失败:", error);
+    await logError(supabase, {
+      method: "DELETE",
+      path: `/api/assets/${assetId}`,
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

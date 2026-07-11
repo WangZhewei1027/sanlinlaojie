@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface WorkspaceFormDialogProps {
   open: boolean;
@@ -41,13 +42,11 @@ export function WorkspaceFormDialog({
   const [name, setName] = useState(workspace?.name || "");
   const [description, setDescription] = useState(workspace?.description || "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const isEditing = !!workspace;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
 
     try {
@@ -61,24 +60,18 @@ export function WorkspaceFormDialog({
         body.organization_id = defaultOrganizationId;
       }
 
-      const response = await fetch(url, {
+      await fetchJson(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "操作失败");
-      }
-
       onSuccess();
       onOpenChange(false);
       setName("");
       setDescription("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失败");
+    } catch {
+      // fetchJson 已弹 toast
     } finally {
       setLoading(false);
     }
@@ -132,11 +125,6 @@ export function WorkspaceFormDialog({
                 )}
               />
             </div>
-            {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-                {error}
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button

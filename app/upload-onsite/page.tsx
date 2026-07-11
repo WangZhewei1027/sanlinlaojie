@@ -16,6 +16,7 @@ import { WorkspaceContextCard } from "./components/WorkspaceContextCard";
 import { useGPS } from "./hooks/useGPS";
 import { useManageStore } from "../manage/store";
 import { isSpecificWorkspaceId } from "../manage/constants";
+import { isSuperAdmin } from "@/lib/permissions";
 
 type UploadMode = "camera" | "text" | "audio";
 
@@ -29,6 +30,13 @@ export default function UploadOnsitePage() {
   const selectedWorkspaceId = isSpecificWorkspaceId(storeWorkspaceId)
     ? storeWorkspaceId
     : null;
+
+  // viewer 纯只读：不能上传资产（服务端亦会拒绝，这里隐藏入口避免困惑）
+  const selectedOrganization = useManageStore((s) => s.selectedOrganization);
+  const currentUserRole = useManageStore((s) => s.currentUserRole);
+  const isReadOnly =
+    !isSuperAdmin(currentUserRole) &&
+    selectedOrganization?.role === "viewer";
 
   const [mode, setMode] = useState<UploadMode>("camera");
   const [error, setError] = useState<string | null>(null);
@@ -248,31 +256,37 @@ export default function UploadOnsitePage() {
           />
         </section>
 
-        {/* 采集方式与上传 */}
-        <section className="space-y-3">
-          <ModeSelector mode={mode} onModeChange={setMode} />
+        {/* 采集方式与上传（viewer 只读，隐藏） */}
+        {isReadOnly ? (
+          <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+            {t("onsite.readOnly", "你在此组织为只读角色，无法上传资产")}
+          </div>
+        ) : (
+          <section className="space-y-3">
+            <ModeSelector mode={mode} onModeChange={setMode} />
 
-          {mode === "camera" && (
-            <CameraUpload
-              onUpload={handlePhotoUpload}
-              disabled={!gpsPosition || !selectedWorkspaceId}
-            />
-          )}
+            {mode === "camera" && (
+              <CameraUpload
+                onUpload={handlePhotoUpload}
+                disabled={!gpsPosition || !selectedWorkspaceId}
+              />
+            )}
 
-          {mode === "text" && (
-            <TextUpload
-              onUpload={handleTextUpload}
-              disabled={!gpsPosition || !selectedWorkspaceId}
-            />
-          )}
+            {mode === "text" && (
+              <TextUpload
+                onUpload={handleTextUpload}
+                disabled={!gpsPosition || !selectedWorkspaceId}
+              />
+            )}
 
-          {mode === "audio" && (
-            <AudioRecorder
-              onUpload={handleAudioUpload}
-              disabled={!gpsPosition || !selectedWorkspaceId}
-            />
-          )}
-        </section>
+            {mode === "audio" && (
+              <AudioRecorder
+                onUpload={handleAudioUpload}
+                disabled={!gpsPosition || !selectedWorkspaceId}
+              />
+            )}
+          </section>
+        )}
 
         <StatusMessages error={error} success={success} />
       </div>

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // 获取用户可访问的所有 organization
 export async function GET() {
@@ -23,6 +24,12 @@ export async function GET() {
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取 organization 失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/organizations",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取组织失败" }, { status: 500 });
   }
 }
@@ -47,6 +54,13 @@ export async function POST(request: Request) {
       .single();
 
     if (userData?.role !== "super_admin") {
+      await logErrorSafe({
+        userId: user.id,
+        method: "POST",
+        path: "/api/organizations",
+        status: 403,
+        message: "权限不足: 仅 super_admin 可创建组织",
+      });
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -84,6 +98,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: org }, { status: 201 });
   } catch (error) {
     console.error("创建 organization 失败:", error);
+    await logErrorSafe({
+      method: "POST",
+      path: "/api/organizations",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "创建组织失败" }, { status: 500 });
   }
 }

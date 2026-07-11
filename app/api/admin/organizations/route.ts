@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // GET all organizations with members (super_admin only)
 export async function GET() {
@@ -21,6 +22,13 @@ export async function GET() {
       .single();
 
     if (userData?.role !== "super_admin") {
+      await logErrorSafe({
+        userId: user.id,
+        method: "GET",
+        path: "/api/admin/organizations",
+        status: 403,
+        message: "权限不足: 仅 super_admin",
+      });
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -55,6 +63,12 @@ export async function GET() {
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取所有组织失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/admin/organizations",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取组织失败" }, { status: 500 });
   }
 }

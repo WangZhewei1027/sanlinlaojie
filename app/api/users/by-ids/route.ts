@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // GET /api/users/by-ids?ids=a,b,c
 // 按用户ID批量解析 name/email。用于资产过滤器展示创建者——创建者ID由前端从
@@ -39,6 +40,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ data: data || [] });
   } catch (error) {
     console.error("查询用户信息失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/users/by-ids",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import type { Asset, Tag, Creator } from "../../types";
 import { useManageStore } from "../../store";
+import { fetchJson } from "@/lib/fetch-json";
+import { toast } from "sonner";
 import { ALL_WORKSPACES_ID, isSpecificWorkspaceId } from "../../constants";
 import { AssetCard } from "./AssetCard";
 import { AssetListHeader } from "./AssetListHeader";
@@ -245,12 +247,22 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     if (checkedAssetIds.length === 0) return;
     setDeleting(true);
     try {
-      await Promise.all(
-        checkedAssetIds.map((id) =>
-          fetch(`/api/assets/${id}`, { method: "DELETE" }),
-        ),
+      const results = await Promise.allSettled(
+        checkedAssetIds.map(async (id) => {
+          const res = await fetch(`/api/assets/${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error(id);
+          return id;
+        }),
       );
-      checkedAssetIds.forEach((id) => deleteAssetInStore(id));
+      // 仅移除删除成功的；失败的保留并汇总提示一次
+      const succeeded = results
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => (r as PromiseFulfilledResult<string>).value);
+      succeeded.forEach((id) => deleteAssetInStore(id));
+      const failed = checkedAssetIds.length - succeeded.length;
+      if (failed > 0) {
+        toast.error(`${t("assetManager.deleteAssetFailed")} (${failed})`);
+      }
       setCheckedAssetIds([]);
       setSelectMode(false);
     } catch (err) {
@@ -334,19 +346,16 @@ export function useAssetAPI() {
     updates: Partial<Asset>,
   ) => {
     try {
-      const response = await fetch(`/api/assets/${assetId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      const result = await fetchJson<{ data: Asset }>(
+        `/api/assets/${assetId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updates),
         },
-        body: JSON.stringify(updates),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || t("assetManager.updateAssetFailed"));
-      }
+      );
 
       updateAssetInStore(assetId, result.data);
       return result.data;
@@ -358,18 +367,11 @@ export function useAssetAPI() {
 
   const handleDeleteAsset = async (assetId: string) => {
     try {
-      const response = await fetch(`/api/assets/${assetId}`, {
+      await fetchJson(`/api/assets/${assetId}`, {
         method: "DELETE",
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || t("assetManager.deleteAssetFailed"));
-      }
-
       deleteAssetInStore(assetId);
-      return result;
     } catch (err) {
       console.error(t("assetManager.deleteAssetFailed"), err);
       throw err;

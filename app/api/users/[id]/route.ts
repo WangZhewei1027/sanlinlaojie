@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 export async function PUT(
   request: Request,
@@ -25,6 +26,13 @@ export async function PUT(
       .single();
 
     if (userData?.role !== "super_admin") {
+      await logErrorSafe({
+        userId: user.id,
+        method: "PUT",
+        path: `/api/users/${id}`,
+        status: 403,
+        message: "权限不足: 仅 super_admin 可改用户角色",
+      });
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -55,6 +63,12 @@ export async function PUT(
     return NextResponse.json({ data });
   } catch (error) {
     console.error("更新用户角色失败:", error);
+    await logErrorSafe({
+      method: "PUT",
+      path: "/api/users/[id]",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "更新用户角色失败" }, { status: 500 });
   }
 }

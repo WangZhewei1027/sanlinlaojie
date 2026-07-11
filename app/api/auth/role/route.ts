@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, connection } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 export async function GET() {
   await connection();
@@ -30,6 +31,12 @@ export async function GET() {
     });
   } catch (error) {
     console.error("获取用户角色失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/auth/role",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取用户角色失败" }, { status: 500 });
   }
 }

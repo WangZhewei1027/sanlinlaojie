@@ -113,6 +113,28 @@ export class FileUploadService {
   }
 
   /**
+   * 通过服务端路由创建资产（带 org.assets.write 鉴权；viewer 被拒）。
+   * workspace_id / created_by 由服务端根据会话决定，客户端不再直连插入。
+   */
+  private async createAsset(
+    workspaceId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const res = await fetch(`/api/workspaces/${workspaceId}/assets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { error?: string }).error || "创建资源失败",
+      );
+    }
+  }
+
+  /**
    * 保存到数据库
    */
   async saveToDatabase(
@@ -124,9 +146,7 @@ export class FileUploadService {
       ? `POINT(${result.location.longitude} ${result.location.latitude})`
       : null;
 
-    const { error } = await this.supabase.from("asset").insert({
-      workspace_id: [workspaceId],
-      created_by: userId,
+    await this.createAsset(workspaceId, {
       name: result.name || null,
       file_type: result.fileType,
       file_url: result.fileUrl,
@@ -143,8 +163,6 @@ export class FileUploadService {
         ...result.metadata,
       },
     });
-
-    if (error) throw error;
   }
 
   /**
@@ -160,9 +178,7 @@ export class FileUploadService {
       ? `POINT(${location.longitude} ${location.latitude})`
       : null;
 
-    const { error } = await this.supabase.from("asset").insert({
-      workspace_id: [workspaceId],
-      created_by: userId,
+    await this.createAsset(workspaceId, {
       file_type: "link",
       file_url: link,
       location: geometry,
@@ -173,8 +189,6 @@ export class FileUploadService {
         upload_time: new Date().toISOString(),
       },
     });
-
-    if (error) throw error;
   }
 
   /**
@@ -191,9 +205,7 @@ export class FileUploadService {
       ? `POINT(${location.longitude} ${location.latitude})`
       : null;
 
-    const { error } = await this.supabase.from("asset").insert({
-      workspace_id: [workspaceId],
-      created_by: userId,
+    await this.createAsset(workspaceId, {
       file_type: "text",
       text_content: text,
       location: geometry,
@@ -205,8 +217,6 @@ export class FileUploadService {
         upload_time: new Date().toISOString(),
       },
     });
-
-    if (error) throw error;
   }
 
   /**
@@ -221,9 +231,7 @@ export class FileUploadService {
     const { name, location, text } = anchorData;
     const geometry = `POINT(${location.longitude} ${location.latitude})`;
 
-    const { error } = await this.supabase.from("asset").insert({
-      workspace_id: [workspaceId],
-      created_by: userId,
+    await this.createAsset(workspaceId, {
       name: name,
       file_type: "anchor",
       text_content: text || null,
@@ -235,7 +243,5 @@ export class FileUploadService {
         upload_time: new Date().toISOString(),
       },
     });
-
-    if (error) throw error;
   }
 }

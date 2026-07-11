@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Check, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,13 +70,14 @@ export default function SettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      const res = await fetch("/api/users/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "");
+      const json = await fetchJson<{ data?: { name?: string } }>(
+        "/api/users/me",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed }),
+        },
+      );
       setName(json.data?.name ?? trimmed);
       setInitialName(json.data?.name ?? trimmed);
       setSaved(true);

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 export async function GET() {
   try {
@@ -24,6 +25,12 @@ export async function GET() {
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取个人信息失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/users/me",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取个人信息失败" }, { status: 500 });
   }
 }
@@ -66,6 +73,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ data });
   } catch (error) {
     console.error("更新个人信息失败:", error);
+    await logErrorSafe({
+      method: "PATCH",
+      path: "/api/users/me",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "更新个人信息失败" }, { status: 500 });
   }
 }

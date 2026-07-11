@@ -29,10 +29,13 @@ import {
   ChevronsUpDown,
   Check,
   FolderKanban,
+  Link2,
 } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
+import { fetchJson } from "@/lib/fetch-json";
 import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
+import { InviteLinkDialog } from "./components/InviteLinkDialog";
 
 interface User {
   user_id: string;
@@ -69,16 +72,20 @@ export default function MembersPage() {
   const canManageOwners =
     isSuperAdmin(currentUserRole) ||
     hasOrgPermission(orgRole, "org.members.manageOwners");
+  const canAssignWorkspace =
+    isSuperAdmin(currentUserRole) ||
+    hasOrgPermission(orgRole, "org.workspaces.edit");
 
   const [members, setMembers] = useState<Member[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("member");
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [error, setError] = useState("");
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   const [workspaceDialogMember, setWorkspaceDialogMember] =
     useState<Member | null>(null);
@@ -90,18 +97,13 @@ export default function MembersPage() {
 
     setFetchLoading(true);
     try {
-      const [membersRes, usersRes] = await Promise.all([
-        fetch(`/api/organizations/${selectedOrganization.id}/members`),
-        fetch("/api/users"),
-      ]);
-
+      const membersRes = await fetch(
+        `/api/organizations/${selectedOrganization.id}/members`,
+      );
       const membersData = await membersRes.json();
-      const usersData = await usersRes.json();
-
       setMembers(membersData.data || []);
-      setAllUsers(usersData.data || []);
     } catch (err) {
-      console.error("Failed to fetch data:", err);
+      console.error("Failed to fetch members:", err);
     } finally {
       setFetchLoading(false);
     }
@@ -114,32 +116,58 @@ export default function MembersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOrganization?.id]);
 
+  // Server-side, org-scoped user search (debounced).
+  useEffect(() => {
+    const orgId = selectedOrganization?.id;
+    const q = searchQuery.trim();
+    if (!orgId || (!q.includes("@") && q.length < 3)) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/users/search?organization_id=${orgId}&q=${encodeURIComponent(q)}`,
+        );
+        const json = await res.json();
+        if (!cancelled) setSearchResults(res.ok ? json.data || [] : []);
+      } catch {
+        if (!cancelled) setSearchResults([]);
+      } finally {
+        if (!cancelled) setSearchLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, selectedOrganization?.id]);
+
   const handleAdd = async () => {
-    if (!selectedUserId || !selectedOrganization?.id) return;
+    if (!selectedUser || !selectedOrganization?.id) return;
 
-    setError("");
     setLoading(true);
-
     try {
-      const response = await fetch(
+      await fetchJson(
         `/api/organizations/${selectedOrganization.id}/members`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            user_id: selectedUserId,
+            user_id: selectedUser.user_id,
             role: selectedRole,
           }),
         },
       );
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Failed to add member");
-
-      setSelectedUserId("");
+      setSelectedUser(null);
+      setSearchQuery("");
+      setSearchResults([]);
       fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add member");
+    } catch {
+      // fetchJson 已弹 toast
     } finally {
       setLoading(false);
     }
@@ -147,69 +175,42 @@ export default function MembersPage() {
 
   const handleRemove = async (memberId: string) => {
     if (!selectedOrganization?.id) return;
-
     try {
-      const response = await fetch(
+      await fetchJson(
         `/api/organizations/${selectedOrganization.id}/members?member_id=${memberId}`,
         { method: "DELETE" },
       );
-
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Failed to remove member");
-
       fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove member");
+    } catch {
+      // fetchJson 已弹 toast
     }
   };
 
   const handleRoleChange = async (memberId: string, newRole: string) => {
     if (!selectedOrganization?.id) return;
-
-    setError("");
     try {
-      const response = await fetch(
-        `/api/organizations/${selectedOrganization.id}/members`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ member_id: memberId, role: newRole }),
-        },
-      );
-
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Failed to update role");
+      await fetchJson(`/api/organizations/${selectedOrganization.id}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_id: memberId, role: newRole }),
+      });
 
       // Update locally without full refetch
       setMembers((prev) =>
         prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)),
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update role");
+    } catch {
+      // fetchJson 已弹 toast
     }
   };
 
-  const availableUsers = allUsers.filter(
+  const availableUsers = searchResults.filter(
     (u) => !members.some((m) => m.user_id === u.user_id),
   );
 
   const getUserLabel = (user: User) => {
     return user.name || user.email || user.user_id.slice(0, 8);
   };
-
-  const filteredUsers = availableUsers.filter((user) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      user.name?.toLowerCase().includes(q) ||
-      user.email?.toLowerCase().includes(q) ||
-      user.user_id.toLowerCase().includes(q)
-    );
-  });
-
-  const selectedUserObj = allUsers.find((u) => u.user_id === selectedUserId);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -289,10 +290,10 @@ export default function MembersPage() {
                     className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     <span
-                      className={selectedUserObj ? "" : "text-muted-foreground"}
+                      className={selectedUser ? "" : "text-muted-foreground"}
                     >
-                      {selectedUserObj
-                        ? getUserLabel(selectedUserObj)
+                      {selectedUser
+                        ? getUserLabel(selectedUser)
                         : t("admin.members.selectUser", "Select user...")}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -304,36 +305,44 @@ export default function MembersPage() {
                         <Input
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder={t("common.search", "Search...")}
+                          placeholder={t(
+                            "admin.members.searchByEmail",
+                            "按邮箱或姓名搜索（≥3 字符）",
+                          )}
                           className="h-8"
                           autoFocus
                         />
                       </div>
                       <div className="max-h-[200px] overflow-y-auto p-1">
-                        {availableUsers.length === 0 ? (
+                        {searchLoading ? (
+                          <p className="py-4 text-center text-sm text-muted-foreground">
+                            <Loader2 className="inline h-4 w-4 animate-spin" />
+                          </p>
+                        ) : searchQuery.trim().length < 3 &&
+                          !searchQuery.includes("@") ? (
                           <p className="py-4 text-center text-sm text-muted-foreground">
                             {t(
-                              "admin.members.noAvailableUsers",
-                              "No available users to add",
+                              "admin.members.searchHint",
+                              "输入至少 3 个字符搜索用户",
                             )}
                           </p>
-                        ) : filteredUsers.length === 0 ? (
+                        ) : availableUsers.length === 0 ? (
                           <p className="py-4 text-center text-sm text-muted-foreground">
                             {t("common.noResults", "No results")}
                           </p>
                         ) : (
-                          filteredUsers.map((user) => (
+                          availableUsers.map((user) => (
                             <button
                               key={user.user_id}
                               type="button"
                               onClick={() => {
-                                setSelectedUserId(user.user_id);
+                                setSelectedUser(user);
                                 setDropdownOpen(false);
                                 setSearchQuery("");
                               }}
                               className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
                             >
-                              {selectedUserId === user.user_id ? (
+                              {selectedUser?.user_id === user.user_id ? (
                                 <Check className="mr-2 h-4 w-4" />
                               ) : (
                                 <span className="mr-2 w-4" />
@@ -369,10 +378,7 @@ export default function MembersPage() {
                     )}
                   </SelectContent>
                 </Select>
-                <Button
-                  onClick={handleAdd}
-                  disabled={!selectedUserId || loading}
-                >
+                <Button onClick={handleAdd} disabled={!selectedUser || loading}>
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : (
@@ -380,14 +386,11 @@ export default function MembersPage() {
                   )}
                   {t("common.create", "Add")}
                 </Button>
+                <Button variant="outline" onClick={() => setInviteOpen(true)}>
+                  <Link2 className="h-4 w-4 mr-2" />
+                  {t("admin.members.invite.button", "邀请链接")}
+                </Button>
               </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-              {error}
             </div>
           )}
 
@@ -465,20 +468,22 @@ export default function MembersPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setWorkspaceDialogMember(member);
-                        setWorkspaceDialogOpen(true);
-                      }}
-                      title={t(
-                        "admin.members.assignWorkspace",
-                        "Assign Workspace",
-                      )}
-                    >
-                      <FolderKanban className="h-4 w-4" />
-                    </Button>
+                    {canAssignWorkspace && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setWorkspaceDialogMember(member);
+                          setWorkspaceDialogOpen(true);
+                        }}
+                        title={t(
+                          "admin.members.assignWorkspace",
+                          "Assign Workspace",
+                        )}
+                      >
+                        <FolderKanban className="h-4 w-4" />
+                      </Button>
+                    )}
                     {canRemove &&
                       (member.role !== "owner" || canManageOwners) && (
                         <Button
@@ -539,6 +544,13 @@ export default function MembersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Invite Link Dialog */}
+      <InviteLinkDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        organizationId={selectedOrganization.id}
+      />
 
       {/* Workspace Dialog */}
       {workspaceDialogMember && (

@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getUserContext } from "@/lib/permissions.server";
+import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
+import { logError } from "@/lib/log-error";
 
 export async function GET(request: Request) {
   try {
@@ -41,9 +44,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
   try {
-    const supabase = await createClient();
-
     // 检查用户权限
     const {
       data: { user },
@@ -53,38 +55,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-
     const body = await request.json();
     const { name, description, organization_id } = body;
-
-    // super_admin can always create; otherwise check org role
-    if (userData?.role !== "super_admin") {
-      const { data: membership } = await supabase
-        .from("organization_member")
-        .select("role")
-        .eq("organization_id", organization_id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (!membership || membership.role === "member") {
-        return NextResponse.json({ error: "权限不足" }, { status: 403 });
-      }
-    }
-
-    if (!name) {
-      return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
-    }
 
     if (!organization_id) {
       return NextResponse.json(
         { error: "缺少 organization_id" },
         { status: 400 },
       );
+    }
+
+    // 需 org.workspaces.create（owner/admin）或 super_admin
+    const { globalRole, orgRole } = await getUserContext(
+      supabase,
+      user.id,
+      organization_id,
+    );
+    if (
+      !isSuperAdmin(globalRole) &&
+      !hasOrgPermission(orgRole, "org.workspaces.create")
+    ) {
+      await logError(supabase, {
+        userId: user.id,
+        method: "POST",
+        path: "/api/workspaces",
+        status: 403,
+        message: "权限不足: org.workspaces.create",
+        context: { orgRole, organization_id },
+      });
+      return NextResponse.json({ error: "权限不足" }, { status: 403 });
+    }
+
+    if (!name) {
+      return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
     const { data, error } = await supabase
@@ -102,6 +105,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
     console.error("创建 workspace 失败:", error);
+    await logError(supabase, {
+      method: "POST",
+      path: "/api/workspaces",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "创建工作空间失败" }, { status: 500 });
   }
 }

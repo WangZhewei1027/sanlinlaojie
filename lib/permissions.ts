@@ -31,6 +31,7 @@ export type OrgPermission =
   | "org.workspaces.create"
   | "org.workspaces.edit"
   | "org.workspaces.delete"
+  | "org.assets.write"
   | "org.cleanup";
 
 export type GlobalPermission =
@@ -54,6 +55,7 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.create",
     "org.workspaces.edit",
     "org.workspaces.delete",
+    "org.assets.write",
     "org.cleanup",
   ],
   admin: [
@@ -66,9 +68,15 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.create",
     "org.workspaces.edit",
     "org.workspaces.delete",
+    "org.assets.write",
     "org.cleanup",
   ],
-  member: ["org.view", "org.members.view", "org.workspaces.view"],
+  member: [
+    "org.view",
+    "org.members.view",
+    "org.workspaces.view",
+    "org.assets.write",
+  ],
   viewer: ["org.view", "org.workspaces.view"],
 };
 

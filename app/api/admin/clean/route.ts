@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 interface CleanResult {
   orphanedRows: {
@@ -38,6 +39,12 @@ export async function POST(request: Request) {
     if (profile?.role !== "super_admin") {
       // Check org-level role for cleanup permission
       // super_admin or org owner/admin can run cleanup
+      await logErrorSafe({
+        method: "POST",
+        path: "/api/admin/clean",
+        status: 403,
+        message: "权限不足: 仅 super_admin 可清理",
+      });
       return NextResponse.json({ error: "需要管理员权限" }, { status: 403 });
     }
 
@@ -207,6 +214,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("清理操作失败:", error);
+    await logErrorSafe({
+      method: "POST",
+      path: "/api/admin/clean",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

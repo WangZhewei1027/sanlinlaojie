@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse, connection } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // Fetch last_sign_in_at for every auth user (lives in the auth schema, not
 // reachable via PostgREST). Returns a map keyed by user id; on any failure it
@@ -46,6 +47,13 @@ export async function GET() {
       .single();
 
     if (userData?.role !== "super_admin") {
+      await logErrorSafe({
+        userId: user.id,
+        method: "GET",
+        path: "/api/users",
+        status: 403,
+        message: "权限不足: 仅 super_admin",
+      });
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
@@ -85,6 +93,12 @@ export async function GET() {
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取用户列表失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/users",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取用户列表失败" }, { status: 500 });
   }
 }

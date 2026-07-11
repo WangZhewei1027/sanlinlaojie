@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
+import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { WorkspaceFormDialog } from "@/app/admin/workspaces/components/WorkspaceFormDialog";
 import { DeleteWorkspaceDialog } from "@/app/admin/workspaces/components/DeleteWorkspaceDialog";
 
@@ -31,6 +32,15 @@ export default function WorkspacesPage() {
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
+  const currentUserRole = useManageStore((state) => state.currentUserRole);
+
+  const orgRole = selectedOrganization?.role ?? null;
+  const superAdmin = isSuperAdmin(currentUserRole);
+  const canCreate =
+    superAdmin || hasOrgPermission(orgRole, "org.workspaces.create");
+  const canEdit = superAdmin || hasOrgPermission(orgRole, "org.workspaces.edit");
+  const canDelete =
+    superAdmin || hasOrgPermission(orgRole, "org.workspaces.delete");
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,10 +135,12 @@ export default function WorkspacesPage() {
               )}
             </p>
           </div>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t("admin.workspace.create", "Create Workspace")}
-          </Button>
+          {canCreate && (
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t("admin.workspace.create", "Create Workspace")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -177,26 +189,32 @@ export default function WorkspacesPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(workspace)}
-                    className="flex-1"
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    {t("common.edit", "Edit")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(workspace)}
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    {t("common.delete", "Delete")}
-                  </Button>
-                </div>
+                {(canEdit || canDelete) && (
+                  <div className="flex items-center gap-2 pt-4 border-t">
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(workspace)}
+                        className="flex-1"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        {t("common.edit", "Edit")}
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(workspace)}
+                        className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        {t("common.delete", "Delete")}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
           ))}

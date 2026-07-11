@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Plus } from "lucide-react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface CreateOrgDialogProps {
   onSuccess: () => void;
@@ -37,7 +38,7 @@ export function CreateOrgDialog({ onSuccess }: CreateOrgDialogProps) {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/organizations", {
+      await fetchJson("/api/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -45,13 +46,6 @@ export function CreateOrgDialog({ onSuccess }: CreateOrgDialogProps) {
           description: description.trim() || null,
         }),
       });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          result.error || t("common.createFailed", "Create failed"),
-        );
-      }
 
       setName("");
       setDescription("");

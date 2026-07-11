@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { I18nProvider } from "@/components/i18n-provider";
 import { Navbar } from "@/components/navbar";
 import { WorkspaceProvider } from "@/app/manage/components/WorkspaceProvider";
+import { Toaster } from "@/components/ui/sonner";
+import { ErrorReporter } from "@/components/error-reporter";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -45,11 +48,15 @@ export default function RootLayout({
           disableTransitionOnChange
         > */}
         <I18nProvider>
-          <WorkspaceProvider>
-            <Navbar />
-            {children}
-          </WorkspaceProvider>
+          <Suspense fallback={null}>
+            <WorkspaceProvider>
+              <Navbar />
+              {children}
+            </WorkspaceProvider>
+          </Suspense>
         </I18nProvider>
+        <Toaster />
+        <ErrorReporter />
         {/* </ThemeProvider> */}
       </body>
     </html>

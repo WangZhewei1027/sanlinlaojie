@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Loader2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { fetchJson } from "@/lib/fetch-json";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { CleanLog } from "./components/CleanLog";
@@ -57,7 +59,7 @@ export default function CleanPage() {
 
   const handleClean = async (action: CleanAction) => {
     if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
-      alert(t("admin.clean.selectWorkspaceFirst"));
+      toast.error(t("admin.clean.selectWorkspaceFirst"));
       return;
     }
 
@@ -95,30 +97,25 @@ export default function CleanPage() {
     setSummary(null);
 
     try {
-      const response = await fetch("/api/admin/clean", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const data = await fetchJson<{ data: CleanResult; summary: CleanSummary }>(
+        "/api/admin/clean",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            workspaceId: selectedWorkspaceId,
+            action,
+          }),
         },
-        body: JSON.stringify({
-          workspaceId: selectedWorkspaceId,
-          action,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "清理失败");
-      }
+      );
 
       setResult(data.data);
       setSummary(data.summary);
     } catch (error) {
+      // fetchJson 已弹 toast
       console.error("清理失败:", error);
-      alert(
-        error instanceof Error ? error.message : t("admin.clean.cleanFailed"),
-      );
     } finally {
       setCleaning(false);
     }

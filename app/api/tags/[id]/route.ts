@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // PATCH /api/tags/[id] - 更新标签
 export async function PATCH(
@@ -66,6 +67,12 @@ export async function PATCH(
     return NextResponse.json({ tag: updatedTag });
   } catch (error) {
     console.error("更新标签失败:", error);
+    await logErrorSafe({
+      method: "PATCH",
+      path: "/api/tags/[id]",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -113,6 +120,12 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("删除标签失败:", error);
+    await logErrorSafe({
+      method: "DELETE",
+      path: "/api/tags/[id]",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

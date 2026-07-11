@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface ChangeRoleDialogProps {
   open: boolean;
@@ -49,19 +50,13 @@ export function ChangeRoleDialog({
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/users/${user.user_id}`, {
+      await fetchJson(`/api/users/${user.user_id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ role }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || t("common.updateFailed", "更新失败"));
-      }
 
       onSuccess();
       onOpenChange(false);

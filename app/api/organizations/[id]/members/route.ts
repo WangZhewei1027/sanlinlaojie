@@ -1,27 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
-
-/** Helper: get current user's global role and org membership role */
-async function getUserContext(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  orgId: string,
-) {
-  const [{ data: userData }, { data: membership }] = await Promise.all([
-    supabase.from("users").select("role").eq("user_id", userId).single(),
-    supabase
-      .from("organization_member")
-      .select("role")
-      .eq("organization_id", orgId)
-      .eq("user_id", userId)
-      .single(),
-  ]);
-  return {
-    globalRole: userData?.role as string | null,
-    orgRole: membership?.role as string | null,
-  };
-}
+import { getUserContext } from "@/lib/permissions.server";
+import { logErrorSafe } from "@/lib/log-error";
 
 // 获取 organization 的成员列表
 export async function GET(
@@ -74,6 +55,12 @@ export async function GET(
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取组织成员失败:", error);
+    await logErrorSafe({
+      method: "GET",
+      path: "/api/organizations/[id]/members",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "获取组织成员失败" }, { status: 500 });
   }
 }
@@ -148,11 +135,26 @@ export async function POST(
       .select()
       .single();
 
-    if (error) throw error;
+    // 唯一约束兜并发：撞重复视为「已是成员」
+    if (error) {
+      if ((error as { code?: string }).code === "23505") {
+        return NextResponse.json(
+          { error: "该用户已经是此组织的成员" },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
     console.error("添加组织成员失败:", error);
+    await logErrorSafe({
+      method: "POST",
+      path: "/api/organizations/[id]/members",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "添加组织成员失败" }, { status: 500 });
   }
 }
@@ -239,6 +241,12 @@ export async function PATCH(
     return NextResponse.json({ data });
   } catch (error) {
     console.error("更新成员角色失败:", error);
+    await logErrorSafe({
+      method: "PATCH",
+      path: "/api/organizations/[id]/members",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "更新成员角色失败" }, { status: 500 });
   }
 }
@@ -304,6 +312,12 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("移除组织成员失败:", error);
+    await logErrorSafe({
+      method: "DELETE",
+      path: "/api/organizations/[id]/members",
+      status: 500,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "移除组织成员失败" }, { status: 500 });
   }
 }

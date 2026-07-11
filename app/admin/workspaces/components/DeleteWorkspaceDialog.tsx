@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface DeleteWorkspaceDialogProps {
   open: boolean;
@@ -29,27 +30,15 @@ export function DeleteWorkspaceDialog({
   onSuccess,
 }: DeleteWorkspaceDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleDelete = async () => {
-    setError("");
     setLoading(true);
-
     try {
-      const response = await fetch(`/api/workspaces/${workspace.id}`, {
-        method: "DELETE",
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "删除失败");
-      }
-
+      await fetchJson(`/api/workspaces/${workspace.id}`, { method: "DELETE" });
       onSuccess();
       onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "删除失败");
+    } catch {
+      // fetchJson 已弹 toast
     } finally {
       setLoading(false);
     }
@@ -68,11 +57,6 @@ export function DeleteWorkspaceDialog({
             此操作无法撤销。
           </DialogDescription>
         </DialogHeader>
-        {error && (
-          <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-            {error}
-          </div>
-        )}
         <DialogFooter>
           <Button
             type="button"

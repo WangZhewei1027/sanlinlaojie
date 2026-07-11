@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Settings, Loader2, Save, AlertTriangle } from "lucide-react";
+import { Settings, Loader2, Save, ShieldAlert } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
+import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
+import { fetchJson } from "@/lib/fetch-json";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -17,11 +20,17 @@ export default function SettingsPage() {
   const setSelectedOrganization = useManageStore(
     (state) => state.setSelectedOrganization,
   );
+  const currentUserRole = useManageStore((state) => state.currentUserRole);
+
+  const orgRole = selectedOrganization?.role ?? null;
+  const superAdmin = isSuperAdmin(currentUserRole);
+  const canEditSettings =
+    superAdmin || hasOrgPermission(orgRole, "org.settings");
+  const canDeleteOrg = superAdmin || hasOrgPermission(orgRole, "org.delete");
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -34,26 +43,18 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!selectedOrganization?.id || !name.trim()) return;
 
-    setError("");
     setSuccess(false);
     setSaving(true);
 
     try {
-      const response = await fetch(
-        `/api/organizations/${selectedOrganization.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            description: description.trim() || null,
-          }),
-        },
-      );
-
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Failed to update organization");
+      await fetchJson(`/api/organizations/${selectedOrganization.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || null,
+        }),
+      });
 
       // Update store
       setSelectedOrganization({
@@ -64,8 +65,8 @@ export default function SettingsPage() {
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+    } catch {
+      // fetchJson 已弹 toast
     } finally {
       setSaving(false);
     }
@@ -79,6 +80,18 @@ export default function SettingsPage() {
             "admin.settings.selectOrgFirst",
             "Please select an organization first",
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // 页面级 guard：只有 owner / super_admin 能管理组织设置或删除组织
+  if (!canEditSettings && !canDeleteOrg) {
+    return (
+      <div className="p-6 lg:p-8">
+        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
+          <ShieldAlert className="h-10 w-10" />
+          <p>{t("admin.settings.noPermission", "你没有权限管理此组织设置")}</p>
         </div>
       </div>
     );
@@ -137,47 +150,44 @@ export default function SettingsPage() {
           />
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            {error}
-          </div>
-        )}
-
         {success && (
           <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
             {t("admin.settings.saved", "Settings saved successfully")}
           </div>
         )}
 
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            {t("common.save", "Save")}
-          </Button>
-        </div>
+        {canEditSettings && (
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={saving || !name.trim()}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              {t("common.save", "Save")}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Danger zone */}
-      <div className="border border-destructive/30 rounded-lg p-6 mt-6 space-y-4">
-        <h2 className="text-lg font-semibold text-destructive">
-          {t("admin.settings.dangerZone", "Danger Zone")}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {t(
-            "admin.settings.deleteWarning",
-            "Deleting an organization will remove all associated data. This action cannot be undone.",
-          )}
-        </p>
-        <DeleteOrgButton
-          orgId={selectedOrganization.id}
-          orgName={selectedOrganization.name}
-        />
-      </div>
+      {canDeleteOrg && (
+        <div className="border border-destructive/30 rounded-lg p-6 mt-6 space-y-4">
+          <h2 className="text-lg font-semibold text-destructive">
+            {t("admin.settings.dangerZone", "Danger Zone")}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t(
+              "admin.settings.deleteWarning",
+              "Deleting an organization will remove all associated data. This action cannot be undone.",
+            )}
+          </p>
+          <DeleteOrgButton
+            orgId={selectedOrganization.id}
+            orgName={selectedOrganization.name}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -192,25 +202,15 @@ function DeleteOrgButton({
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
 
   const handleDelete = async () => {
     setDeleting(true);
-    setError("");
-
     try {
-      const response = await fetch(`/api/organizations/${orgId}`, {
-        method: "DELETE",
-      });
-
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Failed to delete organization");
-
+      await fetchJson(`/api/organizations/${orgId}`, { method: "DELETE" });
       // Reload after deletion
       window.location.href = "/admin";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
+    } catch {
+      // fetchJson 已弹 toast
       setDeleting(false);
     }
   };
@@ -225,7 +225,6 @@ function DeleteOrgButton({
             { name: orgName },
           )}
         </p>
-        {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-2">
           <Button
             variant="destructive"

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus, X } from "lucide-react";
+import { fetchJson } from "@/lib/fetch-json";
 
 interface Workspace {
   id: string;
@@ -58,7 +59,6 @@ export function ManageWorkspaceDialog({
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const fetchData = async () => {
     setFetchLoading(true);
@@ -97,33 +97,19 @@ export function ManageWorkspaceDialog({
   const handleAdd = async () => {
     if (!selectedWorkspace) return;
 
-    setError("");
     setLoading(true);
-
     try {
-      const response = await fetch(`/api/users/${user.user_id}/workspaces`, {
+      await fetchJson(`/api/users/${user.user_id}/workspaces`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workspace_id: selectedWorkspace }),
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            t("admin.members.workspaceDialog.addFailed", "Failed to add"),
-        );
-      }
-
       setSelectedWorkspace("");
       fetchData();
       onSuccess();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("admin.members.workspaceDialog.addFailed", "Failed to add"),
-      );
+    } catch {
+      // fetchJson 已弹 toast
     } finally {
       setLoading(false);
     }
@@ -131,27 +117,15 @@ export function ManageWorkspaceDialog({
 
   const handleRemove = async (assignmentId: string) => {
     try {
-      const response = await fetch(
+      await fetchJson(
         `/api/users/${user.user_id}/workspaces?assignment_id=${assignmentId}`,
         { method: "DELETE" },
       );
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            t("admin.members.workspaceDialog.removeFailed", "Failed to remove"),
-        );
-      }
-
       fetchData();
       onSuccess();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("admin.members.workspaceDialog.removeFailed", "Failed to remove"),
-      );
+    } catch {
+      // fetchJson 已弹 toast
     }
   };
 
@@ -276,12 +250,6 @@ export function ManageWorkspaceDialog({
                 </div>
               )}
             </div>
-
-            {error && (
-              <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-                {error}
-              </div>
-            )}
           </div>
         )}
 
