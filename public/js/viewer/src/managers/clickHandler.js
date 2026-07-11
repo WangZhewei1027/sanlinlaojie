@@ -6,6 +6,7 @@ import { CLICK_MARKER_CONFIG } from "../utils/config.js";
 import { getViewer } from "./viewerManager.js";
 import { cartesianToLonLat } from "../utils/coordinateUtils.js";
 import { sendLocationClicked, sendAssetClicked } from "./messageHandler.js";
+import { getMode } from "./interactionManager.js";
 
 let clickedPointEntity = null; // 存储点击位置的标记
 
@@ -35,6 +36,9 @@ export function setupClickHandler() {
 function handleMapClick(movement) {
   const viewer = getViewer();
   if (!viewer) return;
+
+  // 仅在 pan 模式下处理点击（move/box 模式由 interactionManager 接管）
+  if (getMode() !== "pan") return;
 
   // 优先检查是否点击了 asset 实体（billboard）
   const picked = viewer.scene.pick(movement.position);

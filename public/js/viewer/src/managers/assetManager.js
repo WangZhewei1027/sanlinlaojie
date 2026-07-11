@@ -2,7 +2,11 @@
  * 资产管理模块
  */
 
-import { BILLBOARD_CONFIG, FOCUS_MARKER_CONFIG } from "../utils/config.js";
+import {
+  BILLBOARD_CONFIG,
+  FOCUS_MARKER_CONFIG,
+  CAMERA_CONFIG,
+} from "../utils/config.js";
 import { getViewer, flyTo } from "./viewerManager.js";
 import {
   createTextCanvas,
@@ -26,7 +30,11 @@ import {
 
 let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
+let focusMarkerTimer = null; // 聚焦标记自动消失定时器
 let currentAssets = []; // 存储当前显示的assets数据（用于LOD）
+
+// 聚焦标记在飞行到位后额外停留的时长（毫秒），避免长时间占用画面
+const FOCUS_MARKER_LINGER_MS = 2000;
 
 /**
  * 在地图上显示 assets
@@ -240,6 +248,12 @@ export function focusOnAsset(assetData) {
 
   // 平滑飞行到目标位置
   flyTo(longitude, latitude, height || 0);
+
+  // 飞行到位后再停留 2 秒自动移除聚焦标记，避免长时间占用画面
+  focusMarkerTimer = setTimeout(
+    () => clearFocusMarker(),
+    CAMERA_CONFIG.flyDuration * 1000 + FOCUS_MARKER_LINGER_MS,
+  );
 }
 
 /**
@@ -248,6 +262,11 @@ export function focusOnAsset(assetData) {
 export function clearFocusMarker() {
   const viewer = getViewer();
   if (!viewer) return;
+
+  if (focusMarkerTimer) {
+    clearTimeout(focusMarkerTimer);
+    focusMarkerTimer = null;
+  }
 
   if (focusMarkerEntity) {
     viewer.entities.remove(focusMarkerEntity);
@@ -261,6 +280,38 @@ export function clearFocusMarker() {
  */
 export function getAssetBillboards() {
   return assetBillboards;
+}
+
+/**
+ * 按 assetId 查找 billboard 实体
+ * @param {string} id
+ * @returns {Cesium.Entity|null}
+ */
+export function getEntityByAssetId(id) {
+  return (
+    assetBillboards.find((e) => {
+      const v = e.properties?.assetId?.getValue
+        ? e.properties.assetId.getValue()
+        : e.properties?.assetId;
+      return v === id;
+    }) || null
+  );
+}
+
+/**
+ * 更新实体位置（经纬度 + 高度）。用于拖动素材实时改坐标。
+ * @param {Cesium.Entity} entity
+ * @param {number} longitude
+ * @param {number} latitude
+ * @param {number} height
+ */
+export function setEntityPositionDegrees(entity, longitude, latitude, height) {
+  if (!entity) return;
+  entity.position = Cesium.Cartesian3.fromDegrees(
+    longitude,
+    latitude,
+    height || 0,
+  );
 }
 
 /**

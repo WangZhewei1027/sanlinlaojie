@@ -72,9 +72,42 @@ export class FileUploadService {
   }
 
   /**
-   * 上传文件到 Storage
+   * 计算文件内容的 SHA-256（十六进制），用于全局去重。
    */
-  async uploadToStorage(file: File, userId: string): Promise<string> {
+  async computeContentHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  /**
+   * 按内容 hash 查是否已有相同文件（全局），命中则返回其 file_url。
+   */
+  private async findExistingByHash(hash: string): Promise<string | null> {
+    try {
+      const res = await fetch(
+        `/api/assets/by-hash?hash=${encodeURIComponent(hash)}`,
+      );
+      if (!res.ok) return null;
+      const body = (await res.json()) as { file_url?: string | null };
+      return body.file_url ?? null;
+    } catch (err) {
+      console.warn("by-hash 查询失败，回退为正常上传:", err);
+      return null;
+    }
+  }
+
+  /**
+   * 上传文件到 Storage（带内容 hash 全局去重）。
+   * 相同内容的文件命中已有 file_url 时直接复用、跳过上传。
+   * @returns 文件的公开 URL 与内容 hash
+   */
+  async uploadToStorage(
+    file: File,
+    userId: string,
+  ): Promise<{ url: string; contentHash: string }> {
     console.log(
       `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
     );
@@ -87,6 +120,14 @@ export class FileUploadService {
           2,
         )}MB 超过 Supabase Storage 限制 (5MB)。请联系管理员。`,
       );
+    }
+
+    // 计算内容 hash，命中已有文件则复用，避免相同素材重复存储
+    const contentHash = await this.computeContentHash(file);
+    const existingUrl = await this.findExistingByHash(contentHash);
+    if (existingUrl) {
+      console.log(`命中已有文件，复用 URL（跳过上传）: ${existingUrl}`);
+      return { url: existingUrl, contentHash };
     }
 
     const fileExt = file.name.split(".").pop();
@@ -109,7 +150,7 @@ export class FileUploadService {
     } = this.supabase.storage.from("assets").getPublicUrl(filePath);
 
     console.log(`文件上传成功: ${publicUrl}`);
-    return publicUrl;
+    return { url: publicUrl, contentHash };
   }
 
   /**
@@ -150,6 +191,7 @@ export class FileUploadService {
       name: result.name || null,
       file_type: result.fileType,
       file_url: result.fileUrl,
+      content_hash: result.contentHash || null,
       text_content: result.textContent || null,
       location: geometry,
       tag_ids: result.tagIds && result.tagIds.length > 0 ? result.tagIds : null,

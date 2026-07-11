@@ -37,6 +37,86 @@
       <div class="spinner"></div>
     </div>
 
+    <!-- 框选覆盖矩形 -->
+    <div id="selectionRect"></div>
+
+    <!-- 交互模式工具栏 -->
+    <div id="toolbar">
+      <button
+        class="tool-btn active"
+        data-mode="pan"
+        onclick="setViewerMode('pan')"
+        title="平移 / 导航"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="m4 4 7.07 17 2.51-7.39L21 11.07z" />
+        </svg>
+      </button>
+      <button
+        class="tool-btn"
+        data-mode="move"
+        onclick="setViewerMode('move')"
+        title="拖动素材"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="5 9 2 12 5 15" />
+          <polyline points="9 5 12 2 15 5" />
+          <polyline points="15 19 12 22 9 19" />
+          <polyline points="19 9 22 12 19 15" />
+          <line x1="2" x2="22" y1="12" y2="12" />
+          <line x1="12" x2="12" y1="2" y2="22" />
+        </svg>
+      </button>
+      <button
+        class="tool-btn"
+        data-mode="box"
+        onclick="setViewerMode('box')"
+        title="框选多选"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 3a2 2 0 0 0-2 2" />
+          <path d="M19 3a2 2 0 0 1 2 2" />
+          <path d="M21 19a2 2 0 0 1-2 2" />
+          <path d="M5 21a2 2 0 0 1-2-2" />
+          <path d="M9 3h1" />
+          <path d="M9 21h1" />
+          <path d="M14 3h1" />
+          <path d="M14 21h1" />
+          <path d="M3 9v1" />
+          <path d="M21 9v1" />
+          <path d="M3 14v1" />
+          <path d="M21 14v1" />
+        </svg>
+      </button>
+    </div>
+
     <div id="controls">
       <button onclick="resetCamera()" title="重置视角">
         <svg

@@ -15,6 +15,10 @@ import { CESIUM_ION_TOKEN } from "./src/utils/config.js";
 import { initViewer, resetCamera } from "./src/managers/viewerManager.js";
 import { setupMessageListener } from "./src/managers/messageHandler.js";
 import { setupClickHandler } from "./src/managers/clickHandler.js";
+import {
+  setupInteraction,
+  setMode,
+} from "./src/managers/interactionManager.js";
 import { load3DTiles, getTileset } from "./src/managers/tilesetLoader.js";
 
 // 设置 Cesium Ion token
@@ -33,6 +37,9 @@ async function init() {
 
     // 3. 设置点击事件处理
     setupClickHandler();
+
+    // 3.5 设置拖动/框选交互
+    setupInteraction();
 
     // 4. 延迟加载 3D Tiles（确保 DOM 已准备好）
     setTimeout(async () => {
@@ -54,6 +61,18 @@ async function init() {
 window.resetCamera = function () {
   const tileset = getTileset();
   resetCamera(tileset);
+};
+
+/**
+ * 切换交互模式（全局函数，供工具栏按钮调用）
+ * @param {"pan"|"move"|"box"} mode
+ */
+window.setViewerMode = function (mode) {
+  setMode(mode);
+  // 更新工具栏按钮 active 态
+  document.querySelectorAll("#toolbar .tool-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
 };
 
 // 启动应用

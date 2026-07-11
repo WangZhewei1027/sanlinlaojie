@@ -5,6 +5,11 @@
 import { displayAssets, focusOnAsset } from "./assetManager.js";
 import { setOrigin } from "../utils/config.js";
 import { flyToOrigin } from "./viewerManager.js";
+import {
+  setSelection,
+  clearSelection,
+  reapplyHighlight,
+} from "./selectionManager.js";
 
 /**
  * 监听来自父窗口的消息
@@ -25,6 +30,8 @@ function handleMessage(event) {
     switch (type) {
       case "SET_ASSETS":
         displayAssets(payload);
+        // 重建 billboard 后重新套用已有选中高亮
+        reapplyHighlight();
         break;
       case "FOCUS_ASSET":
         focusOnAsset(payload);
@@ -32,6 +39,13 @@ function handleMessage(event) {
       case "SET_ORIGIN":
         setOrigin(payload);
         flyToOrigin();
+        break;
+      case "SET_SELECTION":
+        // 父窗口（如列表多选）同步选中集到地图，不回传避免回环
+        setSelection(payload?.assetIds ?? [], { silent: true });
+        break;
+      case "CLEAR_SELECTION":
+        clearSelection({ silent: true });
         break;
       default:
         console.log("未知消息类型:", type);
@@ -85,4 +99,22 @@ export function sendLocationClicked(longitude, latitude, height) {
 export function sendAssetClicked(assetId) {
   sendMessageToParent("ASSET_CLICKED", { assetId });
   console.log(`点击资产: ${assetId}`);
+}
+
+/**
+ * 发送素材移动事件（拖动松手后批量落库）
+ * @param {Array<{assetId: string, longitude: number, latitude: number, height: number}>} moves
+ */
+export function sendAssetsMoved(moves) {
+  sendMessageToParent("ASSETS_MOVED", { moves });
+  console.log(`移动 ${moves.length} 个素材`);
+}
+
+/**
+ * 发送选中集变化事件
+ * @param {string[]} assetIds
+ */
+export function sendAssetsSelected(assetIds) {
+  sendMessageToParent("ASSETS_SELECTED", { assetIds });
+  console.log(`选中 ${assetIds.length} 个素材`);
 }

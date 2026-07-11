@@ -41,9 +41,12 @@ interface ManageStore {
   clickedLocation: LocationData | null;
   focusedAssetId: string | null;
   selectedAssetId: string | null;
+  selectedAssetIds: string[]; // 地图框选/多选的素材集合
   setClickedLocation: (location: LocationData | null) => void;
   setFocusedAssetId: (id: string | null) => void;
   setSelectedAssetId: (id: string | null) => void;
+  setSelectedAssetIds: (ids: string[]) => void;
+  clearSelectedAssetIds: () => void;
 
   // Reset all state (used on auth change)
   reset: () => void;
@@ -150,6 +153,7 @@ export const useManageStore = create<ManageStore>()(
         clickedLocation: null,
         focusedAssetId: null,
         selectedAssetId: null,
+        selectedAssetIds: [],
         setClickedLocation: (location) =>
           set(
             { clickedLocation: location },
@@ -160,6 +164,18 @@ export const useManageStore = create<ManageStore>()(
           set({ focusedAssetId: id }, undefined, "manage/setFocusedAssetId"),
         setSelectedAssetId: (id) =>
           set({ selectedAssetId: id }, undefined, "manage/setSelectedAssetId"),
+        setSelectedAssetIds: (ids) =>
+          set(
+            { selectedAssetIds: ids },
+            undefined,
+            "manage/setSelectedAssetIds",
+          ),
+        clearSelectedAssetIds: () =>
+          set(
+            { selectedAssetIds: [] },
+            undefined,
+            "manage/clearSelectedAssetIds",
+          ),
 
         // Reset all state (used on auth change)
         reset: () =>
@@ -180,6 +196,7 @@ export const useManageStore = create<ManageStore>()(
               clickedLocation: null,
               focusedAssetId: null,
               selectedAssetId: null,
+              selectedAssetIds: [],
             },
             undefined,
             "manage/reset",

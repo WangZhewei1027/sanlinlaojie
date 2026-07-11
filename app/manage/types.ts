@@ -42,6 +42,7 @@ export interface Asset {
   name?: string | null; // 资源名称（特别是 anchor 类型）
   file_type: string;
   file_url: string | null;
+  content_hash?: string | null; // 文件内容 SHA-256，用于全局去重
   text_content?: string | null; // 文本类型的内容
   anchor_id?: string | null; // 关联的锚点ID
   tag_ids?: string[]; // 关联的标签ID数组
@@ -82,7 +83,11 @@ export type ViewerMessageType =
   | "ASSETS_UPDATE"
   | "VIEWER_READY"
   | "FOCUS_ASSET"
-  | "CAMERA_POSITION";
+  | "CAMERA_POSITION"
+  | "ASSETS_MOVED"
+  | "ASSETS_SELECTED"
+  | "SET_SELECTION"
+  | "CLEAR_SELECTION";
 
 export interface ViewerMessage {
   type: ViewerMessageType;

@@ -136,9 +136,11 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         const maxBytes = 3 * 1024 * 1024;
         if (file.size > maxBytes)
           throw new Error(t("upload.fields.modelTooLarge"));
-        const fileUrl = await uploadService.uploadToStorage(file, user.id);
+        const { url: fileUrl, contentHash } =
+          await uploadService.uploadToStorage(file, user.id);
         await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
+          contentHash,
           fileType: "model",
           name: name.trim() || undefined,
           location: finalLocation || undefined,
@@ -149,9 +151,11 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         const maxBytes = 3 * 1024 * 1024;
         if (file.size > maxBytes)
           throw new Error(t("upload.fields.videoTooLarge"));
-        const fileUrl = await uploadService.uploadToStorage(file, user.id);
+        const { url: fileUrl, contentHash } =
+          await uploadService.uploadToStorage(file, user.id);
         await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
+          contentHash,
           fileType: "video",
           location: finalLocation || undefined,
           gpsSource: gpsSource || undefined,
@@ -159,20 +163,21 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       } else if (uploadType === "shop") {
         if (!file) throw new Error(t("upload.selectFile"));
         const processedFile = await uploadService.processFile(file);
-        const fileUrl = await uploadService.uploadToStorage(
-          processedFile.file,
-          user.id,
-        );
+        const { url: fileUrl, contentHash } =
+          await uploadService.uploadToStorage(processedFile.file, user.id);
         let checkinUrl: string | undefined;
         if (checkinFile) {
           const processedCheckin = await uploadService.processFile(checkinFile);
-          checkinUrl = await uploadService.uploadToStorage(
-            processedCheckin.file,
-            user.id,
-          );
+          checkinUrl = (
+            await uploadService.uploadToStorage(
+              processedCheckin.file,
+              user.id,
+            )
+          ).url;
         }
         await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
+          contentHash,
           fileType: "shop",
           name: name.trim() || undefined,
           textContent: text.trim() || undefined,
@@ -183,13 +188,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       } else if (file) {
         // 文件上传
         const processedFile = await uploadService.processFile(file);
-        const fileUrl = await uploadService.uploadToStorage(
-          processedFile.file,
-          user.id,
-        );
+        const { url: fileUrl, contentHash } =
+          await uploadService.uploadToStorage(processedFile.file, user.id);
 
         await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
+          contentHash,
           fileType: processedFile.type,
           location: finalLocation || undefined,
           gpsSource: gpsSource || undefined,

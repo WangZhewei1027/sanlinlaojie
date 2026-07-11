@@ -119,10 +119,12 @@ export function useAssetEditor({
         } = await supabase.auth.getUser();
         if (user) {
           const processed = await uploadService.processFile(imageFile);
-          updates.file_url = await uploadService.uploadToStorage(
+          const { url, contentHash } = await uploadService.uploadToStorage(
             processed.file,
             user.id,
           );
+          updates.file_url = url;
+          updates.content_hash = contentHash;
         }
       }
 
@@ -135,7 +137,7 @@ export function useAssetEditor({
         } = await supabase.auth.getUser();
         if (user) {
           const processed = await uploadService.processFile(checkinFile);
-          const checkinUrl = await uploadService.uploadToStorage(
+          const { url: checkinUrl } = await uploadService.uploadToStorage(
             processed.file,
             user.id,
           );

@@ -85,10 +85,8 @@ export default function UploadOnsitePage() {
       );
 
       // 上传到 Storage
-      const fileUrl = await uploadService.uploadToStorage(
-        processedFileData.file,
-        user.id,
-      );
+      const { url: fileUrl, contentHash } =
+        await uploadService.uploadToStorage(processedFileData.file, user.id);
 
       const location: LocationData = {
         latitude: gpsPosition.latitude,
@@ -100,6 +98,7 @@ export default function UploadOnsitePage() {
       await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
         fileType: processedFileData.type,
         fileUrl,
+        contentHash,
         location,
         gpsSource: "device_gps",
         tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
@@ -196,10 +195,8 @@ export default function UploadOnsitePage() {
       );
 
       // 上传到 Storage
-      const fileUrl = await uploadService.uploadToStorage(
-        processedFileData.file,
-        user.id,
-      );
+      const { url: fileUrl, contentHash } =
+        await uploadService.uploadToStorage(processedFileData.file, user.id);
 
       const location: LocationData = {
         latitude: gpsPosition.latitude,
@@ -211,6 +208,7 @@ export default function UploadOnsitePage() {
       await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
         fileType: processedFileData.type,
         fileUrl,
+        contentHash,
         location,
         gpsSource: "device_gps",
         tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,

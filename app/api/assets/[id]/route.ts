@@ -114,6 +114,8 @@ export async function PATCH(
       is_huge,
       file_url,
       config,
+      location,
+      content_hash,
     } = body;
 
     // 构建更新对象
@@ -155,6 +157,15 @@ export async function PATCH(
 
     if (file_url !== undefined) {
       updates.file_url = file_url;
+    }
+
+    if (content_hash !== undefined) {
+      updates.content_hash = content_hash;
+    }
+
+    // 拖动素材落库：location 为 WKT（如 "POINT(lng lat)"），需与 metadata 坐标同步更新。
+    if (location !== undefined) {
+      updates.location = location;
     }
 
     // 更新 metadata（合并而不是替换）
@@ -216,7 +227,9 @@ export async function DELETE(
     if (!auth.ok) return auth.response;
     const asset = auth.asset;
 
-    // 如果有文件URL，尝试从storage中删除文件
+    // 如果有文件URL，尝试从storage中删除文件。
+    // 但复制/hash 去重会让多个 asset 共用同一 file_url，只有在没有其他 asset
+    // 仍引用该文件时才真正删除存储文件，避免误删共享文件。
     if (asset.file_url) {
       try {
         const url = new URL(asset.file_url);
@@ -225,13 +238,25 @@ export async function DELETE(
         );
 
         if (pathMatch) {
-          const filePath = pathMatch[1];
-          const { error: storageError } = await supabase.storage
-            .from("assets")
-            .remove([filePath]);
+          const { count: refCount } = await supabase
+            .from("asset")
+            .select("id", { count: "exact", head: true })
+            .eq("file_url", asset.file_url)
+            .neq("id", assetId);
 
-          if (storageError) {
-            console.warn("删除存储文件失败:", storageError);
+          if (refCount && refCount > 0) {
+            console.log(
+              `文件仍被 ${refCount} 个其他资产引用，跳过存储删除: ${asset.file_url}`,
+            );
+          } else {
+            const filePath = pathMatch[1];
+            const { error: storageError } = await supabase.storage
+              .from("assets")
+              .remove([filePath]);
+
+            if (storageError) {
+              console.warn("删除存储文件失败:", storageError);
+            }
           }
         }
       } catch (err) {

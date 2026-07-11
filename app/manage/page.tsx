@@ -6,6 +6,7 @@ import { useViewerMessaging } from "./hooks/useViewerMessaging";
 import { useManageStore } from "./store";
 import { ViewerFrame } from "./components/ViewerFrame";
 import { ManageSidebar } from "./components/ManageSidebar";
+import { MapSelectionBar } from "./components/MapSelectionBar";
 import { AssetManager, useAssetAPI } from "./components/AssetManager";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -45,7 +46,7 @@ export default function ManagePage() {
   // 直接从 zustand store 读取数据（WorkspaceProvider 负责同步）
   const filteredAssets = useManageStore((state) => state.filteredAssets);
 
-  const { focusAsset } = useViewerMessaging({
+  const { focusAsset, clearViewerSelection } = useViewerMessaging({
     assets: filteredAssets,
     iframeRef,
   });
@@ -111,8 +112,9 @@ export default function ManagePage() {
           {/* Viewer 面板 */}
           <div
             key="viewer"
-            className="bg-background border rounded-lg overflow-hidden"
+            className="relative bg-background border rounded-lg overflow-hidden"
           >
+            <MapSelectionBar clearViewerSelection={clearViewerSelection} />
             <ViewerFrame iframeRef={iframeRef} />
           </div>
 

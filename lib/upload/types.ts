@@ -33,6 +33,7 @@ export interface UploadFile {
 
 export interface UploadResult {
   fileUrl?: string;
+  contentHash?: string;
   fileType: UploadType;
   location?: LocationData;
   gpsSource?: GPSSource["type"];

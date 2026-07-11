@@ -111,6 +111,7 @@ export async function POST(
       anchor_id,
       is_huge,
       config,
+      content_hash,
     } = body ?? {};
 
     if (!file_type) {
@@ -132,6 +133,7 @@ export async function POST(
     if (anchor_id !== undefined) insertPayload.anchor_id = anchor_id;
     if (is_huge !== undefined) insertPayload.is_huge = is_huge;
     if (config !== undefined) insertPayload.config = config;
+    if (content_hash !== undefined) insertPayload.content_hash = content_hash;
 
     const { data, error } = await supabase
       .from("asset")
