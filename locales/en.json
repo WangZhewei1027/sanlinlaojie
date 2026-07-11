@@ -113,6 +113,16 @@
       "latitude": "Lat",
       "height": "Alt",
       "prompt": "Click on the map to view coordinates..."
+    },
+    "map": {
+      "selectedCount": "{{count}} selected",
+      "copy": "Copy",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "copied": "Copied {{count}} asset(s)",
+      "deleted": "Deleted {{count}} asset(s)",
+      "deleteFailed": "Failed to delete {{count}} asset(s)",
+      "moveSaved": "Saved position for {{count}} asset(s)"
     }
   },
   "home": {

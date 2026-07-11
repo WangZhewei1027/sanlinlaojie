@@ -113,6 +113,16 @@
       "latitude": "纬",
       "height": "高",
       "prompt": "点击地图查看坐标..."
+    },
+    "map": {
+      "selectedCount": "已选 {{count}} 个",
+      "copy": "复制",
+      "delete": "删除",
+      "cancel": "取消",
+      "copied": "已复制 {{count}} 个素材",
+      "deleted": "已删除 {{count}} 个素材",
+      "deleteFailed": "{{count}} 个素材删除失败",
+      "moveSaved": "已保存 {{count}} 个素材的位置"
     }
   },
   "home": {

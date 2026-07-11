@@ -1,4 +1,5 @@
 import { useEffect, RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Asset, LocationData, ViewerMessage } from "../types";
 import { useManageStore } from "../store";
@@ -20,6 +21,7 @@ export function useViewerMessaging({
   assets,
   iframeRef,
 }: UseViewerMessagingProps) {
+  const { t } = useTranslation();
   const setClickedLocation = useManageStore(
     (state) => state.setClickedLocation,
   );
@@ -118,7 +120,7 @@ export function useViewerMessaging({
             },
           });
         });
-        toast.success(`已保存 ${moves.length} 个素材的位置`);
+        toast.success(t("manage.map.moveSaved", { count: moves.length }));
       } catch {
         // fetchJson 已弹出错误 toast
       }
@@ -148,6 +150,7 @@ export function useViewerMessaging({
     setSelectedAssetId,
     setSelectedAssetIds,
     updateAssetInStore,
+    t,
   ]);
 
   // 发送聚焦资产消息到 viewer

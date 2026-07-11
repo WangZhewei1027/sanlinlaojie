@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Copy, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ interface MapSelectionBarProps {
  * viewer 角色（只读）不显示写操作。
  */
 export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) {
+  const { t } = useTranslation();
   const selectedAssetIds = useManageStore((state) => state.selectedAssetIds);
   const clearSelectedAssetIds = useManageStore(
     (state) => state.clearSelectedAssetIds,
@@ -53,7 +55,7 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
       });
       const created = result.data ?? [];
       setAssets([...assets, ...created]);
-      toast.success(`已复制 ${created.length} 个素材`);
+      toast.success(t("manage.map.copied", { count: created.length }));
       clearAll();
     } catch {
       // fetchJson 已弹出错误 toast
@@ -79,9 +81,9 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
 
       const failed = count - succeeded.length;
       if (failed > 0) {
-        toast.error(`${failed} 个素材删除失败`);
+        toast.error(t("manage.map.deleteFailed", { count: failed }));
       } else {
-        toast.success(`已删除 ${succeeded.length} 个素材`);
+        toast.success(t("manage.map.deleted", { count: succeeded.length }));
       }
       clearAll();
     } finally {
@@ -94,7 +96,7 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
   return (
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 shadow-lg backdrop-blur">
       <span className="text-sm font-medium whitespace-nowrap">
-        已选 {count} 个
+        {t("manage.map.selectedCount", { count })}
       </span>
       {!isViewer && (
         <>
@@ -105,7 +107,7 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
             onClick={handleCopy}
           >
             <Copy className="h-4 w-4" />
-            复制
+            {t("manage.map.copy")}
           </Button>
           <Button
             size="sm"
@@ -114,13 +116,13 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
             onClick={handleDelete}
           >
             <Trash2 className="h-4 w-4" />
-            删除
+            {t("manage.map.delete")}
           </Button>
         </>
       )}
       <Button size="sm" variant="ghost" disabled={busy} onClick={clearAll}>
         <X className="h-4 w-4" />
-        取消
+        {t("manage.map.cancel")}
       </Button>
     </div>
   );
