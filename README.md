@@ -8,7 +8,7 @@
 
 | 子项目 | 路径 | 定位 |
 |---|---|---|
-| **sanlinlaojie** | `sanlinlaojie/` | Web 管理平台 + Web AR 体验 |
+| **sanlinlaojie** | `sanlinlaojie/` | Web 管理平台 |
 | **xr-frame-plant-trees** | `xr-frame-plant-trees/` | 微信小程序 GPS AR 体验 |
 
 两者通过同一个 Supabase 实例共享数据（素材库、组织、工作区、弹幕等）。
@@ -24,7 +24,6 @@
 - **后端/鉴权**：Supabase（PostgreSQL + PostGIS + Auth）
 - **媒体存储**：Cloudinary
 - **3D 渲染**：Three.js + React Three Fiber
-- **AR**：Zappar（Web AR）
 - **地图**：OpenStreetMap / CesiumJS
 - **国际化**：i18next + react-i18next
 - **状态管理**：Zustand
@@ -33,7 +32,6 @@
 
 #### 用户端
 - `/` — 首页
-- `/ar` — Web AR 体验（Zappar，移动端扫码入口）
 - `/manage` — 地图工作区主界面：在交互式地图上查看/管理 AR 素材点位
 
 #### 管理端（`/admin`）
@@ -73,7 +71,6 @@
 sanlinlaojie/
 ├─ app/
 │  ├─ admin/          # 组织管理后台
-│  ├─ ar/             # Web AR 体验页
 │  ├─ manage/         # 地图工作区主界面
 │  ├─ super-admin/    # 超级管理员控制台
 │  ├─ upload-onsite/  # 现场上传页面
