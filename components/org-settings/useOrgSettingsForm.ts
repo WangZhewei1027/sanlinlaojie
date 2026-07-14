@@ -1,7 +1,11 @@
 import { useState, useTransition } from "react";
 import { DEFAULT_UPLOAD_TYPES, FILE_TYPE_CONFIGS } from "@/lib/upload/config";
 import type { TextAssetMiniappStyle } from "@/app/manage/types";
-import type { OrgSettingsSource, SaveOrgSettings } from "./types";
+import {
+  DEFAULT_TEXT_ASSET_MINIAPP_STYLE,
+  type OrgSettingsSource,
+  type SaveOrgSettings,
+} from "./types";
 
 export const ALL_FILE_TYPES = Object.keys(FILE_TYPE_CONFIGS) as Array<
   keyof typeof FILE_TYPE_CONFIGS
@@ -38,7 +42,7 @@ export function useOrgSettingsForm(
   const [textAssetMiniappStyle, setTextAssetMiniappStyle] =
     useState<TextAssetMiniappStyle>(
       (org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
-        "plain_white",
+        DEFAULT_TEXT_ASSET_MINIAPP_STYLE,
     );
   const [confettiEnabled, setConfettiEnabled] = useState<boolean>(
     org.config?.confetti_enabled ?? false,
@@ -59,7 +63,7 @@ export function useOrgSettingsForm(
     !sameSet(fileTypes, fileTypesBaseline) ||
     textAssetMiniappStyle !==
       ((org.config?.text_asset_miniapp_style as TextAssetMiniappStyle) ??
-        "plain_white") ||
+        DEFAULT_TEXT_ASSET_MINIAPP_STYLE) ||
     confettiEnabled !== (org.config?.confetti_enabled ?? false) ||
     shopCheckinEnabled !== (org.config?.shop_checkin_enabled ?? false) ||
     footerEnabled !== (org.config?.footer_enabled ?? false);

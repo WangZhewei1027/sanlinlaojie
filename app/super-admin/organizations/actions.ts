@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { purgeOrganizations } from "@/lib/user-deletion.server";
 import { revalidatePath } from "next/cache";
 
 const VALID_MINIAPP_STYLES = ["plain_white", "dialog_decorated"] as const;
@@ -67,9 +69,11 @@ export async function deleteOrganization(
   id: string,
 ): Promise<{ error?: string }> {
   try {
-    const supabase = await requireSuperAdmin();
-    const { error } = await supabase.from("organization").delete().eq("id", id);
-    if (error) return { error: error.message };
+    await requireSuperAdmin();
+    // 直接 delete organization 会被 workspace 的 NO ACTION 外键挡住；
+    // 走完整清理器：先按引用计数删存储文件（去重共享的保留），
+    // 再原子删除 组织内资产 / workspace / 组织（跨组织资产仅剥离本组织的 workspace）
+    await purgeOrganizations(createAdminClient(), [id]);
     revalidatePath("/super-admin/organizations");
     return {};
   } catch (err) {

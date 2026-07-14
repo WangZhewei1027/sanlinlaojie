@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { logErrorSafe } from "@/lib/log-error";
+import { DEFAULT_UPLOAD_TYPES } from "@/lib/upload/types";
 
 // 获取用户可访问的所有 organization
 export async function GET() {
@@ -71,6 +73,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
+    // 新组织的默认文件类型来自全局配置（app_config 启用 RLS 无 policy，
+    // 需 service-role 读取）；配置缺失时兜底为代码默认集合
+    const { data: cfg } = await createAdminClient()
+      .from("app_config")
+      .select("value")
+      .eq("key", "default_allowed_file_types")
+      .single();
+    const defaultFileTypes = Array.isArray(cfg?.value)
+      ? cfg.value
+      : DEFAULT_UPLOAD_TYPES;
+
     // 创建 organization
     const { data: org, error: orgError } = await supabase
       .from("organization")
@@ -78,6 +91,7 @@ export async function POST(request: Request) {
         name,
         description: description || null,
         created_by: user.id,
+        allowed_file_types: defaultFileTypes,
       })
       .select()
       .single();

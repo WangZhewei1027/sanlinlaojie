@@ -159,7 +159,8 @@
       "section": "Super Admin",
       "users": "User Management",
       "organizations": "Organizations",
-      "errorLogs": "Error Logs"
+      "errorLogs": "Error Logs",
+      "settings": "System Settings"
     },
     "orgs": {
       "title": "Organization Management",
@@ -189,7 +190,7 @@
       },
       "deleteDialog": {
         "title": "Delete Organization",
-        "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+        "description": "Are you sure you want to delete \"{{name}}\"? All workspaces, assets and their files under this organization will be deleted as well. This action cannot be undone."
       },
       "details": "Organization Details",
       "saveChanges": "Save Changes",
@@ -271,6 +272,13 @@
         "prev": "Prev",
         "next": "Next"
       }
+    },
+    "settings": {
+      "title": "System Settings",
+      "description": "Global default configuration",
+      "defaultFileTypes": "Default File Types for New Organizations",
+      "defaultFileTypesDesc": "File types newly created organizations (including auto-created personal orgs on signup) are allowed to upload by default; existing organizations are unaffected.",
+      "saved": "Settings saved"
     }
   },
   "admin": {

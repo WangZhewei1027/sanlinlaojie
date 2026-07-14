@@ -1,10 +1,18 @@
 ---
 title: 文本资源小程序端展示样式配置
 created: 2026-05-11
-updated: 2026-05-11
+updated: 2026-07-14
 ---
 
 # 文本资源小程序端展示样式配置
+
+> **现状（2026-07）**：该配置已从顶层列迁入 `organization.config` jsonb
+> （键 `text_asset_miniapp_style`，见迁移 `migrate_text_asset_miniapp_style_to_config`），
+> 下文"数据库"一节的 DDL 与 `plain_white` 默认值仅为历史记录。
+> 小程序端（xr-frame-plant-trees `components/xr-start`）只 `select=config`，
+> **键缺失时的运行时默认是 `dialog_decorated`**；web 管理表单的缺省展示与之对齐
+> （`components/org-settings/types.ts` 的 `DEFAULT_TEXT_ASSET_MINIAPP_STYLE`）。
+> 组织 owner 也可在 `/admin/settings` 配置此项，不再仅限超管。
 
 ## 功能概述
 

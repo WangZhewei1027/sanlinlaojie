@@ -159,7 +159,8 @@
       "section": "超级管理员",
       "users": "用户管理",
       "organizations": "组织管理",
-      "errorLogs": "错误日志"
+      "errorLogs": "错误日志",
+      "settings": "系统设置"
     },
     "orgs": {
       "title": "组织管理",
@@ -189,7 +190,7 @@
       },
       "deleteDialog": {
         "title": "删除组织",
-        "description": "确定要删除 \"{{name}}\" 吗？此操作不可撤销。"
+        "description": "确定要删除 \"{{name}}\" 吗？该组织下的所有工作空间、资产及其文件将一并删除，此操作不可撤销。"
       },
       "details": "组织详情",
       "saveChanges": "保存更改",
@@ -271,6 +272,13 @@
         "prev": "上一页",
         "next": "下一页"
       }
+    },
+    "settings": {
+      "title": "系统设置",
+      "description": "全局默认配置",
+      "defaultFileTypes": "新组织默认文件类型",
+      "defaultFileTypesDesc": "新建组织（含注册时自动创建的个人组织）默认允许上传的文件类型；不影响已有组织。",
+      "saved": "设置已保存"
     }
   },
   "admin": {
