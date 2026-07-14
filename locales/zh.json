@@ -275,7 +275,6 @@
   },
   "admin": {
     "sidebar": {
-      "overview": "概览",
       "settings": "设置",
       "members": "成员",
       "workspaces": "工作空间",
@@ -284,12 +283,6 @@
       "organizations": "组织管理",
       "orgSection": "组织",
       "globalSection": "系统管理"
-    },
-    "overview": {
-      "selectOrg": "请先选择一个组织",
-      "workspacesDesc": "管理该组织下的工作空间",
-      "membersDesc": "管理组织成员和角色",
-      "settingsDesc": "组织名称、描述和危险操作"
     },
     "members": {
       "title": "成员管理",
@@ -339,17 +332,13 @@
       "title": "组织设置",
       "description": "管理 {{name}} 的设置",
       "selectOrgFirst": "请先选择一个组织",
-      "general": "基本信息",
-      "orgName": "组织名称",
-      "orgNamePlaceholder": "输入组织名称",
-      "orgDescription": "描述",
-      "orgDescPlaceholder": "可选：添加组织描述",
       "saved": "设置已保存",
       "dangerZone": "危险操作",
       "deleteWarning": "删除组织将移除所有关联数据，此操作无法撤销。",
       "confirmDelete": "输入 \"{{name}}\" 确认删除",
       "deleteOrg": "删除组织",
-      "noPermission": "你没有权限管理此组织设置"
+      "noPermission": "你没有权限管理此组织设置",
+      "loadFailed": "加载组织信息失败，请刷新重试"
     },
     "workspaces": {
       "selectOrgFirst": "请先选择一个组织",

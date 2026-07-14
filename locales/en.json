@@ -275,7 +275,6 @@
   },
   "admin": {
     "sidebar": {
-      "overview": "Overview",
       "settings": "Settings",
       "members": "Members",
       "workspaces": "Workspaces",
@@ -284,12 +283,6 @@
       "organizations": "Organizations",
       "orgSection": "Organization",
       "globalSection": "Administration"
-    },
-    "overview": {
-      "selectOrg": "Please select an organization",
-      "workspacesDesc": "Manage workspaces under this organization",
-      "membersDesc": "Manage organization members and roles",
-      "settingsDesc": "Organization name, description, and danger zone"
     },
     "members": {
       "title": "Members",
@@ -339,17 +332,13 @@
       "title": "Settings",
       "description": "Manage organization settings for {{name}}",
       "selectOrgFirst": "Please select an organization first",
-      "general": "General",
-      "orgName": "Organization Name",
-      "orgNamePlaceholder": "Enter name",
-      "orgDescription": "Description",
-      "orgDescPlaceholder": "Optional description",
       "saved": "Settings saved successfully",
       "dangerZone": "Danger Zone",
       "deleteWarning": "Deleting an organization will remove all associated data. This action cannot be undone.",
       "confirmDelete": "Type \"{{name}}\" to confirm deletion",
       "deleteOrg": "Delete Organization",
-      "noPermission": "You don't have permission to manage this organization's settings"
+      "noPermission": "You don't have permission to manage this organization's settings",
+      "loadFailed": "Failed to load organization info, please refresh"
     },
     "workspaces": {
       "selectOrgFirst": "Please select an organization first",

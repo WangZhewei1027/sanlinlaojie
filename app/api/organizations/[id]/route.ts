@@ -67,9 +67,58 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, map_center, allowed_file_types, config } = body;
 
     const updatePayload: Record<string, unknown> = { name, description };
+
+    // 组织配置字段（与 super-admin 的 updateOrganization action 同语义）：
+    // 仅在请求携带时更新，且做形状校验，防止写入脏数据
+    if (map_center !== undefined) {
+      const validCenter =
+        map_center === null ||
+        (typeof map_center?.lat === "number" &&
+          typeof map_center?.lng === "number");
+      if (!validCenter) {
+        return NextResponse.json(
+          { error: "无效的地图中心坐标" },
+          { status: 400 },
+        );
+      }
+      updatePayload.map_center =
+        map_center === null
+          ? null
+          : { lat: map_center.lat, lng: map_center.lng };
+    }
+
+    if (allowed_file_types !== undefined) {
+      const validTypes =
+        allowed_file_types === null ||
+        (Array.isArray(allowed_file_types) &&
+          allowed_file_types.every((t: unknown) => typeof t === "string"));
+      if (!validTypes) {
+        return NextResponse.json(
+          { error: "无效的文件类型配置" },
+          { status: 400 },
+        );
+      }
+      updatePayload.allowed_file_types = allowed_file_types;
+    }
+
+    if (config !== undefined) {
+      if (typeof config !== "object" || config === null) {
+        return NextResponse.json({ error: "无效的组织配置" }, { status: 400 });
+      }
+      const safeConfig = { ...config };
+      if (
+        safeConfig.text_asset_miniapp_style !== undefined &&
+        !["plain_white", "dialog_decorated"].includes(
+          safeConfig.text_asset_miniapp_style,
+        )
+      ) {
+        delete safeConfig.text_asset_miniapp_style;
+      }
+      updatePayload.config = safeConfig;
+    }
 
     const { data, error } = await supabase
       .from("organization")

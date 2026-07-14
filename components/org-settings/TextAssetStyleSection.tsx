@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SectionHeader } from "../SectionHeader";
+import { SectionHeader } from "./SectionHeader";
 import type { TextAssetMiniappStyle } from "@/app/manage/types";
 
 interface TextAssetStyleSectionProps {

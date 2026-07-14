@@ -3,14 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import {
-  FolderKanban,
-  Users,
-  Settings,
-  Trash2,
-  LayoutDashboard,
-  Menu,
-} from "lucide-react";
+import { FolderKanban, Users, Settings, Trash2, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -34,12 +27,6 @@ function useSidebarItems(): SidebarItem[] {
   const orgRole = selectedOrganization?.role ?? null;
 
   const allItems: SidebarItem[] = [
-    {
-      label: t("admin.sidebar.overview", "Overview"),
-      href: "/admin",
-      icon: LayoutDashboard,
-      section: "org",
-    },
     {
       label: t("admin.sidebar.settings", "Settings"),
       href: "/admin/settings",
@@ -84,10 +71,7 @@ function SidebarNav({
   const orgItems = items.filter((item) => item.section === "org");
   const globalItems = items.filter((item) => item.section === "global");
 
-  const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname.startsWith(href);
-  };
+  const isActive = (href: string) => pathname.startsWith(href);
 
   const renderItem = (item: SidebarItem) => {
     const Icon = item.icon;

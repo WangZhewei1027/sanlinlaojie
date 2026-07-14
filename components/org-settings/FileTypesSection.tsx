@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { FileType2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SectionHeader } from "../SectionHeader";
-import { ALL_FILE_TYPES } from "../../hooks/useOrgDetailForm";
+import { SectionHeader } from "./SectionHeader";
+import { ALL_FILE_TYPES } from "./useOrgSettingsForm";
 
 interface FileTypesSectionProps {
   fileTypes: Set<string>;

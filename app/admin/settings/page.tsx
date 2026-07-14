@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Settings, Loader2, Save, ShieldAlert } from "lucide-react";
+import { Settings, Loader2, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { fetchJson } from "@/lib/fetch-json";
-import { toast } from "sonner";
+import { OrgSettingsForm } from "@/components/org-settings/OrgSettingsForm";
+import type {
+  OrgSettingsPayload,
+  OrgSettingsSource,
+} from "@/components/org-settings/types";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -28,49 +30,63 @@ export default function SettingsPage() {
     superAdmin || hasOrgPermission(orgRole, "org.settings");
   const canDeleteOrg = superAdmin || hasOrgPermission(orgRole, "org.delete");
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const orgId = selectedOrganization?.id;
+
+  // 表单需要完整组织行（map_center / allowed_file_types / config），
+  // store 里的 selectedOrganization 不含这些字段，进页面时拉一次
+  const [org, setOrg] = useState<OrgSettingsSource | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (selectedOrganization) {
-      setName(selectedOrganization.name);
-      setDescription(selectedOrganization.description || "");
-    }
-  }, [selectedOrganization]);
+    if (!orgId) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/organizations/${orgId}`);
+        const body = await res.json();
+        if (!cancelled) setOrg(res.ok ? (body.data ?? null) : null);
+      } catch {
+        if (!cancelled) setOrg(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
 
-  const handleSave = async () => {
-    if (!selectedOrganization?.id || !name.trim()) return;
-
-    setSuccess(false);
-    setSaving(true);
-
-    try {
-      await fetchJson(`/api/organizations/${selectedOrganization.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || null,
-        }),
-      });
-
-      // Update store
-      setSelectedOrganization({
-        ...selectedOrganization,
-        name: name.trim(),
-        description: description.trim() || null,
-      });
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch {
-      // fetchJson 已弹 toast
-    } finally {
-      setSaving(false);
-    }
-  };
+  const save = useCallback(
+    async (payload: OrgSettingsPayload): Promise<{ error?: string }> => {
+      try {
+        const { data } = await fetchJson<{ data: OrgSettingsSource }>(
+          `/api/organizations/${orgId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        // 刷新本地表单基线 + store（导航栏组织名等）
+        setOrg(data);
+        if (selectedOrganization) {
+          setSelectedOrganization({
+            ...selectedOrganization,
+            name: payload.name,
+            description: payload.description,
+            map_center: payload.map_center,
+            allowed_file_types: payload.allowed_file_types,
+          });
+        }
+        return {};
+      } catch (e) {
+        // fetchJson 已弹 toast；返回错误让表单也显示
+        return { error: e instanceof Error ? e.message : "保存失败" };
+      }
+    },
+    [orgId, selectedOrganization, setSelectedOrganization],
+  );
 
   if (!selectedOrganization) {
     return (
@@ -116,57 +132,24 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* General settings */}
-      <div className="border rounded-lg p-6 space-y-6">
-        <h2 className="text-lg font-semibold">
-          {t("admin.settings.general", "General")}
-        </h2>
-
-        <div className="space-y-2">
-          <Label htmlFor="org-name">
-            {t("admin.settings.orgName", "Organization Name")}
-          </Label>
-          <Input
-            id="org-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t("admin.settings.orgNamePlaceholder", "Enter name")}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="org-desc">
-            {t("admin.settings.orgDescription", "Description")}
-          </Label>
-          <Textarea
-            id="org-desc"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t(
-              "admin.settings.orgDescPlaceholder",
-              "Optional description",
-            )}
-            rows={3}
-          />
-        </div>
-
-        {success && (
-          <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-            {t("admin.settings.saved", "Settings saved successfully")}
+      {/* Org settings（与 super-admin 组织详情面板共用的表单） */}
+      <div className="border rounded-lg p-6">
+        {loading ? (
+          <div className="flex items-center justify-center h-40 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        )}
-
-        {canEditSettings && (
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={saving || !name.trim()}>
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              {t("common.save", "Save")}
-            </Button>
-          </div>
+        ) : org && canEditSettings ? (
+          <OrgSettingsForm
+            org={org}
+            save={save}
+            onSuccess={() =>
+              toast.success(t("admin.settings.saved", "设置已保存"))
+            }
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t("admin.settings.loadFailed", "加载组织信息失败，请刷新重试")}
+          </p>
         )}
       </div>
 

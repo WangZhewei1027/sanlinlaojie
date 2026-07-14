@@ -1,4 +1,6 @@
-import type { TextAssetMiniappStyle } from "@/app/manage/types";
+import type { OrgConfig } from "@/components/org-settings/types";
+
+export type { OrgConfig };
 
 export interface MemberData {
   id: string;
@@ -9,13 +11,6 @@ export interface MemberData {
     name: string | null;
     email: string | null;
   };
-}
-
-export interface OrgConfig {
-  confetti_enabled?: boolean;
-  shop_checkin_enabled?: boolean;
-  footer_enabled?: boolean;
-  text_asset_miniapp_style?: TextAssetMiniappStyle;
 }
 
 export interface OrgData {

@@ -18,6 +18,21 @@ import {
 } from "@/lib/audio-compression";
 
 /**
+ * organization.allowed_file_types 为 null 时生效的默认类型集合。
+ * 注意：不含 document / model —— 这两类需要组织显式开启。
+ * 上传面板和组织设置表单共用，保持"数据库 null ↔ 界面展示"一致。
+ */
+export const DEFAULT_UPLOAD_TYPES: UploadType[] = [
+  "image",
+  "video",
+  "audio",
+  "link",
+  "text",
+  "anchor",
+  "shop",
+];
+
+/**
  * 文件类型配置
  */
 export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {

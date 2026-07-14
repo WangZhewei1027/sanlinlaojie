@@ -1,10 +1,10 @@
 "use client";
 
 import type { TextAssetMiniappStyle } from "@/app/manage/types";
-import { MapCenterSection } from "./sections/MapCenterSection";
-import { FileTypesSection } from "./sections/FileTypesSection";
-import { TextAssetStyleSection } from "./sections/TextAssetStyleSection";
-import { MiniappConfigSection } from "./sections/MiniappConfigSection";
+import { MapCenterSection } from "./MapCenterSection";
+import { FileTypesSection } from "./FileTypesSection";
+import { TextAssetStyleSection } from "./TextAssetStyleSection";
+import { MiniappConfigSection } from "./MiniappConfigSection";
 
 interface OrgFormSectionsProps {
   lat: string;

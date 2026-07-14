@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { FileUploadService } from "@/lib/upload/service";
 import { UploadType } from "@/lib/upload/types";
-import { FILE_TYPE_CONFIGS } from "@/lib/upload/config";
+import { DEFAULT_UPLOAD_TYPES, FILE_TYPE_CONFIGS } from "@/lib/upload/config";
 import { useLocationSelection } from "@/lib/upload/hooks";
 import { LocationSelector } from "./location-selector";
 import { FileTypeSelector } from "./file-type-selector";
@@ -43,20 +43,11 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const router = useRouter();
   const uploadService = new FileUploadService();
 
-  // 从 organization 配置获取允许的文件类型
+  // 从 organization 配置获取允许的文件类型（null → 默认集合，与组织设置表单一致）
   const allowedTypes = (selectedOrganization?.allowed_file_types ??
     undefined) as UploadType[] | undefined;
 
-  const defaultTypes: UploadType[] = [
-    "image",
-    "video",
-    "audio",
-    "link",
-    "text",
-    "anchor",
-    "shop",
-  ];
-  const effectiveTypes = allowedTypes ?? defaultTypes;
+  const effectiveTypes = allowedTypes ?? DEFAULT_UPLOAD_TYPES;
 
   // State
   const [uploadType, setUploadType] = useState<UploadType>(

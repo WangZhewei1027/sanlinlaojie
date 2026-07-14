@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { SectionHeader } from "../SectionHeader";
+import { SectionHeader } from "./SectionHeader";
 
 interface MiniappConfigSectionProps {
   confettiEnabled: boolean;
