@@ -415,6 +415,17 @@
         "superAdminRole": "Super Admin",
         "userHint": "Users are controlled by organization roles",
         "superAdminHint": "Super Admins can manage all organizations and users"
+      },
+      "deleteUser": "Delete user",
+      "deleteDialog": {
+        "title": "Delete User",
+        "description": "Are you sure you want to delete {{name}}? This action cannot be undone.",
+        "loadingPreview": "Analyzing impact…",
+        "previewFailed": "Failed to load deletion preview",
+        "noOwnedOrgs": "This user does not own any organization; deletion will not affect existing organizations.",
+        "orgDelete": "Will be deleted ({{workspaces}} workspaces, {{assets}} assets and their files)",
+        "orgPromote": "{{name}} will be promoted to owner",
+        "orgUnchanged": "Has another owner; unaffected"
       }
     },
     "clean": {

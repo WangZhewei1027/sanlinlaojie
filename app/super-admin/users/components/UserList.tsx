@@ -9,13 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, UserCog, User, Layers } from "lucide-react";
+import { MoreHorizontal, UserCog, User, Layers, Trash2 } from "lucide-react";
 import type { UserData } from "../types";
 
 interface UserListProps {
   users: UserData[];
   currentUserId: string;
   onChangeRole: (user: UserData) => void;
+  onDelete: (user: UserData) => void;
 }
 
 function initials(name: string | null, email: string | null) {
@@ -44,7 +45,12 @@ function relativeTime(iso: string | null | undefined, locale?: string) {
   return rtf.format(0, "minute");
 }
 
-export function UserList({ users, currentUserId, onChangeRole }: UserListProps) {
+export function UserList({
+  users,
+  currentUserId,
+  onChangeRole,
+  onDelete,
+}: UserListProps) {
   const { t, i18n } = useTranslation();
 
   if (users.length === 0) {
@@ -199,6 +205,16 @@ export function UserList({ users, currentUserId, onChangeRole }: UserListProps) 
                         >
                           <UserCog className="h-4 w-4 mr-2" />
                           {t("admin.users.changeRole", "修改角色")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => onDelete(user)}
+                          disabled={
+                            isCurrentUser || user.role === "super_admin"
+                          }
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          {t("admin.users.deleteUser", "删除用户")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

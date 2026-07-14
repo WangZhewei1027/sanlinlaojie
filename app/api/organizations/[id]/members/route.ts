@@ -228,6 +228,22 @@ export async function PATCH(
       );
     }
 
+    // 不能把唯一的 owner 降级，否则组织将无人拥有
+    if (targetMember.role === "owner" && role !== "owner") {
+      const { count: ownerCount } = await supabase
+        .from("organization_member")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", id)
+        .eq("role", "owner");
+
+      if ((ownerCount ?? 0) <= 1) {
+        return NextResponse.json(
+          { error: "不能降级唯一的拥有者，请先转让所有权" },
+          { status: 400 },
+        );
+      }
+    }
+
     const { data, error } = await supabase
       .from("organization_member")
       .update({ role })
@@ -299,6 +315,22 @@ export async function DELETE(
       orgRole !== "owner"
     ) {
       return NextResponse.json({ error: "无法移除拥有者" }, { status: 403 });
+    }
+
+    // 不能移除唯一的 owner，否则组织将无人拥有
+    if (targetMember?.role === "owner") {
+      const { count: ownerCount } = await supabase
+        .from("organization_member")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", id)
+        .eq("role", "owner");
+
+      if ((ownerCount ?? 0) <= 1) {
+        return NextResponse.json(
+          { error: "不能移除唯一的拥有者，请先转让所有权" },
+          { status: 400 },
+        );
+      }
     }
 
     const { error } = await supabase

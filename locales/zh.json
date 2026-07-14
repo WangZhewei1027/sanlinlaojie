@@ -415,6 +415,17 @@
         "superAdminRole": "超级管理员 (Super Admin)",
         "userHint": "普通用户通过组织角色控制权限",
         "superAdminHint": "超级管理员可以管理所有组织和用户"
+      },
+      "deleteUser": "删除用户",
+      "deleteDialog": {
+        "title": "删除用户",
+        "description": "确定要删除用户 {{name}} 吗？此操作不可撤销。",
+        "loadingPreview": "正在分析影响…",
+        "previewFailed": "获取删除预览失败",
+        "noOwnedOrgs": "该用户不是任何组织的拥有者，删除不影响现有组织。",
+        "orgDelete": "将被删除（{{workspaces}} 个工作空间、{{assets}} 个资产及其文件）",
+        "orgPromote": "{{name}} 将被晋升为拥有者",
+        "orgUnchanged": "已有其他拥有者，不受影响"
       }
     },
     "clean": {

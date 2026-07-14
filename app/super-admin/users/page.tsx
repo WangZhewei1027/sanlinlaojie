@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { UserList } from "./components/UserList";
 import { ChangeRoleDialog } from "./components/ChangeRoleDialog";
+import { DeleteUserDialog } from "./components/DeleteUserDialog";
 import { useUsers } from "./hooks/useUsers";
 import type { UserData } from "./types";
 
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const { t } = useTranslation();
   const { users, currentUserId, loading, refetch } = useUsers();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -27,6 +29,11 @@ export default function UsersPage() {
   const handleChangeRole = (user: UserData) => {
     setSelectedUser(user);
     setRoleDialogOpen(true);
+  };
+
+  const handleDelete = (user: UserData) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
   };
 
   const filtered = useMemo(() => {
@@ -113,16 +120,25 @@ export default function UsersPage() {
         users={filtered}
         currentUserId={currentUserId}
         onChangeRole={handleChangeRole}
+        onDelete={handleDelete}
       />
 
       {/* Dialogs */}
       {selectedUser && (
-        <ChangeRoleDialog
-          open={roleDialogOpen}
-          onOpenChange={setRoleDialogOpen}
-          user={selectedUser}
-          onSuccess={refetch}
-        />
+        <>
+          <ChangeRoleDialog
+            open={roleDialogOpen}
+            onOpenChange={setRoleDialogOpen}
+            user={selectedUser}
+            onSuccess={refetch}
+          />
+          <DeleteUserDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            user={selectedUser}
+            onSuccess={refetch}
+          />
+        </>
       )}
     </div>
   );
