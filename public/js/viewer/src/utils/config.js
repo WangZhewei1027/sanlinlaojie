@@ -60,6 +60,14 @@ export const VIEWER_CONFIG = {
   sceneModePicker: false,
   selectionIndicator: false,
   infoBox: false,
+  contextOptions: {
+    webgl: {
+      // iPad/iPhone Safari 在 Cesium 默认的 "high-performance" 下可能返回
+      // 缺少 ALIASED_LINE_WIDTH_RANGE 的 WebGL 上下文，导致
+      // "null is not an object (evaluating 'u[0]')" 构造失败
+      powerPreference: "default",
+    },
+  },
 };
 
 // Billboard 图片配置

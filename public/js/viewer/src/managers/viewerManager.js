@@ -13,7 +13,20 @@ let viewer = null;
  * @returns {Cesium.Viewer} - Cesium Viewer实例
  */
 export function initViewer(containerId = "cesiumContainer") {
-  viewer = new Cesium.Viewer(containerId, VIEWER_CONFIG);
+  try {
+    viewer = new Cesium.Viewer(containerId, VIEWER_CONFIG);
+  } catch (error) {
+    // iOS Safari 偶发返回残缺的 WebGL2 上下文，回退到 WebGL1 重试
+    console.warn("WebGL2 初始化失败，回退到 WebGL1 重试:", error);
+    document.getElementById(containerId).innerHTML = "";
+    viewer = new Cesium.Viewer(containerId, {
+      ...VIEWER_CONFIG,
+      contextOptions: {
+        ...VIEWER_CONFIG.contextOptions,
+        requestWebgl1: true,
+      },
+    });
+  }
 
   // 确保场景显示正确
   viewer.scene.globe.show = true;

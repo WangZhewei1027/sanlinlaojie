@@ -7,6 +7,12 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "viewer-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "public", "-p", "5050", "-c-1"],
+      "port": 5050
     }
   ]
 }
