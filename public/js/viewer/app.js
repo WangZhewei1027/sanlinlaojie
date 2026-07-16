@@ -11,9 +11,17 @@
  * - tilesetLoader.js: 3D Tiles加载
  */
 
-import { CESIUM_ION_TOKEN } from "./src/utils/config.js";
-import { initViewer, resetCamera } from "./src/managers/viewerManager.js";
-import { setupRecovery } from "./src/managers/recoveryManager.js";
+import { CESIUM_ION_TOKEN, IS_MOBILE } from "./src/utils/config.js";
+import {
+  initViewer,
+  resetCamera,
+  flyToOrigin,
+} from "./src/managers/viewerManager.js";
+import {
+  setupRecovery,
+  waitForHealthyWebgl,
+  recoverFromFatal,
+} from "./src/managers/recoveryManager.js";
 import { setupMessageListener } from "./src/managers/messageHandler.js";
 import { setupClickHandler } from "./src/managers/clickHandler.js";
 import {
@@ -30,6 +38,9 @@ Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
  */
 async function init() {
   try {
+    // 0. iOS Safari 崩溃后的冷却期内新建上下文必死，先探测等待
+    if (!(await waitForHealthyWebgl())) return;
+
     // 1. 初始化 Viewer
     const viewer = initViewer();
 
@@ -45,7 +56,16 @@ async function init() {
     // 3.5 设置拖动/框选交互
     setupInteraction();
 
-    // 4. 延迟加载 3D Tiles（确保 DOM 已准备好）
+    // 4. 加载地形：移动端显存有限，不加载 b3dm，只用卫星底图
+    if (IS_MOBILE) {
+      console.log("移动端：跳过 b3dm 地形加载，仅显示卫星底图");
+      document.getElementById("loading")?.classList.add("hidden");
+      flyToOrigin();
+      console.log("应用初始化完成");
+      return;
+    }
+
+    // 桌面端延迟加载 3D Tiles（确保 DOM 已准备好）
     setTimeout(async () => {
       try {
         await load3DTiles();
@@ -56,6 +76,8 @@ async function init() {
     }, 1000);
   } catch (error) {
     console.error("应用初始化失败:", error);
+    // 构造阶段崩溃（如上下文创建即 lost）同样走限次自动恢复
+    recoverFromFatal(error);
   }
 }
 
@@ -64,7 +86,12 @@ async function init() {
  */
 window.resetCamera = function () {
   const tileset = getTileset();
-  resetCamera(tileset);
+  if (tileset) {
+    resetCamera(tileset);
+  } else {
+    // 移动端无地形，重置视角即回到 origin
+    flyToOrigin();
+  }
 };
 
 /**

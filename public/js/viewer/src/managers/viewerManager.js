@@ -2,10 +2,19 @@
  * Cesium Viewer 管理模块
  */
 
-import { VIEWER_CONFIG, CAMERA_CONFIG } from "../utils/config.js";
+import { VIEWER_CONFIG, CAMERA_CONFIG, IS_MOBILE } from "../utils/config.js";
 import { getOriginCoordinates } from "../utils/coordinateUtils.js";
+import { preferWebgl1 } from "./recoveryManager.js";
 
 let viewer = null;
+
+/** 在 VIEWER_CONFIG 基础上追加 WebGL1 降级选项 */
+function webgl1Config() {
+  return {
+    ...VIEWER_CONFIG,
+    contextOptions: { ...VIEWER_CONFIG.contextOptions, requestWebgl1: true },
+  };
+}
 
 /**
  * 初始化 Cesium Viewer
@@ -13,19 +22,27 @@ let viewer = null;
  * @returns {Cesium.Viewer} - Cesium Viewer实例
  */
 export function initViewer(containerId = "cesiumContainer") {
+  // 该设备多次崩溃或曾靠 WebGL1 恢复过 → 直接用 WebGL1 初始化
+  const useWebgl1 = preferWebgl1();
+  if (useWebgl1) {
+    console.log("使用 WebGL1 模式初始化");
+  }
+
   try {
-    viewer = new Cesium.Viewer(containerId, VIEWER_CONFIG);
+    viewer = new Cesium.Viewer(
+      containerId,
+      useWebgl1 ? webgl1Config() : VIEWER_CONFIG,
+    );
   } catch (error) {
     // iOS Safari 偶发返回残缺的 WebGL2 上下文，回退到 WebGL1 重试
     console.warn("WebGL2 初始化失败，回退到 WebGL1 重试:", error);
     document.getElementById(containerId).innerHTML = "";
-    viewer = new Cesium.Viewer(containerId, {
-      ...VIEWER_CONFIG,
-      contextOptions: {
-        ...VIEWER_CONFIG.contextOptions,
-        requestWebgl1: true,
-      },
-    });
+    viewer = new Cesium.Viewer(containerId, webgl1Config());
+  }
+
+  if (IS_MOBILE) {
+    // 缩小底图影像瓦片缓存（默认 100），降低移动端显存占用
+    viewer.scene.globe.tileCacheSize = 30;
   }
 
   // 确保场景显示正确

@@ -7,6 +7,13 @@ import { getViewer, zoomToTileset } from "./viewerManager.js";
 
 let tileset = null;
 
+// 切到后台时释放已加载瓦片，降低被 iOS 回收 WebGL 上下文的概率
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && tileset) {
+    tileset.trimLoadedTiles();
+  }
+});
+
 /**
  * 更新统计信息
  * @param {number} loaded - 已加载的块数

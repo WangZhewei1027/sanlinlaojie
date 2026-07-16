@@ -37,11 +37,13 @@ export function setOrigin(center) {
 }
 
 // 移动端检测：UA 匹配 iOS/Android 等，
-// 再用「主输入是触摸」兜底（iPadOS 13+ 的 UA 伪装成 Mac）
+// 再用「主输入是触摸」兜底（iPadOS 13+ 的 UA 伪装成 Mac）；
+// ?forceMobile 用于在桌面浏览器调试移动端行为
 export const IS_MOBILE =
   /iPad|iPhone|iPod|Android|Mobile|HarmonyOS/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 &&
-    window.matchMedia("(pointer: coarse)").matches);
+    window.matchMedia("(pointer: coarse)").matches) ||
+  new URLSearchParams(window.location.search).has("forceMobile");
 
 // 3D Tiles 配置
 // 移动端 GPU 内存有限，超限会直接杀掉 WebGL 上下文（导致渲染中断），
@@ -50,10 +52,11 @@ export const TILESET_CONFIG = {
   url: "./terra_b3dms/tileset.json",
   options: IS_MOBILE
     ? {
-        maximumScreenSpaceError: 8,
+        maximumScreenSpaceError: 16,
+        dynamicScreenSpaceError: true,
         skipLevelOfDetail: true,
-        cacheBytes: 128 * 1024 * 1024,
-        maximumCacheOverflowBytes: 64 * 1024 * 1024,
+        cacheBytes: 64 * 1024 * 1024,
+        maximumCacheOverflowBytes: 32 * 1024 * 1024,
       }
     : {
         maximumScreenSpaceError: 2,
@@ -82,8 +85,12 @@ export const VIEWER_CONFIG = {
       // 缺少 ALIASED_LINE_WIDTH_RANGE 的 WebGL 上下文，导致
       // "null is not an object (evaluating 'u[0]')" 构造失败
       powerPreference: "default",
+      // 移动端关掉画布多重采样，省一块全屏抗锯齿缓冲的显存
+      ...(IS_MOBILE ? { antialias: false } : {}),
     },
   },
+  // 移动端去掉天空盒/大气/MSAA，显存优先保证地形和底图
+  ...(IS_MOBILE ? { skyBox: false, skyAtmosphere: false, msaaSamples: 1 } : {}),
 };
 
 // Billboard 图片配置
