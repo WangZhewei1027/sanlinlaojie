@@ -13,6 +13,7 @@
 
 import { CESIUM_ION_TOKEN } from "./src/utils/config.js";
 import { initViewer, resetCamera } from "./src/managers/viewerManager.js";
+import { setupRecovery } from "./src/managers/recoveryManager.js";
 import { setupMessageListener } from "./src/managers/messageHandler.js";
 import { setupClickHandler } from "./src/managers/clickHandler.js";
 import {
@@ -30,7 +31,10 @@ Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 async function init() {
   try {
     // 1. 初始化 Viewer
-    initViewer();
+    const viewer = initViewer();
+
+    // 1.5 注册渲染错误 / WebGL 上下文丢失自动恢复（iOS Safari）
+    setupRecovery(viewer);
 
     // 2. 设置消息监听
     setupMessageListener();

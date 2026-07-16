@@ -36,16 +36,32 @@ export function setOrigin(center) {
   }
 }
 
+// 移动端检测：UA 匹配 iOS/Android 等，
+// 再用「主输入是触摸」兜底（iPadOS 13+ 的 UA 伪装成 Mac）
+export const IS_MOBILE =
+  /iPad|iPhone|iPod|Android|Mobile|HarmonyOS/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 &&
+    window.matchMedia("(pointer: coarse)").matches);
+
 // 3D Tiles 配置
+// 移动端 GPU 内存有限，超限会直接杀掉 WebGL 上下文（导致渲染中断），
+// 因此用更保守的精度和瓦片缓存
 export const TILESET_CONFIG = {
   url: "./terra_b3dms/tileset.json",
-  options: {
-    maximumScreenSpaceError: 2,
-    skipLevelOfDetail: true,
-    immediatelyLoadDesiredLevelOfDetail: true,
-    loadSiblings: true,
-    cullWithChildrenBounds: false,
-  },
+  options: IS_MOBILE
+    ? {
+        maximumScreenSpaceError: 8,
+        skipLevelOfDetail: true,
+        cacheBytes: 128 * 1024 * 1024,
+        maximumCacheOverflowBytes: 64 * 1024 * 1024,
+      }
+    : {
+        maximumScreenSpaceError: 2,
+        skipLevelOfDetail: true,
+        immediatelyLoadDesiredLevelOfDetail: true,
+        loadSiblings: true,
+        cullWithChildrenBounds: false,
+      },
   totalTiles: 8,
 };
 
