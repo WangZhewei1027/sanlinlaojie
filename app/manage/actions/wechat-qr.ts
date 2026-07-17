@@ -2,9 +2,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const BUCKET = "wechat-qrcodes";
-const ENV_VERSION: "develop" | "trial" | "release" = "release";
+import {
+  WECHAT_QR_BUCKET,
+  WECHAT_QR_ENV_VERSION,
+  buildQrStoragePath,
+} from "@/lib/wechat-qr";
+
 const MINIPROGRAM_PAGE = "pages/index/index";
+// QR content never changes for a given org/workspace, so let browsers/CDN
+// cache the image long-term (1 year).
+const QR_CACHE_CONTROL = "31536000";
 const QR_WIDTH = 430;
 
 const TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token";
@@ -63,10 +70,6 @@ async function getAccessToken(): Promise<string> {
   return tokenCache.token;
 }
 
-function buildStoragePath(orgId: string, workspaceId: string | null): string {
-  return `${ENV_VERSION}/${orgId}__${workspaceId ?? "none"}.png`;
-}
-
 function buildMiniProgramPath(
   orgId: string,
   workspaceId: string | null,
@@ -85,7 +88,7 @@ async function fetchQrFromWeChat(path: string): Promise<Buffer> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         path,
-        env_version: ENV_VERSION,
+        env_version: WECHAT_QR_ENV_VERSION,
         width: QR_WIDTH,
       }),
       cache: "no-store",
@@ -123,12 +126,19 @@ export async function getOrCreateWorkspaceQRCode(input: {
     const wsId = input.workspaceId?.trim() || null;
 
     const supabase = getAdminClient();
-    const storagePath = buildStoragePath(orgId, wsId);
-    const storage = supabase.storage.from(BUCKET);
+    const storagePath = buildQrStoragePath(orgId, wsId);
+    const storage = supabase.storage.from(WECHAT_QR_BUCKET);
 
-    // 1. Cache check: try to download. If file exists, return public URL.
-    const { error: downloadError } = await storage.download(storagePath);
-    if (!downloadError) {
+    // 1. Cache check via HEAD request (no file body transfer). A transient
+    // failure counts as a miss — the upload step treats duplicates as success.
+    let fileExists = false;
+    try {
+      const { data } = await storage.exists(storagePath);
+      fileExists = Boolean(data);
+    } catch {
+      // fall through to regeneration
+    }
+    if (fileExists) {
       const { data } = storage.getPublicUrl(storagePath);
       return { url: data.publicUrl };
     }
@@ -140,6 +150,7 @@ export async function getOrCreateWorkspaceQRCode(input: {
     // 3. Upload (treat duplicate as success for race-safety).
     const { error: uploadError } = await storage.upload(storagePath, buffer, {
       contentType: "image/png",
+      cacheControl: QR_CACHE_CONTROL,
       upsert: false,
     });
     if (uploadError) {
