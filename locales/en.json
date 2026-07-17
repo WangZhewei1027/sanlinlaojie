@@ -391,6 +391,19 @@
       "searchPlaceholder": "Search name or email",
       "filterAll": "All roles",
       "matchCount": "{{count}} results",
+      "addUser": "Add User",
+      "createDialog": {
+        "title": "Add User",
+        "description": "Manually register a new user. The email is auto-confirmed, no verification needed.",
+        "email": "Email",
+        "password": "Password",
+        "passwordHint": "At least 6 characters",
+        "name": "Name (optional)",
+        "namePlaceholder": "Display name",
+        "role": "Role",
+        "create": "Create",
+        "createFailed": "Failed to create user"
+      },
       "workspaceCount": "{{count}} workspaces",
       "neverSignedIn": "Never signed in",
       "columns": {

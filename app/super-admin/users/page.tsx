@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Users as UsersIcon, Search } from "lucide-react";
+import { Loader2, Users as UsersIcon, Search, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -12,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserList } from "./components/UserList";
+import { CreateUserDialog } from "./components/CreateUserDialog";
 import { ChangeRoleDialog } from "./components/ChangeRoleDialog";
 import { DeleteUserDialog } from "./components/DeleteUserDialog";
 import { useUsers } from "./hooks/useUsers";
@@ -20,6 +22,7 @@ import type { UserData } from "./types";
 export default function UsersPage() {
   const { t } = useTranslation();
   const { users, currentUserId, loading, refetch } = useUsers();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
@@ -107,12 +110,20 @@ export default function UsersPage() {
           </SelectContent>
         </Select>
         {filtered.length !== users.length && (
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {t("admin.users.matchCount", "{{count}} 条结果", {
               count: filtered.length,
             })}
           </span>
         )}
+        <Button
+          size="sm"
+          className="ml-auto h-9"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          <UserPlus className="mr-1.5 h-4 w-4" />
+          {t("admin.users.addUser", "新增用户")}
+        </Button>
       </div>
 
       {/* User List */}
@@ -124,6 +135,11 @@ export default function UsersPage() {
       />
 
       {/* Dialogs */}
+      <CreateUserDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={refetch}
+      />
       {selectedUser && (
         <>
           <ChangeRoleDialog
