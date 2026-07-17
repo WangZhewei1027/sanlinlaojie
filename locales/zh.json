@@ -542,9 +542,9 @@
     },
     "location": {
       "source": "坐标来源",
-      "optional": "可选择",
-      "exifGPS": "📷 图片GPS坐标",
-      "manualClick": "📍 手动点击位置"
+      "exifGPS": "图片 GPS 坐标",
+      "manualClick": "地图点选位置",
+      "clickMapHint": "尚未选择位置，请在地图上点选坐标"
     }
   },
   "fileTypes": {

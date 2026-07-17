@@ -242,6 +242,14 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
   const isFileType = !["link", "text", "anchor"].includes(uploadType);
 
+  // 用户已开始填写内容：选了文件或输入了任意文字，此时展示坐标区（无坐标则提示去地图点选）
+  const hasContent =
+    !!file ||
+    !!checkinFile ||
+    !!link.trim() ||
+    !!text.trim() ||
+    !!name.trim();
+
   return (
     <Card className="p-0">
       <Accordion
@@ -411,6 +419,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               <LocationSelector
                 clickedLocation={clickedLocation}
                 locationSelection={locationSelection}
+                hasContent={hasContent}
               />
 
               {/* 错误提示 */}

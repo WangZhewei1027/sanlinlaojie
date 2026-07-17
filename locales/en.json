@@ -542,9 +542,9 @@
     },
     "location": {
       "source": "Coordinate Source",
-      "optional": "Optional",
-      "exifGPS": "📷 Image GPS Coordinates",
-      "manualClick": "📍 Manual Click Location"
+      "exifGPS": "Image GPS location",
+      "manualClick": "Picked on map",
+      "clickMapHint": "No location selected yet — click on the map to pick coordinates"
     }
   },
   "fileTypes": {
