@@ -211,6 +211,8 @@ export function ForgotPasswordForm({
                   <Input
                     id="otp-code"
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     placeholder="123456"
                     required
                     maxLength={6}
@@ -276,6 +278,7 @@ export function ForgotPasswordForm({
                   <Input
                     id="new-password"
                     type="password"
+                    autoComplete="new-password"
                     required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -288,6 +291,7 @@ export function ForgotPasswordForm({
                   <Input
                     id="confirm-new-password"
                     type="password"
+                    autoComplete="new-password"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -321,6 +325,7 @@ export function ForgotPasswordForm({
                 <Input
                   id="account"
                   type="text"
+                  autoComplete="username"
                   placeholder="m@example.com / 13800138000"
                   required
                   value={account}

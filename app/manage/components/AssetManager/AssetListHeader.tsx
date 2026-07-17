@@ -75,7 +75,7 @@ export function AssetListHeader({
           <p className="text-sm font-medium">
             {t("assetManager.select.selectedCount", { count: checkedCount })}
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 md:gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -137,7 +137,7 @@ export function AssetListHeader({
               : t("assetManager.total", { count: totalCount })}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 md:gap-1">
           <Button
             variant="ghost"
             size="icon"

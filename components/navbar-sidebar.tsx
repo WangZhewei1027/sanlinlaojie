@@ -61,7 +61,7 @@ export function NavbarSidebar() {
     <Drawer>
       <DrawerTrigger asChild>
         <button
-          className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="-m-1.5 rounded-full p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label={t("account.userMenu")}
         >
           {user ? (

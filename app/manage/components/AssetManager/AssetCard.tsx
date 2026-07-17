@@ -163,7 +163,7 @@ export function AssetCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0 flex-shrink-0"
+            className="h-9 w-9 p-0 flex-shrink-0 md:h-7 md:w-7"
             onClick={handleFocus}
             title={t("assetManager.focusOnMap")}
           >

@@ -72,6 +72,7 @@ function EmailSignUpForm({ next }: { next: string }) {
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder="m@example.com"
             required
             value={email}
@@ -83,6 +84,7 @@ function EmailSignUpForm({ next }: { next: string }) {
           <Input
             id="email-password"
             type="password"
+            autoComplete="new-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -95,6 +97,7 @@ function EmailSignUpForm({ next }: { next: string }) {
           <Input
             id="email-repeat-password"
             type="password"
+            autoComplete="new-password"
             required
             value={repeatPassword}
             onChange={(e) => setRepeatPassword(e.target.value)}
@@ -236,6 +239,8 @@ function PhoneSignUpForm({ next }: { next: string }) {
             <Input
               id="phone-otp-code"
               type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               placeholder="123456"
               required
               maxLength={6}
@@ -293,6 +298,8 @@ function PhoneSignUpForm({ next }: { next: string }) {
             <Input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
               placeholder="13800138000"
               required
               value={phone}
@@ -310,6 +317,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
           <Input
             id="phone-password"
             type="password"
+            autoComplete="new-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -323,6 +331,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
           <Input
             id="phone-repeat-password"
             type="password"
+            autoComplete="new-password"
             required
             value={repeatPassword}
             onChange={(e) => setRepeatPassword(e.target.value)}

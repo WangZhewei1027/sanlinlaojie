@@ -157,6 +157,27 @@ button:hover {
   transform: none;
 }
 
+/* 触屏设备：控件加大到 44px 触控目标，取消 hover 缩放 */
+@media (pointer: coarse) {
+  button {
+    width: 44px;
+    height: 44px;
+  }
+
+  button:hover {
+    transform: none;
+  }
+
+  #toolbar {
+    gap: 10px;
+  }
+
+  .tool-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* 框选覆盖矩形 */
 #selectionRect {
   position: absolute;

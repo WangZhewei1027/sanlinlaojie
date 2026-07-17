@@ -58,7 +58,7 @@ function TagChip({
             e.stopPropagation();
             onRemove();
           }}
-          className="rounded-sm p-0.5 hover:bg-black/20"
+          className="-my-1 rounded-sm p-1.5 hover:bg-black/20 md:my-0 md:p-0.5"
           aria-label="remove"
         >
           <X className="h-3 w-3" />
@@ -346,7 +346,7 @@ export function AssetTagEditor({
                           <button
                             type="button"
                             onClick={() => openEditView(tag)}
-                            className="shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 hover:bg-accent-foreground/10 group-hover:opacity-100"
+                            className="shrink-0 rounded-sm p-1.5 text-muted-foreground hover:bg-accent-foreground/10 md:p-0.5 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                             aria-label={t("assetEditor.tags.deleteTag")}
                           >
                             <MoreHorizontal className="h-4 w-4" />
@@ -428,7 +428,7 @@ export function AssetTagEditor({
                           title={t(`assetEditor.tags.colors.${preset.key}`)}
                           aria-label={t(`assetEditor.tags.colors.${preset.key}`)}
                           className={cn(
-                            "flex h-7 w-7 items-center justify-center rounded-md border transition-transform hover:scale-105",
+                            "flex h-9 w-9 items-center justify-center rounded-md border transition-transform hover:scale-105 md:h-7 md:w-7",
                             active
                               ? "ring-2 ring-ring ring-offset-1"
                               : "border-border/60",
@@ -451,7 +451,7 @@ export function AssetTagEditor({
                     <label
                       title={t("assetEditor.tags.customColor")}
                       aria-label={t("assetEditor.tags.customColor")}
-                      className="relative flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-border/60"
+                      className="relative flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-border/60 md:h-7 md:w-7"
                       style={{
                         background:
                           "conic-gradient(from 0deg, #f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f87171)",
