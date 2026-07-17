@@ -1,16 +1,15 @@
 import { useTranslation } from "react-i18next";
-import { Card } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 
 export function LoadingState() {
   const { t } = useTranslation();
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">
-          {t("assetManager.loading")}
-        </p>
-      </div>
-    </Card>
+    <div className="flex flex-col items-center justify-center py-8 gap-2">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
+      <p className="text-sm text-muted-foreground">
+        {t("assetManager.loading")}
+      </p>
+    </div>
   );
 }

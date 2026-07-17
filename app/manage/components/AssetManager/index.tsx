@@ -272,14 +272,6 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     }
   };
 
-  if (loading) {
-    return <LoadingState />;
-  }
-
-  if (assets.length === 0) {
-    return <EmptyState />;
-  }
-
   return (
     <Card className="overflow-hidden">
       <AssetListHeader
@@ -312,7 +304,11 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
       />
 
       <div className="divide-y w-full overflow-y-auto max-h-[calc(100vh-200px)]">
-        {filteredAssets.length === 0 ? (
+        {loading ? (
+          <LoadingState />
+        ) : assets.length === 0 ? (
+          <EmptyState />
+        ) : filteredAssets.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             <p>{t("assetManager.noMatchingAssets")}</p>
           </div>

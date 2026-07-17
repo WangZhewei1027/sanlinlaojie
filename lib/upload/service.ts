@@ -5,6 +5,7 @@ import {
   LocationData,
   GPSSource,
   AnchorData,
+  UploadedAsset,
 } from "./types";
 import { FILE_TYPE_CONFIGS, inferUploadType, validateFileSize } from "./config";
 
@@ -156,23 +157,27 @@ export class FileUploadService {
   /**
    * 通过服务端路由创建资产（带 org.assets.write 鉴权；viewer 被拒）。
    * workspace_id / created_by 由服务端根据会话决定，客户端不再直连插入。
+   * 返回服务端创建的完整行，供调用方本地更新列表而无需重新拉取。
    */
   private async createAsset(
     workspaceId: string,
     payload: Record<string, unknown>,
-  ): Promise<void> {
+  ): Promise<UploadedAsset> {
     const res = await fetch(`/api/workspaces/${workspaceId}/assets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
+    const body = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       throw new Error(
         (body as { error?: string }).error || "创建资源失败",
       );
     }
+
+    return (body as { data: UploadedAsset }).data;
   }
 
   /**
@@ -182,12 +187,12 @@ export class FileUploadService {
     workspaceId: string,
     userId: string,
     result: UploadResult,
-  ): Promise<void> {
+  ): Promise<UploadedAsset> {
     const geometry = result.location
       ? `POINT(${result.location.longitude} ${result.location.latitude})`
       : null;
 
-    await this.createAsset(workspaceId, {
+    return this.createAsset(workspaceId, {
       name: result.name || null,
       file_type: result.fileType,
       file_url: result.fileUrl,
@@ -215,12 +220,12 @@ export class FileUploadService {
     userId: string,
     link: string,
     location?: LocationData,
-  ): Promise<void> {
+  ): Promise<UploadedAsset> {
     const geometry = location
       ? `POINT(${location.longitude} ${location.latitude})`
       : null;
 
-    await this.createAsset(workspaceId, {
+    return this.createAsset(workspaceId, {
       file_type: "link",
       file_url: link,
       location: geometry,
@@ -242,12 +247,12 @@ export class FileUploadService {
     text: string,
     location?: LocationData,
     tagIds?: string[],
-  ): Promise<void> {
+  ): Promise<UploadedAsset> {
     const geometry = location
       ? `POINT(${location.longitude} ${location.latitude})`
       : null;
 
-    await this.createAsset(workspaceId, {
+    return this.createAsset(workspaceId, {
       file_type: "text",
       text_content: text,
       location: geometry,
@@ -269,11 +274,11 @@ export class FileUploadService {
     workspaceId: string,
     userId: string,
     anchorData: AnchorData,
-  ): Promise<void> {
+  ): Promise<UploadedAsset> {
     const { name, location, text } = anchorData;
     const geometry = `POINT(${location.longitude} ${location.latitude})`;
 
-    await this.createAsset(workspaceId, {
+    return this.createAsset(workspaceId, {
       name: name,
       file_type: "anchor",
       text_content: text || null,

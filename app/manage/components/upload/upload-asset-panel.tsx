@@ -14,9 +14,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { FileUploadService } from "@/lib/upload/service";
-import { UploadType } from "@/lib/upload/types";
+import { UploadType, UploadedAsset } from "@/lib/upload/types";
 import { DEFAULT_UPLOAD_TYPES, FILE_TYPE_CONFIGS } from "@/lib/upload/config";
 import { useLocationSelection } from "@/lib/upload/hooks";
 import { LocationSelector } from "./location-selector";
@@ -24,6 +23,7 @@ import { FileTypeSelector } from "./file-type-selector";
 import { FileDropzone } from "./file-dropzone";
 import { useManageStore } from "../../store";
 import { isSpecificWorkspaceId } from "../../constants";
+import type { Asset } from "../../types";
 
 interface UploadAssetPanelProps {
   onUpload?: () => void;
@@ -40,7 +40,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
-  const router = useRouter();
+  const addAsset = useManageStore((state) => state.addAsset);
   const uploadService = new FileUploadService();
 
   // 从 organization 配置获取允许的文件类型（null → 默认集合，与组织设置表单一致）
@@ -93,6 +93,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         locationSelection.getFinalLocation();
 
       // 处理不同类型的上传
+      let created: UploadedAsset;
       if (uploadType === "anchor") {
         // 锚点必须有位置和名称
         if (!finalLocation) {
@@ -101,14 +102,14 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         if (!name.trim()) {
           throw new Error(t("upload.anchorRequiresName"));
         }
-        await uploadService.saveAnchor(workspaceId, user.id, {
+        created = await uploadService.saveAnchor(workspaceId, user.id, {
           name: name.trim(),
           location: finalLocation,
           text: text.trim() || undefined,
         });
       } else if (uploadType === "link") {
         if (!link.trim()) throw new Error(t("upload.enterLink"));
-        await uploadService.saveLink(
+        created = await uploadService.saveLink(
           workspaceId,
           user.id,
           link,
@@ -116,7 +117,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         );
       } else if (uploadType === "text") {
         if (!text.trim()) throw new Error(t("upload.enterText"));
-        await uploadService.saveText(
+        created = await uploadService.saveText(
           workspaceId,
           user.id,
           text,
@@ -129,7 +130,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           throw new Error(t("upload.fields.modelTooLarge"));
         const { url: fileUrl, contentHash } =
           await uploadService.uploadToStorage(file, user.id);
-        await uploadService.saveToDatabase(workspaceId, user.id, {
+        created = await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
           contentHash,
           fileType: "model",
@@ -144,7 +145,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           throw new Error(t("upload.fields.videoTooLarge"));
         const { url: fileUrl, contentHash } =
           await uploadService.uploadToStorage(file, user.id);
-        await uploadService.saveToDatabase(workspaceId, user.id, {
+        created = await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
           contentHash,
           fileType: "video",
@@ -166,7 +167,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
             )
           ).url;
         }
-        await uploadService.saveToDatabase(workspaceId, user.id, {
+        created = await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
           contentHash,
           fileType: "shop",
@@ -182,7 +183,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         const { url: fileUrl, contentHash } =
           await uploadService.uploadToStorage(processedFile.file, user.id);
 
-        await uploadService.saveToDatabase(workspaceId, user.id, {
+        created = await uploadService.saveToDatabase(workspaceId, user.id, {
           fileUrl,
           contentHash,
           fileType: processedFile.type,
@@ -193,14 +194,14 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         throw new Error(t("upload.selectFile"));
       }
 
+      // 本地插入新资产：列表/地图立即可见，且不打断滚动位置与过滤器状态
+      addAsset(created as Asset);
+
       // 成功回调
       onUpload?.();
 
       // 重置表单
       resetForm();
-
-      // 刷新页面数据
-      router.refresh();
     } catch (err) {
       console.error(t("upload.uploadFailed"), err);
       setError(err instanceof Error ? err.message : t("upload.uploadFailed"));

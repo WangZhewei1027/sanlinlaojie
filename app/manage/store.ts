@@ -34,6 +34,7 @@ interface ManageStore {
   setAssets: (assets: Asset[]) => void;
   setFilteredAssets: (assets: Asset[]) => void;
   setAssetsLoading: (loading: boolean) => void;
+  addAsset: (asset: Asset) => void;
   updateAsset: (id: string, updates: Partial<Asset>) => void;
   deleteAsset: (id: string) => void;
 
@@ -130,6 +131,12 @@ export const useManageStore = create<ManageStore>()(
           ),
         setAssetsLoading: (loading) =>
           set({ assetsLoading: loading }, undefined, "manage/setAssetsLoading"),
+        addAsset: (asset) =>
+          set(
+            (state) => ({ assets: [asset, ...state.assets] }),
+            undefined,
+            "manage/addAsset",
+          ),
         updateAsset: (id, updates) =>
           set(
             (state) => ({

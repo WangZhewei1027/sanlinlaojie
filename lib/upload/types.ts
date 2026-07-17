@@ -80,6 +80,21 @@ export interface AnchorData {
   location: LocationData;
 }
 
+/**
+ * 创建成功后服务端返回的 asset 表原始行（与列表接口返回的行同构）。
+ * 只声明客户端已知的公共字段；app 侧可安全断言为其完整的 Asset 类型。
+ */
+export interface UploadedAsset {
+  id: string;
+  file_type: string;
+  file_url: string | null;
+  name?: string | null;
+  text_content?: string | null;
+  tag_ids?: string[] | null;
+  created_by?: string | null;
+  metadata: Record<string, unknown>;
+}
+
 export interface FileTypeConfig {
   type: UploadType;
   label: string;
