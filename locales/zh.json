@@ -160,7 +160,8 @@
       "users": "用户管理",
       "organizations": "组织管理",
       "errorLogs": "错误日志",
-      "settings": "系统设置"
+      "settings": "系统设置",
+      "cleanup": "资源清理"
     },
     "orgs": {
       "title": "组织管理",
@@ -430,8 +431,8 @@
       "description": "清理数据库和存储桶中的孤立资源",
       "selectWorkspaceFirst": "请先选择工作空间",
       "confirmMessage": "确定要执行清理操作吗？",
-      "willDeleteRows": "- 将删除文件不存在的数据库记录",
-      "willDeleteFiles": "- 将删除数据库中没有记录的文件",
+      "willDeleteRows": "- 将删除文件不存在的数据库记录（当前工作空间）",
+      "willDeleteFiles": "- 将全局扫描存储桶，删除没有任何记录引用、且已存在超过 24 小时的孤儿文件",
       "irreversible": "此操作不可逆！",
       "cleanFailed": "清理失败"
     }

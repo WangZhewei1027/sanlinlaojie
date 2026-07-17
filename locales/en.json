@@ -160,7 +160,8 @@
       "users": "User Management",
       "organizations": "Organizations",
       "errorLogs": "Error Logs",
-      "settings": "System Settings"
+      "settings": "System Settings",
+      "cleanup": "Cleanup"
     },
     "orgs": {
       "title": "Organization Management",
@@ -430,8 +431,8 @@
       "description": "Clean up orphaned resources in database and storage",
       "selectWorkspaceFirst": "Please select a workspace first",
       "confirmMessage": "Are you sure you want to proceed with cleanup?",
-      "willDeleteRows": "- Will delete database records with missing files",
-      "willDeleteFiles": "- Will delete files without database records",
+      "willDeleteRows": "- Will delete database records with missing files (current workspace)",
+      "willDeleteFiles": "- Will scan the whole bucket and delete orphan files unreferenced by any record (older than 24h)",
       "irreversible": "This action cannot be undone!",
       "cleanFailed": "Cleanup failed"
     }

@@ -1,6 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { logErrorSafe } from "@/lib/log-error";
+import { fetchAllRows } from "@/lib/supabase/paginate";
+import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
+
+/**
+ * 存储/数据库一致性清扫（仅 super_admin）：
+ *
+ * - clean-rows：按 workspace 扫描资产行，删除其 file_url 指向的存储文件已不存在
+ *   的死链行（需要 workspaceId）。
+ * - clean-files：全桶递归遍历 assets 桶，对比全表引用（file_url +
+ *   metadata.checkin_url），删除没有任何行引用的孤儿文件。这是所有删除路径
+ *   "先删行、后删文件，存储失败不阻断"策略的兜底清扫，必须全局对比——
+ *   内容 hash 去重会让文件被任意 workspace/组织的资产共享，按单 workspace
+ *   对比会误删共享文件。刚上传、行可能尚未落库的新文件（24 小时内）跳过。
+ */
+
+const ORPHAN_FILE_MIN_AGE_MS = 24 * 60 * 60 * 1000;
+const STORAGE_LIST_PAGE = 1000;
 
 interface CleanResult {
   orphanedRows: {
@@ -15,6 +32,74 @@ interface CleanResult {
   deletedRows: string[];
   deletedFiles: string[];
   errors: string[];
+}
+
+interface StorageFileEntry {
+  path: string;
+  createdAt: string | null;
+}
+
+/** 递归列出 assets 桶内所有文件（分页 + 子目录下钻）。 */
+async function listAllBucketFiles(
+  storage: ReturnType<Awaited<ReturnType<typeof createClient>>["storage"]["from"]>,
+): Promise<StorageFileEntry[]> {
+  const files: StorageFileEntry[] = [];
+  const dirs: string[] = [""];
+
+  while (dirs.length > 0) {
+    const dir = dirs.pop()!;
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await storage.list(dir, {
+        limit: STORAGE_LIST_PAGE,
+        offset,
+        sortBy: { column: "name", order: "asc" },
+      });
+      if (error) throw new Error(`列出 ${dir || "/"} 失败: ${error.message}`);
+      if (!data || data.length === 0) break;
+
+      for (const entry of data) {
+        if (!entry.name) continue;
+        const path = dir ? `${dir}/${entry.name}` : entry.name;
+        // Supabase list 里目录条目没有 id
+        if (entry.id == null) {
+          dirs.push(path);
+        } else if (entry.name !== ".emptyFolderPlaceholder") {
+          files.push({ path, createdAt: entry.created_at ?? null });
+        }
+      }
+
+      if (data.length < STORAGE_LIST_PAGE) break;
+      offset += data.length;
+    }
+  }
+  return files;
+}
+
+/** 全表引用集合：所有 file_url 与 metadata.checkin_url 能解析出的桶内路径。 */
+async function fetchReferencedPaths(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Set<string>> {
+  const { data, error } = await fetchAllRows<{
+    file_url: string | null;
+    checkin_url: string | null;
+  }>(() =>
+    supabase
+      .from("asset")
+      .select("file_url, checkin_url:metadata->>checkin_url")
+      .order("id", { ascending: true }),
+  );
+  if (error) throw new Error(`查询资产引用失败: ${error.message}`);
+
+  const referenced = new Set<string>();
+  for (const row of data) {
+    for (const url of [row.file_url, row.checkin_url]) {
+      if (!url) continue;
+      const path = storagePathFromUrl(url);
+      if (path) referenced.add(path);
+    }
+  }
+  return referenced;
 }
 
 export async function POST(request: Request) {
@@ -37,8 +122,6 @@ export async function POST(request: Request) {
       .single();
 
     if (profile?.role !== "super_admin") {
-      // Check org-level role for cleanup permission
-      // super_admin or org owner/admin can run cleanup
       await logErrorSafe({
         method: "POST",
         path: "/api/admin/clean",
@@ -53,7 +136,10 @@ export async function POST(request: Request) {
     const { workspaceId, action } = body;
     // action: "clean-rows" | "clean-files" | "both"
 
-    if (!workspaceId) {
+    const wantRows = action === "clean-rows" || action === "both";
+    const wantFiles = action === "clean-files" || action === "both";
+
+    if (wantRows && !workspaceId) {
       return NextResponse.json({ error: "请选择工作空间" }, { status: 400 });
     }
 
@@ -65,59 +151,65 @@ export async function POST(request: Request) {
       errors: [],
     };
 
-    // 1. 检查并清理数据库中文件不存在的记录
-    if (action === "clean-rows" || action === "both") {
+    // 1. 检查并清理数据库中文件不存在的记录（按 workspace）
+    if (wantRows) {
       try {
-        // 获取该工作空间下所有有 file_url 的资产
-        const { data: assets, error: fetchError } = await supabase
-          .from("asset")
-          .select("id, file_url")
-          .contains("workspace_id", [workspaceId])
-          .not("file_url", "is", null);
+        // 分页拉全量，避免 1000 行截断漏检
+        const { data: assets, error: fetchError } = await fetchAllRows<{
+          id: string;
+          file_url: string | null;
+        }>(() =>
+          supabase
+            .from("asset")
+            .select("id, file_url")
+            .contains("workspace_id", [workspaceId])
+            .not("file_url", "is", null)
+            .order("id", { ascending: true }),
+        );
 
         if (fetchError) {
           result.errors.push(`查询资产失败: ${fetchError.message}`);
-        } else if (assets) {
-          // 检查每个文件是否在 storage 中存在
+        } else {
           for (const asset of assets) {
             if (!asset.file_url) continue;
 
+            const filePath = storagePathFromUrl(asset.file_url);
+            if (!filePath) continue; // 非本桶 URL（外链等），不检查
+
             try {
-              const url = new URL(asset.file_url);
-              const pathMatch = url.pathname.match(
-                /\/storage\/v1\/object\/public\/assets\/(.+)/,
-              );
-
-              if (pathMatch) {
-                const filePath = pathMatch[1];
-
-                // 检查文件是否存在
-                const { data: fileExists } = await supabase.storage
+              const dir = filePath.split("/").slice(0, -1).join("/");
+              const fileName = filePath.split("/").pop();
+              const { data: fileExists, error: listError } =
+                await supabase.storage
                   .from("assets")
-                  .list(filePath.split("/").slice(0, -1).join("/"), {
-                    search: filePath.split("/").pop(),
-                  });
+                  .list(dir, { search: fileName });
 
-                if (!fileExists || fileExists.length === 0) {
-                  result.orphanedRows.push({
-                    id: asset.id,
-                    file_url: asset.file_url,
-                    reason: "Storage 中文件不存在",
-                  });
+              // 列目录失败 ≠ 文件不存在：跳过，避免瞬时故障误删行
+              if (listError) {
+                result.errors.push(
+                  `检查文件 ${filePath} 失败: ${listError.message}`,
+                );
+                continue;
+              }
 
-                  // 删除数据库记录
-                  const { error: deleteError } = await supabase
-                    .from("asset")
-                    .delete()
-                    .eq("id", asset.id);
+              if (!fileExists || fileExists.length === 0) {
+                result.orphanedRows.push({
+                  id: asset.id,
+                  file_url: asset.file_url,
+                  reason: "Storage 中文件不存在",
+                });
 
-                  if (deleteError) {
-                    result.errors.push(
-                      `删除记录 ${asset.id} 失败: ${deleteError.message}`,
-                    );
-                  } else {
-                    result.deletedRows.push(asset.id);
-                  }
+                const { error: deleteError } = await supabase
+                  .from("asset")
+                  .delete()
+                  .eq("id", asset.id);
+
+                if (deleteError) {
+                  result.errors.push(
+                    `删除记录 ${asset.id} 失败: ${deleteError.message}`,
+                  );
+                } else {
+                  result.deletedRows.push(asset.id);
                 }
               }
             } catch (err) {
@@ -138,58 +230,37 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. 检查并清理 bucket 中数据库没有记录的文件
-    if (action === "clean-files" || action === "both") {
+    // 2. 全桶清扫没有任何行引用的孤儿文件（全局对比，与 workspace 无关）
+    if (wantFiles) {
       try {
-        // 列出该工作空间文件夹下的所有文件
-        const { data: files, error: listError } = await supabase.storage
-          .from("assets")
-          .list(workspaceId, {
-            limit: 1000,
-            sortBy: { column: "name", order: "asc" },
+        const storage = supabase.storage.from("assets");
+        const [files, referencedPaths] = await Promise.all([
+          listAllBucketFiles(storage),
+          fetchReferencedPaths(supabase),
+        ]);
+
+        const now = Date.now();
+        for (const file of files) {
+          if (referencedPaths.has(file.path)) continue;
+
+          // 新文件跳过：上传先于行落库，可能是进行中的上传
+          if (file.createdAt) {
+            const age = now - new Date(file.createdAt).getTime();
+            if (Number.isFinite(age) && age < ORPHAN_FILE_MIN_AGE_MS) continue;
+          }
+
+          result.orphanedFiles.push({
+            path: file.path,
+            name: file.path.split("/").pop() ?? file.path,
           });
 
-        if (listError) {
-          result.errors.push(`列出文件失败: ${listError.message}`);
-        } else if (files) {
-          // 获取数据库中所有该工作空间的文件记录
-          const { data: assets } = await supabase
-            .from("asset")
-            .select("file_url")
-            .contains("workspace_id", [workspaceId])
-            .not("file_url", "is", null);
-
-          const fileUrlSet = new Set(
-            assets?.map((a) => a.file_url).filter(Boolean) || [],
-          );
-
-          // 检查每个文件是否在数据库中有记录
-          for (const file of files) {
-            // 跳过文件夹
-            if (!file.name || file.name.endsWith("/")) continue;
-
-            const filePath = `${workspaceId}/${file.name}`;
-            const fullUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets/${filePath}`;
-
-            if (!fileUrlSet.has(fullUrl)) {
-              result.orphanedFiles.push({
-                path: filePath,
-                name: file.name,
-              });
-
-              // 删除文件
-              const { error: deleteError } = await supabase.storage
-                .from("assets")
-                .remove([filePath]);
-
-              if (deleteError) {
-                result.errors.push(
-                  `删除文件 ${filePath} 失败: ${deleteError.message}`,
-                );
-              } else {
-                result.deletedFiles.push(filePath);
-              }
-            }
+          const { error: deleteError } = await storage.remove([file.path]);
+          if (deleteError) {
+            result.errors.push(
+              `删除文件 ${file.path} 失败: ${deleteError.message}`,
+            );
+          } else {
+            result.deletedFiles.push(file.path);
           }
         }
       } catch (err) {

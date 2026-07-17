@@ -21,6 +21,24 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get("organization_id");
 
+    // super_admin 可查看任意组织的 workspace（get_user_workspaces 按成员关系
+    // 过滤，会漏掉 super_admin 未加入的组织——资源清理等全局管理页面需要全量）
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    if (isSuperAdmin(userData?.role as string | undefined)) {
+      let query = supabase.from("workspace").select("*");
+      if (organizationId) {
+        query = query.eq("organization_id", organizationId);
+      }
+      const { data: allWorkspaces, error: wsError } = await query;
+      if (wsError) throw wsError;
+      return NextResponse.json({ data: allWorkspaces });
+    }
+
     // 使用数据库函数一次性获取所有数据
     const { data, error } = await supabase.rpc("get_user_workspaces", {
       p_user_id: user.id,

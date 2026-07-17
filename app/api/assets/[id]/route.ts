@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getWorkspaceOrgIds } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
+import { removeStorageFileIfUnreferenced } from "@/lib/storage-cleanup.server";
 
 type Supa = Awaited<ReturnType<typeof createClient>>;
 
@@ -18,12 +19,19 @@ async function authorizeAssetWrite(
   userId: string,
   method: string,
 ): Promise<
-  | { ok: true; asset: { id: string; file_url?: string | null } }
+  | {
+      ok: true;
+      asset: {
+        id: string;
+        file_url?: string | null;
+        metadata?: Record<string, unknown> | null;
+      };
+    }
   | { ok: false; response: NextResponse }
 > {
   const { data: asset } = await supabase
     .from("asset")
-    .select("id, file_url, workspace_id")
+    .select("id, file_url, metadata, workspace_id")
     .eq("id", assetId)
     .single();
 
@@ -195,6 +203,31 @@ export async function PATCH(
       throw updateError;
     }
 
+    // 换文件（编辑器重传图片/打卡图）后回收旧文件：行已指向新 URL，旧 URL 若再无
+    // 任何行引用则删除存储对象，避免旧文件永久残留。
+    const staleUrls = new Set<string>();
+    const oldFileUrl = auth.asset.file_url;
+    if (file_url !== undefined && oldFileUrl && file_url !== oldFileUrl) {
+      staleUrls.add(oldFileUrl);
+    }
+    const oldCheckinUrl = auth.asset.metadata?.checkin_url;
+    const newCheckinUrl = metadata?.checkin_url;
+    if (
+      newCheckinUrl !== undefined &&
+      typeof oldCheckinUrl === "string" &&
+      oldCheckinUrl &&
+      newCheckinUrl !== oldCheckinUrl
+    ) {
+      staleUrls.add(oldCheckinUrl);
+    }
+    for (const url of staleUrls) {
+      await removeStorageFileIfUnreferenced(supabase, url, {
+        userId: user.id,
+        method: "PATCH",
+        path: `/api/assets/${assetId}`,
+      });
+    }
+
     return NextResponse.json({ data: updatedAsset });
   } catch (error) {
     console.error("更新资源失败:", error);
@@ -227,43 +260,9 @@ export async function DELETE(
     if (!auth.ok) return auth.response;
     const asset = auth.asset;
 
-    // 如果有文件URL，尝试从storage中删除文件。
-    // 但复制/hash 去重会让多个 asset 共用同一 file_url，只有在没有其他 asset
-    // 仍引用该文件时才真正删除存储文件，避免误删共享文件。
-    if (asset.file_url) {
-      try {
-        const url = new URL(asset.file_url);
-        const pathMatch = url.pathname.match(
-          /\/storage\/v1\/object\/public\/assets\/(.+)/,
-        );
-
-        if (pathMatch) {
-          const { count: refCount } = await supabase
-            .from("asset")
-            .select("id", { count: "exact", head: true })
-            .eq("file_url", asset.file_url)
-            .neq("id", assetId);
-
-          if (refCount && refCount > 0) {
-            console.log(
-              `文件仍被 ${refCount} 个其他资产引用，跳过存储删除: ${asset.file_url}`,
-            );
-          } else {
-            const filePath = pathMatch[1];
-            const { error: storageError } = await supabase.storage
-              .from("assets")
-              .remove([filePath]);
-
-            if (storageError) {
-              console.warn("删除存储文件失败:", storageError);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("解析文件URL失败:", err);
-      }
-    }
-
+    // 先删行、后删文件：行删掉后再按引用计数清理存储（复制/hash 去重会让多个
+    // asset 共用同一文件），失败方向只留孤儿文件（由 admin/clean 全局清扫兜底），
+    // 不会出现"行还在但文件没了"的死链。
     const { error: deleteError } = await supabase
       .from("asset")
       .delete()
@@ -271,6 +270,20 @@ export async function DELETE(
 
     if (deleteError) {
       throw deleteError;
+    }
+
+    const checkinUrl = asset.metadata?.checkin_url;
+    const fileUrls = new Set(
+      [asset.file_url, typeof checkinUrl === "string" ? checkinUrl : null].filter(
+        (u): u is string => !!u,
+      ),
+    );
+    for (const url of fileUrls) {
+      await removeStorageFileIfUnreferenced(supabase, url, {
+        userId: user.id,
+        method: "DELETE",
+        path: `/api/assets/${assetId}`,
+      });
     }
 
     return NextResponse.json({ success: true, message: "资源已删除" });

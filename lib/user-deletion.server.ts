@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/paginate";
+import { logError } from "@/lib/log-error";
+import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
 
 /**
  * 删除用户的服务端编排（仅服务端，配合 service-role admin client 使用）。
@@ -8,8 +11,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * - 只剩他一人 → 连同 workspace、资产、存储文件整体删除该组织。
  *
  * computeUserDeletionPlan 是预览 GET 与 DELETE 的单一事实来源；
- * purgeOrganizations 先按引用计数清理存储文件（内容 hash 去重会让多个资产
- * 共享同一 file_url），再调 purge_organizations RPC 原子删行。
+ * purgeOrganizations 先调 purge_organizations RPC 原子删行，再清理行删除后已无
+ * 任何引用的存储文件（内容 hash 去重会让多个资产跨组织共享同一文件，行删完后
+ * 仍被引用的 URL 一律保留）。失败方向只留孤儿文件，由 /api/admin/clean 全局
+ * 清扫兜底，不会出现死链。
  */
 
 export type OrgDeletionAction = "none" | "promote" | "delete";
@@ -42,8 +47,6 @@ interface MemberRow {
   created_at: string;
   users: { name: string | null; email: string | null } | null;
 }
-
-const STORAGE_PATH_RE = /\/storage\/v1\/object\/public\/assets\/(.+)/;
 
 export async function computeUserDeletionPlan(
   admin: SupabaseClient,
@@ -145,70 +148,82 @@ export async function computeUserDeletionPlan(
   return { orgs, promoteOrgIds, deleteOrgIds };
 }
 
-/** 完全包含在给定 workspace 集合内的资产（将被删除的那些）。 */
+interface ContainedAssetRow {
+  id: string;
+  file_url: string | null;
+  checkin_url: string | null;
+  workspace_id: string[] | null;
+}
+
+/**
+ * 完全包含在给定 workspace 集合内的资产（将被删除的那些）。
+ * 分页拉全量，避免 PostgREST 1000 行截断漏掉资产。
+ * 同时带出 shop 素材的 metadata.checkin_url——打卡图与普通文件共用去重存储。
+ */
 async function fetchContainedAssets(
   admin: SupabaseClient,
   wsIds: string[],
-): Promise<{ id: string; file_url: string | null }[]> {
-  const { data, error } = await admin
-    .from("asset")
-    .select("id, file_url, workspace_id")
-    .not("workspace_id", "is", null)
-    .containedBy("workspace_id", wsIds);
+): Promise<{ id: string; file_url: string | null; checkin_url: string | null }[]> {
+  const { data, error } = await fetchAllRows<ContainedAssetRow>(() =>
+    admin
+      .from("asset")
+      .select("id, file_url, checkin_url:metadata->>checkin_url, workspace_id")
+      .not("workspace_id", "is", null)
+      .containedBy("workspace_id", wsIds)
+      .order("id", { ascending: true }),
+  );
 
   if (error) throw error;
 
   // 与 purge_organizations RPC 的语义保持一致：空数组不算"包含"
   return (data ?? [])
     .filter((a) => Array.isArray(a.workspace_id) && a.workspace_id.length > 0)
-    .map((a) => ({ id: a.id as string, file_url: a.file_url as string | null }));
+    .map((a) => ({
+      id: a.id,
+      file_url: a.file_url,
+      checkin_url: a.checkin_url,
+    }));
 }
 
 /**
- * 计算可以安全删除的存储文件路径：包含资产的 file_url 去重后，
- * 剔除仍被"包含集合之外"的资产引用的（去重共享文件必须保留）。
+ * 行删除之后，查这批 URL 里仍被剩余资产（file_url 或 metadata.checkin_url）
+ * 引用的子集——它们属于外部组织的共享文件，必须保留。
+ * 每批 100 个 URL，且分页拉全量，杜绝 1000 行截断漏判外部引用。
  */
-export async function collectDeletableFilePaths(
+async function findStillReferencedUrls(
   admin: SupabaseClient,
-  containedAssets: { id: string; file_url: string | null }[],
-): Promise<string[]> {
-  const containedIds = new Set(containedAssets.map((a) => a.id));
-  const urls = [
-    ...new Set(
-      containedAssets
-        .map((a) => a.file_url)
-        .filter((u): u is string => !!u),
-    ),
-  ];
-  if (urls.length === 0) return [];
-
-  const deletable: string[] = [];
+  urls: string[],
+): Promise<Set<string>> {
+  const referenced = new Set<string>();
   const BATCH = 100;
   for (let i = 0; i < urls.length; i += BATCH) {
     const batch = urls.slice(i, i + BATCH);
-    const { data: refs, error } = await admin
-      .from("asset")
-      .select("id, file_url")
-      .in("file_url", batch);
 
-    if (error) throw error;
-
-    const externallyReferenced = new Set(
-      (refs ?? [])
-        .filter((r) => !containedIds.has(r.id as string))
-        .map((r) => r.file_url as string),
+    const byFileUrl = await fetchAllRows<{ file_url: string | null }>(() =>
+      admin
+        .from("asset")
+        .select("file_url")
+        .in("file_url", batch)
+        .order("id", { ascending: true }),
     );
-    for (const url of batch) {
-      if (externallyReferenced.has(url)) continue;
-      try {
-        const match = new URL(url).pathname.match(STORAGE_PATH_RE);
-        if (match) deletable.push(decodeURIComponent(match[1]));
-      } catch {
-        // 非法 URL，跳过
-      }
+    if (byFileUrl.error) throw byFileUrl.error;
+    for (const row of byFileUrl.data) {
+      if (row.file_url) referenced.add(row.file_url);
+    }
+
+    const byCheckinUrl = await fetchAllRows<{ checkin_url: string | null }>(() =>
+      admin
+        .from("asset")
+        .select("checkin_url:metadata->>checkin_url")
+        .in("metadata->>checkin_url", batch)
+        .order("id", { ascending: true }),
+    );
+    if (byCheckinUrl.error) throw byCheckinUrl.error;
+    for (const row of byCheckinUrl.data) {
+      if (row.checkin_url) referenced.add(row.checkin_url);
     }
   }
-  return deletable;
+  return referenced;
 }
 
 export interface PurgeResult {
@@ -218,7 +233,11 @@ export interface PurgeResult {
   deletedFiles: number;
 }
 
-/** 整体删除组织：先清存储文件（失败仅告警，不阻断），再原子删行。 */
+/**
+ * 整体删除组织：先原子删行（RPC），再删除已无引用的存储文件。
+ * 行先删意味着任何失败只会留下孤儿文件（由 /api/admin/clean 全局清扫兜底），
+ * 而不会留下指向已删文件的死链行。
+ */
 export async function purgeOrganizations(
   admin: SupabaseClient,
   orgIds: string[],
@@ -235,24 +254,18 @@ export async function purgeOrganizations(
   if (wsError) throw wsError;
 
   const wsIds = (wsRows ?? []).map((w) => w.id as string);
-  let deletedFiles = 0;
 
+  // 行删除后就查不到这些资产了，先收集候选文件 URL（file_url + checkin_url）
+  let candidateUrls: string[] = [];
   if (wsIds.length > 0) {
     const contained = await fetchContainedAssets(admin, wsIds);
-    const paths = await collectDeletableFilePaths(admin, contained);
-    const BATCH = 100;
-    for (let i = 0; i < paths.length; i += BATCH) {
-      const batch = paths.slice(i, i + BATCH);
-      const { error: storageError } = await admin.storage
-        .from("assets")
-        .remove(batch);
-      if (storageError) {
-        // 与单资产删除一致：存储失败不阻断，残留文件可由 /api/admin/clean 清扫
-        console.warn("删除存储文件失败:", storageError);
-      } else {
-        deletedFiles += batch.length;
-      }
-    }
+    candidateUrls = [
+      ...new Set(
+        contained
+          .flatMap((a) => [a.file_url, a.checkin_url])
+          .filter((u): u is string => !!u),
+      ),
+    ];
   }
 
   const { data: purged, error: purgeError } = await admin.rpc(
@@ -261,6 +274,37 @@ export async function purgeOrganizations(
   );
 
   if (purgeError) throw purgeError;
+
+  // 行已删完：候选 URL 里仍被引用的属于外部组织的共享文件，保留；其余删除
+  let deletedFiles = 0;
+  if (candidateUrls.length > 0) {
+    const referenced = await findStillReferencedUrls(admin, candidateUrls);
+    const paths = candidateUrls
+      .filter((u) => !referenced.has(u))
+      .map(storagePathFromUrl)
+      .filter((p): p is string => !!p);
+
+    const BATCH = 100;
+    for (let i = 0; i < paths.length; i += BATCH) {
+      const batch = paths.slice(i, i + BATCH);
+      const { error: storageError } = await admin.storage
+        .from("assets")
+        .remove(batch);
+      if (storageError) {
+        // 存储失败不阻断：孤儿文件由 /api/admin/clean 全局清扫兜底
+        console.warn("删除存储文件失败:", storageError);
+        await logError(admin, {
+          method: "PURGE",
+          path: "purgeOrganizations",
+          status: 500,
+          message: `storage remove failed: ${storageError.message}`,
+          context: { batch: batch.slice(0, 20), orgIds },
+        });
+      } else {
+        deletedFiles += batch.length;
+      }
+    }
+  }
 
   const counts = (purged ?? {}) as Record<string, number>;
   return {

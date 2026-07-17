@@ -6,8 +6,8 @@
  *   - user: Normal user, controlled by Tier 2 org roles
  *
  * Tier 2: Organization role (organization_member.role)
- *   - owner: Full org control (settings, members, workspaces, cleanup, delete)
- *   - admin: Manage members (except owners), cleanup, workspaces
+ *   - owner: Full org control (settings, members, workspaces, delete)
+ *   - admin: Manage members (except owners), workspaces
  *   - member: View only, workspace-scoped access
  */
 
@@ -31,8 +31,7 @@ export type OrgPermission =
   | "org.workspaces.create"
   | "org.workspaces.edit"
   | "org.workspaces.delete"
-  | "org.assets.write"
-  | "org.cleanup";
+  | "org.assets.write";
 
 export type GlobalPermission =
   | "global.users.view"
@@ -56,7 +55,6 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.edit",
     "org.workspaces.delete",
     "org.assets.write",
-    "org.cleanup",
   ],
   admin: [
     "org.view",
@@ -69,7 +67,6 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.edit",
     "org.workspaces.delete",
     "org.assets.write",
-    "org.cleanup",
   ],
   member: [
     "org.view",
@@ -141,7 +138,6 @@ export const SIDEBAR_VISIBILITY: Record<
   "/admin/settings": { requireOrg: "org.settings" },
   "/admin/members": { requireOrg: "org.members.view" },
   "/admin/workspaces": { requireOrg: "org.workspaces.view" },
-  "/admin/clean": { requireOrg: "org.cleanup" },
 };
 
 /** Check if a sidebar item should be visible */

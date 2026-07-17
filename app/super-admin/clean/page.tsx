@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,6 @@ import {
 import { Trash2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fetchJson } from "@/lib/fetch-json";
-import { useWorkspace } from "@/hooks/useWorkspace";
 import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { CleanLog } from "./components/CleanLog";
 
@@ -49,16 +48,84 @@ interface CleanSummary {
   errorsCount: number;
 }
 
+interface OrgOption {
+  id: string;
+  name: string;
+}
+
+interface WorkspaceOption {
+  id: string;
+  name: string;
+}
+
 export default function CleanPage() {
   const { t } = useTranslation();
-  const { workspaces, selectedWorkspaceId, setSelectedWorkspaceId, loading } =
-    useWorkspace();
+  // super_admin 全局页面：组织取全量（/api/admin/organizations），工作空间列表
+  // 由所选组织驱动（effect 联动），避免独立 hook 实例与组织切换不同步的问题
+  const [organizations, setOrganizations] = useState<OrgOption[]>([]);
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<
+    string | null
+  >(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [result, setResult] = useState<CleanResult | null>(null);
   const [summary, setSummary] = useState<CleanSummary | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson<{ data: OrgOption[] }>("/api/admin/organizations")
+      .then((res) => {
+        if (cancelled) return;
+        const orgs = res.data || [];
+        setOrganizations(orgs);
+        setSelectedOrganizationId(orgs[0]?.id ?? null);
+      })
+      .catch((error) => {
+        console.error("获取组织列表失败:", error);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 切换组织 → 重新拉取该组织的工作空间并重置选中项
+  useEffect(() => {
+    if (!selectedOrganizationId) {
+      setWorkspaces([]);
+      setSelectedWorkspaceId(null);
+      return;
+    }
+    let cancelled = false;
+    setWorkspaces([]);
+    setSelectedWorkspaceId(null);
+    fetchJson<{ data: WorkspaceOption[] }>(
+      `/api/workspaces?organization_id=${selectedOrganizationId}`,
+    )
+      .then((res) => {
+        if (cancelled) return;
+        const list = res.data || [];
+        setWorkspaces(list);
+        setSelectedWorkspaceId(list[0]?.id ?? null);
+      })
+      .catch((error) => {
+        console.error("获取工作空间失败:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOrganizationId]);
+
   const handleClean = async (action: CleanAction) => {
-    if (!isSpecificWorkspaceId(selectedWorkspaceId)) {
+    // clean-files 是全桶清扫，与 workspace 无关；仅涉及 clean-rows 时需要选定
+    const needsWorkspace = action !== "clean-files";
+    if (needsWorkspace && !isSpecificWorkspaceId(selectedWorkspaceId)) {
       toast.error(t("admin.clean.selectWorkspaceFirst"));
       return;
     }
@@ -105,7 +172,7 @@ export default function CleanPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            workspaceId: selectedWorkspaceId,
+            workspaceId: needsWorkspace ? selectedWorkspaceId : undefined,
             action,
           }),
         },
@@ -144,10 +211,31 @@ export default function CleanPage() {
           <Card>
             <CardHeader>
               <CardTitle>清理操作</CardTitle>
-              <CardDescription>选择工作空间和清理类型</CardDescription>
+              <CardDescription>选择组织、工作空间和清理类型</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* 工作空间选择 */}
+              {/* 组织选择：切换后 useWorkspace 会重新拉取该组织的工作空间列表 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">组织</label>
+                <Select
+                  value={selectedOrganizationId || ""}
+                  onValueChange={setSelectedOrganizationId}
+                  disabled={cleaning}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择组织" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 工作空间选择（仅清理孤立记录需要） */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">工作空间</label>
                 <Select
@@ -187,7 +275,7 @@ export default function CleanPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  disabled={!selectedWorkspaceId || cleaning}
+                  disabled={cleaning}
                   onClick={() => handleClean("clean-files")}
                 >
                   {cleaning ? (
@@ -195,7 +283,7 @@ export default function CleanPage() {
                   ) : (
                     <Trash2 className="w-4 h-4 mr-2" />
                   )}
-                  清理孤立存储文件
+                  清理孤立存储文件（全局）
                 </Button>
 
                 <Button
@@ -221,8 +309,8 @@ export default function CleanPage() {
                     <p className="font-medium mb-1">注意事项：</p>
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>清理操作不可逆，请谨慎操作</li>
-                      <li>孤立记录：数据库中存在但文件已被删除</li>
-                      <li>孤立文件：存储桶中存在但数据库无记录</li>
+                      <li>孤立记录：数据库中存在但文件已被删除（按所选工作空间）</li>
+                      <li>孤立文件：全桶扫描无任何记录引用的文件（24 小时内的新文件跳过）</li>
                       <li>建议先单独清理，确认无误后再全面清理</li>
                     </ul>
                   </div>
@@ -290,7 +378,7 @@ export default function CleanPage() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Trash2 className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">
-                  选择工作空间和清理类型开始清理
+                  选择组织、工作空间和清理类型开始清理
                 </p>
               </CardContent>
             </Card>

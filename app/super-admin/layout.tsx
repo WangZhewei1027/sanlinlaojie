@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   Settings,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -113,6 +114,11 @@ export default function SuperAdminLayout({
       label: t("superAdmin.sidebar.errorLogs", "Error Logs"),
       href: "/super-admin/error-logs",
       icon: AlertTriangle,
+    },
+    {
+      label: t("superAdmin.sidebar.cleanup", "Cleanup"),
+      href: "/super-admin/clean",
+      icon: Trash2,
     },
     {
       label: t("superAdmin.sidebar.settings", "System Settings"),

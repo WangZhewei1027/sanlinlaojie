@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { FolderKanban, Users, Settings, Trash2, Menu } from "lucide-react";
+import { FolderKanban, Users, Settings, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -15,7 +15,6 @@ interface SidebarItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  section?: "org" | "global";
 }
 
 function useSidebarItems(): SidebarItem[] {
@@ -31,25 +30,16 @@ function useSidebarItems(): SidebarItem[] {
       label: t("admin.sidebar.settings", "Settings"),
       href: "/admin/settings",
       icon: Settings,
-      section: "org",
     },
     {
       label: t("admin.sidebar.members", "Members"),
       href: "/admin/members",
       icon: Users,
-      section: "org",
     },
     {
       label: t("admin.sidebar.workspaces", "Workspaces"),
       href: "/admin/workspaces",
       icon: FolderKanban,
-      section: "org",
-    },
-    {
-      label: t("admin.sidebar.cleanup", "Cleanup"),
-      href: "/admin/clean",
-      icon: Trash2,
-      section: "global",
     },
   ];
 
@@ -67,9 +57,6 @@ function SidebarNav({
 }) {
   const { t } = useTranslation();
   const pathname = usePathname();
-
-  const orgItems = items.filter((item) => item.section === "org");
-  const globalItems = items.filter((item) => item.section === "global");
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -103,18 +90,7 @@ function SidebarNav({
           {t("admin.sidebar.orgSection", "Organization")}
         </h3>
       </div>
-      {orgItems.map(renderItem)}
-
-      {/* Separator */}
-      <div className="my-2 border-t border-border" />
-
-      {/* Global admin section */}
-      <div className="px-3 py-2">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          {t("admin.sidebar.globalSection", "Administration")}
-        </h3>
-      </div>
-      {globalItems.map(renderItem)}
+      {items.map(renderItem)}
     </nav>
   );
 }
