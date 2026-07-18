@@ -3,7 +3,7 @@
  */
 
 import { TILESET_CONFIG } from "../utils/config.js";
-import { getViewer, zoomToTileset } from "./viewerManager.js";
+import { getViewer } from "./viewerManager.js";
 
 let tileset = null;
 
@@ -96,11 +96,9 @@ export async function load3DTiles() {
     updateLoadStatus("已加载");
     toggleLoadingIndicator(false);
 
-    // 飞到 tileset 位置
-    zoomToTileset(tileset);
-
-    console.log("视角已调整到地形");
-
+    // 不再自动飞到 tileset：开场视角由 origin 决定
+    // （默认上海中心大厦，organization.map_center 通过 SET_ORIGIN 覆盖），
+    // 「重置视角」按钮仍可缩放到地形
     return tileset;
   } catch (error) {
     console.error("3D Tiles 加载失败:", error);

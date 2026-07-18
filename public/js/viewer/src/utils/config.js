@@ -10,9 +10,9 @@ export const CESIUM_ION_TOKEN =
 export const METADATA = {
   srs: "EPSG:32651", // WGS 84 / UTM zone 51N
   origin: {
-    // GPS 坐标（经纬度），由外部 organization 配置传入
-    lat: null,
-    lng: null,
+    // GPS 坐标（经纬度），默认上海中心大厦，organization.map_center 到达后覆盖
+    lat: 31.2336,
+    lng: 121.5057,
     // UTM 坐标（向后兼容）
     easting: 356865.71708580491,
     northing: 3446141.014862847,

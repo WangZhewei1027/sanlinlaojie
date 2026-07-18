@@ -57,6 +57,20 @@ export function initViewer(containerId = "cesiumContainer") {
     )}°N`,
   );
 
+  // 打开时初始视角定位到默认 origin（organization map_center 到达后会再飞行覆盖）
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(
+      origin.longitude,
+      origin.latitude,
+      origin.altitude + CAMERA_CONFIG.focusHeight,
+    ),
+    orientation: {
+      heading: Cesium.Math.toRadians(CAMERA_CONFIG.defaultHeading),
+      pitch: Cesium.Math.toRadians(CAMERA_CONFIG.defaultPitch),
+      roll: 0,
+    },
+  });
+
   return viewer;
 }
 
