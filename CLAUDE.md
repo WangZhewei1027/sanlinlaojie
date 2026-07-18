@@ -84,4 +84,4 @@ Supabase Postgres + **PostGIS** (assets carry geo coordinates). Migrations in `s
 
 ## Reference docs
 
-Deeper design notes live in `docs/` — notably `docs/permissions.md`, `docs/map-asset-interaction.md`, `docs/asset-pipeline.md`, `docs/i18n-guide.md`, `docs/wechat-qr-code.md`, `docs/3d-model-preview.md`, `docs/audio-compatibility.md`, and `docs/saas-role-refactor.md`.
+Deeper design notes live in `docs/` — notably `docs/permissions.md`, `docs/map-asset-interaction.md`, `docs/asset-pipeline.md`, `docs/i18n-guide.md`, `docs/wechat-qr-code.md`, `docs/3d-model-preview.md`, `docs/audio-compatibility.md`, `docs/asset-storage-lifecycle.md` (content-hash dedup and deletion safety), and `docs/saas-role-refactor.md`.

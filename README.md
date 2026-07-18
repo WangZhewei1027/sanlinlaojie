@@ -219,4 +219,5 @@ npm run dev
 | [docs/3d-model-preview.md](docs/3d-model-preview.md) | 3D 模型预览方案 |
 | [docs/text-asset-miniapp-style.md](docs/text-asset-miniapp-style.md) | 文本素材小程序样式 |
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
+| [docs/asset-storage-lifecycle.md](docs/asset-storage-lifecycle.md) | 内容 hash 去重与文件删除机制 |
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
