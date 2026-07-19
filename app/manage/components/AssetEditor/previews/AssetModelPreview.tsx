@@ -175,7 +175,8 @@ export function AssetModelPreview({
             {/* fallback={null} — DOM elements can't be rendered by R3F */}
             <Suspense fallback={null}>
               <Model url={fileUrl} onLoaded={handleLoaded} />
-              <Environment preset="city" />
+              {/* preset 会从国外 CDN 拉 HDR,国内访问不到,改用本地文件 */}
+              <Environment files="/hdr/potsdamer_platz_1k.hdr" />
             </Suspense>
             <OrbitControls makeDefault enablePan={false} />
           </Canvas>
