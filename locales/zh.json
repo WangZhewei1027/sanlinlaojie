@@ -741,6 +741,35 @@
     "passwordResetSentDetail": "如果你使用邮箱和密码注册，你将收到一封密码重置邮件。",
     "passwordResetSuccess": "密码重置成功！你现在可以登录了。",
     "loggingIn": "登录中...",
-    "creatingAccount": "正在创建账户..."
+    "creatingAccount": "正在创建账户...",
+    "redirecting": "登录成功，正在跳转…",
+    "sendingCode": "正在发送验证码…",
+    "verifyingCode": "正在验证…",
+    "savingPassword": "正在保存…",
+    "saveNewPassword": "保存新密码",
+    "backToLogin": "返回登录",
+    "signUpSuccessTitle": "注册成功",
+    "signUpSuccessDescription": "请查收邮件完成验证",
+    "signUpSuccessDetail": "注册申请已提交，请前往邮箱点击确认链接完成验证，然后再登录。",
+    "errorPageTitle": "抱歉，出错了",
+    "errorPageDetail": "错误信息：{{detail}}",
+    "errorPageUnknown": "发生了未知错误，请重试或联系管理员。",
+    "errors": {
+      "network": "网络连接失败，请检查网络后重试",
+      "invalidCredentials": "账号或密码错误，请重新输入",
+      "userExists": "该账号已注册，请直接登录",
+      "emailNotConfirmed": "邮箱尚未验证，请先前往邮箱完成验证",
+      "rateLimited": "操作过于频繁，请稍后再试",
+      "weakPassword": "密码强度不足，请使用至少 8 位字符",
+      "samePassword": "新密码不能与旧密码相同",
+      "invalidEmail": "邮箱格式不正确，请检查输入",
+      "sessionExpired": "登录状态已过期，请重新操作",
+      "unknown": "操作失败，请稍后重试",
+      "smsRateLimited": "验证码发送过于频繁，请稍后再试",
+      "invalidPhone": "手机号格式不正确，请检查输入",
+      "smsSendFailed": "验证码发送失败，请稍后重试",
+      "phoneNotRegistered": "该手机号尚未注册",
+      "accountCreatedLoginFailed": "账号已创建成功，但自动登录失败，请返回登录页手动登录"
+    }
   }
 }

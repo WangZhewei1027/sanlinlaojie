@@ -8,6 +8,7 @@ import {
   CheckSmsVerifyCode,
   createUserByPhone,
 } from "@/lib/auth/sms";
+import { formatAuthError, formatServerAuthError } from "@/lib/auth/auth-error";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -58,7 +59,7 @@ function EmailSignUpForm({ next }: { next: string }) {
       if (error) throw error;
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +122,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
   const [otpCode, setOtpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const router = useRouter();
@@ -148,14 +150,14 @@ function PhoneSignUpForm({ next }: { next: string }) {
     try {
       const result = await SendSmsVerifyCode(fullPhone);
       if (!result.success) {
-        setError(result.error || t("auth.otpSendError"));
+        setError(formatServerAuthError(t, result, "auth.errors.smsSendFailed"));
         return;
       }
 
       setOtpSent(true);
       setShowOtpVerification(true);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -165,12 +167,13 @@ function PhoneSignUpForm({ next }: { next: string }) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    let redirecting = false;
 
     try {
       // 1. 校验短信验证码
       const checkResult = await CheckSmsVerifyCode(fullPhone, otpCode);
       if (!checkResult.success) {
-        setError(checkResult.error || t("auth.invalidOtpCode"));
+        setError(formatServerAuthError(t, checkResult, "auth.invalidOtpCode"));
         return;
       }
 
@@ -181,7 +184,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
       });
 
       if (createResult.error) {
-        setError(createResult.error);
+        setError(formatServerAuthError(t, createResult));
         return;
       }
 
@@ -193,16 +196,20 @@ function PhoneSignUpForm({ next }: { next: string }) {
       });
 
       if (signInError) {
-        setError(signInError.message);
+        // 账号已创建成功，只是自动登录失败——明确告知，避免用户重复注册
+        setError(t("auth.errors.accountCreatedLoginFailed"));
         return;
       }
 
+      // 注册并登录成功：保持按钮禁用并提示跳转中
+      redirecting = true;
+      setIsRedirecting(true);
       router.refresh();
       router.push(next);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
-      setIsLoading(false);
+      if (!redirecting) setIsLoading(false);
     }
   };
 
@@ -213,13 +220,13 @@ function PhoneSignUpForm({ next }: { next: string }) {
     try {
       const result = await SendSmsVerifyCode(fullPhone);
       if (!result.success) {
-        setError(result.error || t("auth.otpSendError"));
+        setError(formatServerAuthError(t, result, "auth.errors.smsSendFailed"));
         return;
       }
       setOtpCode("");
       setError(null);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("auth.otpSendError"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +261,11 @@ function PhoneSignUpForm({ next }: { next: string }) {
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? t("common.loading") : t("auth.verifyAndSignUp")}
+            {isRedirecting
+              ? t("auth.redirecting")
+              : isLoading
+                ? t("auth.verifyingCode")
+                : t("auth.verifyAndSignUp")}
           </Button>
           <Button
             type="button"
@@ -340,7 +351,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
         </div>
         {error && <p className="text-sm text-red-500">{error}</p>}
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? t("common.loading") : t("auth.sendVerificationCode")}
+          {isLoading ? t("auth.sendingCode") : t("auth.sendVerificationCode")}
         </Button>
       </div>
     </form>

@@ -1,33 +1,34 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Suspense } from "react";
+"use client";
 
-async function ErrorContent({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  const params = await searchParams;
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { useTranslation } from "react-i18next";
+
+function ErrorContent() {
+  const searchParams = useSearchParams();
+  const detail = searchParams.get("error");
+  const { t } = useTranslation();
 
   return (
-    <>
-      {params?.error ? (
-        <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          An unspecified error occurred.
-        </p>
-      )}
-    </>
+    <p className="text-sm text-muted-foreground">
+      {detail
+        ? t("auth.errorPageDetail", { detail })
+        : t("auth.errorPageUnknown")}
+    </p>
   );
 }
 
-export default function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
+export default function Page() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
@@ -35,13 +36,16 @@ export default function Page({
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">
-                Sorry, something went wrong.
+                {t("auth.errorPageTitle")}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-4">
               <Suspense>
-                <ErrorContent searchParams={searchParams} />
+                <ErrorContent />
               </Suspense>
+              <Link href="/auth/login">
+                <Button className="w-full">{t("auth.backToLogin")}</Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

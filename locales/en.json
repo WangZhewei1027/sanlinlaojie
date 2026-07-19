@@ -741,6 +741,35 @@
     "passwordResetSentDetail": "If you registered using your email and password, you will receive a password reset email.",
     "passwordResetSuccess": "Password reset successfully! You can now sign in.",
     "loggingIn": "Logging in...",
-    "creatingAccount": "Creating an account..."
+    "creatingAccount": "Creating an account...",
+    "redirecting": "Signed in, redirecting…",
+    "sendingCode": "Sending code…",
+    "verifyingCode": "Verifying…",
+    "savingPassword": "Saving…",
+    "saveNewPassword": "Save new password",
+    "backToLogin": "Back to sign in",
+    "signUpSuccessTitle": "Sign-up successful",
+    "signUpSuccessDescription": "Check your email to confirm",
+    "signUpSuccessDetail": "Your sign-up has been submitted. Please open the confirmation link in your email before signing in.",
+    "errorPageTitle": "Sorry, something went wrong",
+    "errorPageDetail": "Error details: {{detail}}",
+    "errorPageUnknown": "An unknown error occurred. Please try again or contact an administrator.",
+    "errors": {
+      "network": "Network error. Please check your connection and try again",
+      "invalidCredentials": "Incorrect account or password. Please try again",
+      "userExists": "This account is already registered. Please sign in instead",
+      "emailNotConfirmed": "Email not confirmed. Please confirm via the email we sent first",
+      "rateLimited": "Too many attempts. Please try again later",
+      "weakPassword": "Password is too weak. Use at least 8 characters",
+      "samePassword": "New password must be different from the old one",
+      "invalidEmail": "Invalid email address. Please check your input",
+      "sessionExpired": "Your session has expired. Please try again",
+      "unknown": "Something went wrong. Please try again later",
+      "smsRateLimited": "Too many verification code requests. Please try again later",
+      "invalidPhone": "Invalid phone number. Please check your input",
+      "smsSendFailed": "Failed to send verification code. Please try again later",
+      "phoneNotRegistered": "This phone number is not registered",
+      "accountCreatedLoginFailed": "Your account was created, but automatic sign-in failed. Please sign in manually from the login page"
+    }
   }
 }

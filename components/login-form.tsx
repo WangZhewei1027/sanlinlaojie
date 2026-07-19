@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/safe-next";
+import { formatAuthError } from "@/lib/auth/auth-error";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,6 +39,7 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
@@ -55,12 +57,13 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
+      // 登录成功：保持按钮禁用并提示跳转中，避免用户误以为无响应
+      setIsRedirecting(true);
       // Force full refresh so server components reload with new auth state
       router.refresh();
       router.push(next);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
-    } finally {
+      setError(formatAuthError(t, error));
       setIsLoading(false);
     }
   };
@@ -108,7 +111,11 @@ export function LoginForm({
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? t("auth.loggingIn") : t("auth.signIn")}
+                {isRedirecting
+                  ? t("auth.redirecting")
+                  : isLoading
+                    ? t("auth.loggingIn")
+                    : t("auth.signIn")}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">

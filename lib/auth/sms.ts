@@ -27,6 +27,20 @@ function createDypnsClient(): Dypnsapi20170525 {
   return new Dypnsapi20170525(config);
 }
 
+// 阿里云返回码 → 客户端可翻译的机器码（见 lib/auth/auth-error.ts）
+function mapAliyunSendCode(code: string | undefined): string {
+  switch (code) {
+    case "isv.BUSINESS_LIMIT_CONTROL":
+    case "isv.DAY_LIMIT_CONTROL":
+    case "isv.MONTH_LIMIT_CONTROL":
+      return "sms_rate_limited";
+    case "isv.MOBILE_NUMBER_ILLEGAL":
+      return "invalid_phone";
+    default:
+      return "sms_send_failed";
+  }
+}
+
 // ─── 短信验证码接口 ──────────────────────────────────────────
 
 /**
@@ -35,7 +49,7 @@ function createDypnsClient(): Dypnsapi20170525 {
  */
 export async function SendSmsVerifyCode(
   phone: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; code?: string; error?: string }> {
   // 去掉 + 号前缀，阿里云接口需要纯数字
   const phoneNumber = phone.replace(/^\+/, "");
 
@@ -59,12 +73,14 @@ export async function SendSmsVerifyCode(
 
     return {
       success: false,
+      code: mapAliyunSendCode(resp.body?.code),
       error: resp.body?.message || "Failed to send SMS",
     };
   } catch (error: unknown) {
     console.error("[SMS] Send error:", error);
     return {
       success: false,
+      code: "sms_send_failed",
       error: error instanceof Error ? error.message : "Failed to send SMS",
     };
   }
@@ -76,7 +92,7 @@ export async function SendSmsVerifyCode(
 export async function CheckSmsVerifyCode(
   phone: string,
   code: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; code?: string; error?: string }> {
   const phoneNumber = phone.replace(/^\+/, "");
 
   try {
@@ -93,14 +109,18 @@ export async function CheckSmsVerifyCode(
       return { success: true };
     }
 
+    // 阿里云对过期/错误的验证码统一返回非 PASS；带 EXPIRE 字样的归为过期
+    const aliyunCode = resp.body?.code ?? "";
     return {
       success: false,
+      code: /EXPIRE/i.test(aliyunCode) ? "code_expired" : "code_invalid",
       error: resp.body?.message || "Verification failed",
     };
   } catch (error: unknown) {
     console.error("[SMS] Check error:", error);
     return {
       success: false,
+      code: "code_invalid",
       error: error instanceof Error ? error.message : "Verification failed",
     };
   }
@@ -124,7 +144,7 @@ function phoneToEmail(phone: string): string {
 export async function resetPasswordByPhone(params: {
   phone: string;
   newPassword: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{ success: boolean; code?: string; error?: string }> {
   const { phone, newPassword } = params;
   const supabase = createAdminClient();
   const email = phoneToEmail(phone);
@@ -139,7 +159,7 @@ export async function resetPasswordByPhone(params: {
 
   const user = usersData.users.find((u) => u.email === email);
   if (!user) {
-    return { success: false, error: "User not found" };
+    return { success: false, code: "user_not_found", error: "User not found" };
   }
 
   const { error: updateError } = await supabase.auth.admin.updateUserById(
@@ -157,7 +177,12 @@ export async function resetPasswordByPhone(params: {
 export async function createUserByPhone(params: {
   phone: string;
   password: string;
-}): Promise<{ userId: string | null; email: string; error?: string }> {
+}): Promise<{
+  userId: string | null;
+  email: string;
+  code?: string;
+  error?: string;
+}> {
   const { phone, password } = params;
   const supabase = createAdminClient();
   const email = phoneToEmail(phone);
@@ -172,7 +197,15 @@ export async function createUserByPhone(params: {
   });
 
   if (error) {
-    return { userId: null, email, error: error.message };
+    const isExists =
+      error.code === "email_exists" ||
+      /already (been )?registered|already exists/i.test(error.message);
+    return {
+      userId: null,
+      email,
+      code: isExists ? "user_exists" : undefined,
+      error: error.message,
+    };
   }
 
   return { userId: data.user.id, email };

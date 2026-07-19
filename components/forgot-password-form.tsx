@@ -7,6 +7,7 @@ import {
   CheckSmsVerifyCode,
   resetPasswordByPhone,
 } from "@/lib/auth/sms";
+import { formatAuthError, formatServerAuthError } from "@/lib/auth/auth-error";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,7 +61,7 @@ export function ForgotPasswordForm({
       if (error) throw error;
       setSuccess(true);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -75,12 +76,12 @@ export function ForgotPasswordForm({
     try {
       const result = await SendSmsVerifyCode(fullPhone);
       if (!result.success) {
-        setError(result.error || t("auth.otpSendError"));
+        setError(formatServerAuthError(t, result, "auth.errors.smsSendFailed"));
         return;
       }
       setPhoneStep("otp");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -95,12 +96,12 @@ export function ForgotPasswordForm({
     try {
       const result = await CheckSmsVerifyCode(fullPhone, otpCode);
       if (!result.success) {
-        setError(result.error || t("auth.invalidOtpCode"));
+        setError(formatServerAuthError(t, result, "auth.invalidOtpCode"));
         return;
       }
       setPhoneStep("newPassword");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -130,12 +131,12 @@ export function ForgotPasswordForm({
         newPassword,
       });
       if (!result.success) {
-        setError(result.error || t("common.error"));
+        setError(formatServerAuthError(t, result));
         return;
       }
       setSuccess(true);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("common.error"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
@@ -148,12 +149,12 @@ export function ForgotPasswordForm({
     try {
       const result = await SendSmsVerifyCode(fullPhone);
       if (!result.success) {
-        setError(result.error || t("auth.otpSendError"));
+        setError(formatServerAuthError(t, result, "auth.errors.smsSendFailed"));
         return;
       }
       setOtpCode("");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : t("auth.otpSendError"));
+      setError(formatAuthError(t, error));
     } finally {
       setIsLoading(false);
     }
