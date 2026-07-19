@@ -34,6 +34,7 @@ import {
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { fetchJson } from "@/lib/fetch-json";
+import { displayAccount } from "@/lib/phone-email";
 import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
 import { InviteLinkDialog } from "./components/InviteLinkDialog";
 
@@ -209,7 +210,7 @@ export default function MembersPage() {
   );
 
   const getUserLabel = (user: User) => {
-    return user.name || user.email || user.user_id.slice(0, 8);
+    return user.name || displayAccount(user.email) || user.user_id.slice(0, 8);
   };
 
   // Close dropdown on outside click
@@ -417,12 +418,12 @@ export default function MembersPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">
                         {member.users?.name ||
-                          member.users?.email ||
+                          displayAccount(member.users?.email ?? null) ||
                           t("admin.members.unnamed", "Unnamed user")}
                       </p>
                       {member.users?.email && member.users?.name && (
                         <p className="text-xs text-muted-foreground truncate">
-                          {member.users.email}
+                          {displayAccount(member.users.email)}
                         </p>
                       )}
                     </div>
@@ -520,7 +521,7 @@ export default function MembersPage() {
                 {
                   name:
                     removeMember?.users?.name ||
-                    removeMember?.users?.email ||
+                    displayAccount(removeMember?.users?.email ?? null) ||
                     t("admin.members.unnamed", "Unnamed user"),
                 },
               )}
@@ -562,7 +563,7 @@ export default function MembersPage() {
             user_id: workspaceDialogMember.user_id,
             name:
               workspaceDialogMember.users?.name ||
-              workspaceDialogMember.users?.email ||
+              displayAccount(workspaceDialogMember.users?.email ?? null) ||
               null,
           }}
           onSuccess={() => fetchData()}

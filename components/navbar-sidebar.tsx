@@ -18,6 +18,7 @@ import { EnvVarWarning } from "@/components/env-var-warning";
 import { createClient } from "@/lib/supabase/client";
 import { useManageStore } from "@/app/manage/store";
 import { hasEnvVars } from "@/lib/utils";
+import { displayAccount } from "@/lib/phone-email";
 
 function getInitials(email: string): string {
   return email.charAt(0).toUpperCase();
@@ -29,7 +30,7 @@ function getDisplayName(user: User, fallback: string): string {
     (meta.full_name as string) ||
     (meta.name as string) ||
     (meta.user_name as string) ||
-    (user.email ? user.email.split("@")[0] : fallback)
+    (user.email ? displayAccount(user.email).split("@")[0] : fallback)
   );
 }
 
@@ -103,7 +104,7 @@ export function NavbarSidebar() {
                     {getDisplayName(user, t("account.defaultName"))}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1 truncate leading-tight">
-                    {user.email}
+                    {displayAccount(user.email ?? null)}
                   </p>
                 </div>
               </div>

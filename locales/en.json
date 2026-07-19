@@ -695,7 +695,9 @@
     "nameRequired": "Name cannot be empty",
     "saved": "Saved",
     "loadError": "Failed to load profile",
-    "saveError": "Failed to save"
+    "saveError": "Failed to save",
+    "phone": "Phone",
+    "phoneHint": "Phone number cannot be changed"
   },
   "auth": {
     "signIn": "Sign in",

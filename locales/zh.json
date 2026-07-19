@@ -695,7 +695,9 @@
     "nameRequired": "名称不能为空",
     "saved": "已保存",
     "loadError": "加载个人信息失败",
-    "saveError": "保存失败"
+    "saveError": "保存失败",
+    "phone": "手机号",
+    "phoneHint": "手机号无法修改"
   },
   "auth": {
     "signIn": "登录",

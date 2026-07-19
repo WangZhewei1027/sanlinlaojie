@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { fetchJson, ApiError } from "@/lib/fetch-json";
 import type { UserData } from "../types";
+import { displayAccount } from "@/lib/phone-email";
 
 interface OrgConsequence {
   id: string;
@@ -92,7 +93,7 @@ export function DeleteUserDialog({
     }
   };
 
-  const displayName = user.name || user.email || user.user_id;
+  const displayName = user.name || displayAccount(user.email) || user.user_id;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,7 +161,7 @@ export function DeleteUserDialog({
                             {
                               name:
                                 org.successor?.name ||
-                                org.successor?.email ||
+                                displayAccount(org.successor?.email ?? null) ||
                                 "—",
                             },
                           )

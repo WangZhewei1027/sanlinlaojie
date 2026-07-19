@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { hasEnvVars } from "@/lib/utils";
 import { EnvVarWarning } from "@/components/env-var-warning";
+import { displayAccount } from "@/lib/phone-email";
 
 function getInitials(email: string): string {
   return email.charAt(0).toUpperCase();
@@ -29,7 +30,7 @@ function getDisplayName(user: User, fallback: string): string {
     (meta.full_name as string) ||
     (meta.name as string) ||
     (meta.user_name as string) ||
-    (user.email ? user.email.split("@")[0] : fallback)
+    (user.email ? displayAccount(user.email).split("@")[0] : fallback)
   );
 }
 
@@ -158,7 +159,7 @@ export function UserAvatarMenu() {
             {dbName?.trim() || getDisplayName(user, t("account.defaultName"))}
           </p>
           <p className="text-sm text-muted-foreground leading-tight mt-1 truncate">
-            {user.email}
+            {displayAccount(user.email ?? null)}
           </p>
         </div>
         <DropdownMenuSeparator className="my-0" />

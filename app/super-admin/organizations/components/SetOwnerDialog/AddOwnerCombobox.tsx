@@ -6,6 +6,7 @@ import { Loader2, ChevronsUpDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { displayAccount } from "@/lib/phone-email";
 
 export interface SimpleUser {
   user_id: string;
@@ -20,8 +21,9 @@ interface AddOwnerComboboxProps {
 }
 
 const getUserLabel = (user: SimpleUser) => {
-  const main = user.name || user.email || user.user_id;
-  const extra = user.email && user.name ? ` (${user.email})` : "";
+  const account = displayAccount(user.email);
+  const main = user.name || account || user.user_id;
+  const extra = account && user.name ? ` (${account})` : "";
   return main + extra;
 };
 

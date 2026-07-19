@@ -5,6 +5,7 @@ import { Crown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { MemberData } from "../../types";
+import { displayAccount } from "@/lib/phone-email";
 
 interface CurrentOwnersListProps {
   owners: MemberData[];
@@ -36,11 +37,13 @@ export function CurrentOwnersList({
               <div className="flex items-center gap-2">
                 <Crown className="h-4 w-4 text-yellow-500" />
                 <span className="font-medium">
-                  {owner.users?.name || owner.users?.email || owner.user_id}
+                  {owner.users?.name ||
+                    displayAccount(owner.users?.email ?? null) ||
+                    owner.user_id}
                 </span>
                 {owner.users?.email && owner.users?.name && (
                   <span className="text-xs text-muted-foreground">
-                    {owner.users.email}
+                    {displayAccount(owner.users.email)}
                   </span>
                 )}
               </div>

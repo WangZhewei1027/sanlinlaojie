@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { LogoutButton } from "./logout-button";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { displayAccount } from "@/lib/phone-email";
 
 export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
@@ -29,7 +30,7 @@ export function AuthButton() {
 
   return user ? (
     <div className="flex items-center gap-4">
-      Hey, {user.email}!
+      Hey, {displayAccount(user.email ?? null)}!
       <LogoutButton />
     </div>
   ) : (

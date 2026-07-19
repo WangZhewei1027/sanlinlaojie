@@ -8,6 +8,7 @@ import Dypnsapi20170525, {
 import { Config } from "@alicloud/openapi-client";
 import { RuntimeOptions } from "@alicloud/tea-util";
 import Credential from "@alicloud/credentials";
+import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
 
 // ─── 阿里云号码认证服务客户端 ─────────────────────────────────
 // 凭证通过默认链读取（环境变量 ALIBABA_CLOUD_ACCESS_KEY_ID /
@@ -16,9 +17,6 @@ import Credential from "@alicloud/credentials";
 
 const SMS_SIGN_NAME = process.env.ALIYUN_SMS_SIGN_NAME || "速通互联验证码";
 const SMS_TEMPLATE_CODE = process.env.ALIYUN_SMS_TEMPLATE_CODE || "100001";
-
-// 手机号对应的虚拟邮箱域名（用于 Supabase Auth 存储）
-const PHONE_EMAIL_DOMAIN = "phone.sanlinlaojie.local";
 
 function createDypnsClient(): Dypnsapi20170525 {
   const credential = new Credential();

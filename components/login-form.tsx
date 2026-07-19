@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/safe-next";
 import { formatAuthError } from "@/lib/auth/auth-error";
+import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,9 +19,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-
-// 手机号对应的虚拟邮箱域名，必须与 lib/auth/sms.ts 中保持一致
-const PHONE_EMAIL_DOMAIN = "phone.sanlinlaojie.local";
 
 // 判断输入是否为手机号（纯数字），是则拼接虚拟邮箱
 function resolveEmail(input: string): string {

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User, X } from "lucide-react";
 import type { Creator } from "../../types";
+import { displayAccount } from "@/lib/phone-email";
 
 interface UserFilterProps {
   creators: Creator[];
@@ -101,12 +102,12 @@ export function UserFilter({
                     >
                       <div className="text-sm font-medium truncate">
                         {creator.name ||
-                          creator.email ||
+                          displayAccount(creator.email) ||
                           t("assetManager.userFilter.unnamed")}
                       </div>
                       {creator.name && creator.email && (
                         <div className="text-xs text-muted-foreground truncate">
-                          {creator.email}
+                          {displayAccount(creator.email)}
                         </div>
                       )}
                     </label>

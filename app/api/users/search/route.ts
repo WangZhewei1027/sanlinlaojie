@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserContext } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
+import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
 
 // org 范围内的用户搜索（供成员页邀请/添加）。
 // 必须带 organization_id 且调用者对该 org 有 org.members.add；查询用邮箱精确
@@ -51,6 +52,9 @@ export async function GET(request: Request) {
 
     if (q.includes("@")) {
       query = query.eq("email", q);
+    } else if (/^\d{11}$/.test(q)) {
+      // 完整手机号 → 精确匹配对应的虚拟邮箱（手机号注册用户）
+      query = query.eq("email", `${q}@${PHONE_EMAIL_DOMAIN}`);
     } else if (q.length >= 3) {
       const prefix = q.replace(/[%_]/g, "\\$&");
       query = query.or(`name.ilike.${prefix}%,email.ilike.${prefix}%`);

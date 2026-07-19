@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, UserCog, User, Layers, Trash2 } from "lucide-react";
 import type { UserData } from "../types";
+import { displayAccount } from "@/lib/phone-email";
 
 interface UserListProps {
   users: UserData[];
@@ -20,7 +21,7 @@ interface UserListProps {
 }
 
 function initials(name: string | null, email: string | null) {
-  const src = (name || email || "?").trim();
+  const src = (name || displayAccount(email) || "?").trim();
   return src.slice(0, 2).toUpperCase();
 }
 
@@ -125,7 +126,7 @@ export function UserList({
                           )}
                         </div>
                         <span className="block text-xs text-muted-foreground truncate">
-                          {user.email || "—"}
+                          {displayAccount(user.email) || "—"}
                         </span>
                       </div>
                     </div>

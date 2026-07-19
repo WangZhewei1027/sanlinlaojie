@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { displayAccount, isPhoneEmail } from "@/lib/phone-email";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -131,15 +132,21 @@ export default function SettingsPage() {
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="email">{t("settings.email")}</Label>
+                  <Label htmlFor="email">
+                    {isPhoneEmail(email)
+                      ? t("settings.phone")
+                      : t("settings.email")}
+                  </Label>
                   <Input
                     id="email"
-                    value={email}
+                    value={displayAccount(email)}
                     disabled
                     className="bg-muted/50"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {t("settings.emailHint")}
+                    {isPhoneEmail(email)
+                      ? t("settings.phoneHint")
+                      : t("settings.emailHint")}
                   </p>
                 </div>
 
