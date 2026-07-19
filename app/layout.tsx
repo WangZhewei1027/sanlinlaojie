@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { I18nProvider } from "@/components/i18n-provider";
+import {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_COOKIE,
+  resolveLanguage,
+} from "@/lib/i18n/settings";
 import { Navbar } from "@/components/navbar";
 import { WorkspaceProvider } from "@/app/manage/components/WorkspaceProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -32,13 +38,21 @@ export const viewport = {
   viewportFit: "cover" as const,
 };
 
+// cacheComponents 模式下 cookies() 只能在 Suspense 边界内访问,
+// 所以语言解析放在这个异步子组件里,而不是布局顶层
+async function I18nFromCookie({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const lang = resolveLanguage(cookieStore.get(LANGUAGE_COOKIE)?.value);
+  return <I18nProvider lang={lang}>{children}</I18nProvider>;
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={DEFAULT_LANGUAGE} suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         {/* <ThemeProvider
           attribute="class"
@@ -46,14 +60,14 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         > */}
-        <I18nProvider>
-          <Suspense fallback={null}>
+        <Suspense fallback={null}>
+          <I18nFromCookie>
             <WorkspaceProvider>
               <Navbar />
               {children}
             </WorkspaceProvider>
-          </Suspense>
-        </I18nProvider>
+          </I18nFromCookie>
+        </Suspense>
         <Toaster />
         <ErrorReporter />
         {/* </ThemeProvider> */}
