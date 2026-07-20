@@ -119,34 +119,30 @@
   "home": {
     "hero": {
       "title": "Mixed Reality & Cultural Heritage",
-      "subtitle": "IMA, DHL, NYU Shanghai"
+      "subtitle": "IMA, DHL, NYU Shanghai",
+      "description": "An AR cultural-heritage platform for Sanlin Old Street — onsite capture, map-based asset management, and mixed-reality experiences."
     },
     "quickLinks": {
-      "title": "Quick Links",
       "onsite": {
-        "title": "Onsite Upload",
-        "description": "GPS-based onsite collection"
+        "title": "Onsite Upload"
       },
       "manage": {
-        "title": "Asset Management",
-        "description": "Manage and edit collected assets"
+        "title": "Asset Management"
       },
       "admin": {
-        "title": "Admin Panel",
-        "description": "Organization and workspace management"
+        "title": "Admin Panel"
       },
       "superAdmin": {
-        "title": "Super Admin",
-        "description": "User management & global role assignment (super admin only)"
-      },
-      "instructions": {
-        "description": "View platform instructions",
-        "en": "English Guide",
-        "zh": "Chinese Guide"
+        "title": "Super Admin"
       }
     },
     "footer": {
       "copyright": "Sanlin Old Street Digital Platform. All rights reserved."
+    },
+    "cta": {
+      "signIn": "Sign in",
+      "instructions": "User Guide",
+      "enter": "Enter Workspace"
     }
   },
   "organization": {

@@ -65,22 +65,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 2️⃣ 登录用户访问 admin 路由，检查角色
-  // if (user && pathname.startsWith("/admin")) {
-  //   const { data: userData } = await supabase
-  //     .from("users")
-  //     .select("role")
-  //     .eq("user_id", user?.sub)
-  //     .single();
-
-  //   if (userData?.role !== "admin") {
-  //     // 非 admin 用户重定向到 403 页面
-  //     const url = request.nextUrl.clone();
-  //     url.pathname = "/403";
-  //     return NextResponse.redirect(url);
-  //   }
-  // }
-
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:

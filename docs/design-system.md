@@ -36,7 +36,7 @@
 ### 4. 强制层 —— 现状与缺口
 
 - 已有：`npm run build`（TS strict）+ code review + 本文档/CLAUDE.md 对 AI 生效。
-- **lint（warn 级，不阻塞 build）**：`eslint.config.mjs` 内置四条设计规范检查——禁任意值字号 `text-[..px]`、禁刻度外字号（text-xl/4xl/5xl…）、禁 Text 的 className 携带文字类、禁绕过 `components/ui` 直接 import `@radix-ui/*`。warn 是有意选择：提示违规但由 review 决定是否放行（豁免场景如首页 display、post-message-test 会命中）。
+- **lint（warn 级，不阻塞 build）**：`eslint.config.mjs` 内置四条设计规范检查——禁任意值字号 `text-[..px]`、禁刻度外字号（text-xl/4xl/5xl…）、禁 Text 的 className 携带文字类、禁绕过 `components/ui` 直接 import `@radix-ui/*`。warn 是有意选择：提示违规但由 review 决定是否放行（豁免场景如落地页 display 会命中）。
 - **尚未落地**（见路线图）：fontSize 词汇表收窄（theme 层面让刻度外的类不存在）。
 
 ## 二、文字体系（全站最重要的一章）

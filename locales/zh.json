@@ -119,34 +119,30 @@
   "home": {
     "hero": {
       "title": "Mixed Reality & Cultural Heritage",
-      "subtitle": "IMA, DHL, 上海纽约大学"
+      "subtitle": "IMA, DHL, 上海纽约大学",
+      "description": "面向三林老街的 AR 文化遗产数字化平台——现场采集、地图化资产管理与混合现实体验。"
     },
     "quickLinks": {
-      "title": "快速入口",
       "onsite": {
-        "title": "现场上传",
-        "description": "基于 GPS 定位的现场采集"
+        "title": "现场上传"
       },
       "manage": {
-        "title": "资源管理",
-        "description": "管理和编辑已采集的资源"
+        "title": "资源管理"
       },
       "admin": {
-        "title": "管理后台",
-        "description": "组织和工作区管理"
+        "title": "管理后台"
       },
       "superAdmin": {
-        "title": "超级管理员",
-        "description": "用户管理、全局角色分配（仅超级管理员）"
-      },
-      "instructions": {
-        "description": "查看平台使用说明",
-        "en": "英文指南",
-        "zh": "中文指南"
+        "title": "超级管理员"
       }
     },
     "footer": {
       "copyright": "三林老街数字化平台. All rights reserved."
+    },
+    "cta": {
+      "signIn": "登录平台",
+      "instructions": "使用指南",
+      "enter": "进入工作台"
     }
   },
   "organization": {

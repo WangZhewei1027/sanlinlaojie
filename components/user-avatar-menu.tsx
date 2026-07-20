@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { hasEnvVars } from "@/lib/utils";
 import { EnvVarWarning } from "@/components/env-var-warning";
+import { useModuleLinks } from "@/components/use-module-links";
 import { displayAccount } from "@/lib/phone-email";
 
 function getInitials(email: string): string {
@@ -84,6 +85,7 @@ export function UserAvatarMenu() {
   const supabase = createClient();
   const router = useRouter();
   const reset = useManageStore((state) => state.reset);
+  const moduleLinks = useModuleLinks(!!user);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
@@ -163,6 +165,24 @@ export function UserAvatarMenu() {
           </p>
         </div>
         <DropdownMenuSeparator className="my-0" />
+        {/* Module entries, gated by permission matrix */}
+        {moduleLinks.length > 0 && (
+          <>
+            <div className="p-1.5">
+              {moduleLinks.map(({ href, label, Icon }) => (
+                <DropdownMenuItem
+                  key={href}
+                  onClick={() => router.push(href)}
+                  className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 text-[15px] [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
+                >
+                  <Icon />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </div>
+            <DropdownMenuSeparator className="my-0" />
+          </>
+        )}
         {/* Actions */}
         <div className="p-1.5">
           <DropdownMenuItem

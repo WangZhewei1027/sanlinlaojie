@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { createClient } from "@/lib/supabase/client";
 import { useManageStore } from "@/app/manage/store";
+import { useModuleLinks } from "@/components/use-module-links";
 import { hasEnvVars } from "@/lib/utils";
 import { displayAccount } from "@/lib/phone-email";
 
@@ -40,6 +41,7 @@ export function NavbarSidebar() {
   const supabase = createClient();
   const router = useRouter();
   const reset = useManageStore((state) => state.reset);
+  const moduleLinks = useModuleLinks(!!user);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
@@ -108,6 +110,23 @@ export function NavbarSidebar() {
                   </p>
                 </div>
               </div>
+              {/* Module entries, gated by permission matrix */}
+              {moduleLinks.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {moduleLinks.map(({ href, label, Icon }) => (
+                    <DrawerClose asChild key={href}>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start gap-2"
+                        onClick={() => router.push(href)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </Button>
+                    </DrawerClose>
+                  ))}
+                </div>
+              )}
               {/* Actions */}
               <div className="flex flex-col gap-2">
                 <DrawerClose asChild>
