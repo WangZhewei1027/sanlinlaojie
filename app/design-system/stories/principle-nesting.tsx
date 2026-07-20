@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TypographyP } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import {
   PrincipleCompare,
   PrincipleExample,
@@ -67,7 +67,7 @@ export function NestingPrincipleStory() {
         <ul className="list-disc space-y-2 pl-5">
           {OVERLAY_RULES.map((rule) => (
             <li key={rule}>
-              <TypographyP>{rule}</TypographyP>
+              <Text as="p" variant="bodyMd">{rule}</Text>
             </li>
           ))}
         </ul>

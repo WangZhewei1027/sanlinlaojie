@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 export default {
   darkMode: ["class"],
@@ -10,6 +11,18 @@ export default {
   ],
   theme: {
     extend: {
+      // Geist 只有拉丁字形，中文必须显式声明系统字体链，
+      // 否则 Windows 浏览器默认落到衬线宋体（SimSun）
+      fontFamily: {
+        sans: [
+          "var(--font-geist-sans)",
+          '"PingFang SC"',
+          '"Hiragino Sans GB"',
+          '"Microsoft YaHei"',
+          '"Noto Sans SC"',
+          ...defaultTheme.fontFamily.sans,
+        ],
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

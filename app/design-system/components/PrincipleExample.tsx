@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { TypographyH3, TypographySmall } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 
 // 原则页的分节：无外层边框，仅标题 + 内容
 export function PrincipleSection({
@@ -11,7 +11,7 @@ export function PrincipleSection({
 }) {
   return (
     <section className="space-y-4">
-      <TypographyH3>{title}</TypographyH3>
+      <Text as="h3" variant="headingMd">{title}</Text>
       {children}
     </section>
   );
@@ -34,16 +34,16 @@ export function PrincipleExample({
   const isDo = verdict === "do";
   return (
     <div className="flex flex-col gap-2">
-      <TypographySmall
+      <Text as="small" variant="bodySm" tone="subdued"
         className={cn(
           "font-medium",
           isDo ? "text-foreground" : "text-destructive",
         )}
       >
         {isDo ? "✓ 推荐" : "✕ 避免"}
-      </TypographySmall>
+      </Text>
       <div className="flex-1 rounded-lg border p-4">{children}</div>
-      <TypographySmall>{note}</TypographySmall>
+      <Text as="small" variant="bodySm" tone="subdued">{note}</Text>
     </div>
   );
 }

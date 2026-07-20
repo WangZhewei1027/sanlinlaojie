@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { TypographyP } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import {
   PrincipleCompare,
   PrincipleExample,
@@ -41,7 +41,7 @@ export function ColorPrincipleStory() {
         <ul className="list-disc space-y-2 pl-5">
           {TOKEN_RULES.map((rule) => (
             <li key={rule}>
-              <TypographyP>{rule}</TypographyP>
+              <Text as="p" variant="bodyMd">{rule}</Text>
             </li>
           ))}
         </ul>

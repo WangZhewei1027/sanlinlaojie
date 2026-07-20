@@ -1,4 +1,4 @@
-import { TypographySmall } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import { StorySection } from "../components/StorySection";
 
 function Swatch({
@@ -13,10 +13,10 @@ function Swatch({
   return (
     <div className="w-36">
       <div className={`h-16 rounded-md border ${className}`} />
-      <TypographySmall className="mt-1.5 block font-medium text-foreground">
+      <Text as="small" variant="bodySm" tone="subdued" className="mt-1.5 block font-medium text-foreground">
         {name}
-      </TypographySmall>
-      <TypographySmall className="block">{variable}</TypographySmall>
+      </Text>
+      <Text as="small" variant="bodySm" tone="subdued" className="block">{variable}</Text>
     </div>
   );
 }

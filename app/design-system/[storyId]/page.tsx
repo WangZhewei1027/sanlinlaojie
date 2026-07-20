@@ -1,8 +1,5 @@
 import { notFound } from "next/navigation";
-import {
-  TypographyH1,
-  TypographySmall,
-} from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import { stories } from "../stories";
 
 export function generateStaticParams() {
@@ -23,10 +20,10 @@ export default async function StoryPage({
   return (
     <>
       <div className="space-y-1">
-        <TypographyH1>{story.name}</TypographyH1>
-        <TypographySmall className="block">
+        <Text as="h1" variant="headingXl">{story.name}</Text>
+        <Text as="small" variant="bodySm" tone="subdued" className="block">
           {story.path ?? `components/ui/${story.id}.tsx`}
-        </TypographySmall>
+        </Text>
       </div>
       <ActiveStory />
     </>
