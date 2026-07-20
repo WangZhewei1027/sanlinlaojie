@@ -9,6 +9,7 @@ import { OrgDetailPanel } from "./components/OrgDetailPanel";
 import { CreateOrgDialog } from "./components/CreateOrgDialog";
 import { useOrganizations } from "./hooks/useOrganizations";
 import type { OrgData } from "./types";
+import { Text } from "@/components/ui/typography";
 
 export default function OrganizationsPage() {
   const { t } = useTranslation();
@@ -51,9 +52,9 @@ export default function OrganizationsPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <Building2 className="h-7 w-7" />
-              <h1 className="text-2xl font-bold">
+              <Text as="h1" variant="headingLg" fontWeight="bold">
                 {t("superAdmin.orgs.title", "Organization Management")}
-              </h1>
+              </Text>
             </div>
             <p className="text-muted-foreground">
               {t(

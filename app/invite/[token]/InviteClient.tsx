@@ -79,7 +79,7 @@ export function InviteClient({ token }: { token: string }) {
     <div className="flex min-h-[70vh] items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-xl">组织邀请</CardTitle>
+          <CardTitle className="text-lg">组织邀请</CardTitle>
           <CardDescription>
             {phase === "loading" && "正在加载邀请…"}
             {phase === "invalid" &&

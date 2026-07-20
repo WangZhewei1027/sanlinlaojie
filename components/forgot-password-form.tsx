@@ -225,7 +225,7 @@ export function ForgotPasswordForm({
                     className="text-center text-lg tracking-widest"
                   />
                 </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
+                {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
                     ? t("common.loading")
@@ -298,7 +298,7 @@ export function ForgotPasswordForm({
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
+                {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? t("common.loading") : t("auth.resetPassword")}
                 </Button>
@@ -333,7 +333,7 @@ export function ForgotPasswordForm({
                   onChange={(e) => setAccount(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading
                   ? t("common.loading")

@@ -37,6 +37,7 @@ import { fetchJson } from "@/lib/fetch-json";
 import { displayAccount } from "@/lib/phone-email";
 import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
 import { InviteLinkDialog } from "./components/InviteLinkDialog";
+import { Text } from "@/components/ui/typography";
 
 interface User {
   user_id: string;
@@ -256,9 +257,9 @@ export default function MembersPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Users className="h-7 w-7" />
-          <h1 className="text-2xl font-bold">
+          <Text as="h1" variant="headingLg" fontWeight="bold">
             {t("admin.members.title", "Members")}
-          </h1>
+          </Text>
           <Badge variant="secondary">{members.length}</Badge>
         </div>
         <p className="text-muted-foreground">

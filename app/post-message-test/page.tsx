@@ -149,7 +149,7 @@ export default function PostMessageTest() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 消息历史 */}
           <div className="bg-white rounded-lg shadow-xl p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-700">
+            <h2 className="text-lg font-bold mb-4 text-gray-700">
               📬 消息历史
             </h2>
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -180,7 +180,7 @@ export default function PostMessageTest() {
           {/* Iframe */}
           <div className="bg-white rounded-lg shadow-xl p-4">
             <div className="mb-2">
-              <h2 className="text-xl font-bold text-gray-700">
+              <h2 className="text-lg font-bold text-gray-700">
                 📱 Iframe 窗口
               </h2>
               <p className="text-sm text-gray-500">HTML 页面嵌入在这里</p>

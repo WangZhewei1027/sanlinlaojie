@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
 import { Suspense } from "react";
+import { Text } from "@/components/ui/typography";
 
 async function UserDetails() {
   const supabase = await createClient();
@@ -27,7 +28,7 @@ export default function ProtectedPage() {
         </div>
       </div>
       <div className="flex flex-col gap-2 items-start">
-        <h2 className="font-bold text-2xl mb-4">Your user details</h2>
+        <Text as="h2" variant="headingLg" fontWeight="bold" className="mb-4">Your user details</Text>
         <pre className="text-xs font-mono p-3 rounded border max-h-32 overflow-auto">
           <Suspense>
             <UserDetails />
@@ -35,7 +36,7 @@ export default function ProtectedPage() {
         </pre>
       </div>
       <div>
-        <h2 className="font-bold text-2xl mb-4">Next steps</h2>
+        <Text as="h2" variant="headingLg" fontWeight="bold" className="mb-4">Next steps</Text>
         <FetchDataSteps />
       </div>
     </div>

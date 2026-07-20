@@ -107,7 +107,7 @@ export function LoginForm({
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isRedirecting
                   ? t("auth.redirecting")

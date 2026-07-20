@@ -14,7 +14,7 @@ export type TextVariant =
   | "bodySm" //   14px 辅助信息
   | "bodyXs"; //  12px 组件级微文本
 
-export type TextTone = "default" | "subdued" | "critical";
+export type TextTone = "default" | "subdued" | "critical" | "success" | "warning";
 
 export type TextFontWeight = "regular" | "medium" | "semibold" | "bold";
 
@@ -47,6 +47,8 @@ const TONE_CLASSES: Record<TextTone, string> = {
   default: "text-foreground",
   subdued: "text-muted-foreground",
   critical: "text-destructive",
+  success: "text-success",
+  warning: "text-warning",
 };
 
 const FONT_WEIGHT_CLASSES: Record<TextFontWeight, string> = {
@@ -57,9 +59,9 @@ const FONT_WEIGHT_CLASSES: Record<TextFontWeight, string> = {
 };
 
 const ALIGNMENT_CLASSES: Record<TextAlignment, string> = {
-  start: "text-left",
+  start: "text-start",
   center: "text-center",
-  end: "text-right",
+  end: "text-end",
 };
 
 export interface TextProps extends React.HTMLAttributes<HTMLElement> {
@@ -72,10 +74,12 @@ export interface TextProps extends React.HTMLAttributes<HTMLElement> {
   breakWord?: boolean;
 }
 
+// tone 缺省时不输出颜色类（继承父级），因此 Text 可安全用于有色表面
+// （primary 按钮、彩色横幅）；需要明确前景色时显式传 tone="default"。
 export function Text({
   as: Component,
   variant = "bodyMd",
-  tone = "default",
+  tone,
   fontWeight,
   alignment,
   truncate = false,
@@ -87,7 +91,7 @@ export function Text({
     <Component
       className={cn(
         VARIANT_CLASSES[variant],
-        TONE_CLASSES[tone],
+        tone && TONE_CLASSES[tone],
         fontWeight && FONT_WEIGHT_CLASSES[fontWeight],
         alignment && ALIGNMENT_CLASSES[alignment],
         truncate && "truncate",

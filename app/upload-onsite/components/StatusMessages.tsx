@@ -19,7 +19,7 @@ export function StatusMessages({ error, success }: StatusMessagesProps) {
           <span className="leading-snug">{error}</span>
         </div>
       ) : (
-        <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-success px-4 py-3 text-sm font-medium text-success-foreground shadow-lg">
           <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
           <span>{t("onsite.uploadSuccess")}</span>
         </div>

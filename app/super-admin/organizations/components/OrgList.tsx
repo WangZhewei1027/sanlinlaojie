@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Calendar, Users, Crown } from "lucide-react";
 import type { OrgData } from "../types";
+import { Text } from "@/components/ui/typography";
 
 interface OrgListProps {
   organizations: OrgData[];
@@ -25,9 +26,9 @@ export function OrgList({
       <Card className="p-12">
         <div className="flex flex-col items-center justify-center text-center">
           <Building2 className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold mb-2">
+          <Text as="h3" variant="headingMd" className="mb-2">
             {t("superAdmin.orgs.noOrgs", "No organizations")}
-          </h3>
+          </Text>
         </div>
       </Card>
     );
@@ -51,9 +52,9 @@ export function OrgList({
           >
             <div className="flex items-start gap-3 mb-3">
               <Building2 className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <h3 className="font-semibold text-sm leading-tight line-clamp-2">
+              <Text as="h3" variant="bodySm" fontWeight="semibold" className="line-clamp-2">
                 {org.name}
-              </h3>
+              </Text>
             </div>
 
             {org.description && (

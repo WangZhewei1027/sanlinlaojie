@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal, UserCog, User, Layers, Trash2 } from "lucide-react";
 import type { UserData } from "../types";
 import { displayAccount } from "@/lib/phone-email";
+import { Text } from "@/components/ui/typography";
 
 interface UserListProps {
   users: UserData[];
@@ -58,9 +59,9 @@ export function UserList({
     return (
       <div className="flex flex-col items-center justify-center text-center rounded-lg border border-dashed py-16">
         <User className="h-10 w-10 text-muted-foreground/40 mb-3" />
-        <h3 className="text-sm font-medium">
+        <Text as="h3" variant="bodySm" fontWeight="medium">
           {t("admin.users.noUsers", "暂无用户")}
-        </h3>
+        </Text>
         <p className="text-xs text-muted-foreground mt-1">
           {t("admin.users.noUsersHint", "等待用户注册")}
         </p>

@@ -6,6 +6,7 @@ import { ChevronRight, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ErrorLogRow } from "../types";
+import { Text } from "@/components/ui/typography";
 
 interface Props {
   rows: ErrorLogRow[];
@@ -21,7 +22,7 @@ function statusVariant(status: number | null): {
   if (status >= 400)
     return {
       variant: "outline",
-      className: "border-amber-500/50 text-amber-600 dark:text-amber-500",
+      className: "border-warning/50 text-warning",
     };
   return { variant: "secondary" };
 }
@@ -158,9 +159,9 @@ export function ErrorLogTable({ rows }: Props) {
     return (
       <div className="flex flex-col items-center justify-center text-center rounded-lg border border-dashed py-16">
         <AlertCircle className="h-10 w-10 text-muted-foreground/40 mb-3" />
-        <h3 className="text-sm font-medium">
+        <Text as="h3" variant="bodySm" fontWeight="medium">
           {t("superAdmin.errorLogs.empty", "No error logs")}
-        </h3>
+        </Text>
         <p className="text-xs text-muted-foreground mt-1">
           {t("superAdmin.errorLogs.emptyHint", "No records match your filters")}
         </p>

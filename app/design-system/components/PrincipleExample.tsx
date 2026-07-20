@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils";
 import { Text } from "@/components/ui/typography";
 
 // 原则页的分节：无外层边框，仅标题 + 内容
@@ -34,11 +33,11 @@ export function PrincipleExample({
   const isDo = verdict === "do";
   return (
     <div className="flex flex-col gap-2">
-      <Text as="small" variant="bodySm" tone="subdued"
-        className={cn(
-          "font-medium",
-          isDo ? "text-foreground" : "text-destructive",
-        )}
+      <Text
+        as="small"
+        variant="bodySm"
+        fontWeight="medium"
+        tone={isDo ? "default" : "critical"}
       >
         {isDo ? "✓ 推荐" : "✕ 避免"}
       </Text>

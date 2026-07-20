@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useManageStore } from "../store";
 import { useTranslation } from "react-i18next";
+import { Text } from "@/components/ui/typography";
 
 export function ClickedLocationCard() {
   const { t } = useTranslation();
@@ -14,9 +15,9 @@ export function ClickedLocationCard() {
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-          <h3 className="font-semibold text-sm">
+          <Text as="h3" variant="bodySm" fontWeight="semibold">
             {t("manage.clickedLocation.title")}
-          </h3>
+          </Text>
         </div>
         {clickedLocation ? (
           <div className="flex items-center gap-3 text-sm justify-between">

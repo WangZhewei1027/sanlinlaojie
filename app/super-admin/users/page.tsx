@@ -18,6 +18,7 @@ import { ChangeRoleDialog } from "./components/ChangeRoleDialog";
 import { DeleteUserDialog } from "./components/DeleteUserDialog";
 import { useUsers } from "./hooks/useUsers";
 import type { UserData } from "./types";
+import { Text } from "@/components/ui/typography";
 
 export default function UsersPage() {
   const { t } = useTranslation();
@@ -66,16 +67,16 @@ export default function UsersPage() {
         <div className="flex items-center gap-2.5">
           <UsersIcon className="h-6 w-6" />
           <div>
-            <h1 className="text-xl font-bold leading-tight">
+            <Text as="h1" variant="headingMd" fontWeight="bold">
               {t("admin.users.title")}
-            </h1>
+            </Text>
             <p className="text-sm text-muted-foreground">
               {t("admin.users.description")}
             </p>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-xl font-bold tabular-nums">{users.length}</span>
+          <span className="text-lg font-bold tabular-nums">{users.length}</span>
           <span className="ml-1.5 text-sm text-muted-foreground">
             {t("admin.users.totalUsers")}
           </span>

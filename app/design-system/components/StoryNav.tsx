@@ -18,7 +18,7 @@ export function StoryNav() {
       <nav className="flex-1 space-y-4 overflow-y-auto p-2">
         {storyGroups.map((group) => (
           <div key={group.title}>
-            <Text as="small" variant="bodySm" tone="subdued" className="block px-3 pb-1 pt-2 font-semibold">
+            <Text as="small" variant="bodySm" tone="subdued" fontWeight="semibold" className="block px-3 pb-1 pt-2">
               {group.title}
             </Text>
             <div className="space-y-0.5">

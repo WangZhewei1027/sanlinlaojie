@@ -24,8 +24,8 @@ function StatTile({
       <div
         className={cn(
           "mt-1 text-2xl font-bold tabular-nums",
-          tone === "warn" && "text-amber-600 dark:text-amber-500",
-          tone === "danger" && "text-red-600 dark:text-red-500",
+          tone === "warn" && "text-warning",
+          tone === "danger" && "text-destructive",
         )}
       >
         {value.toLocaleString()}

@@ -18,6 +18,7 @@ import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { WorkspaceFormDialog } from "@/app/admin/workspaces/components/WorkspaceFormDialog";
 import { DeleteWorkspaceDialog } from "@/app/admin/workspaces/components/DeleteWorkspaceDialog";
+import { Text } from "@/components/ui/typography";
 
 interface Workspace {
   id: string;
@@ -122,9 +123,9 @@ export default function WorkspacesPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <FolderKanban className="h-7 w-7" />
-              <h1 className="text-2xl font-bold">
+              <Text as="h1" variant="headingLg" fontWeight="bold">
                 {t("admin.sidebar.workspaces", "Workspaces")}
-              </h1>
+              </Text>
               <Badge variant="secondary">{workspaces.length}</Badge>
             </div>
             <p className="text-muted-foreground">
@@ -149,9 +150,9 @@ export default function WorkspacesPage() {
         <Card className="p-12">
           <div className="flex flex-col items-center justify-center text-center">
             <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
+            <Text as="h3" variant="headingMd" className="mb-2">
               {t("admin.workspace.noWorkspaces", "No workspaces")}
-            </h3>
+            </Text>
             <p className="text-sm text-muted-foreground">
               {t(
                 "admin.workspace.noWorkspacesHint",
@@ -169,9 +170,9 @@ export default function WorkspacesPage() {
             >
               <div className="flex flex-col h-full">
                 <div className="flex-1 min-w-0 mb-4">
-                  <h3 className="font-semibold text-lg mb-1 truncate">
+                  <Text as="h3" variant="headingMd" className="mb-1" truncate>
                     {workspace.name}
-                  </h3>
+                  </Text>
                   {workspace.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {workspace.description}
@@ -207,7 +208,7 @@ export default function WorkspacesPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(workspace)}
-                        className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         {t("common.delete", "Delete")}

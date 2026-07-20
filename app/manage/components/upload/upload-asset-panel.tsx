@@ -24,6 +24,7 @@ import { FileDropzone } from "./file-dropzone";
 import { useManageStore } from "../../store";
 import { isSpecificWorkspaceId } from "../../constants";
 import type { Asset } from "../../types";
+import { Text } from "@/components/ui/typography";
 
 interface UploadAssetPanelProps {
   onUpload?: () => void;
@@ -262,7 +263,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           <AccordionTrigger className="px-4 py-3 hover:no-underline">
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold text-sm">{t("upload.title")}</h3>
+              <Text as="h3" variant="bodySm" fontWeight="semibold">{t("upload.title")}</Text>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">

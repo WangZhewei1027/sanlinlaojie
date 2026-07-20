@@ -2,6 +2,7 @@ import { MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { Text } from "@/components/ui/typography";
 
 interface GPSPosition {
   latitude: number;
@@ -29,12 +30,12 @@ export function GPSStatusCard({
 
   const tone = {
     ready: {
-      ring: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
-      dot: "bg-emerald-500",
+      ring: "bg-success/15 text-success",
+      dot: "bg-success",
     },
     loading: {
-      ring: "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
-      dot: "bg-amber-500",
+      ring: "bg-warning/15 text-warning",
+      dot: "bg-warning",
     },
     error: {
       ring: "bg-destructive/10 text-destructive",
@@ -46,7 +47,7 @@ export function GPSStatusCard({
     <Card className="space-y-3 p-4">
       <div className="flex items-center gap-2">
         <MapPin className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">{t("onsite.gpsStatus")}</h2>
+        <Text as="h2" variant="bodySm" fontWeight="medium">{t("onsite.gpsStatus")}</Text>
       </div>
 
       <div className="flex items-center gap-3">

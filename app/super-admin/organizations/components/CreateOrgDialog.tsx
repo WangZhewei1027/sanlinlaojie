@@ -115,7 +115,7 @@ export function CreateOrgDialog({ onSuccess }: CreateOrgDialogProps) {
               />
             </div>
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
                 {error}
               </div>
             )}

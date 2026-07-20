@@ -11,6 +11,7 @@ import { AssetEditorActions } from "./AssetEditorActions";
 import { FieldSection } from "./FieldSection";
 import { useAssetEditor } from "./hooks/useAssetEditor";
 import { AssetEditorPreviewSection } from "./previews";
+import { Text } from "@/components/ui/typography";
 import {
   AssetEditorBasicsSection,
   AssetEditorPlacementSection,
@@ -91,9 +92,9 @@ export function AssetEditor({
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b bg-muted/20">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm truncate">
+            <Text as="h3" variant="bodySm" fontWeight="semibold" truncate>
               {t("assetEditor.title")}
-            </h3>
+            </Text>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
               {fileName}
             </p>

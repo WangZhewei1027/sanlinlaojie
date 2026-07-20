@@ -13,7 +13,7 @@ function Swatch({
   return (
     <div className="w-36">
       <div className={`h-16 rounded-md border ${className}`} />
-      <Text as="small" variant="bodySm" tone="subdued" className="mt-1.5 block font-medium text-foreground">
+      <Text as="small" variant="bodySm" tone="default" fontWeight="medium" className="mt-1.5 block">
         {name}
       </Text>
       <Text as="small" variant="bodySm" tone="subdued" className="block">{variable}</Text>
@@ -36,6 +36,8 @@ export function ColorsStory() {
         <Swatch className="bg-muted" name="muted" variable="--muted" />
         <Swatch className="bg-accent" name="accent" variable="--accent" />
         <Swatch className="bg-destructive" name="destructive" variable="--destructive" />
+        <Swatch className="bg-success" name="success" variable="--success" />
+        <Swatch className="bg-warning" name="warning" variable="--warning" />
       </StorySection>
       <StorySection title="Lines & Focus">
         <Swatch className="bg-border" name="border" variable="--border" />

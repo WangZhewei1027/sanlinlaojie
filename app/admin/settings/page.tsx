@@ -13,6 +13,7 @@ import type {
   OrgSettingsPayload,
   OrgSettingsSource,
 } from "@/components/org-settings/types";
+import { Text } from "@/components/ui/typography";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -119,9 +120,9 @@ export default function SettingsPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Settings className="h-7 w-7" />
-          <h1 className="text-2xl font-bold">
+          <Text as="h1" variant="headingLg" fontWeight="bold">
             {t("admin.settings.title", "Settings")}
-          </h1>
+          </Text>
         </div>
         <p className="text-muted-foreground">
           {t(
@@ -156,9 +157,9 @@ export default function SettingsPage() {
       {/* Danger zone */}
       {canDeleteOrg && (
         <div className="border border-destructive/30 rounded-lg p-6 mt-6 space-y-4">
-          <h2 className="text-lg font-semibold text-destructive">
+          <Text as="h2" variant="headingMd" tone="critical">
             {t("admin.settings.dangerZone", "Danger Zone")}
-          </h2>
+          </Text>
           <p className="text-sm text-muted-foreground">
             {t(
               "admin.settings.deleteWarning",

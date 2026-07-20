@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FileTypesSection } from "@/components/org-settings/FileTypesSection";
 import { fetchJson } from "@/lib/fetch-json";
 import { DEFAULT_UPLOAD_TYPES } from "@/lib/upload/types";
+import { Text } from "@/components/ui/typography";
 
 // super-admin 系统设置：目前只有"新组织默认文件类型"。
 // 该集合在建组织时写入 organization.allowed_file_types（注册触发器 + 建组织 API），
@@ -81,9 +82,9 @@ export default function SuperAdminSettingsPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Settings className="h-7 w-7" />
-          <h1 className="text-2xl font-bold">
+          <Text as="h1" variant="headingLg" fontWeight="bold">
             {t("superAdmin.settings.title", "系统设置")}
-          </h1>
+          </Text>
         </div>
         <p className="text-muted-foreground">
           {t("superAdmin.settings.description", "全局默认配置")}
@@ -92,9 +93,9 @@ export default function SuperAdminSettingsPage() {
 
       <div className="border rounded-lg p-6 space-y-5">
         <div>
-          <h2 className="text-base font-semibold">
+          <Text as="h2" variant="bodyMd" fontWeight="semibold">
             {t("superAdmin.settings.defaultFileTypes", "新组织默认文件类型")}
-          </h2>
+          </Text>
           <p className="text-sm text-muted-foreground mt-1">
             {t(
               "superAdmin.settings.defaultFileTypesDesc",

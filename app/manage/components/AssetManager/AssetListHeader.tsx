@@ -11,6 +11,7 @@ import type { Tag, Creator } from "../../types";
 import { TagFilter } from "./TagFilter";
 import { UserFilter } from "./UserFilter";
 import { FileTypeFilter } from "./FileTypeFilter";
+import { Text } from "@/components/ui/typography";
 
 interface AssetListHeaderProps {
   totalCount: number;
@@ -127,7 +128,7 @@ export function AssetListHeader({
       {/* Row 1: title + count + actions */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="font-semibold text-lg">{t("assetManager.title")}</h3>
+          <Text as="h3" variant="headingMd">{t("assetManager.title")}</Text>
           <p className="text-sm text-muted-foreground mt-0.5">
             {hasFilters
               ? t("assetManager.showing", {

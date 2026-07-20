@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextResponse, connection } from "next/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 // GET all organizations with members (super_admin only)
 export async function GET() {
+  // 会话依赖 cookies()，必须请求时渲染。connection() 要放在 try 之外：
+  // build 预渲染的退出信号若被 catch 截获，会误写一条 500 错误日志
+  await connection();
   try {
     const supabase = await createClient();
 

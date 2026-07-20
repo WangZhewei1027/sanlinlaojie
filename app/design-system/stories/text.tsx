@@ -26,7 +26,8 @@ const SCALE_DEMO_ELEMENT: Record<TextVariant, "h1" | "h2" | "h3" | "p"> = {
 const API_RULES = [
   "文档流内容（标题、成段正文、长说明）必须用 <Text>；as 必填，语义标签与外观解耦。",
   "组件内嵌文字（按钮、badge、输入框、菜单项）用 components/ui 组件自带的样式，不手写字号。",
-  "零散 UI 辅助文字允许直接写 utility，但只准用刻度内字号 + 语义色 token；text-[..px] 任意值一律禁止。",
+  "零散 UI 辅助文字允许直接写 utility，但只准用刻度内字号 + 语义色 token；text-[..px] 任意值一律禁止（刻度外的类已从 theme 移除，写了不生效）。",
+  "营销页（首页/hero）可用 text-display(36px) / text-display-lg(48px) 展示大字；console 路由禁用。",
   "辅助色用 tone=\"subdued\"、错误用 tone=\"critical\"，不直接写 text-muted-foreground / text-destructive。",
 ];
 
@@ -94,6 +95,8 @@ export function TextStory() {
           <Text as="p" variant="bodyMd">tone=&quot;default&quot; — 正文默认颜色</Text>
           <Text as="p" variant="bodyMd" tone="subdued">tone=&quot;subdued&quot; — 辅助信息、次要说明</Text>
           <Text as="p" variant="bodyMd" tone="critical">tone=&quot;critical&quot; — 错误与不可逆警告</Text>
+          <Text as="p" variant="bodyMd" tone="success">tone=&quot;success&quot; — 成功、已完成状态</Text>
+          <Text as="p" variant="bodyMd" tone="warning">tone=&quot;warning&quot; — 警示、需注意状态</Text>
           <Text as="p" variant="bodyMd" fontWeight="semibold">fontWeight=&quot;semibold&quot; — 覆盖 variant 默认字重</Text>
           <Text as="p" variant="bodyMd" truncate className="max-w-64">
             truncate — 超出容器宽度时截断并显示省略号，截断必须显式，禁止静默溢出。

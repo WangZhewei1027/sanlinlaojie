@@ -17,6 +17,7 @@ import { useGPS } from "./hooks/useGPS";
 import { useManageStore } from "../manage/store";
 import { isSpecificWorkspaceId } from "../manage/constants";
 import { isSuperAdmin } from "@/lib/permissions";
+import { Text } from "@/components/ui/typography";
 
 type UploadMode = "camera" | "text" | "audio";
 
@@ -229,9 +230,9 @@ export default function UploadOnsitePage() {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          <Text as="h1" variant="headingLg" fontWeight="bold" className="sm:text-3xl">
             {t("onsite.title")}
-          </h1>
+          </Text>
           <p className="text-sm text-muted-foreground">
             {t("onsite.subtitle")}
           </p>

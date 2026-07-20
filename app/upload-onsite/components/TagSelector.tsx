@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, X, Loader2, Tag } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
+import { Text } from "@/components/ui/typography";
 
 interface TagData {
   id: string;
@@ -185,10 +186,10 @@ export function TagSelector({
       {/* 标签选择器 */}
       <Card className="space-y-3 p-4">
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-medium">
+          <Text as="h2" variant="bodySm" fontWeight="medium" className="flex items-center gap-2">
             <Tag className="h-4 w-4 text-muted-foreground" />
             {t("onsite.tags.title")}
-          </h2>
+          </Text>
           {workspaceId && (
             <Button
               size="sm"

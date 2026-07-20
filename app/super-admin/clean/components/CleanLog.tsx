@@ -55,7 +55,7 @@ export function CleanLog({ result }: CleanLogProps) {
                         {row.id.slice(0, 8)}
                       </Badge>
                       {result.deletedRows.includes(row.id) ? (
-                        <Badge className="bg-green-600">已删除</Badge>
+                        <Badge className="bg-success text-success-foreground">已删除</Badge>
                       ) : (
                         <Badge variant="destructive">删除失败</Badge>
                       )}
@@ -96,7 +96,7 @@ export function CleanLog({ result }: CleanLogProps) {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium">{file.name}</span>
                       {result.deletedFiles.includes(file.path) ? (
-                        <Badge className="bg-green-600">已删除</Badge>
+                        <Badge className="bg-success text-success-foreground">已删除</Badge>
                       ) : (
                         <Badge variant="destructive">删除失败</Badge>
                       )}
@@ -114,9 +114,9 @@ export function CleanLog({ result }: CleanLogProps) {
 
       {/* 成功删除汇总 */}
       {(result.deletedRows.length > 0 || result.deletedFiles.length > 0) && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-success/30 bg-success/10">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-700">
+            <CardTitle className="flex items-center gap-2 text-success">
               <CheckCircle2 className="w-5 h-5" />
               清理完成
             </CardTitle>
@@ -124,12 +124,12 @@ export function CleanLog({ result }: CleanLogProps) {
           <CardContent>
             <div className="space-y-2 text-sm">
               {result.deletedRows.length > 0 && (
-                <p className="text-green-700">
+                <p className="text-success">
                   ✓ 已删除 {result.deletedRows.length} 条数据库记录
                 </p>
               )}
               {result.deletedFiles.length > 0 && (
-                <p className="text-green-700">
+                <p className="text-success">
                   ✓ 已删除 {result.deletedFiles.length} 个存储文件
                 </p>
               )}
@@ -140,9 +140,9 @@ export function CleanLog({ result }: CleanLogProps) {
 
       {/* 错误信息 */}
       {result.errors.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-destructive/30 bg-destructive/10">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
+            <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="w-5 h-5" />
               错误记录 ({result.errors.length})
             </CardTitle>
@@ -152,7 +152,7 @@ export function CleanLog({ result }: CleanLogProps) {
               {result.errors.map((error, index) => (
                 <div
                   key={index}
-                  className="p-2 bg-white border border-red-200 rounded text-sm text-red-700"
+                  className="p-2 bg-background border border-destructive/30 rounded text-sm text-destructive"
                 >
                   {error}
                 </div>
@@ -166,11 +166,11 @@ export function CleanLog({ result }: CleanLogProps) {
       {result.orphanedRows.length === 0 &&
         result.orphanedFiles.length === 0 &&
         result.errors.length === 0 && (
-          <Card className="border-green-200 bg-green-50">
+          <Card className="border-success/30 bg-success/10">
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <CheckCircle2 className="w-12 h-12 text-green-600 mb-4" />
-              <p className="text-green-700 font-medium">未发现需要清理的资源</p>
-              <p className="text-sm text-green-600 mt-2">
+              <CheckCircle2 className="w-12 h-12 text-success mb-4" />
+              <p className="text-success font-medium">未发现需要清理的资源</p>
+              <p className="text-sm text-success mt-2">
                 数据库和存储桶状态良好
               </p>
             </CardContent>

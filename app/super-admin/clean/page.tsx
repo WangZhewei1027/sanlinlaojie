@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { fetchJson } from "@/lib/fetch-json";
 import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { CleanLog } from "./components/CleanLog";
+import { Text } from "@/components/ui/typography";
 
 type CleanAction = "clean-rows" | "clean-files" | "both";
 
@@ -201,7 +202,7 @@ export default function CleanPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Trash2 className="h-7 w-7" />
-          <h1 className="text-2xl font-bold">{t("admin.clean.title")}</h1>
+          <Text as="h1" variant="headingLg" fontWeight="bold">{t("admin.clean.title")}</Text>
         </div>
         <p className="text-muted-foreground">{t("admin.clean.description")}</p>
       </div>
@@ -302,10 +303,10 @@ export default function CleanPage() {
               </div>
 
               {/* 说明 */}
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg">
                 <div className="flex gap-2">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-amber-900">
+                  <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-warning">
                     <p className="font-medium mb-1">注意事项：</p>
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>清理操作不可逆，请谨慎操作</li>
@@ -345,7 +346,7 @@ export default function CleanPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-bold text-success">
                       {summary.rowsDeleted}
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -353,7 +354,7 @@ export default function CleanPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-bold text-success">
                       {summary.filesDeleted}
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -361,7 +362,7 @@ export default function CleanPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-2xl font-bold text-destructive">
                       {summary.errorsCount}
                     </div>
                     <div className="text-sm text-muted-foreground">错误</div>

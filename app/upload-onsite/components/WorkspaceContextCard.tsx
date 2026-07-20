@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { cn } from "@/lib/utils";
+import { Text } from "@/components/ui/typography";
 
 interface WorkspaceContextCardProps {
   /** Normalized workspace id (null when none or "All workspaces" selected) */
@@ -23,14 +24,14 @@ export function WorkspaceContextCard({
       className={cn(
         "space-y-3 p-4",
         needsSelection &&
-          "border-amber-500/60 bg-amber-50 dark:bg-amber-950/30",
+          "border-warning/60 bg-warning/10",
       )}
     >
       <div className="flex items-center gap-2">
         <Layers className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">
+        <Text as="h2" variant="bodySm" fontWeight="medium">
           {t("onsite.uploadingTo", "Uploading to")}
-        </h2>
+        </Text>
       </div>
 
       <div className="flex min-w-0 items-center gap-1">
@@ -40,7 +41,7 @@ export function WorkspaceContextCard({
       </div>
 
       {needsSelection && (
-        <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 text-sm text-warning">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>
             {t(

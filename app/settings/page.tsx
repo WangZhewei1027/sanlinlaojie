@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { displayAccount, isPhoneEmail } from "@/lib/phone-email";
+import { Text } from "@/components/ui/typography";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -102,9 +103,9 @@ export default function SettingsPage() {
     <main className="flex-1 w-full flex justify-center px-4 py-10">
       <div className="w-full max-w-xl flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <Text as="h1" variant="headingLg">
             {t("settings.title")}
-          </h1>
+          </Text>
           <p className="text-sm text-muted-foreground mt-1">
             {t("settings.subtitle")}
           </p>
@@ -173,7 +174,7 @@ export default function SettingsPage() {
                     {t("common.save")}
                   </Button>
                   {saved && (
-                    <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-500">
+                    <span className="flex items-center gap-1.5 text-sm text-success">
                       <Check className="h-4 w-4" />
                       {t("settings.saved")}
                     </span>

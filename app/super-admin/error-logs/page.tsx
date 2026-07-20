@@ -7,6 +7,7 @@ import { ErrorLogFiltersBar } from "./components/ErrorLogFilters";
 import { ErrorLogStatsPanel } from "./components/ErrorLogStats";
 import { ErrorLogTable } from "./components/ErrorLogTable";
 import { useErrorLogs } from "./hooks/useErrorLogs";
+import { Text } from "@/components/ui/typography";
 
 export default function ErrorLogsPage() {
   const { t } = useTranslation();
@@ -33,9 +34,9 @@ export default function ErrorLogsPage() {
       <div className="flex items-center gap-2.5 mb-5">
         <AlertTriangle className="h-6 w-6" />
         <div>
-          <h1 className="text-xl font-bold leading-tight">
+          <Text as="h1" variant="headingMd" fontWeight="bold">
             {t("superAdmin.errorLogs.title", "Error Logs")}
-          </h1>
+          </Text>
           <p className="text-sm text-muted-foreground">
             {t(
               "superAdmin.errorLogs.description",
@@ -55,9 +56,9 @@ export default function ErrorLogsPage() {
       {error ? (
         <div className="flex flex-col items-center justify-center text-center rounded-lg border border-dashed py-16">
           <AlertTriangle className="h-10 w-10 text-muted-foreground/40 mb-3" />
-          <h3 className="text-sm font-medium">
+          <Text as="h3" variant="bodySm" fontWeight="medium">
             {t("superAdmin.errorLogs.loadError", "Failed to load error logs")}
-          </h3>
+          </Text>
           <Button
             variant="outline"
             size="sm"

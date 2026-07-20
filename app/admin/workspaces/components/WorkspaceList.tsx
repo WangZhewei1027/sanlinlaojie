@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, FolderOpen, Calendar } from "lucide-react";
+import { Text } from "@/components/ui/typography";
 
 interface Workspace {
   id: string;
@@ -28,7 +29,7 @@ export function WorkspaceList({
       <Card className="p-12">
         <div className="flex flex-col items-center justify-center text-center">
           <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold mb-2">暂无工作空间</h3>
+          <Text as="h3" variant="headingMd" className="mb-2">暂无工作空间</Text>
           <p className="text-sm text-muted-foreground">
             点击上方按钮创建第一个工作空间
           </p>
@@ -47,9 +48,9 @@ export function WorkspaceList({
           <div className="flex flex-col h-full">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-lg mb-1 truncate">
+                <Text as="h3" variant="headingMd" className="mb-1" truncate>
                   {workspace.name}
-                </h3>
+                </Text>
                 {workspace.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {workspace.description}
@@ -82,7 +83,7 @@ export function WorkspaceList({
                 variant="outline"
                 size="sm"
                 onClick={() => onDelete(workspace)}
-                className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="h-4 w-4 mr-1" />
                 删除

@@ -17,8 +17,8 @@ export default function ForbiddenPage() {
       <Card className="max-w-md w-full">
         <CardHeader className="text-center pb-4">
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center">
-              <ShieldAlert className="h-10 w-10 text-red-600" />
+            <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
+              <ShieldAlert className="h-10 w-10 text-destructive" />
             </div>
           </div>
           <CardTitle className="text-3xl font-bold">403</CardTitle>

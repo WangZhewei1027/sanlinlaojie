@@ -42,7 +42,7 @@ export function OrganizationSelect() {
   if (loading) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
-        <div className="h-4 w-4 animate-pulse rounded-full bg-gray-400" />
+        <div className="h-4 w-4 animate-pulse rounded-full bg-muted-foreground/40" />
         <span className="text-muted-foreground">Loading...</span>
       </div>
     );
