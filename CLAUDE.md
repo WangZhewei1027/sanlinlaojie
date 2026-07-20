@@ -84,4 +84,6 @@ Supabase Postgres + **PostGIS** (assets carry geo coordinates). Migrations in `s
 
 ## Reference docs
 
+**Before writing or changing any UI code, read `docs/design-system.md`** — it defines the design tokens, the six-level type scale, the `<Text>` component rules, and the three-zone boundary for who styles what. Visual examples live at the `/design-system` route. Exceptions require amending the rules first, never silently deviating.
+
 Deeper design notes live in `docs/` — notably `docs/permissions.md`, `docs/map-asset-interaction.md`, `docs/asset-pipeline.md`, `docs/i18n-guide.md`, `docs/wechat-qr-code.md`, `docs/3d-model-preview.md`, `docs/audio-compatibility.md`, `docs/asset-storage-lifecycle.md` (content-hash dedup and deletion safety), and `docs/saas-role-refactor.md`.
