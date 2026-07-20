@@ -5,6 +5,7 @@ import { Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "./SectionHeader";
+import { Text } from "@/components/ui/typography";
 
 interface MiniappConfigSectionProps {
   confettiEnabled: boolean;
@@ -44,12 +45,12 @@ export function MiniappConfigSection({
           <Label htmlFor="confetti-enabled" className="text-sm cursor-pointer">
             {t("superAdmin.orgs.miniappConfig.confetti", "Confetti Effect")}
           </Label>
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" variant="bodySm" tone="subdued">
             {t(
               "superAdmin.orgs.miniappConfig.confettiDesc",
               "Show confetti ribbons in the mini program",
             )}
-          </p>
+          </Text>
         </div>
       </div>
       <div className="flex items-start gap-3">
@@ -65,12 +66,12 @@ export function MiniappConfigSection({
           >
             {t("superAdmin.orgs.miniappConfig.shopCheckin", "Shop Check-in")}
           </Label>
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" variant="bodySm" tone="subdued">
             {t(
               "superAdmin.orgs.miniappConfig.shopCheckinDesc",
               "Show the shop check-in module in the mini program",
             )}
-          </p>
+          </Text>
         </div>
       </div>
       <div className="flex items-start gap-3">
@@ -83,12 +84,12 @@ export function MiniappConfigSection({
           <Label htmlFor="footer-enabled" className="text-sm cursor-pointer">
             {t("superAdmin.orgs.miniappConfig.footer", "Footer Logo")}
           </Label>
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" variant="bodySm" tone="subdued">
             {t(
               "superAdmin.orgs.miniappConfig.footerDesc",
               "Show the footer logo on the mini program home page",
             )}
-          </p>
+          </Text>
         </div>
       </div>
     </section>

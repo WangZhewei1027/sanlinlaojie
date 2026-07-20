@@ -7,6 +7,7 @@ import { OrgBasicInfoFields } from "./OrgBasicInfoFields";
 import { OrgFormSections } from "./OrgFormSections";
 import { useOrgSettingsForm } from "./useOrgSettingsForm";
 import type { OrgSettingsSource, SaveOrgSettings } from "./types";
+import { Text } from "@/components/ui/typography";
 
 interface OrgSettingsFormProps {
   org: OrgSettingsSource;
@@ -74,7 +75,11 @@ export function OrgSettingsForm({ org, save, onSuccess }: OrgSettingsFormProps) 
       <div className="border-t" />
 
       <div className="space-y-2">
-        {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+        {saveError && (
+          <Text as="p" variant="bodySm" tone="critical">
+            {saveError}
+          </Text>
+        )}
         <Button
           onClick={handleSave}
           disabled={!hasChanged || !name.trim() || isPending}

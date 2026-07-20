@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SectionHeader } from "./SectionHeader";
+import { Text } from "@/components/ui/typography";
 import type { TextAssetMiniappStyle } from "@/app/manage/types";
 
 interface TextAssetStyleSectionProps {
@@ -32,12 +33,12 @@ export function TextAssetStyleSection({
           "Text Asset Style (Mini Program)",
         )}
       />
-      <p className="text-xs text-muted-foreground">
+      <Text as="p" variant="bodySm" tone="subdued">
         {t(
           "superAdmin.orgs.textAsset.styleDesc",
           "Controls how text-type assets are displayed in the WeChat Mini Program",
         )}
-      </p>
+      </Text>
       <Select
         value={textAssetMiniappStyle}
         onValueChange={(v) =>

@@ -5,6 +5,7 @@ import { MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "./SectionHeader";
+import { Text } from "@/components/ui/typography";
 
 interface MapCenterSectionProps {
   lat: string;
@@ -58,14 +59,14 @@ export function MapCenterSection({
         </div>
       </div>
       {(lat || lng) && (
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" variant="bodySm" tone="subdued">
           {lat && lng
             ? `${lat}, ${lng}`
             : t(
                 "superAdmin.orgs.mapCenter.incomplete",
                 "Both lat and lng are required",
               )}
-        </p>
+        </Text>
       )}
     </section>
   );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Settings, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useManageStore } from "@/app/manage/store";
@@ -92,11 +93,13 @@ export default function SettingsPage() {
   if (!selectedOrganization) {
     return (
       <div className="p-6 lg:p-8">
-        <div className="flex items-center justify-center h-64 text-muted-foreground">
-          {t(
-            "admin.settings.selectOrgFirst",
-            "Please select an organization first",
-          )}
+        <div className="flex items-center justify-center h-64">
+          <Text as="p" variant="bodyMd" tone="subdued">
+            {t(
+              "admin.settings.selectOrgFirst",
+              "Please select an organization first",
+            )}
+          </Text>
         </div>
       </div>
     );
@@ -106,9 +109,11 @@ export default function SettingsPage() {
   if (!canEditSettings && !canDeleteOrg) {
     return (
       <div className="p-6 lg:p-8">
-        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
-          <ShieldAlert className="h-10 w-10" />
-          <p>{t("admin.settings.noPermission", "你没有权限管理此组织设置")}</p>
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+          <Text as="p" variant="bodyMd" tone="subdued">
+            {t("admin.settings.noPermission", "你没有权限管理此组织设置")}
+          </Text>
         </div>
       </div>
     );
@@ -124,13 +129,13 @@ export default function SettingsPage() {
             {t("admin.settings.title", "Settings")}
           </Text>
         </div>
-        <p className="text-muted-foreground">
+        <Text as="p" variant="bodyMd" tone="subdued">
           {t(
             "admin.settings.description",
             "Manage organization settings for {{name}}",
             { name: selectedOrganization.name },
           )}
-        </p>
+        </Text>
       </div>
 
       {/* Org settings（与 super-admin 组织详情面板共用的表单） */}
@@ -148,9 +153,9 @@ export default function SettingsPage() {
             }
           />
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <Text as="p" variant="bodySm" tone="subdued">
             {t("admin.settings.loadFailed", "加载组织信息失败，请刷新重试")}
-          </p>
+          </Text>
         )}
       </div>
 
@@ -160,12 +165,12 @@ export default function SettingsPage() {
           <Text as="h2" variant="headingMd" tone="critical">
             {t("admin.settings.dangerZone", "Danger Zone")}
           </Text>
-          <p className="text-sm text-muted-foreground">
+          <Text as="p" variant="bodyMd" tone="subdued">
             {t(
               "admin.settings.deleteWarning",
               "Deleting an organization will remove all associated data. This action cannot be undone.",
             )}
-          </p>
+          </Text>
           <DeleteOrgButton
             orgId={selectedOrganization.id}
             orgName={selectedOrganization.name}
@@ -185,6 +190,7 @@ function DeleteOrgButton({
 }) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -202,23 +208,36 @@ function DeleteOrgButton({
   if (confirming) {
     return (
       <div className="space-y-3">
-        <p className="text-sm font-medium text-destructive">
+        <Text as="p" variant="bodySm" fontWeight="medium" tone="critical">
           {t(
             "admin.settings.confirmDelete",
             'Type "{{name}}" to confirm deletion',
             { name: orgName },
           )}
-        </p>
+        </Text>
+        <Input
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder={orgName}
+          className="max-w-xs"
+          autoFocus
+        />
         <div className="flex gap-2">
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || confirmText !== orgName}
           >
             {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {t("common.delete", "Delete")}
           </Button>
-          <Button variant="outline" onClick={() => setConfirming(false)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setConfirming(false);
+              setConfirmText("");
+            }}
+          >
             {t("common.cancel", "Cancel")}
           </Button>
         </div>
