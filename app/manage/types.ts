@@ -13,6 +13,7 @@ export interface Organization {
   role?: string; // user's role in this organization
   map_center?: { lat: number; lng: number } | null;
   allowed_file_types?: string[] | null;
+  pinned_at?: string | null; // 当前用户的置顶时间（user_organization_pin）
 }
 
 export interface Workspace {

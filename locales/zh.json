@@ -203,7 +203,13 @@
   },
   "organization": {
     "selectPlaceholder": "选择组织...",
-    "switchTitle": "组织列表"
+    "switchTitle": "组织列表",
+    "searchPlaceholder": "搜索组织",
+    "noResults": "未找到组织",
+    "pinned": "已置顶",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "pinError": "置顶操作失败"
   },
   "superAdmin": {
     "title": "超级管理员",

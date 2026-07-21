@@ -4,6 +4,7 @@ import { BreadcrumbStory } from "./breadcrumb";
 import { ButtonStory } from "./button";
 import { CardStory } from "./card";
 import { CheckboxStory } from "./checkbox";
+import { CommandStory } from "./command";
 import { ColorsStory } from "./colors";
 import { ColorPrincipleStory } from "./principle-color";
 import { DialogStory } from "./dialog";
@@ -63,6 +64,7 @@ export const storyGroups: StoryGroup[] = [
       { id: "button", name: "Button", component: ButtonStory },
       { id: "card", name: "Card", component: CardStory },
       { id: "checkbox", name: "Checkbox", component: CheckboxStory },
+      { id: "command", name: "Command", component: CommandStory },
       { id: "dialog", name: "Dialog", component: DialogStory },
       { id: "drawer", name: "Drawer", component: DrawerStory },
       {

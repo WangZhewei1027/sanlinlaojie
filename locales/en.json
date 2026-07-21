@@ -203,7 +203,13 @@
   },
   "organization": {
     "selectPlaceholder": "Select organization...",
-    "switchTitle": "Organizations"
+    "switchTitle": "Organizations",
+    "searchPlaceholder": "Search organizations",
+    "noResults": "No organizations found",
+    "pinned": "Pinned",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinError": "Failed to update pin"
   },
   "superAdmin": {
     "title": "Super Admin",
