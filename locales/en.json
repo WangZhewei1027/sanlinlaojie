@@ -120,7 +120,7 @@
     "hero": {
       "title": "Mixed Reality & Cultural Heritage",
       "subtitle": "IMA, DHL, NYU Shanghai",
-      "description": "An AR cultural-heritage platform for Sanlin Old Street — onsite capture, map-based asset management, and mixed-reality experiences."
+      "description": "An AR platform for digitizing historic districts and cultural heritage — onsite capture, map-based asset management, and mixed-reality experiences."
     },
     "quickLinks": {
       "onsite": {
@@ -137,12 +137,68 @@
       }
     },
     "footer": {
-      "copyright": "Sanlin Old Street Digital Platform. All rights reserved."
+      "copyright": "© {{year}} Sanlin Old Street Digital Platform. All rights reserved.",
+      "credit": "NYU Shanghai · Digital Heritage Lab"
     },
     "cta": {
       "signIn": "Sign in",
       "instructions": "User Guide",
       "enter": "Enter Workspace"
+    },
+    "badge": "Web AR Cultural Heritage Platform",
+    "features": {
+      "title": "What you can do",
+      "subtitle": "A complete digital-heritage pipeline, from onsite capture to AR experiences.",
+      "capture": {
+        "title": "Onsite Capture",
+        "desc": "Works right in the mobile browser: GPS auto-locating, EXIF-aware image compression, with audio, video and text alongside."
+      },
+      "map": {
+        "title": "3D Map Workspace",
+        "desc": "Place, filter, box-select and batch-move assets on an interactive 3D street map — arrange digital content visually."
+      },
+      "ar": {
+        "title": "AR in Mini Program",
+        "desc": "Visitors scan a QR code and explore AR content in the real street — no app download required."
+      },
+      "org": {
+        "title": "Team Collaboration",
+        "desc": "Organizations and workspaces with four role levels — everyone works within clear boundaries."
+      }
+    },
+    "workflow": {
+      "title": "From street to screen in three steps",
+      "step1": {
+        "title": "Capture",
+        "desc": "Shoot and record onsite"
+      },
+      "step2": {
+        "title": "Curate",
+        "desc": "Manage and arrange on the map"
+      },
+      "step3": {
+        "title": "Experience",
+        "desc": "Scan and explore in AR"
+      }
+    },
+    "bottomCta": {
+      "title": "Start building your digital street",
+      "signUp": "Create an account"
+    },
+    "gallery": {
+      "title": "A digital twin of Sanlin Old Street",
+      "subtitle": "From street scenes to high-fidelity 3D reconstruction — every detail preserved.",
+      "street": "Sanlin Old Street",
+      "scan": "High-fidelity 3D scanning",
+      "mesh": "Point-cloud & mesh reconstruction"
+    },
+    "heroShotAlt": "The platform's 3D map workspace",
+    "ar": {
+      "title": "AR on the real street",
+      "subtitle": "Visitors scan a code into the WeChat Mini Program — digital creations layered over the streetscape.",
+      "point1": "Scan to enter — no app install",
+      "point2": "Digital layers rendered over the live street view",
+      "point3": "Workspace updates go live instantly"
     }
   },
   "organization": {
