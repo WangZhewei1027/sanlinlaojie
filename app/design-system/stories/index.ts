@@ -1,5 +1,6 @@
 import { AccordionStory } from "./accordion";
 import { BadgeStory } from "./badge";
+import { BreadcrumbStory } from "./breadcrumb";
 import { ButtonStory } from "./button";
 import { CardStory } from "./card";
 import { CheckboxStory } from "./checkbox";
@@ -58,6 +59,7 @@ export const storyGroups: StoryGroup[] = [
     items: [
       { id: "accordion", name: "Accordion", component: AccordionStory },
       { id: "badge", name: "Badge", component: BadgeStory },
+      { id: "breadcrumb", name: "Breadcrumb", component: BreadcrumbStory },
       { id: "button", name: "Button", component: ButtonStory },
       { id: "card", name: "Card", component: CardStory },
       { id: "checkbox", name: "Checkbox", component: CheckboxStory },

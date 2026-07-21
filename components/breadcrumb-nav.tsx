@@ -1,15 +1,23 @@
 "use client";
 
+import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { WorkspaceQrButton } from "@/components/workspace-qr-button";
 import { cn } from "@/lib/utils";
 
-interface BreadcrumbItem {
+interface CrumbItem {
   label: string;
   href?: string;
 }
@@ -49,7 +57,7 @@ export function BreadcrumbNav() {
   );
 
   // Build breadcrumb items from route segments
-  const breadcrumbItems: BreadcrumbItem[] = [];
+  const breadcrumbItems: CrumbItem[] = [];
 
   // Always start with Home
   breadcrumbItems.push({ label: t("nav.home"), href: "/" });
@@ -74,72 +82,73 @@ export function BreadcrumbNav() {
   }
 
   return (
-    <div className="flex items-center gap-0.5 sm:gap-1 min-w-0 flex-1 text-sm">
-      {breadcrumbItems.map((item, index) => {
-        const isLast = index === breadcrumbItems.length - 1;
-        // On mobile, hide Home and intermediate links to leave room for switchers
-        const hiddenOnMobile = !isLast;
-        return (
-          <div
-            key={index}
-            className={cn(
-              "flex items-center gap-0.5 sm:gap-1 min-w-0",
-              hiddenOnMobile &&
-                !(index === 1 && showOrgSwitcher) &&
-                "hidden sm:flex",
-            )}
-          >
-            {index > 0 && (
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60",
-                  // Leading chevron only makes sense on mobile when the
-                  // org switcher is visible before the current page label
-                  !(index > 1 && isLast && showOrgSwitcher) &&
-                    "hidden sm:block",
+    <div className="flex min-w-0 flex-1 items-center">
+      <Breadcrumb className="min-w-0">
+        <BreadcrumbList className="flex-nowrap gap-0.5 sm:gap-1">
+          {breadcrumbItems.map((item, index) => {
+            const isLast = index === breadcrumbItems.length - 1;
+            return (
+              <Fragment key={index}>
+                {index > 0 && (
+                  <BreadcrumbSeparator
+                    className={cn(
+                      "text-muted-foreground/60",
+                      // On mobile everything left of this separator is hidden,
+                      // except the org-switcher chain leading to the current page
+                      !(index > 1 && isLast && showOrgSwitcher) &&
+                        "hidden sm:inline-flex",
+                    )}
+                  />
                 )}
-              />
-            )}
 
-            {/* After Home, insert org switcher if applicable */}
-            {index === 1 && showOrgSwitcher && (
-              <>
-                <OrgSwitcher />
-                <ChevronRight
+                {/* After Home, insert org switcher if applicable */}
+                {index === 1 && showOrgSwitcher && (
+                  <>
+                    <BreadcrumbItem>
+                      <OrgSwitcher />
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator
+                      className={cn(
+                        "text-muted-foreground/60",
+                        !isLast && "hidden sm:inline-flex",
+                      )}
+                    />
+                  </>
+                )}
+
+                <BreadcrumbItem
                   className={cn(
-                    "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60",
-                    !isLast && "hidden sm:block",
+                    "min-w-0",
+                    // On mobile, hide Home and intermediate links to leave
+                    // room for switchers
+                    !isLast && "hidden sm:inline-flex",
                   )}
-                />
-              </>
-            )}
+                >
+                  {item.href ? (
+                    <BreadcrumbLink asChild className="whitespace-nowrap">
+                      <Link href={item.href}>{item.label}</Link>
+                    </BreadcrumbLink>
+                  ) : (
+                    <BreadcrumbPage className="truncate whitespace-nowrap font-medium">
+                      {item.label}
+                    </BreadcrumbPage>
+                  )}
+                </BreadcrumbItem>
+              </Fragment>
+            );
+          })}
 
-            {item.href ? (
-              <Link
-                href={item.href}
-                className={cn(
-                  "text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap",
-                  hiddenOnMobile && "hidden sm:inline",
-                )}
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <span className="font-medium text-foreground whitespace-nowrap truncate">
-                {item.label}
-              </span>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Show workspace switcher for workspace-scoped routes */}
-      {showWorkspace && (
-        <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/60" />
-          <WorkspaceSwitcher />
-        </div>
-      )}
+          {/* Show workspace switcher for workspace-scoped routes */}
+          {showWorkspace && (
+            <>
+              <BreadcrumbSeparator className="text-muted-foreground/60" />
+              <BreadcrumbItem className="min-w-0">
+                <WorkspaceSwitcher />
+              </BreadcrumbItem>
+            </>
+          )}
+        </BreadcrumbList>
+      </Breadcrumb>
 
       {/* QR code button on the right side, when an org is selected on org-scoped routes */}
       {showOrgSwitcher && <WorkspaceQrButton />}
