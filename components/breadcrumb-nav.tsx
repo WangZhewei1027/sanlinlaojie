@@ -15,71 +15,31 @@ import {
 import { OrgSwitcher } from "@/components/org-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { WorkspaceQrButton } from "@/components/workspace-qr-button";
+import { buildBreadcrumbItems } from "@/components/breadcrumb-routes";
+import { useManageStore } from "@/app/manage/store";
+import { WORKSPACE_ROUTES, isPathWithinRoutes } from "@/app/manage/constants";
 import { cn } from "@/lib/utils";
 
-interface CrumbItem {
-  label: string;
-  href?: string;
-}
-
-// Map route segments to i18n keys
-const ROUTE_LABELS: Record<string, string> = {
-  admin: "nav.admin",
-  manage: "nav.manage",
-  "upload-onsite": "nav.upload",
-  workspace: "admin.sidebar.workspaces",
-  workspaces: "admin.sidebar.workspaces",
-  members: "admin.sidebar.members",
-  settings: "admin.sidebar.settings",
-  users: "admin.sidebar.users",
-  clean: "admin.sidebar.cleanup",
-  organizations: "admin.sidebar.organizations",
-};
-
-// Routes that should show the org switcher in the breadcrumb
-const ORG_CONTEXT_ROUTES = ["/admin", "/manage", "/upload-onsite"];
-
-// Routes that should show workspace switcher
-const WORKSPACE_CONTEXT_ROUTES = ["/manage", "/upload-onsite"];
+// Routes that show the workspace switcher (subset of WORKSPACE_ROUTES)
+const WORKSPACE_SWITCHER_ROUTES = ["/manage", "/upload-onsite"];
 
 export function BreadcrumbNav() {
   const { t } = useTranslation();
   const pathname = usePathname();
 
-  const segments = pathname.split("/").filter(Boolean);
-
-  // Check if current route needs org or workspace context
-  const showOrgSwitcher = ORG_CONTEXT_ROUTES.some((route) =>
-    pathname.startsWith(route),
-  );
-  const showWorkspace = WORKSPACE_CONTEXT_ROUTES.some((route) =>
-    pathname.startsWith(route),
+  const organizations = useManageStore((state) => state.organizations);
+  const organizationLoading = useManageStore(
+    (state) => state.organizationLoading,
   );
 
-  // Build breadcrumb items from route segments
-  const breadcrumbItems: CrumbItem[] = [];
+  const isOrgContextRoute = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
+  // Hide the whole switcher block (incl. its separator) when OrgSwitcher
+  // itself would render nothing — otherwise two separators sit side by side.
+  const showOrgSwitcher =
+    isOrgContextRoute && (organizationLoading || organizations.length > 0);
+  const showWorkspace = isPathWithinRoutes(pathname, WORKSPACE_SWITCHER_ROUTES);
 
-  // Always start with Home
-  breadcrumbItems.push({ label: t("nav.home"), href: "/" });
-
-  // Build path segments
-  let currentPath = "";
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
-    currentPath += `/${segment}`;
-
-    // Skip dynamic segments like UUIDs
-    if (segment.match(/^[0-9a-f-]{36}$/)) continue;
-
-    const labelKey = ROUTE_LABELS[segment];
-    if (labelKey) {
-      const isLast = i === segments.length - 1;
-      breadcrumbItems.push({
-        label: t(labelKey, segment),
-        href: isLast ? undefined : currentPath,
-      });
-    }
-  }
+  const breadcrumbItems = buildBreadcrumbItems(pathname, t);
 
   return (
     <div className="flex min-w-0 flex-1 items-center">
@@ -87,8 +47,10 @@ export function BreadcrumbNav() {
         <BreadcrumbList className="flex-nowrap gap-0.5 sm:gap-1">
           {breadcrumbItems.map((item, index) => {
             const isLast = index === breadcrumbItems.length - 1;
+            // Home stays a link even when it is the only crumb (e.g. /auth/*)
+            const isCurrentPage = isLast && index > 0;
             return (
-              <Fragment key={index}>
+              <Fragment key={item.href}>
                 {index > 0 && (
                   <BreadcrumbSeparator
                     className={cn(
@@ -124,14 +86,14 @@ export function BreadcrumbNav() {
                     !isLast && "hidden sm:inline-flex",
                   )}
                 >
-                  {item.href ? (
-                    <BreadcrumbLink asChild className="whitespace-nowrap">
-                      <Link href={item.href}>{item.label}</Link>
-                    </BreadcrumbLink>
-                  ) : (
+                  {isCurrentPage ? (
                     <BreadcrumbPage className="truncate whitespace-nowrap font-medium">
                       {item.label}
                     </BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild className="whitespace-nowrap">
+                      <Link href={item.href}>{item.label}</Link>
+                    </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>
               </Fragment>
@@ -151,7 +113,7 @@ export function BreadcrumbNav() {
       </Breadcrumb>
 
       {/* QR code button on the right side, when an org is selected on org-scoped routes */}
-      {showOrgSwitcher && <WorkspaceQrButton />}
+      {isOrgContextRoute && <WorkspaceQrButton />}
     </div>
   );
 }

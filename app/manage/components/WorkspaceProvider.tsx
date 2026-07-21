@@ -4,15 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useManageStore } from "../store";
-
-// Routes that need organization/workspace context loaded
-const WORKSPACE_ROUTES = ["/manage", "/upload-onsite", "/display", "/admin"];
+import { WORKSPACE_ROUTES, isPathWithinRoutes } from "../constants";
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const shouldShowWorkspace = WORKSPACE_ROUTES.some((route) =>
-    pathname.startsWith(route),
-  );
+  const shouldShowWorkspace = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
 
   // Read persisted selections from the Zustand store at mount time only.
   // `persist` middleware hydrates the store synchronously on client, so these
@@ -181,5 +177,3 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
-
-export { WORKSPACE_ROUTES };

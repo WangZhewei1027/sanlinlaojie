@@ -10,8 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useManageStore } from "../store";
-import { ALL_WORKSPACES_ID } from "../constants";
-import { WORKSPACE_ROUTES } from "./WorkspaceProvider";
+import {
+  ALL_WORKSPACES_ID,
+  WORKSPACE_ROUTES,
+  isPathWithinRoutes,
+} from "../constants";
 
 export function WorkspaceSelect() {
   const { t } = useTranslation();
@@ -30,9 +33,7 @@ export function WorkspaceSelect() {
   const loading = useManageStore((state) => state.workspaceLoading);
 
   // 检查当前路由是否需要显示 WorkspaceSelect
-  const shouldShow = WORKSPACE_ROUTES.some((route) =>
-    pathname.startsWith(route),
-  );
+  const shouldShow = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
 
   const handleChange = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);

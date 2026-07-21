@@ -18,3 +18,23 @@ export function isSpecificWorkspaceId(
 ): id is string {
   return !!id && id !== ALL_WORKSPACES_ID;
 }
+
+/**
+ * Routes that need organization/workspace context (data loading in
+ * WorkspaceProvider, org switcher in the breadcrumb). Single source of
+ * truth — do not redeclare this list elsewhere.
+ */
+export const WORKSPACE_ROUTES = ["/manage", "/upload-onsite", "/admin"];
+
+/**
+ * Segment-boundary route matching: `/admin` matches `/admin` and
+ * `/admin/members`, but not `/administrator`.
+ */
+export function isPathWithinRoutes(
+  pathname: string,
+  routes: readonly string[],
+): boolean {
+  return routes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}

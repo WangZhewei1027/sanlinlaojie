@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useManageStore } from "../store";
-import { WORKSPACE_ROUTES } from "./WorkspaceProvider";
+import { WORKSPACE_ROUTES, isPathWithinRoutes } from "../constants";
 
 export function OrganizationSelect() {
   const { t } = useTranslation();
@@ -28,9 +28,7 @@ export function OrganizationSelect() {
   );
   const loading = useManageStore((state) => state.organizationLoading);
 
-  const shouldShow = WORKSPACE_ROUTES.some((route) =>
-    pathname.startsWith(route),
-  );
+  const shouldShow = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
 
   const handleChange = (orgId: string) => {
     setSelectedOrganizationId(orgId);
