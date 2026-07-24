@@ -10,6 +10,7 @@ import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { fetchJson } from "@/lib/fetch-json";
 import { OrgSettingsForm } from "@/components/org-settings/OrgSettingsForm";
+import { SettingsFormSkeleton } from "./components/SettingsFormSkeleton";
 import type {
   OrgSettingsPayload,
   OrgSettingsSource,
@@ -141,9 +142,7 @@ export default function SettingsPage() {
       {/* Org settings（与 super-admin 组织详情面板共用的表单） */}
       <div className="border rounded-lg p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
+          <SettingsFormSkeleton />
         ) : org && canEditSettings ? (
           <OrgSettingsForm
             org={org}

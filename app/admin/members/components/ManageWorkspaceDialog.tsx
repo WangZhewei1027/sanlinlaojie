@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson } from "@/lib/fetch-json";
 
 interface Workspace {
@@ -155,8 +156,26 @@ export function ManageWorkspaceDialog({
         </DialogHeader>
 
         {fetchLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-28" />
+              <div className="flex gap-2">
+                <Skeleton className="h-9 flex-1" />
+                <Skeleton className="h-9 w-9" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-36" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-2 border rounded-md"
+                >
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-8 w-8" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

@@ -37,6 +37,7 @@ import { fetchJson } from "@/lib/fetch-json";
 import { displayAccount } from "@/lib/phone-email";
 import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
 import { InviteLinkDialog } from "./components/InviteLinkDialog";
+import { MembersSkeleton } from "./components/MembersSkeleton";
 import { Text } from "@/components/ui/typography";
 
 interface User {
@@ -270,9 +271,7 @@ export default function MembersPage() {
       </div>
 
       {fetchLoading ? (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <MembersSkeleton />
       ) : (
         <div className="space-y-6">
           {/* Add member form */}

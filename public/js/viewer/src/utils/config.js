@@ -45,6 +45,13 @@ export const IS_MOBILE =
     window.matchMedia("(pointer: coarse)").matches) ||
   new URLSearchParams(window.location.search).has("forceMobile");
 
+// ?sse=N 临时覆盖瓦片精度，用于现场对比画质与流量（不改默认值）
+const sseParam = Number(
+  new URLSearchParams(window.location.search).get("sse")
+);
+const sse = (fallback) =>
+  Number.isFinite(sseParam) && sseParam > 0 ? sseParam : fallback;
+
 // 3D Tiles 配置
 // 移动端 GPU 内存有限，超限会直接杀掉 WebGL 上下文（导致渲染中断），
 // 因此用更保守的精度和瓦片缓存
@@ -52,18 +59,20 @@ export const TILESET_CONFIG = {
   url: "./terra_b3dms/tileset.json",
   options: IS_MOBILE
     ? {
-        maximumScreenSpaceError: 16,
+        maximumScreenSpaceError: sse(16),
         dynamicScreenSpaceError: true,
         skipLevelOfDetail: true,
         cacheBytes: 64 * 1024 * 1024,
         maximumCacheOverflowBytes: 32 * 1024 * 1024,
       }
     : {
-        maximumScreenSpaceError: 2,
+        // 瓦片的 geometricError 逐级减半，所以 maxSSE 放大 k 倍 = 少下探 log2(k) 级。
+        // 原值 2 会一路拉到 L22（这一层单独就有 1.1 GB）；8 相当于粗两级，
+        // 落在 L20 附近，管理台的建筑/街道辨识度足够。
+        maximumScreenSpaceError: sse(8),
+        // 远处瓦片放宽精度：斜视整条街时省掉大量地平线附近的细节
+        dynamicScreenSpaceError: true,
         skipLevelOfDetail: true,
-        immediatelyLoadDesiredLevelOfDetail: true,
-        loadSiblings: true,
-        cullWithChildrenBounds: false,
       },
   totalTiles: 8,
 };
