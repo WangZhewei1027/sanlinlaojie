@@ -619,6 +619,29 @@
       "clickMapHint": "尚未选择位置，请在地图上点选坐标"
     }
   },
+  "linkAsset": {
+    "fields": {
+      "source": "链接来源",
+      "placeholder": "粘贴网页 URL、Figma 分享链接或完整 iframe 代码",
+      "hint": "支持 http/https URL、Figma 分享链接和 iframe 代码；代码只会提取 src，不会执行。"
+    },
+    "preview": {
+      "loading": "正在加载链接预览…",
+      "openOriginal": "打开原链接",
+      "openFallback": "你仍可以在新窗口中打开原链接。",
+      "blockedHint": "若预览显示“拒绝连接”或为空白，说明目标网站可能禁止被嵌入；请使用“打开原链接”查看。"
+    },
+    "errors": {
+      "empty": "请输入链接地址或 iframe 代码。",
+      "iframeMissingSrc": "iframe 代码中没有找到 src 地址。",
+      "invalidUrl": "链接格式无效，请检查后重试。",
+      "unsupportedProtocol": "仅支持 http 或 https 链接，不能使用 javascript 等协议。",
+      "embedBlocked": "该网站拒绝加载或禁止在 iframe 中预览。",
+      "loadTimeout": "链接预览加载超时，目标网站可能无法访问。",
+      "invalidStoredUrl": "此链接资源保存的地址无效，请进入编辑模式重新填写。",
+      "unsupportedClient": "当前客户端不支持链接预览，请在 Web 端打开。"
+    }
+  },
   "fileTypes": {
     "image": "图片",
     "video": "视频",

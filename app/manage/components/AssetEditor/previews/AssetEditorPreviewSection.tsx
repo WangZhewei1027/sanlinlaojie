@@ -1,5 +1,13 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
+import { Text } from "@/components/ui/typography";
+import {
+  getLinkAssetErrorKey,
+  parseLinkAssetInput,
+  resolveLinkAssetData,
+  type LinkAssetData,
+} from "@/lib/link-asset";
 import type { Asset } from "../../../types";
 import type { AssetTypeConfig } from "../../../config";
 import { AssetImagePreview } from "./AssetImagePreview";
@@ -16,6 +24,7 @@ interface AssetEditorPreviewSectionProps {
   isEditing: boolean;
   imageFile: File | null;
   checkinFile: File | null;
+  linkInput: string;
   onImageFileSelect: (file: File) => void;
   onImageFileRemove: () => void;
   onCheckinFileSelect: (file: File) => void;
@@ -29,11 +38,29 @@ export function AssetEditorPreviewSection({
   isEditing,
   imageFile,
   checkinFile,
+  linkInput,
   onImageFileSelect,
   onImageFileRemove,
   onCheckinFileSelect,
   onCheckinFileRemove,
 }: AssetEditorPreviewSectionProps) {
+  const { t } = useTranslation();
+  let linkData: LinkAssetData | null = null;
+  let linkErrorKey: string | null = null;
+
+  if (assetConfig?.previewType === "link") {
+    if (isEditing) {
+      try {
+        linkData = parseLinkAssetInput(linkInput);
+      } catch (error) {
+        linkErrorKey = getLinkAssetErrorKey(error);
+      }
+    } else {
+      linkData = resolveLinkAssetData(asset.file_url, asset.config);
+      if (!linkData) linkErrorKey = "linkAsset.errors.invalidStoredUrl";
+    }
+  }
+
   return (
     <>
       {assetConfig?.previewType === "image" && asset.file_url && (
@@ -73,8 +100,14 @@ export function AssetEditorPreviewSection({
         />
       )}
 
-      {assetConfig?.previewType === "link" && asset.file_url && (
-        <AssetLinkPreview fileUrl={asset.file_url} fileName={fileName} />
+      {assetConfig?.previewType === "link" && linkData && (
+        <AssetLinkPreview linkData={linkData} fileName={fileName} />
+      )}
+
+      {assetConfig?.previewType === "link" && linkErrorKey && (
+        <Text as="p" variant="bodySm" tone="critical">
+          {t(linkErrorKey)}
+        </Text>
       )}
 
       {assetConfig?.previewType === "model" && asset.file_url && (

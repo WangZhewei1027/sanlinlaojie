@@ -92,6 +92,7 @@ export interface UploadedAsset {
   text_content?: string | null;
   tag_ids?: string[] | null;
   created_by?: string | null;
+  config?: Record<string, unknown> | null;
   metadata: Record<string, unknown>;
 }
 

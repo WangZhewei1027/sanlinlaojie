@@ -8,6 +8,7 @@ import {
   UploadedAsset,
 } from "./types";
 import { FILE_TYPE_CONFIGS, inferUploadType, validateFileSize } from "./config";
+import type { LinkAssetData } from "@/lib/link-asset";
 
 /**
  * 文件上传服务
@@ -218,7 +219,7 @@ export class FileUploadService {
   async saveLink(
     workspaceId: string,
     userId: string,
-    link: string,
+    link: LinkAssetData,
     location?: LocationData,
   ): Promise<UploadedAsset> {
     const geometry = location
@@ -227,7 +228,8 @@ export class FileUploadService {
 
     return this.createAsset(workspaceId, {
       file_type: "link",
-      file_url: link,
+      file_url: link.previewUrl,
+      config: { link },
       location: geometry,
       metadata: {
         longitude: location?.longitude,
