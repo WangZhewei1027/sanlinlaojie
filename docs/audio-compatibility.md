@@ -151,7 +151,7 @@ updated: 2026-05-18
 2. 逐个上传到 Cloudinary，指定 `format: "m4a"` 触发服务端转码。
 3. 下载转码后的 `.m4a` 文件，回传到 Supabase Storage（同路径，替换扩展名）。
 4. 更新 `asset` 表中对应记录的 `file_url` 字段。
-5. 删除原 `.webm` 文件（可用 `--keep-webm` 跳过）。
+5. 默认保留原 `.webm` 文件；仅在显式传入 `--delete-webm` 时删除。
 6. 清理 Cloudinary 上的临时文件。
 
 **用法：**
@@ -165,8 +165,8 @@ npx tsx scripts/transcode-webm-to-m4a.ts --dry-run
 # 限制数量（测试用）
 npx tsx scripts/transcode-webm-to-m4a.ts --limit 5
 
-# 保留原始 .webm 文件
-npx tsx scripts/transcode-webm-to-m4a.ts --keep-webm
+# 转码成功后删除原始 .webm 文件（默认保留）
+npx tsx scripts/transcode-webm-to-m4a.ts --delete-webm
 ```
 
 ---

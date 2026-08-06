@@ -16,7 +16,10 @@
  *   npx tsx scripts/transcode-webm-to-m4a.ts
  *   npx tsx scripts/transcode-webm-to-m4a.ts --dry-run
  *   npx tsx scripts/transcode-webm-to-m4a.ts --limit 5
- *   npx tsx scripts/transcode-webm-to-m4a.ts --keep-webm
+ *   npx tsx scripts/transcode-webm-to-m4a.ts --delete-webm
+ *
+ * 默认保留原始 .webm 文件（安全起见）；仅在确认 m4a 可用后，
+ * 显式传入 --delete-webm 才会从 Storage 删除原文件。
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -104,7 +107,8 @@ async function main() {
 
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
-  const keepWebm = args.includes("--keep-webm");
+  // 默认保留原始 .webm（防止转码结果损坏时丢失唯一原件），删除需显式传 --delete-webm
+  const deleteWebm = args.includes("--delete-webm");
   const limitIndex = args.indexOf("--limit");
   const limit =
     limitIndex !== -1 ? parseInt(args[limitIndex + 1], 10) : Infinity;
@@ -248,8 +252,8 @@ async function main() {
         );
       }
 
-      // 7. 删除旧的 .webm 文件
-      if (!keepWebm) {
+      // 7. 删除旧的 .webm 文件（仅在显式传入 --delete-webm 时）
+      if (deleteWebm) {
         const { error: removeError } = await supabase.storage
           .from("assets")
           .remove([webmPath]);
@@ -297,8 +301,10 @@ async function main() {
   console.log(`\n📊 转码完成:`);
   console.log(`   ✅ 成功: ${successCount}`);
   console.log(`   ❌ 失败: ${failCount}`);
-  if (keepWebm) {
-    console.log(`   📁 保留原 .webm 文件 (--keep-webm)`);
+  if (deleteWebm) {
+    console.log(`   🗑️  已删除原 .webm 文件 (--delete-webm)`);
+  } else {
+    console.log(`   📁 保留原 .webm 文件（默认；传 --delete-webm 可删除）`);
   }
 
   // 保存结果到 JSON

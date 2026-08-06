@@ -43,7 +43,7 @@ Story 编写约定：
 实践约定：
 - PR 里出现设计争议，直接贴对应 Storybook story URL 作为依据。
 - 规则变更走 PR：改规则文案 + 对应 story 同一个 commit。
-- 新增 `<Text>` variant 时，text 章节的 `SCALE_DEMO_ELEMENT` 是 `Record<TextVariant, …>`，不同步更新文档会**编译失败**——这是有意设计，保持它。
+- 新增 `<Text>` variant 时，`stories/foundations/typography.stories.tsx` 的 `SCALE` 是 `Record<TextVariant, …>`，不同步更新该 story 会**编译失败**——这是有意设计，保持它。
 
 ### 4. 强制层 —— 现状与缺口
 
