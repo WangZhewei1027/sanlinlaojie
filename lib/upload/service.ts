@@ -2,12 +2,28 @@ import { createClient } from "@/lib/supabase/client";
 import {
   UploadFile,
   UploadResult,
+  UploadType,
   LocationData,
   GPSSource,
   AnchorData,
   UploadedAsset,
 } from "./types";
-import { FILE_TYPE_CONFIGS, inferUploadType, validateFileSize } from "./config";
+import {
+  FILE_TYPE_CONFIGS,
+  getEffectiveMaxSizeMB,
+  inferUploadType,
+  validateFileSize,
+} from "./config";
+
+/**
+ * uploadToStorage 的返回：storagePath 仅在本次真正上传了新对象时非 null；
+ * 去重命中复用已有对象时为 null——调用方绝不能对复用对象做补偿删除。
+ */
+export interface StorageUploadResult {
+  url: string;
+  contentHash: string;
+  storagePath: string | null;
+}
 
 /**
  * 文件上传服务
@@ -19,7 +35,7 @@ export class FileUploadService {
    * 处理文件（压缩、提取元数据等）
    */
   async processFile(file: File): Promise<UploadFile> {
-    const uploadType = inferUploadType(file.type);
+    const uploadType = inferUploadType(file.type, file.name);
     const config = FILE_TYPE_CONFIGS[uploadType];
 
     let processedFile = file;
@@ -60,9 +76,10 @@ export class FileUploadService {
       }
     }
 
-    // 验证处理后的文件大小
-    if (!validateFileSize(processedFile, config.maxSize)) {
-      throw new Error(`文件大小超过限制 (${config.maxSize}MB)`);
+    // 验证处理后的文件大小（类型配置与存储桶硬上限取较小值）
+    const maxSizeMB = getEffectiveMaxSizeMB(uploadType);
+    if (!validateFileSize(processedFile, maxSizeMB)) {
+      throw new Error(`文件大小超过限制 (${maxSizeMB}MB)`);
     }
 
     return {
@@ -84,12 +101,19 @@ export class FileUploadService {
   }
 
   /**
-   * 按内容 hash 查是否已有相同文件（全局），命中则返回其 file_url。
+   * 按内容 hash 查是否已有相同文件（组织内），命中则返回其 file_url。
+   * 去重按组织隔离：无 workspace 上下文时跳过去重，直接正常上传。
    */
-  private async findExistingByHash(hash: string): Promise<string | null> {
+  private async findExistingByHash(
+    hash: string,
+    workspaceId?: string,
+  ): Promise<string | null> {
+    if (!workspaceId) return null;
     try {
       const res = await fetch(
-        `/api/assets/by-hash?hash=${encodeURIComponent(hash)}`,
+        `/api/assets/by-hash?hash=${encodeURIComponent(
+          hash,
+        )}&workspace_id=${encodeURIComponent(workspaceId)}`,
       );
       if (!res.ok) return null;
       const body = (await res.json()) as { file_url?: string | null };
@@ -101,34 +125,41 @@ export class FileUploadService {
   }
 
   /**
-   * 上传文件到 Storage（带内容 hash 全局去重）。
-   * 相同内容的文件命中已有 file_url 时直接复用、跳过上传。
-   * @returns 文件的公开 URL 与内容 hash
+   * 上传文件到 Storage（带内容 hash 组织内去重）。
+   * 相同内容的文件命中同组织已有 file_url 时直接复用、跳过上传。
+   * @param options.type 上传类型（用于大小校验；缺省按 MIME/扩展名推断）
+   * @param options.workspaceId 目标 workspace，用于组织内去重；缺省则跳过去重
+   * @returns 文件公开 URL、内容 hash，以及新上传对象的桶内路径（复用时为 null）
    */
   async uploadToStorage(
     file: File,
     userId: string,
-  ): Promise<{ url: string; contentHash: string }> {
+    options?: { type?: UploadType; workspaceId?: string },
+  ): Promise<StorageUploadResult> {
     console.log(
       `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
     );
 
-    // Supabase Storage 限制检查（实际配置为 1MB）
-    const maxStorageSize = 5 * 1024 * 1024; // 1MB in bytes
-    if (file.size > maxStorageSize) {
+    // 大小上限以类型配置为唯一事实来源（已含存储桶 5MB 硬上限约束）
+    const uploadType = options?.type ?? inferUploadType(file.type, file.name);
+    const maxSizeMB = getEffectiveMaxSizeMB(uploadType);
+    if (!validateFileSize(file, maxSizeMB)) {
       throw new Error(
         `文件大小 ${(file.size / 1024 / 1024).toFixed(
           2,
-        )}MB 超过 Supabase Storage 限制 (5MB)。请联系管理员。`,
+        )}MB 超过限制 (${maxSizeMB}MB)`,
       );
     }
 
-    // 计算内容 hash，命中已有文件则复用，避免相同素材重复存储
+    // 计算内容 hash，命中同组织已有文件则复用，避免相同素材重复存储
     const contentHash = await this.computeContentHash(file);
-    const existingUrl = await this.findExistingByHash(contentHash);
+    const existingUrl = await this.findExistingByHash(
+      contentHash,
+      options?.workspaceId,
+    );
     if (existingUrl) {
       console.log(`命中已有文件，复用 URL（跳过上传）: ${existingUrl}`);
-      return { url: existingUrl, contentHash };
+      return { url: existingUrl, contentHash, storagePath: null };
     }
 
     const fileExt = file.name.split(".").pop();
@@ -151,7 +182,41 @@ export class FileUploadService {
     } = this.supabase.storage.from("assets").getPublicUrl(filePath);
 
     console.log(`文件上传成功: ${publicUrl}`);
-    return { url: publicUrl, contentHash };
+    return { url: publicUrl, contentHash, storagePath: filePath };
+  }
+
+  /**
+   * 补偿清理：后续 DB 写入失败时删除刚上传的存储对象，避免孤儿文件。
+   * 仅当本次确实上传了新对象（storagePath 非 null）才尝试删除；去重复用的
+   * 已有对象绝不能删。删除前对 file_url 与 metadata.checkin_url 做引用计数
+   * （并发 by-hash 命中可能已让新行引用该对象），仍被引用则保留。
+   * 尽力而为：任何失败都吞掉、不掩盖原始错误——残留孤儿文件由
+   * /api/admin/clean 的全局清扫兜底回收。
+   */
+  async cleanupUploadedFile(upload: {
+    url: string;
+    storagePath: string | null;
+  }): Promise<void> {
+    if (!upload.storagePath) return;
+    try {
+      const [byFileUrl, byCheckinUrl] = await Promise.all([
+        this.supabase
+          .from("asset")
+          .select("id", { count: "exact", head: true })
+          .eq("file_url", upload.url),
+        this.supabase
+          .from("asset")
+          .select("id", { count: "exact", head: true })
+          .eq("metadata->>checkin_url", upload.url),
+      ]);
+      // 引用计数查询失败时宁可留孤儿文件也不冒险误删
+      if (byFileUrl.error || byCheckinUrl.error) return;
+      if ((byFileUrl.count ?? 0) + (byCheckinUrl.count ?? 0) > 0) return;
+
+      await this.supabase.storage.from("assets").remove([upload.storagePath]);
+    } catch (err) {
+      console.warn("补偿删除存储对象失败（将由全局清扫回收）:", err);
+    }
   }
 
   /**

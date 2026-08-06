@@ -29,7 +29,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     label: "fileTypes.image",
     icon: ImageIcon,
     accept: "image/*",
-    maxSize: 10,
+    maxSize: 5,
     process: (file: File) => compressImage(file, 0.2),
     extractMetadata: async (file: File) => {
       const gps = await extractGPSFromImage(file);
@@ -62,7 +62,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     label: "fileTypes.document",
     icon: File,
     accept: ".pdf,.doc,.docx,.txt,.md",
-    maxSize: 20,
+    maxSize: 5,
   },
   link: {
     type: "link",
@@ -87,7 +87,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     label: "fileTypes.shop",
     icon: ShoppingBag,
     accept: "image/*",
-    maxSize: 10,
+    maxSize: 5,
     process: (file: File) => compressImage(file, 0.2),
     extractMetadata: async (file: File) => {
       const gps = await extractGPSFromImage(file);
@@ -131,9 +131,64 @@ async function getImageDimensions(
 }
 
 /**
- * 根据 MIME 类型推断上传类型
+ * assets 存储桶的单文件硬上限（Supabase bucket file_size_limit = 5 MiB）。
+ * 各类型的 maxSize 配置不得超过此值，否则文件会在校验通过后于上传阶段被拒。
  */
-export function inferUploadType(mimeType: string): UploadType {
+export const STORAGE_MAX_FILE_SIZE_MB = 5;
+
+/**
+ * 某类型的有效大小上限（MB）：类型配置与存储桶硬上限取较小值。
+ * 大小校验的唯一入口，配置值即各类型的单一事实来源。
+ */
+export function getEffectiveMaxSizeMB(type: UploadType): number {
+  const configured = FILE_TYPE_CONFIGS[type].maxSize;
+  return configured
+    ? Math.min(configured, STORAGE_MAX_FILE_SIZE_MB)
+    : STORAGE_MAX_FILE_SIZE_MB;
+}
+
+/**
+ * 扩展名 → 上传类型映射。
+ * 常见 image/audio 扩展名兜底在前，FILE_TYPE_CONFIGS 中 accept 声明的
+ * 扩展名（video/document/model 等）在后覆盖——配置为准。
+ */
+const EXTENSION_TYPE_MAP: Record<string, UploadType> = (() => {
+  const map: Record<string, UploadType> = {};
+  const sanityFallback: Record<string, UploadType> = {
+    jpg: "image",
+    jpeg: "image",
+    png: "image",
+    gif: "image",
+    webp: "image",
+    bmp: "image",
+    heic: "image",
+    heif: "image",
+    mp3: "audio",
+    wav: "audio",
+    m4a: "audio",
+    aac: "audio",
+    ogg: "audio",
+    oga: "audio",
+    opus: "audio",
+    flac: "audio",
+  };
+  Object.assign(map, sanityFallback);
+  for (const config of Object.values(FILE_TYPE_CONFIGS)) {
+    for (const token of config.accept.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed.startsWith(".")) {
+        map[trimmed.slice(1)] = config.type;
+      }
+    }
+  }
+  return map;
+})();
+
+/**
+ * 根据 MIME 类型推断上传类型；MIME 不可靠时按文件扩展名兜底。
+ * .glb/.gltf 等常以 application/octet-stream 到达，仅靠 MIME 会误判为 document。
+ */
+export function inferUploadType(mimeType: string, fileName?: string): UploadType {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
@@ -145,6 +200,11 @@ export function inferUploadType(mimeType: string): UploadType {
     mimeType.includes("text/")
   ) {
     return "document";
+  }
+  // MIME 未命中：按扩展名兜底（来源于 FILE_TYPE_CONFIGS 的 accept + 常见扩展名）
+  if (fileName && fileName.includes(".")) {
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    if (ext && EXTENSION_TYPE_MAP[ext]) return EXTENSION_TYPE_MAP[ext];
   }
   return "document";
 }

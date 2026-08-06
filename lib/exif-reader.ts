@@ -20,11 +20,20 @@ export async function extractGPSFromImage(
 
     console.log("EXIF 数据:", exif);
 
-    if (exif && exif.latitude && exif.longitude) {
+    // 用类型检查而非真值判断：纬度/经度/海拔为 0 是合法坐标（赤道、本初子午线、海平面）
+    const isValidCoord = (value: unknown): value is number =>
+      typeof value === "number" && Number.isFinite(value);
+
+    if (exif && isValidCoord(exif.latitude) && isValidCoord(exif.longitude)) {
+      const altitude = isValidCoord(exif.altitude)
+        ? exif.altitude
+        : isValidCoord(exif.GPSAltitude)
+          ? exif.GPSAltitude
+          : undefined;
       const result = {
         latitude: exif.latitude,
         longitude: exif.longitude,
-        altitude: exif.altitude || exif.GPSAltitude,
+        altitude,
       };
       console.log("提取到 GPS 坐标:", result);
       return result;

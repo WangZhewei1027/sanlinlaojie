@@ -14,9 +14,17 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { createClient } from "@/lib/supabase/client";
-import { FileUploadService } from "@/lib/upload/service";
-import { UploadType, UploadedAsset } from "@/lib/upload/types";
-import { DEFAULT_UPLOAD_TYPES, FILE_TYPE_CONFIGS } from "@/lib/upload/config";
+import {
+  FileUploadService,
+  StorageUploadResult,
+} from "@/lib/upload/service";
+import { UploadFile, UploadType, UploadedAsset } from "@/lib/upload/types";
+import {
+  DEFAULT_UPLOAD_TYPES,
+  FILE_TYPE_CONFIGS,
+  getEffectiveMaxSizeMB,
+  validateFileSize,
+} from "@/lib/upload/config";
 import { useLocationSelection } from "@/lib/upload/hooks";
 import { LocationSelector } from "./location-selector";
 import { FileTypeSelector } from "./file-type-selector";
@@ -62,6 +70,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
     }
   }, [effectiveTypes, uploadType]);
   const [file, setFile] = useState<File | null>(null);
+  // 选择文件时的处理结果缓存（压缩 + EXIF），上传时复用，避免二次处理；
+  // source 与当前 file 不一致时视为失效
+  const [processedCache, setProcessedCache] = useState<{
+    source: File;
+    result: UploadFile;
+  } | null>(null);
   const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const [text, setText] = useState("");
@@ -75,6 +89,10 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const handleUpload = async () => {
     setError(null);
     setUploading(true);
+
+    // 本次已上传的新存储对象；后续 DB 写入失败时用于补偿删除（复用对象的
+    // storagePath 为 null，cleanupUploadedFile 会自动跳过）
+    const uploadedFiles: StorageUploadResult[] = [];
 
     try {
       if (!workspaceId) {
@@ -126,14 +144,16 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         );
       } else if (uploadType === "model") {
         if (!file) throw new Error(t("upload.selectFile"));
-        const maxBytes = 3 * 1024 * 1024;
-        if (file.size > maxBytes)
+        if (!validateFileSize(file, getEffectiveMaxSizeMB("model")))
           throw new Error(t("upload.fields.modelTooLarge"));
-        const { url: fileUrl, contentHash } =
-          await uploadService.uploadToStorage(file, user.id);
+        const uploaded = await uploadService.uploadToStorage(file, user.id, {
+          type: "model",
+          workspaceId,
+        });
+        uploadedFiles.push(uploaded);
         created = await uploadService.saveToDatabase(workspaceId, user.id, {
-          fileUrl,
-          contentHash,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
           fileType: "model",
           name: name.trim() || undefined,
           location: finalLocation || undefined,
@@ -141,36 +161,46 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         });
       } else if (uploadType === "video") {
         if (!file) throw new Error(t("upload.selectFile"));
-        const maxBytes = 3 * 1024 * 1024;
-        if (file.size > maxBytes)
+        if (!validateFileSize(file, getEffectiveMaxSizeMB("video")))
           throw new Error(t("upload.fields.videoTooLarge"));
-        const { url: fileUrl, contentHash } =
-          await uploadService.uploadToStorage(file, user.id);
+        const uploaded = await uploadService.uploadToStorage(file, user.id, {
+          type: "video",
+          workspaceId,
+        });
+        uploadedFiles.push(uploaded);
         created = await uploadService.saveToDatabase(workspaceId, user.id, {
-          fileUrl,
-          contentHash,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
           fileType: "video",
           location: finalLocation || undefined,
           gpsSource: gpsSource || undefined,
         });
       } else if (uploadType === "shop") {
         if (!file) throw new Error(t("upload.selectFile"));
-        const processedFile = await uploadService.processFile(file);
-        const { url: fileUrl, contentHash } =
-          await uploadService.uploadToStorage(processedFile.file, user.id);
+        const processedFile =
+          processedCache?.source === file
+            ? processedCache.result
+            : await uploadService.processFile(file);
+        const uploaded = await uploadService.uploadToStorage(
+          processedFile.file,
+          user.id,
+          { type: "shop", workspaceId },
+        );
+        uploadedFiles.push(uploaded);
         let checkinUrl: string | undefined;
         if (checkinFile) {
           const processedCheckin = await uploadService.processFile(checkinFile);
-          checkinUrl = (
-            await uploadService.uploadToStorage(
-              processedCheckin.file,
-              user.id,
-            )
-          ).url;
+          const uploadedCheckin = await uploadService.uploadToStorage(
+            processedCheckin.file,
+            user.id,
+            { type: "shop", workspaceId },
+          );
+          uploadedFiles.push(uploadedCheckin);
+          checkinUrl = uploadedCheckin.url;
         }
         created = await uploadService.saveToDatabase(workspaceId, user.id, {
-          fileUrl,
-          contentHash,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
           fileType: "shop",
           name: name.trim() || undefined,
           textContent: text.trim() || undefined,
@@ -179,14 +209,21 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           checkinUrl,
         });
       } else if (file) {
-        // 文件上传
-        const processedFile = await uploadService.processFile(file);
-        const { url: fileUrl, contentHash } =
-          await uploadService.uploadToStorage(processedFile.file, user.id);
+        // 文件上传（选择时的处理结果可复用，避免重复压缩/解析）
+        const processedFile =
+          processedCache?.source === file
+            ? processedCache.result
+            : await uploadService.processFile(file);
+        const uploaded = await uploadService.uploadToStorage(
+          processedFile.file,
+          user.id,
+          { type: processedFile.type, workspaceId },
+        );
+        uploadedFiles.push(uploaded);
 
         created = await uploadService.saveToDatabase(workspaceId, user.id, {
-          fileUrl,
-          contentHash,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
           fileType: processedFile.type,
           location: finalLocation || undefined,
           gpsSource: gpsSource || undefined,
@@ -205,6 +242,12 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       resetForm();
     } catch (err) {
       console.error(t("upload.uploadFailed"), err);
+      // DB 写入失败时补偿删除刚上传的新存储对象（尽力而为，绝不掩盖原始错误）
+      if (uploadedFiles.length > 0) {
+        await Promise.all(
+          uploadedFiles.map((f) => uploadService.cleanupUploadedFile(f)),
+        );
+      }
       setError(err instanceof Error ? err.message : t("upload.uploadFailed"));
     } finally {
       setUploading(false);
@@ -213,10 +256,13 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
   const processSelectedFile = async (selectedFile: File) => {
     setFile(selectedFile);
+    setProcessedCache(null);
+    setError(null);
 
-    // 处理文件并提取元数据
+    // 处理文件并提取元数据；结果缓存供上传时复用，避免二次压缩/解析
     try {
       const processedFile = await uploadService.processFile(selectedFile);
+      setProcessedCache({ source: selectedFile, result: processedFile });
       if (processedFile.gpsSource) {
         locationSelection.setExifLocation(processedFile.gpsSource.location);
       } else {
@@ -224,16 +270,24 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       }
     } catch (error) {
       console.error(t("upload.fileProcessingFailed"), error);
+      // 选择阶段即提示（如超出大小限制），而非等到点击上传才失败
+      setError(
+        error instanceof Error
+          ? error.message
+          : t("upload.fileProcessingFailed"),
+      );
     }
   };
 
   const handleFileRemove = () => {
     setFile(null);
+    setProcessedCache(null);
     locationSelection.setExifLocation(null);
   };
 
   const resetForm = () => {
     setFile(null);
+    setProcessedCache(null);
     setCheckinFile(null);
     setLink("");
     setText("");

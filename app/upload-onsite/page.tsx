@@ -86,8 +86,11 @@ export default function UploadOnsitePage() {
       );
 
       // 上传到 Storage
-      const { url: fileUrl, contentHash } =
-        await uploadService.uploadToStorage(processedFileData.file, user.id);
+      const uploaded = await uploadService.uploadToStorage(
+        processedFileData.file,
+        user.id,
+        { type: processedFileData.type, workspaceId: selectedWorkspaceId },
+      );
 
       const location: LocationData = {
         latitude: gpsPosition.latitude,
@@ -95,17 +98,23 @@ export default function UploadOnsitePage() {
         height: gpsPosition.altitude || 0,
       };
 
-      // 保存到数据库，包含标题和描述
-      await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
-        fileType: processedFileData.type,
-        fileUrl,
-        contentHash,
-        location,
-        gpsSource: "device_gps",
-        tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
-        name: title,
-        textContent: description,
-      });
+      try {
+        // 保存到数据库，包含标题和描述
+        await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
+          fileType: processedFileData.type,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
+          location,
+          gpsSource: "device_gps",
+          tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+          name: title,
+          textContent: description,
+        });
+      } catch (dbErr) {
+        // DB 写入失败：补偿删除刚上传的新存储对象（尽力而为，不掩盖原始错误）
+        await uploadService.cleanupUploadedFile(uploaded);
+        throw dbErr;
+      }
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -196,8 +205,11 @@ export default function UploadOnsitePage() {
       );
 
       // 上传到 Storage
-      const { url: fileUrl, contentHash } =
-        await uploadService.uploadToStorage(processedFileData.file, user.id);
+      const uploaded = await uploadService.uploadToStorage(
+        processedFileData.file,
+        user.id,
+        { type: processedFileData.type, workspaceId: selectedWorkspaceId },
+      );
 
       const location: LocationData = {
         latitude: gpsPosition.latitude,
@@ -205,17 +217,23 @@ export default function UploadOnsitePage() {
         height: gpsPosition.altitude || 0,
       };
 
-      // 保存到数据库，包含标题和描述
-      await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
-        fileType: processedFileData.type,
-        fileUrl,
-        contentHash,
-        location,
-        gpsSource: "device_gps",
-        tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
-        name: title,
-        textContent: description,
-      });
+      try {
+        // 保存到数据库，包含标题和描述
+        await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
+          fileType: processedFileData.type,
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
+          location,
+          gpsSource: "device_gps",
+          tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+          name: title,
+          textContent: description,
+        });
+      } catch (dbErr) {
+        // DB 写入失败：补偿删除刚上传的新存储对象（尽力而为，不掩盖原始错误）
+        await uploadService.cleanupUploadedFile(uploaded);
+        throw dbErr;
+      }
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);

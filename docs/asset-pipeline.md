@@ -58,15 +58,17 @@ interface FileTypeConfig {
 
 | 类型 | accept | maxSize | process | extractMetadata |
 |------|--------|---------|---------|----------------|
-| `image` | `image/*` | 10 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
+| `image` | `image/*` | 5 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
 | `video` | mp4/mov/webm/avi/mkv/3gp | 3 MB | 无 | 无 |
-| `audio` | `audio/*` | 50 MB | 转码为 Opus/WebM | 时长、采样率等 |
-| `document` | pdf/doc/docx/txt/md | 20 MB | 无 | 无 |
+| `audio` | `audio/*` | 3 MB | 转码为 Opus/WebM | 时长、采样率等 |
+| `document` | pdf/doc/docx/txt/md | 5 MB | 无 | 无 |
 | `link` | — | — | — | — |
 | `text` | — | — | — | — |
 | `anchor` | — | — | — | — |
-| `shop` | `image/*` | 10 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
+| `shop` | `image/*` | 5 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
 | `model` | .gltf/.glb | 3 MB | 无 | 无 |
+
+所有 maxSize 均不得超过 assets 存储桶的 `file_size_limit`（5 MiB）；统一入口为 `getEffectiveMaxSizeMB()`（`lib/upload/config.ts`），校验在选择文件时一次性完成。
 
 辅助函数：
 - `inferUploadType(mimeType)` — 根据 MIME 类型推断 `UploadType`
