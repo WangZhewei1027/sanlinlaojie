@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
-import { Geist } from "next/font/google";
-import { ThemeProvider } from "next-themes";
 import { I18nProvider } from "@/components/i18n-provider";
 import {
   DEFAULT_LANGUAGE,
@@ -13,6 +11,7 @@ import { Navbar } from "@/components/navbar";
 import { WorkspaceProvider } from "@/app/manage/components/WorkspaceProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorReporter } from "@/components/error-reporter";
+import { geistSans } from "@/lib/fonts";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -25,12 +24,6 @@ export const metadata: Metadata = {
   description:
     "Explore the rich history and culture of Sanlin Old Street through immersive augmented reality experiences and interactive maps",
 };
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
 
 export const viewport = {
   width: "device-width",

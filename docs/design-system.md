@@ -1,6 +1,6 @@
 # UI 规范体系与实践
 
-本项目的 UI 规范采用业内通用的分层模型：**Token（词汇）→ 组件（语法）→ 活文档（规范）→ 强制（lint/review）**。设计决策的唯一事实源在代码仓库内，人看 `/design-system` 路由，AI 与 lint 读对应源码文件——两者永远是同一份，不允许出现"文档说一套、代码是另一套"。
+本项目的 UI 规范采用业内通用的分层模型：**Token（词汇）→ 组件（语法）→ Storybook（活文档）→ 强制（lint/review）**。设计决策的唯一事实源在代码仓库内：人通过 Storybook 阅读，AI 与 lint 读取对应源码文件——不允许出现“文档说一套、代码是另一套”。
 
 ## 一、体系分层
 
@@ -20,16 +20,28 @@
 - **基础组件**：`components/ui/`（shadcn/Radix），自带刻度内的字号字重，使用时不手写文字样式。禁止直接 import `@radix-ui/*` 原始包。
 - **文字组件**：`components/ui/typography.tsx` 的 `<Text>`，Polaris 风格 API（详见下文）。
 
-### 3. 活文档层 —— `/design-system` 路由
+### 3. 活文档层 —— Storybook
 
-自建的轻量 Storybook（`app/design-system/`），每个章节有稳定 URL 可直达（如 `/design-system/text`、`/design-system/principle-color`），分三组：
+正式 Storybook 配置位于 `.storybook/`，内容位于 `stories/`。应用内不再提供 `/design-system` 路由。Storybook 按标准 CSF 与 Autodocs 组织为三层：
 
-- **设计令牌**：Colors、Text（刻度、字体栈、API 规则的可视化）
-- **组件**：每个 `components/ui/*` 组件一个 story
-- **设计原则**：颜色语义、布局嵌套、移动端适配、加载态——do/don't 对比 + 成文规则
+- **Foundations / Tokens**：Colors、Typography（刻度、字体栈、API 规则的可视化）
+- **Foundations / Principles**：颜色语义、布局嵌套、移动端适配、加载态——do/don't 对比 + 成文规则
+- **Components**：每个 `components/ui/*` 组件拥有独立 CSF 文件与 Docs 页面
+
+目录职责：
+
+- `stories/**/*.stories.tsx`：Storybook 导航、meta、Autodocs 和独立状态声明；每个可命名状态拥有自己的 Story URL。
+- `stories/_components/`：只保留跨多个原则 Story 复用的纯文档版式组件。
+
+Story 编写约定：
+- 简单组件以 `args` 为事实来源，提供 `Playground` 和有意义的状态 Story，Controls 自动编辑公开 props。
+- 复合组件使用显式 `render` 组合子组件；不要为了 Storybook 修改正式组件 API。
+- 一个 Story 只表达一个状态或规则，不再创建集合式 `Overview` 页面。
+- 状态名使用产品语义（如 `DestructiveConfirmation`、`CardLoading`），不使用 `Example1`。
+- Story 只负责展示和文档，不使用 `play` 函数或测试运行器。
 
 实践约定：
-- PR 里出现设计争议，直接贴对应章节 URL 作为依据，不各说各话。
+- PR 里出现设计争议，直接贴对应 Storybook story URL 作为依据。
 - 规则变更走 PR：改规则文案 + 对应 story 同一个 commit。
 - 新增 `<Text>` variant 时，text 章节的 `SCALE_DEMO_ELEMENT` 是 `Record<TextVariant, …>`，不同步更新文档会**编译失败**——这是有意设计，保持它。
 
@@ -97,9 +109,9 @@
 
 ## 五、协作实践
 
-- **人**：新人第一天过一遍 `/design-system`；review 引用章节 URL；设计决策变更由 story + 规则同 PR 修订。
-- **AI**：CLAUDE.md 指向本文档与 `/design-system` 源码；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
-- **验证**：改动共享层（token、ui 组件、Text）属于高杠杆操作——合规不等于视觉无损，改完至少人工过一遍受影响的 design-system 章节；视觉回归脚本见路线图。
+- **人**：新人第一天运行 `npm run storybook` 并过一遍 Design System；review 引用 story URL；设计决策变更由 story + 规则同 PR 修订。
+- **AI**：CLAUDE.md 指向本文档与 `stories/`；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
+- **验证**：改动共享层（token、ui 组件、Text）属于高杠杆操作——合规不等于视觉无损，改完至少人工检查受影响的 Storybook Docs 页面与明暗主题。
 
 ## 六、路线图（按优先级）
 
@@ -107,4 +119,4 @@
 2. ~~lint 上牙齿~~（已完成：四条规则以 warn 级落地 `eslint.config.mjs`，不阻塞 build）。
 3. ~~状态色 token~~（已完成：`--success`/`--warning` 上线，约 50 处状态色已迁移，分类标识色按豁免清单保留）。
 4. ~~Text 小修~~（已完成：tone 缺省继承、alignment 改逻辑属性 `text-start/end`、CardTitle 移除 `tracking-tight`）。
-5. **穷人版视觉回归**：Playwright 循环 design-system 各章节 URL 截图 diff 基线，共享层改动前后各跑一次。
+5. **Storybook 内容维护**：公共组件新增或 API 变化时同步更新对应 CSF、展示状态和 Docs 描述。

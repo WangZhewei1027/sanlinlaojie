@@ -10,8 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# storybook
+/storybook-static
 
 # next.js
 /.next/

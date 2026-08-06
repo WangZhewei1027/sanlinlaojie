@@ -1,0 +1,24 @@
+import { Meta, Subtitle, Title } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Introduction" />
+
+<Title>Sanlin UI Design System</Title>
+
+<Subtitle>正式产品 UI 的组件目录与设计规范。</Subtitle>
+
+Storybook 是本项目唯一的 UI 活文档环境，不是应用路由，也不承担业务流程模拟。
+
+## 目录
+
+- **Foundations / Tokens**：颜色、排版、圆角与字体基础。
+- **Foundations / Principles**：颜色语义、布局嵌套、触屏适配与加载状态。
+- **Components**：`components/ui/` 中正式基础组件的 variants 和展示状态。
+
+## 事实来源
+
+- Token：`app/globals.css`、`tailwind.config.ts`、`lib/fonts.ts`
+- Components：`components/ui/`
+- Rules：`docs/design-system.md`
+- Stories：`stories/**/*.stories.tsx`
+
+每个 Story 表达一个可命名、可链接的状态；简单 props 使用 Controls，复合组件使用显式 `render`。规则、组件行为和对应 Story 应在同一次变更中保持同步。

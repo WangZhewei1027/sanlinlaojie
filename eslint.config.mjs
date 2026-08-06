@@ -10,6 +10,13 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "storybook-static/**",
+    ],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
@@ -25,7 +32,7 @@ const eslintConfig = [
   },
   // 设计规范检查（详见 docs/design-system.md）。warn 级别：提示违规但不阻塞 build。
   {
-    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    files: ["app/**/*.tsx", "components/**/*.tsx", "stories/**/*.tsx"],
     rules: {
       "no-restricted-syntax": [
         "warn",
@@ -50,7 +57,7 @@ const eslintConfig = [
   },
   // 禁止绕过 components/ui 直接使用 Radix 原始组件
   {
-    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    files: ["app/**/*.tsx", "components/**/*.tsx", "stories/**/*.tsx"],
     ignores: ["components/ui/**"],
     rules: {
       "no-restricted-imports": [

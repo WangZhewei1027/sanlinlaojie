@@ -9,6 +9,12 @@
       "autoPort": true
     },
     {
+      "name": "storybook",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["storybook", "dev", "-p", "6007", "--no-open"],
+      "port": 6007
+    },
+    {
       "name": "viewer-static",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["http-server", "public", "-p", "5050", "-c-1"],
