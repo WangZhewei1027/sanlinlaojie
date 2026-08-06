@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import i18n from "@/lib/i18n/config";
 
 /** Thrown by fetchJson on any non-2xx response or network failure. */
 export class ApiError extends Error {
@@ -28,7 +29,7 @@ export async function fetchJson<T = unknown>(
   try {
     res = await fetch(input, init);
   } catch (e) {
-    const message = "网络错误，请稍后重试";
+    const message = i18n.t("errors.network", "Network error, please try again later");
     toast.error(message);
     reportClientError({
       method,
@@ -48,7 +49,10 @@ export async function fetchJson<T = unknown>(
 
   if (!res.ok) {
     const message =
-      (body as { error?: string } | null)?.error || `请求失败 (${res.status})`;
+      (body as { error?: string } | null)?.error ||
+      i18n.t("errors.requestFailed", "Request failed ({{status}})", {
+        status: res.status,
+      });
     toast.error(message);
     throw new ApiError(message, res.status);
   }

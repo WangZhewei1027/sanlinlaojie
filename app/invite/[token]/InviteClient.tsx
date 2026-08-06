@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { createClient } from "@/lib/supabase/client";
 import { fetchJson } from "@/lib/fetch-json";
 import {
@@ -25,6 +26,7 @@ interface Preview {
 }
 
 export function InviteClient({ token }: { token: string }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -79,31 +81,38 @@ export function InviteClient({ token }: { token: string }) {
     <div className="flex min-h-[70vh] items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-lg">组织邀请</CardTitle>
+          <CardTitle className="text-lg">
+            {t("invite.title", "Organization Invitation")}
+          </CardTitle>
           <CardDescription>
-            {phase === "loading" && "正在加载邀请…"}
+            {phase === "loading" && t("invite.loading", "Loading invitation…")}
             {phase === "invalid" &&
-              (preview?.reason ?? "该邀请无效或已失效")}
+              (preview?.reason ??
+                t("invite.invalid", "This invitation is invalid or has expired"))}
             {(phase === "accepting" || phase === "done") &&
               preview?.organization_name &&
-              `你被邀请加入「${preview.organization_name}」`}
+              t("invite.joinPrompt", 'You are invited to join "{{name}}"', {
+                name: preview.organization_name,
+              })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {(phase === "loading" || phase === "accepting") && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {phase === "loading" ? "加载中…" : "正在加入…"}
+              {phase === "loading"
+                ? t("common.loading", "Loading...")
+                : t("invite.joining", "Joining…")}
             </div>
           )}
           {phase === "done" && (
             <p className="text-sm text-muted-foreground">
-              已加入，正在跳转…
+              {t("invite.joinedRedirect", "Joined, redirecting…")}
             </p>
           )}
           {phase === "invalid" && (
             <Button variant="outline" onClick={() => router.replace("/")}>
-              返回首页
+              {t("common.backHome", "Back to Home")}
             </Button>
           )}
         </CardContent>

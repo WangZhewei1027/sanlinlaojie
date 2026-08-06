@@ -15,7 +15,12 @@
     "search": "搜索",
     "close": "关闭",
     "copyFailed": "复制失败",
-    "error": "发生错误"
+    "add": "添加",
+    "back": "返回",
+    "backHome": "回到首页",
+    "createFailed": "创建失败",
+    "noResults": "无搜索结果",
+    "updateFailed": "更新失败"
   },
   "workspace": {
     "selectPlaceholder": "选择工作空间...",
@@ -23,7 +28,26 @@
     "qrButton": "显示二维码",
     "qrTitle": "扫码进入小程序",
     "qrLoading": "生成中…",
-    "qrError": "二维码加载失败"
+    "qrError": "二维码加载失败",
+    "noAssigned": "暂无工作空间"
+  },
+  "invite": {
+    "title": "组织邀请",
+    "loading": "正在加载邀请…",
+    "invalid": "该邀请无效或已失效",
+    "joinPrompt": "你被邀请加入「{{name}}」",
+    "joining": "正在加入…",
+    "joinedRedirect": "已加入，正在跳转…"
+  },
+  "errors": {
+    "network": "网络错误，请稍后重试",
+    "requestFailed": "请求失败 ({{status}})",
+    "forbidden": {
+      "description": "访问被拒绝",
+      "message": "抱歉，你没有权限访问此页面。",
+      "contact": "如果你认为这是一个错误，请联系管理员。",
+      "goBack": "返回上页"
+    }
   },
   "assetFields": {
     "anchor": {
@@ -98,7 +122,6 @@
       "tagColor": "标签颜色",
       "preview": "预览",
       "creating": "创建中...",
-      "createFailed": "创建标签失败",
       "noTagsAvailable": "暂无可用标签，请创建新标签",
       "selectedCount": "已选择 {{count}} 个标签"
     },
@@ -114,6 +137,18 @@
       "latitude": "纬",
       "height": "高",
       "prompt": "点击地图查看坐标..."
+    },
+    "toasts": {
+      "movesSaved": "已保存 {{count}} 个素材的位置"
+    },
+    "mapSelection": {
+      "selectedCount": "已选 {{count}} 个",
+      "copy": "复制",
+      "delete": "删除",
+      "cancel": "取消",
+      "copied": "已复制 {{count}} 个素材",
+      "deleted": "已删除 {{count}} 个素材",
+      "deleteFailed": "{{count}} 个素材删除失败"
     }
   },
   "home": {
@@ -345,11 +380,7 @@
       "settings": "设置",
       "members": "成员",
       "workspaces": "工作空间",
-      "users": "用户管理",
-      "cleanup": "资源清理",
-      "organizations": "组织管理",
-      "orgSection": "组织",
-      "globalSection": "系统管理"
+      "orgSection": "组织"
     },
     "members": {
       "title": "成员管理",
@@ -358,7 +389,6 @@
       "addMember": "添加成员",
       "selectUser": "选择用户...",
       "noMembers": "暂无成员",
-      "noAvailableUsers": "无可添加成员",
       "unnamed": "未命名用户",
       "assignWorkspace": "分配工作空间",
       "removeDialog": {
@@ -373,9 +403,7 @@
         "selectWorkspace": "选择工作空间",
         "assignedWorkspaces": "已分配的工作空间",
         "noAssignedWorkspaces": "暂无分配的工作空间",
-        "close": "关闭",
-        "addFailed": "添加失败",
-        "removeFailed": "删除失败"
+        "close": "关闭"
       },
       "searchByEmail": "按邮箱或姓名搜索（≥3 字符）",
       "searchHint": "输入至少 3 个字符搜索用户",
@@ -444,7 +472,6 @@
       "noUsersHint": "等待用户注册",
       "currentUser": "当前用户",
       "unnamed": "未命名用户",
-      "registeredOn": "注册于",
       "changeRole": "修改角色",
       "searchPlaceholder": "搜索姓名或邮箱",
       "filterAll": "全部角色",
@@ -504,8 +531,7 @@
       "confirmMessage": "确定要执行清理操作吗？",
       "willDeleteRows": "- 将删除文件不存在的数据库记录（当前工作空间）",
       "willDeleteFiles": "- 将全局扫描存储桶，删除没有任何记录引用、且已存在超过 24 小时的孤儿文件",
-      "irreversible": "此操作不可逆！",
-      "cleanFailed": "清理失败"
+      "irreversible": "此操作不可逆！"
     }
   },
   "assetManager": {
@@ -688,6 +714,7 @@
       "none": "不关联",
       "unnamed": "未命名锚点",
       "notAssociated": "未关联锚点",
+      "workspaceRequiredHint": "选择具体工作区后可关联锚点",
       "loading": "加载中...",
       "fetchFailed": "获取锚点列表失败:"
     },
@@ -705,6 +732,7 @@
       "selectOrCreate": "选择或创建一个标签",
       "createOption": "创建 \"{{name}}\"",
       "addPlaceholder": "添加标签",
+      "workspaceRequiredHint": "选择具体工作区后可编辑标签",
       "colorSectionTitle": "颜色",
       "customColor": "自定义",
       "noResults": "无匹配标签",
@@ -760,13 +788,10 @@
   "auth": {
     "signIn": "登录",
     "signUp": "注册",
-    "createAccount": "创建一个新账户",
-    "loginWelcome": "登录你的账户",
     "email": "邮箱",
     "phone": "手机号码",
     "emailOrPhone": "邮箱 / 手机号",
     "password": "密码",
-    "confirmPassword": "确认密码",
     "repeatPassword": "确认密码",
     "forgotPassword": "忘记密码？",
     "resetPassword": "重置密码",
@@ -783,13 +808,10 @@
     "verifyAndSignUp": "验证并注册",
     "verifyAndResetPassword": "验证并重置密码",
     "resendCode": "重新发送",
-    "changeEmail": "更改邮箱",
     "changePhone": "更改手机号码",
-    "otpSentMessage": "验证码已发送到 {{email}}",
     "phoneOtpSentMessage": "验证码已发送到 {{phone}}",
     "invalidOtpCode": "验证码无效，请检查输入",
     "otpExpired": "验证码已过期，请重新发送",
-    "otpSendError": "发送验证码失败",
     "passwordsMustMatch": "两次输入的密码不一致",
     "passwordTooShort": "密码至少需要 8 个字符",
     "newPassword": "新密码",

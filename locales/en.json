@@ -15,7 +15,12 @@
     "search": "Search",
     "close": "Close",
     "copyFailed": "Copy failed",
-    "error": "An error occurred"
+    "add": "Add",
+    "back": "Back",
+    "backHome": "Back to Home",
+    "createFailed": "Create failed",
+    "noResults": "No results",
+    "updateFailed": "Update failed"
   },
   "workspace": {
     "selectPlaceholder": "Select workspace...",
@@ -23,7 +28,26 @@
     "qrButton": "Show QR Code",
     "qrTitle": "Scan to enter mini-program",
     "qrLoading": "Generating...",
-    "qrError": "Failed to load QR code"
+    "qrError": "Failed to load QR code",
+    "noAssigned": "No workspace"
+  },
+  "invite": {
+    "title": "Organization Invitation",
+    "loading": "Loading invitation…",
+    "invalid": "This invitation is invalid or has expired",
+    "joinPrompt": "You are invited to join \"{{name}}\"",
+    "joining": "Joining…",
+    "joinedRedirect": "Joined, redirecting…"
+  },
+  "errors": {
+    "network": "Network error, please try again later",
+    "requestFailed": "Request failed ({{status}})",
+    "forbidden": {
+      "description": "Access Denied",
+      "message": "Sorry, you don't have permission to access this page.",
+      "contact": "If you believe this is a mistake, please contact an administrator.",
+      "goBack": "Go Back"
+    }
   },
   "assetFields": {
     "anchor": {
@@ -98,7 +122,6 @@
       "tagColor": "Tag Color",
       "preview": "Preview",
       "creating": "Creating...",
-      "createFailed": "Failed to create tag",
       "noTagsAvailable": "No tags available. Create a new tag to get started.",
       "selectedCount": "{{count}} tag(s) selected"
     },
@@ -114,6 +137,18 @@
       "latitude": "Lat",
       "height": "Alt",
       "prompt": "Click on the map to view coordinates..."
+    },
+    "toasts": {
+      "movesSaved": "Saved positions of {{count}} assets"
+    },
+    "mapSelection": {
+      "selectedCount": "{{count}} selected",
+      "copy": "Copy",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "copied": "Copied {{count}} assets",
+      "deleted": "Deleted {{count}} assets",
+      "deleteFailed": "Failed to delete {{count}} assets"
     }
   },
   "home": {
@@ -345,11 +380,7 @@
       "settings": "Settings",
       "members": "Members",
       "workspaces": "Workspaces",
-      "users": "Users",
-      "cleanup": "Cleanup",
-      "organizations": "Organizations",
-      "orgSection": "Organization",
-      "globalSection": "Administration"
+      "orgSection": "Organization"
     },
     "members": {
       "title": "Members",
@@ -358,7 +389,6 @@
       "addMember": "Add Member",
       "selectUser": "Select user...",
       "noMembers": "No members yet",
-      "noAvailableUsers": "No available users to add",
       "unnamed": "Unnamed user",
       "assignWorkspace": "Assign Workspace",
       "removeDialog": {
@@ -373,9 +403,7 @@
         "selectWorkspace": "Select workspace",
         "assignedWorkspaces": "Assigned Workspaces",
         "noAssignedWorkspaces": "No assigned workspaces",
-        "close": "Close",
-        "addFailed": "Failed to add",
-        "removeFailed": "Failed to remove"
+        "close": "Close"
       },
       "searchByEmail": "Search by email or name (≥3 chars)",
       "searchHint": "Type at least 3 characters to search",
@@ -444,7 +472,6 @@
       "noUsersHint": "Waiting for user registration",
       "currentUser": "Current User",
       "unnamed": "Unnamed User",
-      "registeredOn": "Registered on",
       "changeRole": "Change Role",
       "searchPlaceholder": "Search name or email",
       "filterAll": "All roles",
@@ -504,8 +531,7 @@
       "confirmMessage": "Are you sure you want to proceed with cleanup?",
       "willDeleteRows": "- Will delete database records with missing files (current workspace)",
       "willDeleteFiles": "- Will scan the whole bucket and delete orphan files unreferenced by any record (older than 24h)",
-      "irreversible": "This action cannot be undone!",
-      "cleanFailed": "Cleanup failed"
+      "irreversible": "This action cannot be undone!"
     }
   },
   "assetManager": {
@@ -688,6 +714,7 @@
       "none": "Not associated",
       "unnamed": "Unnamed anchor",
       "notAssociated": "No associated anchor",
+      "workspaceRequiredHint": "Select a specific workspace to link an anchor",
       "loading": "Loading...",
       "fetchFailed": "Failed to fetch anchor list:"
     },
@@ -705,6 +732,7 @@
       "selectOrCreate": "Select an option or create one",
       "createOption": "Create \"{{name}}\"",
       "addPlaceholder": "Add tags",
+      "workspaceRequiredHint": "Select a specific workspace to edit tags",
       "colorSectionTitle": "Color",
       "customColor": "Custom",
       "noResults": "No tags found",
@@ -760,13 +788,10 @@
   "auth": {
     "signIn": "Sign in",
     "signUp": "Sign up",
-    "createAccount": "Create a new account",
-    "loginWelcome": "Log in to your account",
     "email": "Email",
     "phone": "Phone number",
     "emailOrPhone": "Email / Phone",
     "password": "Password",
-    "confirmPassword": "Confirm Password",
     "repeatPassword": "Repeat Password",
     "forgotPassword": "Forgot your password?",
     "resetPassword": "Reset Password",
@@ -783,13 +808,10 @@
     "verifyAndSignUp": "Verify and sign up",
     "verifyAndResetPassword": "Verify and reset password",
     "resendCode": "Resend code",
-    "changeEmail": "Change email",
     "changePhone": "Change phone number",
-    "otpSentMessage": "Verification code sent to {{email}}",
     "phoneOtpSentMessage": "Verification code sent to {{phone}}",
     "invalidOtpCode": "Invalid verification code, please check your input",
     "otpExpired": "Verification code has expired, please resend",
-    "otpSendError": "Failed to send verification code",
     "passwordsMustMatch": "Passwords do not match",
     "passwordTooShort": "Password must be at least 8 characters",
     "newPassword": "New Password",

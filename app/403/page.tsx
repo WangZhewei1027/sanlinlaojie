@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +13,8 @@ import {
 import { ShieldAlert, Home, ArrowLeft } from "lucide-react";
 
 export default function ForbiddenPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-muted/20">
       <Card className="max-w-md w-full">
@@ -22,15 +25,23 @@ export default function ForbiddenPage() {
             </div>
           </div>
           <CardTitle className="text-3xl font-bold">403</CardTitle>
-          <CardDescription className="text-lg mt-2">访问被拒绝</CardDescription>
+          <CardDescription className="text-lg mt-2">
+            {t("errors.forbidden.description", "Access Denied")}
+          </CardDescription>
         </CardHeader>
         <CardContent className="text-center space-y-6">
           <div className="space-y-2">
             <p className="text-muted-foreground">
-              抱歉，你没有权限访问此页面。
+              {t(
+                "errors.forbidden.message",
+                "Sorry, you don't have permission to access this page.",
+              )}
             </p>
             <p className="text-sm text-muted-foreground">
-              如果你认为这是一个错误，请联系管理员。
+              {t(
+                "errors.forbidden.contact",
+                "If you believe this is a mistake, please contact an administrator.",
+              )}
             </p>
           </div>
 
@@ -41,12 +52,12 @@ export default function ForbiddenPage() {
               onClick={() => window.history.back()}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              返回上页
+              {t("errors.forbidden.goBack", "Go Back")}
             </Button>
             <Link href="/" className="flex-1">
               <Button className="w-full">
                 <Home className="h-4 w-4 mr-2" />
-                回到首页
+                {t("common.backHome", "Back to Home")}
               </Button>
             </Link>
           </div>
