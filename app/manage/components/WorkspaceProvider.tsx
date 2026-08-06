@@ -28,6 +28,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     workspaces,
     selectedWorkspaceId,
     selectedWorkspace,
+    setSelectedWorkspaceId: setHookSelectedWorkspaceId,
     setPreferredWorkspaceId,
     currentUserRole,
     loading,
@@ -93,10 +94,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     shouldShowWorkspace,
   ]);
 
-  // ── Workspace switcher → hook ref ─────────────────────────────────────
-  // WorkspaceSwitcher writes to the store directly. Keep the hook's
-  // preference ref in sync so re-initialisation (e.g. TOKEN_REFRESHED)
-  // restores the correct workspace.
+  // ── Workspace switcher → hook ─────────────────────────────────────────
+  // WorkspaceSwitcher writes to the store directly. Keep both the hook's
+  // preference ref (so re-initialisation, e.g. TOKEN_REFRESHED, restores the
+  // correct workspace) AND the hook's state in sync. Without the state
+  // update, the hook's derived `selectedWorkspace` keeps naming the old
+  // workspace while the id already says "__all__"/new id, and the
+  // hook→store effects below would re-push that stale object into the
+  // store. Updating hook state makes `selectedWorkspace` recompute
+  // (undefined → null for "__all__"), keeping id and object consistent.
+  // No render loop: once hook state equals the store id, the guard below
+  // stops re-running, and pushing identical values into Zustand does not
+  // re-trigger subscribed selectors.
   const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
   const wsSyncInitRef = useRef(false);
 
@@ -107,11 +116,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
     if (shouldShowWorkspace && storeWorkspaceId !== selectedWorkspaceId) {
       setPreferredWorkspaceId(storeWorkspaceId);
+      setHookSelectedWorkspaceId(storeWorkspaceId);
     }
   }, [
     storeWorkspaceId,
     selectedWorkspaceId,
     setPreferredWorkspaceId,
+    setHookSelectedWorkspaceId,
     shouldShowWorkspace,
   ]);
 

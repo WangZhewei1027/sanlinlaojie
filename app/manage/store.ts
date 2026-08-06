@@ -211,6 +211,13 @@ export const useManageStore = create<ManageStore>()(
       }),
       {
         name: "manage-store",
+        version: 1,
+        // 旧版本（无 version 字段）的持久化数据直接丢弃选择，回落到默认值，
+        // 避免跨用户/跨 schema 恢复出过期的组织/工作区选择。
+        migrate: () => ({
+          selectedOrganizationId: null,
+          selectedWorkspaceId: null,
+        }),
         partialize: (state) => ({
           selectedOrganizationId: state.selectedOrganizationId,
           selectedWorkspaceId: state.selectedWorkspaceId,

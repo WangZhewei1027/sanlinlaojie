@@ -1,4 +1,5 @@
 import { useEffect, RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Asset, LocationData, ViewerMessage } from "../types";
 import { useManageStore } from "../store";
@@ -20,6 +21,7 @@ export function useViewerMessaging({
   assets,
   iframeRef,
 }: UseViewerMessagingProps) {
+  const { t } = useTranslation();
   const setClickedLocation = useManageStore(
     (state) => state.setClickedLocation,
   );
@@ -50,7 +52,6 @@ export function useViewerMessaging({
         } as unknown as ViewerMessage,
         "*",
       );
-      console.log("发送 origin 到 viewer:", selectedOrganization.map_center);
     };
 
     const iframe = iframeRef.current;
@@ -77,7 +78,6 @@ export function useViewerMessaging({
           } as ViewerMessage,
           "*",
         );
-        console.log("发送 assets 到 viewer:", assets.length);
       }
     };
 
@@ -118,7 +118,7 @@ export function useViewerMessaging({
             },
           });
         });
-        toast.success(`已保存 ${moves.length} 个素材的位置`);
+        toast.success(t("manage.toasts.movesSaved", { count: moves.length }));
       } catch {
         // fetchJson 已弹出错误 toast
       }
@@ -148,6 +148,7 @@ export function useViewerMessaging({
     setSelectedAssetId,
     setSelectedAssetIds,
     updateAssetInStore,
+    t,
   ]);
 
   // 发送聚焦资产消息到 viewer
@@ -171,7 +172,6 @@ export function useViewerMessaging({
       } as ViewerMessage,
       "*",
     );
-    console.log("聚焦到资产:", asset.id);
   };
 
   // 清除 viewer 端的选中高亮（父级操作条“取消”后调用）

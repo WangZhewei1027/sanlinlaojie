@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState, useMemo } from "react";
+import { useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import type { Asset, Tag, Creator } from "../../types";
@@ -74,7 +74,14 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWorkspaceId, selectedOrganizationId, isAllWorkspaces]);
 
+  // 单调递增的请求序号：workspace/org 快速切换时，只允许最新一次请求
+  // （成功或失败）写入 store，防止慢响应把旧列表覆盖到新选择上。
+  const fetchAssetsSeqRef = useRef(0);
+
   const fetchAssets = useCallback(async () => {
+    const seq = ++fetchAssetsSeqRef.current;
+    const isCurrent = () => seq === fetchAssetsSeqRef.current;
+
     // "All workspaces" 模式：拉取当前组织下所有 workspace 的 assets
     if (isAllWorkspaces) {
       if (!selectedOrganizationId) {
@@ -90,12 +97,12 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         if (!response.ok) {
           throw new Error(result.error || t("assetManager.fetchAssetsFailed"));
         }
-        setAssets(result.data || []);
+        if (isCurrent()) setAssets(result.data || []);
       } catch (err) {
         console.error(t("assetManager.fetchAssetsFailed"), err);
-        setAssets([]);
+        if (isCurrent()) setAssets([]);
       } finally {
-        setAssetsLoading(false);
+        if (isCurrent()) setAssetsLoading(false);
       }
       return;
     }
@@ -117,12 +124,12 @@ export function AssetManager({ onFocusAsset }: AssetManagerProps) {
         throw new Error(result.error || t("assetManager.fetchAssetsFailed"));
       }
 
-      setAssets(result.data || []);
+      if (isCurrent()) setAssets(result.data || []);
     } catch (err) {
       console.error(t("assetManager.fetchAssetsFailed"), err);
-      setAssets([]);
+      if (isCurrent()) setAssets([]);
     } finally {
-      setAssetsLoading(false);
+      if (isCurrent()) setAssetsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

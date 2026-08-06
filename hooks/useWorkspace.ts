@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ALL_WORKSPACES_ID } from "@/app/manage/constants";
+import { useManageStore } from "@/app/manage/store";
 
 export interface Organization {
   id: string;
@@ -193,6 +194,13 @@ export function useWorkspace(
       const userChanged = nextUserId !== lastUserIdRef.current;
 
       if (event === "SIGNED_OUT" || (event === "SIGNED_IN" && userChanged)) {
+        if (event === "SIGNED_OUT") {
+          // Session ended (explicit logout OR expiry): clear the persisted
+          // org/workspace selection so the next user on this machine does
+          // not inherit it. Explicit logout buttons also call reset(), but
+          // session expiry only surfaces here.
+          useManageStore.getState().reset();
+        }
         // Real auth transition: reload org/workspace data.
         setLoading(true);
         setError(null);

@@ -6,7 +6,9 @@ import { isFieldEditable, type AssetTypeConfig } from "../../../config";
 import type { Asset } from "../../../types";
 import type { AssetEditedData } from "../hooks/useAssetEditor";
 import { FieldSection } from "../FieldSection";
+import { FieldLabel } from "../FieldLabel";
 import { AnchorSelector, AssetLocationEditor } from "../fields";
+import { Text } from "@/components/ui/typography";
 
 interface AssetEditorPlacementSectionProps {
   asset: Asset;
@@ -29,11 +31,10 @@ export function AssetEditorPlacementSection({
 }: AssetEditorPlacementSectionProps) {
   const { t } = useTranslation();
 
-  const showAnchor =
-    isFieldEditable(asset.file_type, "anchor_id") && !!selectedWorkspaceId;
+  const canShowAnchor = isFieldEditable(asset.file_type, "anchor_id");
   const showLocation = isFieldEditable(asset.file_type, "location");
 
-  if (!showAnchor && !showLocation) return null;
+  if (!canShowAnchor && !showLocation) return null;
 
   return (
     <FieldSection
@@ -41,16 +42,25 @@ export function AssetEditorPlacementSection({
       hint={t("assetEditor.sections.placementHint")}
       icon={MapPin}
     >
-      {showAnchor && selectedWorkspaceId && (
-        <AnchorSelector
-          currentAnchorId={isEditing ? editedData.anchor_id : asset.anchor_id}
-          workspaceId={selectedWorkspaceId}
-          isEditing={isEditing}
-          onAnchorChange={(anchorId) =>
-            setEditedData((prev) => ({ ...prev, anchor_id: anchorId }))
-          }
-        />
-      )}
+      {canShowAnchor &&
+        (selectedWorkspaceId ? (
+          <AnchorSelector
+            currentAnchorId={isEditing ? editedData.anchor_id : asset.anchor_id}
+            workspaceId={selectedWorkspaceId}
+            isEditing={isEditing}
+            onAnchorChange={(anchorId) =>
+              setEditedData((prev) => ({ ...prev, anchor_id: anchorId }))
+            }
+          />
+        ) : (
+          // "All workspaces" 模式下无具体 workspace，锚点关联不可用：给出提示而非静默消失
+          <div className="space-y-2">
+            <FieldLabel>{t("assetEditor.anchor.title")}</FieldLabel>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t("assetEditor.anchor.workspaceRequiredHint")}
+            </Text>
+          </div>
+        ))}
 
       {showLocation && (
         <AssetLocationEditor

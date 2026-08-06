@@ -11,7 +11,9 @@ import {
 import type { Asset } from "../../../types";
 import type { AssetEditedData } from "../hooks/useAssetEditor";
 import { FieldSection } from "../FieldSection";
+import { FieldLabel } from "../FieldLabel";
 import { AssetNameEditor, AssetTextEditor, AssetTagEditor } from "../fields";
+import { Text } from "@/components/ui/typography";
 
 interface AssetEditorBasicsSectionProps {
   asset: Asset;
@@ -38,10 +40,9 @@ export function AssetEditorBasicsSection({
   const isAnchorLike = assetConfig?.previewType === "anchor";
   const showName = isFieldEditable(asset.file_type, "name");
   const showText = isFieldEditable(asset.file_type, "text_content");
-  const showTags =
-    isFieldEditable(asset.file_type, "tag_ids") && !!selectedWorkspaceId;
+  const canShowTags = isFieldEditable(asset.file_type, "tag_ids");
 
-  if (!showName && !showText && !showTags) return null;
+  if (!showName && !showText && !canShowTags) return null;
 
   return (
     <FieldSection
@@ -102,16 +103,25 @@ export function AssetEditorBasicsSection({
         />
       )}
 
-      {showTags && selectedWorkspaceId && (
-        <AssetTagEditor
-          tagIds={isEditing ? editedData.tag_ids : asset.tag_ids}
-          workspaceId={selectedWorkspaceId}
-          isEditing={isEditing}
-          onTagIdsChange={(tagIds) =>
-            setEditedData((prev) => ({ ...prev, tag_ids: tagIds }))
-          }
-        />
-      )}
+      {canShowTags &&
+        (selectedWorkspaceId ? (
+          <AssetTagEditor
+            tagIds={isEditing ? editedData.tag_ids : asset.tag_ids}
+            workspaceId={selectedWorkspaceId}
+            isEditing={isEditing}
+            onTagIdsChange={(tagIds) =>
+              setEditedData((prev) => ({ ...prev, tag_ids: tagIds }))
+            }
+          />
+        ) : (
+          // "All workspaces" 模式下无具体 workspace，标签编辑不可用：给出提示而非静默消失
+          <div className="space-y-2">
+            <FieldLabel>{t("assetEditor.tags.title")}</FieldLabel>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t("assetEditor.tags.workspaceRequiredHint")}
+            </Text>
+          </div>
+        ))}
     </FieldSection>
   );
 }
