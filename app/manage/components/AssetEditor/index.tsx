@@ -145,6 +145,7 @@ export function AssetEditor({
                 isEditing={isEditing}
                 imageFile={imageFile}
                 checkinFile={checkinFile}
+                linkInput={editedData.link_url}
                 onImageFileSelect={setImageFile}
                 onImageFileRemove={() => setImageFile(null)}
                 onCheckinFileSelect={setCheckinFile}

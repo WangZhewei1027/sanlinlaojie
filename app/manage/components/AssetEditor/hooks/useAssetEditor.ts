@@ -4,6 +4,12 @@ import { useManageStore } from "../../../store";
 import { isSpecificWorkspaceId } from "../../../constants";
 import type { Asset } from "../../../types";
 import { FileUploadService } from "@/lib/upload/service";
+import {
+  getLinkAssetErrorKey,
+  LinkAssetParseError,
+  parseLinkAssetInput,
+  resolveLinkAssetData,
+} from "@/lib/link-asset";
 import { getAssetConfig, isFieldEditable } from "../../../config";
 
 interface UseAssetEditorOptions {
@@ -27,6 +33,7 @@ export interface AssetEditedData {
   scale_multiplier: string;
   text_color: string;
   text_size: string;
+  link_url: string;
 }
 
 export function useAssetEditor({
@@ -62,6 +69,7 @@ export function useAssetEditor({
     scale_multiplier: "",
     text_color: "",
     text_size: "",
+    link_url: "",
   });
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
@@ -85,6 +93,9 @@ export function useAssetEditor({
           selectedAsset.config?.scale_multiplier?.toString() || "",
         text_color: selectedAsset.config?.text_color || "",
         text_size: selectedAsset.config?.text_size?.toString() || "",
+        link_url:
+          resolveLinkAssetData(selectedAsset.file_url, selectedAsset.config)
+            ?.originalUrl || selectedAsset.file_url || "",
       });
       setCheckinFile(null);
       setImageFile(null);
@@ -156,6 +167,16 @@ export function useAssetEditor({
       if (isFieldEditable(selectedAsset.file_type, "is_huge"))
         updates.is_huge = editedData.is_huge;
 
+      if (isFieldEditable(selectedAsset.file_type, "link_url")) {
+        const linkData = parseLinkAssetInput(editedData.link_url);
+        updates.file_url = linkData.previewUrl;
+        updates.config = {
+          ...selectedAsset.config,
+          ...updates.config,
+          link: linkData,
+        };
+      }
+
       if (isFieldEditable(selectedAsset.file_type, "scale_multiplier")) {
         const parsed = parseFloat(editedData.scale_multiplier);
         updates.config = {
@@ -185,7 +206,11 @@ export function useAssetEditor({
       setIsEditing(false);
     } catch (error) {
       console.error("保存失败:", error);
-      alert(t("assetEditor.saveFailed"));
+      alert(
+        error instanceof LinkAssetParseError
+          ? t(getLinkAssetErrorKey(error))
+          : t("assetEditor.saveFailed"),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -214,6 +239,9 @@ export function useAssetEditor({
           selectedAsset.config?.scale_multiplier?.toString() || "",
         text_color: selectedAsset.config?.text_color || "",
         text_size: selectedAsset.config?.text_size?.toString() || "",
+        link_url:
+          resolveLinkAssetData(selectedAsset.file_url, selectedAsset.config)
+            ?.originalUrl || selectedAsset.file_url || "",
       });
       setCheckinFile(null);
       setImageFile(null);

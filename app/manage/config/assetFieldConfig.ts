@@ -13,7 +13,8 @@ export type EditableField =
   | "is_huge" // 是否为大型模型（仅 model 类型）
   | "scale_multiplier" // 模型缩放倍率（仅 model 类型）
   | "text_color" // 文字颜色（仅 text 类型）
-  | "text_size"; // 文字大小（仅 text 类型）
+  | "text_size" // 文字大小（仅 text 类型）
+  | "link_url"; // 原始链接或 iframe 代码（仅 link 类型）
 
 // 预览组件类型
 export type PreviewType =
@@ -123,6 +124,7 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     editableFields: [
       "name",
       "text_content",
+      "link_url",
       "anchor_id",
       "tag_ids",
       "location",

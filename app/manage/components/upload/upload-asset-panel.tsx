@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,13 @@ import { useManageStore } from "../../store";
 import { isSpecificWorkspaceId } from "../../constants";
 import type { Asset } from "../../types";
 import { Text } from "@/components/ui/typography";
+import {
+  getLinkAssetErrorKey,
+  LinkAssetParseError,
+  parseLinkAssetInput,
+  type LinkAssetData,
+} from "@/lib/link-asset";
+import { AssetLinkPreview } from "../AssetEditor/previews/AssetLinkPreview";
 
 interface UploadAssetPanelProps {
   onUpload?: () => void;
@@ -69,6 +76,18 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const linkPreview = useMemo<{
+    data: LinkAssetData | null;
+    errorKey: string | null;
+  }>(() => {
+    if (!link.trim()) return { data: null, errorKey: null };
+    try {
+      return { data: parseLinkAssetInput(link), errorKey: null };
+    } catch (linkError) {
+      return { data: null, errorKey: getLinkAssetErrorKey(linkError) };
+    }
+  }, [link]);
+
   // Location selection
   const locationSelection = useLocationSelection(clickedLocation);
 
@@ -109,11 +128,11 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           text: text.trim() || undefined,
         });
       } else if (uploadType === "link") {
-        if (!link.trim()) throw new Error(t("upload.enterLink"));
+        const linkData = parseLinkAssetInput(link);
         created = await uploadService.saveLink(
           workspaceId,
           user.id,
-          link,
+          linkData,
           finalLocation || undefined,
         );
       } else if (uploadType === "text") {
@@ -205,7 +224,13 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
       resetForm();
     } catch (err) {
       console.error(t("upload.uploadFailed"), err);
-      setError(err instanceof Error ? err.message : t("upload.uploadFailed"));
+      setError(
+        err instanceof LinkAssetParseError
+          ? t(getLinkAssetErrorKey(err))
+          : err instanceof Error
+            ? err.message
+            : t("upload.uploadFailed"),
+      );
     } finally {
       setUploading(false);
     }
@@ -297,12 +322,29 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                   </Label>
                   <Input
                     id="link"
-                    type="url"
+                    type="text"
                     placeholder={t("upload.fields.linkPlaceholder")}
                     value={link}
                     onChange={(e) => setLink(e.target.value)}
+                    aria-invalid={!!linkPreview.errorKey}
+                    disabled={uploading}
                     className="text-xs"
                   />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t("linkAsset.fields.hint")}
+                  </Text>
+                  {linkPreview.errorKey && (
+                    <Text as="p" variant="bodySm" tone="critical">
+                      {t(linkPreview.errorKey)}
+                    </Text>
+                  )}
+                  {linkPreview.data && (
+                    <AssetLinkPreview
+                      linkData={linkPreview.data}
+                      fileName={t("assetEditor.preview.link")}
+                      compact
+                    />
+                  )}
                 </div>
               )}
 

@@ -619,6 +619,29 @@
       "clickMapHint": "No location selected yet — click on the map to pick coordinates"
     }
   },
+  "linkAsset": {
+    "fields": {
+      "source": "Link source",
+      "placeholder": "Paste a web URL, Figma share link, or complete iframe code",
+      "hint": "Supports http/https URLs, Figma share links, and iframe code. Only src is extracted; pasted code is never executed."
+    },
+    "preview": {
+      "loading": "Loading link preview…",
+      "openOriginal": "Open original",
+      "openFallback": "You can still open the original link in a new window.",
+      "blockedHint": "If the preview says the connection was refused or stays blank, the destination may block embedding. Use “Open original” to view it."
+    },
+    "errors": {
+      "empty": "Enter a link address or iframe code.",
+      "iframeMissingSrc": "No src address was found in the iframe code.",
+      "invalidUrl": "The link format is invalid. Check it and try again.",
+      "unsupportedProtocol": "Only http or https links are supported. Protocols such as javascript are not allowed.",
+      "embedBlocked": "This website refused to load or does not allow iframe previews.",
+      "loadTimeout": "The link preview timed out. The destination may be inaccessible.",
+      "invalidStoredUrl": "This link asset has an invalid saved address. Edit it to enter a new one.",
+      "unsupportedClient": "Link previews are not supported in this client. Open it on the web."
+    }
+  },
   "fileTypes": {
     "image": "Image",
     "video": "Video",
