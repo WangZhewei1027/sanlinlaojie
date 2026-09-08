@@ -215,6 +215,10 @@ export function useWorkspace(
     return () => subscription.unsubscribe();
   }, [initializeUser]);
 
+  const setPreferredWorkspaceId = useCallback((id: string | null) => {
+    preferredWorkspaceIdRef.current = id;
+  }, []);
+
   const selectedOrganization = organizations.find(
     (o) => o.id === selectedOrganizationId,
   );
@@ -234,9 +238,7 @@ export function useWorkspace(
     setSelectedWorkspaceId,
     // Call this when the user picks a workspace outside the hook so that the
     // preference ref stays up-to-date for future re-initialisations.
-    setPreferredWorkspaceId: (id: string | null) => {
-      preferredWorkspaceIdRef.current = id;
-    },
+    setPreferredWorkspaceId,
     userId,
     currentUserRole,
     loading,

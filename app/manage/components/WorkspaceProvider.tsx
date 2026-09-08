@@ -65,62 +65,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     (state) => state.setWorkspaceLoading,
   );
 
-  // ── Org switcher: store → hook ──────────────────────────────────────────
-  // When the OrgSwitcher component writes directly to the Zustand store, we
-  // detect the divergence here and relay the change into useWorkspace so it
-  // can re-fetch workspaces for the new org.
-  const storeOrgId = useManageStore((state) => state.selectedOrganizationId);
-  const orgSyncInitRef = useRef(false);
+  // Only relay actual external store changes into the hook. Comparing two
+  // render snapshots in opposing effects swaps old/new IDs on every render
+  // when useWorkspace selects a default after a fetch.
+  const publishingSelectionRef = useRef(false);
 
   useEffect(() => {
-    // Skip the very first run – at that point WorkspaceProvider hasn't yet
-    // pushed the hook's initial value into the store, so any divergence is
-    // expected and should not trigger a redundant fetch.
-    if (!orgSyncInitRef.current) {
-      orgSyncInitRef.current = true;
-      return;
-    }
-    if (
-      shouldShowWorkspace &&
-      storeOrgId &&
-      storeOrgId !== selectedOrganizationId
-    ) {
-      handleOrganizationChange(storeOrgId);
-    }
+    if (!shouldShowWorkspace) return;
+
+    return useManageStore.subscribe((state, previousState) => {
+      if (publishingSelectionRef.current) return;
+
+      if (
+        state.selectedOrganizationId &&
+        state.selectedOrganizationId !== previousState.selectedOrganizationId
+      ) {
+        void handleOrganizationChange(state.selectedOrganizationId);
+      }
+      if (state.selectedWorkspaceId !== previousState.selectedWorkspaceId) {
+        setPreferredWorkspaceId(state.selectedWorkspaceId);
+        setHookSelectedWorkspaceId(state.selectedWorkspaceId);
+      }
+    });
   }, [
-    storeOrgId,
-    selectedOrganizationId,
     handleOrganizationChange,
-    shouldShowWorkspace,
-  ]);
-
-  // ── Workspace switcher → hook ─────────────────────────────────────────
-  // WorkspaceSwitcher writes to the store directly. Keep both the hook's
-  // preference ref (so re-initialisation, e.g. TOKEN_REFRESHED, restores the
-  // correct workspace) AND the hook's state in sync. Without the state
-  // update, the hook's derived `selectedWorkspace` keeps naming the old
-  // workspace while the id already says "__all__"/new id, and the
-  // hook→store effects below would re-push that stale object into the
-  // store. Updating hook state makes `selectedWorkspace` recompute
-  // (undefined → null for "__all__"), keeping id and object consistent.
-  // No render loop: once hook state equals the store id, the guard below
-  // stops re-running, and pushing identical values into Zustand does not
-  // re-trigger subscribed selectors.
-  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
-  const wsSyncInitRef = useRef(false);
-
-  useEffect(() => {
-    if (!wsSyncInitRef.current) {
-      wsSyncInitRef.current = true;
-      return;
-    }
-    if (shouldShowWorkspace && storeWorkspaceId !== selectedWorkspaceId) {
-      setPreferredWorkspaceId(storeWorkspaceId);
-      setHookSelectedWorkspaceId(storeWorkspaceId);
-    }
-  }, [
-    storeWorkspaceId,
-    selectedWorkspaceId,
     setPreferredWorkspaceId,
     setHookSelectedWorkspaceId,
     shouldShowWorkspace,
@@ -142,7 +110,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (shouldShowWorkspace) {
-      setStoreSelectedOrganizationId(selectedOrganizationId);
+      publishingSelectionRef.current = true;
+      try {
+        setStoreSelectedOrganizationId(selectedOrganizationId);
+      } finally {
+        publishingSelectionRef.current = false;
+      }
     }
   }, [
     selectedOrganizationId,
@@ -170,7 +143,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (shouldShowWorkspace) {
-      setStoreSelectedWorkspaceId(selectedWorkspaceId);
+      publishingSelectionRef.current = true;
+      try {
+        setStoreSelectedWorkspaceId(selectedWorkspaceId);
+      } finally {
+        publishingSelectionRef.current = false;
+      }
     }
   }, [selectedWorkspaceId, setStoreSelectedWorkspaceId, shouldShowWorkspace]);
 
