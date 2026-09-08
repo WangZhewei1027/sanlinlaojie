@@ -1,9 +1,6 @@
 begin;
--- User-requested reset: every anchor present when this migration runs is legacy.
--- Detach children FIRST; delete only anchor rows, never their attached assets.
--- Run before deploying the new management UI. Entire migration rolls back on error.
-update public.asset set anchor_id=null where anchor_id in (select id from public.asset where file_type='anchor');
-delete from public.asset where file_type='anchor';
+-- Schema only: management UI is already live, so preserve existing matching
+-- points and child links. Legacy cleanup must not run during delayed deployment.
 
 -- Matching points keep asset.file_type='anchor'; one reference image in file_url.
 -- Embeddings are private derived data, never included in existing asset SELECT *.
