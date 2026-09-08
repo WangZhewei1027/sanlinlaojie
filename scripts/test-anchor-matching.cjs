@@ -185,8 +185,39 @@ function recognitionFixture(options = {}) {
 }
 test("no GPS candidate skips image inference", async () => {
   const f = recognitionFixture({ candidates: [] });
-  assert.equal((await f.run()).reason, "no_nearby_anchor");
+  const result = await f.run();
+  assert.equal(result.reason, "no_nearby_anchor");
+  assert.equal(result.diagnostics.candidate_count, 0);
+  assert.equal(result.diagnostics.best_similarity, null);
+  assert.equal(result.diagnostics.timings_ms.model_request_ms, undefined);
   assert.equal(f.count(), 0);
+});
+test("rejected matches expose score evidence without becoming accepted anchors", async () => {
+  for (const scores of [[0.65], [0.9, 0.89]]) {
+    const candidates = scores.map((_, i) => ({ id: `candidate-${i}`, name: "private-name", file_url: `https://storage.test/private-${i}.jpg`, distance_meters: i + 12, metadata: {} }));
+    const features = candidates.map((c, i) => ({ anchor_id: c.id, image_url: c.file_url, status: "ready", embedding_version: "test-v1", embedding: vector(scores[i], Math.sqrt(1 - scores[i] ** 2)) }));
+    const result = await recognitionFixture({ candidates, features }).run();
+    assert.equal(result.reason, scores.length === 1 ? "below_threshold" : "ambiguous");
+    assert.equal(result.matched, false);
+    assert.equal(result.anchor, null);
+    assert.deepEqual(result.assets, []);
+    const d = result.diagnostics;
+    assert.ok(Math.abs(d.best_similarity - scores[0]) < 1e-8);
+    assert.equal(d.threshold, 0.8);
+    assert.equal(d.required_margin, 0.03);
+    assert.equal(d.candidate_count, scores.length);
+    assert.equal(d.ready_reference_count, scores.length);
+    if (scores.length === 1) {
+      assert.equal(d.second_similarity, null);
+      assert.equal(d.score_gap, null);
+    } else {
+      assert.ok(Math.abs(d.score_gap - 0.01) < 1e-8);
+    }
+    assert.ok(d.timings_ms.model_request_ms >= 0);
+    assert.ok(d.timings_ms.matching_total_ms >= d.timings_ms.model_request_ms);
+    assert.equal(d.timings_ms.assets_read_ms, undefined);
+    assert.doesNotMatch(JSON.stringify(d), /private|candidate-0|embedding|https:/);
+  }
 });
 test("missing or replaced reference is not rebuilt during recognition", async () => {
   for (const features of [
@@ -348,7 +379,7 @@ test("credential-free multipart API validates image, returns structured response
     "@/lib/anchor/recognize.server": {
       recognizeAnchor: async () => {
         count++;
-        return { matched: false, assets: [] };
+        return { matched: false, assets: [], diagnostics: { timings_ms: {} } };
       },
     },
   })("app/api/miniapp/anchors/recognize/route.ts");
@@ -357,6 +388,9 @@ test("credential-free multipart API validates image, returns structured response
   form.set("image", new Blob(["test"], { type: "image/jpeg" }), "q.jpg");
   const good = await POST(new Request(url, { method: "POST", body: form }));
   assert.equal(good.status, 200);
+  const goodBody = await good.json();
+  assert.ok(goodBody.data.diagnostics.timings_ms.request_parse_ms >= 0);
+  assert.ok(goodBody.data.diagnostics.timings_ms.api_total_ms >= goodBody.data.diagnostics.timings_ms.request_parse_ms);
   assert.equal(count, 1);
   assert.equal(
     (await POST(new Request(url, { method: "POST", body: gpsForm() }))).status,

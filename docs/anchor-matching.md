@@ -166,3 +166,18 @@ wx.uploadFile({
 小程序现在优先展示后端 `{ error }` 的具体原因，非 JSON 错误保留通用提示，避免所有 503 都显示“匹配服务尚未就绪”。
 
 启用前需：确认目标环境迁移已应用、配置可用 EAS 和数据库凭据、用现场正负照片校准阈值、生成参考特征、小程序切换调用并验证连续帧触发。图库更新不需要训练模型；增加正负样本用于阈值验证更直接。
+
+
+## 识别分数与耗时诊断
+
+HTTP 200 的识别响应增加 `data.diagnostics`，成功与未命中都提供摘要。未命中仍然返回 `anchor: null`、`assets: []`，诊断分数不代表已确认匹配。
+
+- `candidate_count` / `ready_reference_count`：GPS 候选数与可用参考特征数。
+- `threshold` / `required_margin`：本次实际使用的阈值和前两名最小分差。
+- `best_similarity` / `second_similarity` / `score_gap`：排序后的前两名余弦分数及差值。尚未比较时为 null，只有一名候选时第二名和分差为 null。
+- `best_distance_meters`：最高分候选的 GPS 距离，不是视觉定位误差。
+- `timings_ms`：`request_parse_ms`（请求读取与解析）、`rate_limit_ms`（限流数据库请求）、`gps_query_ms`（附近点查询）、`reference_read_ms`（读取向量）、`model_request_ms`（管理端到 EAS 的完整请求）、`ranking_ms`（比较与判定）、`candidate_recheck_ms`（命中后的候选复查）、`assets_read_ms`（读取挂载素材）、`matching_total_ms` 和 `api_total_ms`。未执行的阶段省略，小程序日志显示 null。
+
+`model_request_ms` 包含模型服务网络往返与返回向量解析，不是纯 GPU 推理时间；`api_total_ms` 从路由函数开始计时，不能涵盖进入函数之前的平台启动或排队。与小程序 `uploadRoundtripMs` 对照使用。摘要不返回参考图 URL、候选身份、原始坐标或向量，不增加数据库请求或模型调用。
+
+收到 `below_threshold` 时，先查看最高分与实际阈值，再用现场正负样本校准。原参考图自匹配约 1.0 仅证明链路正确，不能证明视角、光照变化后的实拍也能通过阈值。

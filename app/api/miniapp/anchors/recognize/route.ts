@@ -8,6 +8,7 @@ import {
 } from "@/lib/anchor-matching";
 export const maxDuration = 60;
 export async function POST(request: Request) {
+  const startedAt = performance.now();
   try {
     const workspaceId = requireUuid(
       new URL(request.url).searchParams.get("workspace_id"),
@@ -48,8 +49,12 @@ export async function POST(request: Request) {
       !MATCH_IMAGE_TYPES.includes(image.type)
     )
       throw new MatchingError("图片须为 JPEG、PNG 或 WebP，且不超过 4 MiB");
+    const parsedAt = performance.now();
+    const data = await recognizeAnchor(workspaceId, form, image);
+    data.diagnostics.timings_ms.request_parse_ms = Math.round(parsedAt - startedAt);
+    data.diagnostics.timings_ms.api_total_ms = Math.round(performance.now() - startedAt);
     return NextResponse.json(
-      { data: await recognizeAnchor(workspaceId, form, image) },
+      { data },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

@@ -22,6 +22,14 @@ export async function recognizeAnchor(
   form: FormData,
   image: Blob,
 ) {
+  const startedAt = performance.now();
+  let checkpoint = startedAt;
+  const timings: Record<string, number> = {};
+  const mark = (stage: string) => {
+    const now = performance.now();
+    timings[stage] = Math.round(now - checkpoint);
+    checkpoint = now;
+  };
   const gps = parseGps(form);
   // Explicit calibration is required: no invented universal similarity cutoff.
   if (!process.env.SAGE_MATCH_THRESHOLD)
@@ -38,11 +46,28 @@ export async function recognizeAnchor(
     2,
     "SAGE_MATCH_MARGIN",
   );
+  // Summary only: no candidate identities, URLs, GPS coordinates or vectors.
+  const diagnostics = {
+    candidate_count: 0,
+    ready_reference_count: 0,
+    threshold,
+    required_margin: margin,
+    best_similarity: null as number | null,
+    second_similarity: null as number | null,
+    score_gap: null as number | null,
+    best_distance_meters: null as number | null,
+  };
+  const snapshot = (): typeof diagnostics & { timings_ms: Record<string, number> } => ({
+    ...diagnostics,
+    timings_ms: { ...timings, matching_total_ms: Math.round(performance.now() - startedAt) },
+  });
   const admin = createAdminClient();
+  mark("validation_ms");
   const { data: allowed, error: limitError } = await admin.rpc(
     "consume_anchor_match_request",
     { p_workspace_id: workspaceId },
   );
+  mark("rate_limit_ms");
   if (limitError)
     throw new MatchingError("匹配接口未就绪，请检查数据库迁移", 503);
   if (!allowed) throw new MatchingError("请求过于频繁，请稍后重试", 429);
@@ -52,14 +77,17 @@ export async function recognizeAnchor(
     p_lng: gps.longitude,
     p_radius: gps.radius,
   });
+  mark("gps_query_ms");
   if (error) throw new MatchingError("无法查询附近匹配点", 503);
   const candidates = (data ?? []) as Candidate[];
+  diagnostics.candidate_count = candidates.length;
   const empty = (reason: string) => ({
     matched: false,
     reason,
     anchor: null,
     assets: [],
     gps_radius_meters: gps.radius,
+    diagnostics: snapshot(),
   });
   if (!candidates.length) return empty("no_nearby_anchor");
   if (candidates.length > 200)
@@ -71,6 +99,7 @@ export async function recognizeAnchor(
       "anchor_id",
       candidates.map((c) => c.id),
     );
+  mark("reference_read_ms");
   if (featureError) throw new MatchingError("无法读取匹配特征", 503);
   const ready = (rows ?? []).filter(
     (r) =>
@@ -79,9 +108,11 @@ export async function recognizeAnchor(
         (c) => c.id === r.anchor_id && c.file_url === r.image_url,
       ),
   );
+  diagnostics.ready_reference_count = ready.length;
   // Never silently omit an unprepared competitor and accept a different nearby point.
   if (ready.length !== candidates.length) return empty("reference_not_ready");
   const query = await embedImage(image);
+  mark("model_request_ms");
   if (ready.some((r) => r.embedding_version !== query.version))
     return empty("model_version_mismatch");
   const ranked = ready.map((row) => ({
@@ -90,7 +121,13 @@ export async function recognizeAnchor(
     distance_meters: candidates.find((c) => c.id === row.anchor_id)!
       .distance_meters,
   }));
+  const sorted = [...ranked].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+  diagnostics.best_similarity = sorted[0]?.score ?? null;
+  diagnostics.second_similarity = sorted[1]?.score ?? null;
+  diagnostics.score_gap = sorted[1] ? sorted[0].score - sorted[1].score : null;
+  diagnostics.best_distance_meters = sorted[0]?.distance_meters ?? null;
   const result = chooseMatch(ranked, threshold, margin);
+  mark("ranking_ms");
   if (!result.match) return empty(result.reason);
   const candidate = candidates.find((c) => c.id === result.match!.id)!;
   // Detect replacement/deletion/movement while inference was in flight.
@@ -100,6 +137,7 @@ export async function recognizeAnchor(
     p_lng: gps.longitude,
     p_radius: gps.radius,
   });
+  mark("candidate_recheck_ms");
   if (
     !current ||
     current.length !== candidates.length ||
@@ -124,6 +162,7 @@ export async function recognizeAnchor(
       .neq("file_type", "anchor")
       .contains("workspace_id", [workspaceId]),
   );
+  mark("assets_read_ms");
   if (assetsError) throw new MatchingError("无法读取挂载素材", 503);
   return {
     matched: true,
@@ -137,5 +176,6 @@ export async function recognizeAnchor(
     assets: assets ?? [],
     gps_radius_meters: gps.radius,
     embedding_version: query.version,
+    diagnostics: snapshot(),
   };
 }
