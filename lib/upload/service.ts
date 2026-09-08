@@ -35,9 +35,12 @@ export class FileUploadService {
   /**
    * 处理文件（压缩、提取元数据等）
    */
-  async processFile(file: File): Promise<UploadFile> {
-    const uploadType = inferUploadType(file.type, file.name);
+  async processFile(file: File, requestedType?: UploadType): Promise<UploadFile> {
+    const uploadType = requestedType ?? inferUploadType(file.type, file.name);
     const config = FILE_TYPE_CONFIGS[uploadType];
+    if (uploadType === "anchor" && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error("匹配图仅支持 JPEG、PNG 和 WebP");
+    }
 
     let processedFile = file;
     let gpsSource: GPSSource | undefined;
@@ -342,12 +345,14 @@ export class FileUploadService {
     userId: string,
     anchorData: AnchorData,
   ): Promise<UploadedAsset> {
-    const { name, location, text } = anchorData;
+    const { name, location, text, fileUrl, contentHash } = anchorData;
     const geometry = `POINT(${location.longitude} ${location.latitude})`;
 
     return this.createAsset(workspaceId, {
       name: name,
       file_type: "anchor",
+      file_url: fileUrl,
+      content_hash: contentHash,
       text_content: text || null,
       location: geometry,
       metadata: {

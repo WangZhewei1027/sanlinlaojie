@@ -1,5 +1,9 @@
 # API Documentation
 
+## 匹配点识别 API
+
+新增 `POST /api/miniapp/anchors/recognize?workspace_id=<uuid>`，上传现场图片和 WGS84 GPS，匹配成功后返回匹配点挂载素材。另有管理端 `GET/POST /api/assets/<id>/matching` 特征状态与重建接口。鉴权、字段、配置、响应及小程序接入要求见 [匹配点与小程序混合识别](./anchor-matching.md)。
+
 ## Overview
 
 This document describes all API routes available in the application.

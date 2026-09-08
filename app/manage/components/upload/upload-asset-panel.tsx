@@ -140,7 +140,13 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         if (!name.trim()) {
           throw new Error(t("upload.anchorRequiresName"));
         }
+        if (!file) throw new Error(t("matching.imageRequired"));
+        const processed = await uploadService.processFile(file, "anchor");
+        const uploaded = await uploadService.uploadToStorage(processed.file, user.id, { type: "anchor", workspaceId });
+        uploadedFiles.push(uploaded);
         created = await uploadService.saveAnchor(workspaceId, user.id, {
+          fileUrl: uploaded.url,
+          contentHash: uploaded.contentHash,
           name: name.trim(),
           location: finalLocation,
           text: text.trim() || undefined,
@@ -286,7 +292,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
     // 处理文件并提取元数据；结果缓存供上传时复用，避免二次压缩/解析
     try {
-      const processedFile = await uploadService.processFile(selectedFile);
+      const processedFile = await uploadService.processFile(selectedFile, uploadType === "anchor" ? "anchor" : undefined);
       setProcessedCache({ source: selectedFile, result: processedFile });
       if (processedFile.gpsSource) {
         locationSelection.setExifLocation(processedFile.gpsSource.location);
@@ -320,7 +326,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
     locationSelection.setExifLocation(null);
   };
 
-  const isFileType = !["link", "text", "anchor"].includes(uploadType);
+  const isFileType = !["link", "text"].includes(uploadType);
 
   // 用户已开始填写内容：选了文件或输入了任意文字，此时展示坐标区（无坐标则提示去地图点选）
   const hasContent =
@@ -350,7 +356,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               {/* 文件类型选择 */}
               <FileTypeSelector
                 selectedType={uploadType}
-                onTypeChange={setUploadType}
+                onTypeChange={(type) => { resetForm(); setError(null); setUploadType(type); }}
                 types={effectiveTypes}
               />
 
@@ -361,7 +367,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
                   onFileSelect={processSelectedFile}
                   onFileRemove={handleFileRemove}
                   accept={FILE_TYPE_CONFIGS[uploadType].accept}
-                  label={t("upload.fields.select", {
+                  label={uploadType === "anchor" ? t("matching.referenceImage") : t("upload.fields.select", {
                     type: t(FILE_TYPE_CONFIGS[uploadType].label),
                   })}
                   disabled={uploading}

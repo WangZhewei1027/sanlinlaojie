@@ -15,7 +15,7 @@ export function AssetThumbnail({
 }: AssetThumbnailProps) {
   return (
     <div className="w-16 h-16 flex-shrink-0 rounded-md overflow-hidden bg-muted flex items-center justify-center">
-      {fileType === "image" && fileUrl ? (
+      {(fileType === "image" || fileType === "anchor") && fileUrl ? (
         <img
           src={fileUrl}
           alt={fileName}

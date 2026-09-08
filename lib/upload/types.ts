@@ -75,6 +75,8 @@ export interface UploadResult {
 }
 
 export interface AnchorData {
+  fileUrl: string;
+  contentHash: string;
   name: string;
   text?: string;
   location: LocationData;

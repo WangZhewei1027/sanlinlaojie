@@ -1,3 +1,6 @@
+import { trySyncAnchor, referenceUrl } from "@/lib/anchor/embedding.server";
+import { validateAnchorLink } from "@/lib/anchor/access.server";
+import { MatchingError, finiteNumber } from "@/lib/anchor-matching";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { getWorkspaceOrgIds } from "@/lib/permissions.server";
@@ -23,6 +26,8 @@ async function authorizeAssetWrite(
       ok: true;
       asset: {
         id: string;
+        file_type: string;
+        workspace_id: string[] | null;
         file_url?: string | null;
         metadata?: Record<string, unknown> | null;
       };
@@ -31,7 +36,7 @@ async function authorizeAssetWrite(
 > {
   const { data: asset } = await supabase
     .from("asset")
-    .select("id, file_url, metadata, workspace_id")
+    .select("id, file_type, file_url, metadata, workspace_id")
     .eq("id", assetId)
     .single();
 
@@ -93,6 +98,8 @@ async function authorizeAssetWrite(
   return { ok: true, asset };
 }
 
+export const maxDuration = 60;
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -125,6 +132,16 @@ export async function PATCH(
       location,
       content_hash,
     } = body;
+
+    await validateAnchorLink(supabase, anchor_id, auth.asset.file_type, auth.asset.workspace_id ?? [], assetId);
+    if (auth.asset.file_type === "anchor") {
+      if (name !== undefined && (typeof name !== "string" || !name.trim())) throw new MatchingError("匹配点必须输入名称");
+      if (file_url !== undefined) referenceUrl(file_url);
+      if (metadata && (metadata.latitude !== undefined || metadata.longitude !== undefined)) {
+        finiteNumber(metadata.latitude ?? auth.asset.metadata?.latitude, -90, 90, "latitude");
+        finiteNumber(metadata.longitude ?? auth.asset.metadata?.longitude, -180, 180, "longitude");
+      }
+    }
 
     // 构建更新对象
     const updates: Record<string, unknown> = {};
@@ -190,6 +207,10 @@ export async function PATCH(
       };
     }
 
+    // Keep spatial matching in sync with coordinates edited in the form.
+    if (auth.asset.file_type === "anchor" && metadata && (metadata.latitude !== undefined || metadata.longitude !== undefined)) {
+      updates.location = `POINT(${metadata.longitude ?? auth.asset.metadata?.longitude} ${metadata.latitude ?? auth.asset.metadata?.latitude})`;
+    }
     const { data: updatedAsset, error: updateError } = await supabase
       .from("asset")
       .update(updates)
@@ -228,8 +249,10 @@ export async function PATCH(
       });
     }
 
+    if (file_url !== undefined && file_url !== auth.asset.file_url) await trySyncAnchor(updatedAsset);
     return NextResponse.json({ data: updatedAsset });
   } catch (error) {
+    if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("更新资源失败:", error);
     await logError(supabase, {
       method: "PATCH",
@@ -288,6 +311,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: "资源已删除" });
   } catch (error) {
+    if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("删除资源失败:", error);
     await logError(supabase, {
       method: "DELETE",

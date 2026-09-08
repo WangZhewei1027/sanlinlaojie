@@ -80,7 +80,10 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     type: "anchor",
     label: "fileTypes.anchor",
     icon: Anchor,
-    accept: "",
+    accept: "image/jpeg,image/png,image/webp",
+    maxSize: 4,
+    process: (file: File) => compressImage(file, 1),
+    extractMetadata: async (file: File) => ({ gps: await extractGPSFromImage(file) }),
   },
   shop: {
     type: "shop",

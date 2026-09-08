@@ -42,6 +42,7 @@ export interface Creator {
 
 export interface Asset {
   id: string;
+  workspace_id?: string[];
   name?: string | null; // 资源名称（特别是 anchor 类型）
   file_type: string;
   file_url: string | null;

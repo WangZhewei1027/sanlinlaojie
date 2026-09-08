@@ -51,10 +51,10 @@
   },
   "assetFields": {
     "anchor": {
-      "name": "Anchor Name",
-      "description": "Anchor Description (Optional)",
-      "namePlaceholder": "Enter anchor name",
-      "descriptionPlaceholder": "Enter anchor description (optional)"
+      "name": "Matching Point Name",
+      "description": "Matching Point Description (Optional)",
+      "namePlaceholder": "Enter matching point name",
+      "descriptionPlaceholder": "Enter matching point description (optional)"
     },
     "text": {
       "content": "Text Content",
@@ -579,7 +579,7 @@
       "clear": "Clear",
       "noTypes": "No types",
       "types": {
-        "anchor": "Anchor",
+        "anchor": "Matching Point",
         "text": "Text",
         "image": "Image",
         "audio": "Audio",
@@ -600,8 +600,8 @@
     "title": "Upload Asset",
     "selectWorkspace": "Please select a workspace first",
     "pleaseLogin": "Please login first",
-    "anchorRequiresLocation": "Anchor must have a location",
-    "anchorRequiresName": "Anchor must have a name",
+    "anchorRequiresLocation": "Matching Point must have a location",
+    "anchorRequiresName": "Matching Point must have a name",
     "enterLink": "Please enter a link address",
     "enterText": "Please enter text content",
     "selectFile": "Please select a file",
@@ -621,12 +621,12 @@
       "linkPlaceholder": "https://example.com",
       "textContent": "Text Content",
       "textPlaceholder": "Enter text content...",
-      "anchorName": "Anchor Name",
+      "anchorName": "Matching Point Name",
       "anchorNameRequired": "*",
-      "anchorNamePlaceholder": "Enter anchor name (required)",
-      "anchorDescription": "Anchor Description (Optional)",
-      "anchorDescPlaceholder": "Enter anchor description (optional)...",
-      "anchorNote": "Anchor must specify location and name, other assets can be attached to this anchor",
+      "anchorNamePlaceholder": "Enter matching point name (required)",
+      "anchorDescription": "Matching Point Description (Optional)",
+      "anchorDescPlaceholder": "Enter matching point description (optional)...",
+      "anchorNote": "A matching point needs a name, location and one reference image. Other assets can be attached here.",
       "shopName": "Shop Name",
       "shopNamePlaceholder": "Enter shop name (optional)",
       "shopDescription": "Shop Description",
@@ -675,7 +675,7 @@
     "document": "Document",
     "link": "Link",
     "text": "Text",
-    "anchor": "Anchor",
+    "anchor": "Matching Point",
     "shop": "Shop",
     "model": "3D Model"
   },
@@ -733,13 +733,13 @@
       "loadError": "Unable to preview this 3D model"
     },
     "anchor": {
-      "title": "Associated Anchor",
+      "title": "Associated Matching Point",
       "none": "Not associated",
-      "unnamed": "Unnamed anchor",
-      "notAssociated": "No associated anchor",
-      "workspaceRequiredHint": "Select a specific workspace to link an anchor",
+      "unnamed": "Unnamed matching point",
+      "notAssociated": "No associated matching point",
+      "workspaceRequiredHint": "Select a specific workspace to link an matching point",
       "loading": "Loading...",
-      "fetchFailed": "Failed to fetch anchor list:"
+      "fetchFailed": "Failed to fetch matching point list:"
     },
     "tags": {
       "title": "Tags",
@@ -777,7 +777,7 @@
       "basicsHint": "Name, description and tags",
       "preview": "Preview",
       "placement": "Placement",
-      "placementHint": "Anchor and geographic location",
+      "placementHint": "Matching Point and geographic location",
       "appearance": "Appearance",
       "appearanceHint": "How this asset renders in AR",
       "advanced": "Advanced",
@@ -876,5 +876,29 @@
       "phoneNotRegistered": "This phone number is not registered",
       "accountCreatedLoginFailed": "Your account was created, but automatic sign-in failed. Please sign in manually from the login page"
     }
+  },
+  "matching": {
+    "referenceImage": "Reference image (one)",
+    "imageRequired": "Upload one reference image",
+    "imageHint": "Choose a photo showing distinctive buildings, storefronts or surroundings. A match returns the attached assets below.",
+    "missing_image": "No reference image uploaded",
+    "pending": "Image saved; features not generated",
+    "ready": "Matching features ready",
+    "failed": "Feature generation failed. Retry below.",
+    "unconfigured": "Image saved; matching service not configured",
+    "loading": "Loading matching status…",
+    "processing": "Generating matching features…",
+    "retry": "Generate / update matching features",
+    "loadFailed": "Could not load matching status. Please retry.",
+    "children": "Attached assets",
+    "emptyChildren": "No attached assets. Select this matching point in another asset’s placement settings.",
+    "childrenHint": "These assets appear after the place is recognized.",
+    "selectChildren": "Attach existing assets",
+    "saveChildren": "Save attachments",
+    "childrenSaved": "Attachments saved",
+    "childrenFailed": "Some attachments could not be saved. Refresh and retry.",
+    "noWorkspace": "Select a specific workspace to manage attachments.",
+    "attach": "Attach",
+    "detach": "Detach"
   }
 }

@@ -1,7 +1,11 @@
 import { updateSession } from "@/lib/supabase/proxy";
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  // This endpoint validates mini-program credentials itself; it has no web cookies.
+  if (request.nextUrl.pathname === "/api/miniapp/anchors/recognize") {
+    return NextResponse.next();
+  }
   return await updateSession(request);
 }
 

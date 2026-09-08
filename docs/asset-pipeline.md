@@ -1,5 +1,7 @@
 # Asset Pipeline
 
+> 2026-09-08：anchor 已改为「匹配点」，增加一张参考图片和独立特征存储，挂载关系继续使用 anchor_id。具体新流程优先参考 [匹配点与小程序混合识别](./anchor-matching.md)，下文 anchor 的无文件旧流程已被替代。
+
 本文档描述 sanlinlaojie 管理端中任意类型资源（Asset）从配置到上传、编辑、预览的完整处理链路。
 
 ---

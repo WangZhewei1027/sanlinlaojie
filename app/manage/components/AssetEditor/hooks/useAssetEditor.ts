@@ -121,7 +121,7 @@ export function useAssetEditor({
         };
       }
 
-      if (assetConfig?.previewType === "image" && imageFile) {
+      if ((assetConfig?.previewType === "image" || selectedAsset.file_type === "anchor") && imageFile) {
         const uploadService = new FileUploadService();
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
@@ -129,7 +129,7 @@ export function useAssetEditor({
           data: { user },
         } = await supabase.auth.getUser();
         if (user) {
-          const processed = await uploadService.processFile(imageFile);
+          const processed = await uploadService.processFile(imageFile, selectedAsset.file_type === "anchor" ? "anchor" : undefined);
           const { url, contentHash } = await uploadService.uploadToStorage(
             processed.file,
             user.id,

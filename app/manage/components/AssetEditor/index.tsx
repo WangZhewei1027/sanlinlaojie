@@ -1,4 +1,5 @@
 "use client";
+import { MatchingPointSection } from "./MatchingPointSection";
 
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
@@ -133,6 +134,12 @@ export function AssetEditor({
               setEditedData={setEditedData}
               selectedWorkspaceId={selectedWorkspaceId}
             />
+          )}
+
+          {selectedAsset.file_type === "anchor" && (
+            <MatchingPointSection key={selectedAsset.id} asset={selectedAsset} workspaceId={selectedWorkspaceId}
+              isEditing={isEditing} readOnly={readOnly} imageFile={imageFile}
+              onImageSelect={setImageFile} onImageRemove={() => setImageFile(null)} onUpdateAsset={onUpdateAsset} />
           )}
 
           {/* 预览 */}

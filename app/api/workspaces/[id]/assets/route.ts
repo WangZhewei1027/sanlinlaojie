@@ -1,9 +1,14 @@
+import { trySyncAnchor, referenceUrl } from "@/lib/anchor/embedding.server";
+import { validateAnchorLink } from "@/lib/anchor/access.server";
+import { MatchingError, finiteNumber } from "@/lib/anchor-matching";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextResponse } from "next/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
+
+export const maxDuration = 60;
 
 export async function GET(
   request: Request,
@@ -56,6 +61,7 @@ export async function GET(
 
     return NextResponse.json({ data });
   } catch (error) {
+    if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("获取 assets 失败:", error);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
@@ -118,6 +124,13 @@ export async function POST(
       return NextResponse.json({ error: "缺少 file_type" }, { status: 400 });
     }
 
+    await validateAnchorLink(supabase, anchor_id, file_type, [workspaceId]);
+    if (file_type === "anchor") {
+      if (typeof name !== "string" || !name.trim()) throw new MatchingError("匹配点必须输入名称");
+      referenceUrl(file_url);
+      finiteNumber(metadata?.latitude, -90, 90, "latitude");
+      finiteNumber(metadata?.longitude, -180, 180, "longitude");
+    }
     // 白名单字段；workspace_id / created_by 由服务端定，不信任 body
     const insertPayload: Record<string, unknown> = {
       workspace_id: [workspaceId],
@@ -135,6 +148,7 @@ export async function POST(
     if (config !== undefined) insertPayload.config = config;
     if (content_hash !== undefined) insertPayload.content_hash = content_hash;
 
+    if (file_type === "anchor") insertPayload.location = `POINT(${metadata.longitude} ${metadata.latitude})`;
     const { data, error } = await supabase
       .from("asset")
       .insert(insertPayload)
@@ -143,8 +157,10 @@ export async function POST(
 
     if (error) throw error;
 
+    await trySyncAnchor(data);
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
+    if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("创建资产失败:", error);
     await logError(supabase, {
       method: "POST",
