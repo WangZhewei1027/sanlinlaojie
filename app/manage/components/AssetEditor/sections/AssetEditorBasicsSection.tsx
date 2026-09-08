@@ -10,9 +10,15 @@ import {
 } from "../../../config";
 import type { Asset } from "../../../types";
 import type { AssetEditedData } from "../hooks/useAssetEditor";
+import { resolveLinkAssetData } from "@/lib/link-asset";
 import { FieldSection } from "../FieldSection";
 import { FieldLabel } from "../FieldLabel";
-import { AssetNameEditor, AssetTextEditor, AssetTagEditor } from "../fields";
+import {
+  AssetLinkEditor,
+  AssetNameEditor,
+  AssetTextEditor,
+  AssetTagEditor,
+} from "../fields";
 import { Text } from "@/components/ui/typography";
 
 interface AssetEditorBasicsSectionProps {
@@ -40,9 +46,12 @@ export function AssetEditorBasicsSection({
   const isAnchorLike = assetConfig?.previewType === "anchor";
   const showName = isFieldEditable(asset.file_type, "name");
   const showText = isFieldEditable(asset.file_type, "text_content");
+  const showLink = isFieldEditable(asset.file_type, "link_url");
   const canShowTags = isFieldEditable(asset.file_type, "tag_ids");
 
-  if (!showName && !showText && !canShowTags) return null;
+  if (!showName && !showText && !showLink && !canShowTags) return null;
+
+  const linkData = resolveLinkAssetData(asset.file_url, asset.config);
 
   return (
     <FieldSection
@@ -99,6 +108,17 @@ export function AssetEditorBasicsSection({
             isAnchorLike
               ? "assetEditor.fields.noDescription"
               : "assetEditor.fields.noContent"
+          }
+        />
+      )}
+
+      {showLink && (
+        <AssetLinkEditor
+          originalUrl={linkData?.originalUrl ?? ""}
+          isEditing={isEditing}
+          editedLink={editedData.link_url}
+          onLinkChange={(linkUrl) =>
+            setEditedData((prev) => ({ ...prev, link_url: linkUrl }))
           }
         />
       )}

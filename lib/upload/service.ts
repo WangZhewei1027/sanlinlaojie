@@ -14,6 +14,7 @@ import {
   inferUploadType,
   validateFileSize,
 } from "./config";
+import type { LinkAssetData } from "@/lib/link-asset";
 
 /**
  * uploadToStorage 的返回：storagePath 仅在本次真正上传了新对象时非 null；
@@ -283,7 +284,7 @@ export class FileUploadService {
   async saveLink(
     workspaceId: string,
     userId: string,
-    link: string,
+    link: LinkAssetData,
     location?: LocationData,
   ): Promise<UploadedAsset> {
     const geometry = location
@@ -292,7 +293,8 @@ export class FileUploadService {
 
     return this.createAsset(workspaceId, {
       file_type: "link",
-      file_url: link,
+      file_url: link.previewUrl,
+      config: { link },
       location: geometry,
       metadata: {
         longitude: location?.longitude,
