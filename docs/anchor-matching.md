@@ -150,7 +150,18 @@ wx.uploadFile({
 
 2026-09-09 线上复查：此前 503 的实际响应是“匹配接口未就绪，请检查数据库迁移”，请求在工作空间限流 RPC 处失败，尚未调用模型。补齐两张表、三个业务 RPC 后，公开 multipart 识别请求返回 HTTP 200 / `no_nearby_anchor`；非法参数仍返回 400，不存在的匹配点返回 404，无登录重定向。这验证了生产路由与数据库链路，合成图片和测试坐标不验证识别精度。
 
-当前工作空间的真实匹配点状态返回 `unconfigured`；线上还需配置 `SAGE_EAS_ENDPOINT`、`SAGE_EAS_TOKEN` 后重新部署，再生成参考特征。仅填写 `SAGE_MATCH_THRESHOLD` 不会建立模型连接。参考特征未就绪时，附近识别返回 `reference_not_ready`，不会调用模型或返回素材。
+随后定位到生产环境缺少模型连接配置。在 Vercel Production 中将 GPU 服务的 `SAGE_EAS_ENDPOINT`、`SAGE_EAS_TOKEN` 保存为 Secret 并重新部署（`BARAedWXZRNMYcLG9tdzKVfVegJx`），确认正式域名生效后，当前工作空间的参考特征已生成并返回 `ready`。仅填写 `SAGE_MATCH_THRESHOLD` 不会建立模型连接；未生成参考特征时，附近识别返回 `reference_not_ready`。
+
+生产完整链路自检（2026-09-09；本机 HTTPS 往返耗时，包含网络、Vercel、数据库和模型，不是单张 GPU 推理时间）：
+
+| 操作 | 结果 | 耗时 |
+|---|---|---|
+| 生成现有匹配点参考特征 | HTTP 200 / `ready` | 7.949 秒 |
+| 再次读取特征状态 | HTTP 200 / `ready` | 2.485 秒 |
+| 原参考图 + 该点 GPS 自匹配 | HTTP 200 / `matched`，余弦约 1.0 | 5.857 秒 |
+| 空白灰图 + 相同 GPS | HTTP 200 / `below_threshold` | 1.837 秒 |
+
+以上为单次配置与接口自检，不是现场识别精度或延迟分布测试。当前测试点没有挂载素材，命中返回 `assets: []`；需在管理端挂载素材才能验证真机 AR 内容出现。新增特征表与限流表已确认启用 RLS，anon / authenticated 无直接 SELECT 权限，service_role 可访问。
 
 小程序现在优先展示后端 `{ error }` 的具体原因，非 JSON 错误保留通用提示，避免所有 503 都显示“匹配服务尚未就绪”。
 
