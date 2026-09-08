@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAnchorAccess } from "@/lib/anchor/access.server";
+import { getMatchingAnchor } from "@/lib/anchor/access.server";
 import {
   modelConfigured,
   syncAnchorEmbedding,
@@ -20,7 +20,7 @@ function failure(error: unknown) {
 export async function GET(_: Request, { params }: Context) {
   try {
     const { id } = await params;
-    const { asset } = await requireAnchorAccess(id, false);
+    const asset = await getMatchingAnchor(id);
     if (!asset.file_url)
       return NextResponse.json({ data: { status: "missing_image" } });
     if (!modelConfigured())
@@ -49,7 +49,7 @@ export async function GET(_: Request, { params }: Context) {
 export async function POST(_: Request, { params }: Context) {
   try {
     const { id } = await params;
-    const { asset } = await requireAnchorAccess(id, true);
+    const asset = await getMatchingAnchor(id);
     if (!asset.file_url) throw new MatchingError("请先上传匹配图");
     if (!modelConfigured()) throw new MatchingError("匹配服务尚未配置", 503);
     await syncAnchorEmbedding(id, asset.file_url);

@@ -260,27 +260,63 @@ test("reference download rejects off-origin, redirects via user URL, and non-ass
   ])
     assert.throws(() => referenceUrl(url));
 });
-test("public mini-program credential only works for explicitly enabled workspaces", async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test-public-key";
-  process.env.ANCHOR_PUBLIC_WORKSPACE_IDS = workspace;
-  const access = loader()("lib/anchor/access.server.ts");
-  await access.authorizeRecognition(
-    new Request("https://app.test", { headers: { apikey: "test-public-key" } }),
-    workspace,
-  );
-  await assert.rejects(
-    access.authorizeRecognition(
-      new Request("https://app.test", {
-        headers: { apikey: "test-public-key" },
-      }),
-      "other",
-    ),
-    (e) => e.status === 401,
-  );
-  await assert.rejects(
-    access.authorizeRecognition(new Request("https://app.test"), workspace),
-    (e) => e.status === 401,
-  );
+test("only recognition and feature routes bypass the web login proxy", async () => {
+  const { NextRequest } = require("next/server");
+  let protectedCalls = 0;
+  const { proxy } = loader({
+    "@/lib/supabase/proxy": { updateSession: async () => {
+      protectedCalls++;
+      return new Response(null, { status: 401 });
+    } },
+  })("proxy.ts");
+  for (const route of ["/api/miniapp/anchors/recognize", `/api/assets/${workspace}/matching`]) {
+    assert.equal((await proxy(new NextRequest(`https://app.test${route}`))).status, 200);
+  }
+  assert.equal(protectedCalls, 0);
+  for (const route of ["/manage", `/api/assets/${workspace}`, `/api/assets/${workspace}/matching/extra`, "/api/miniapp/anchors/recognize-extra"]) {
+    assert.equal((await proxy(new NextRequest(`https://app.test${route}`))).status, 401);
+  }
+  assert.equal(protectedCalls, 4);
+});
+
+test("public matching GET and POST work without credentials and validate anchor IDs", async () => {
+  const image = "https://storage.test/storage/v1/object/public/assets/ref.jpg";
+  let asset = { id: workspace, file_type: "anchor", file_url: image };
+  let generated = 0;
+  const admin = { from: (table) => {
+    const query = {
+      select: () => query,
+      eq: () => query,
+      maybeSingle: async () => ({ data: table === "asset" ? asset : {
+        image_url: image, status: "ready", embedding_version: "test-v1", embedding: vector(),
+      }, error: null }),
+    };
+    return query;
+  } };
+  const route = loader({
+    "@/lib/supabase/admin": { createAdminClient: () => admin },
+    "@/lib/anchor/embedding.server": {
+      modelConfigured: () => true,
+      syncAnchorEmbedding: async (id, url) => {
+        assert.equal(id, workspace); assert.equal(url, image); generated++;
+      },
+    },
+  })("app/api/assets/[id]/matching/route.ts");
+  const context = { params: Promise.resolve({ id: workspace }) };
+  const get = await route.GET(new Request("https://app.test"), context);
+  assert.equal(get.status, 200);
+  assert.equal((await get.json()).data.status, "ready");
+  assert.equal(get.headers.get("cache-control"), "no-store");
+  const post = await route.POST(new Request("https://app.test", { method: "POST" }), context);
+  assert.equal(post.status, 200);
+  assert.equal(generated, 1);
+  for (const method of ["GET", "POST"]) {
+    const invalid = await route[method](new Request("https://app.test"), { params: Promise.resolve({ id: "invalid" }) });
+    assert.equal(invalid.status, 400);
+    asset = { ...asset, file_type: "image" };
+    assert.equal((await route[method](new Request("https://app.test"), context)).status, 404);
+  }
+  assert.equal(generated, 1);
 });
 test("asset attachment rejects self, nested anchors and cross-workspace parent", async () => {
   const { validateAnchorLink } = loader()("lib/anchor/access.server.ts");
@@ -306,10 +342,9 @@ test("asset attachment rejects self, nested anchors and cross-workspace parent",
     validateAnchorLink(supa, workspace, "image", [workspace]),
   );
 });
-test("multipart API validates image, returns structured response, and bounds body", async () => {
+test("credential-free multipart API validates image, returns structured response, and bounds body", async () => {
   let count = 0;
   const { POST } = loader({
-    "@/lib/anchor/access.server": { authorizeRecognition: async () => {} },
     "@/lib/anchor/recognize.server": {
       recognizeAnchor: async () => {
         count++;

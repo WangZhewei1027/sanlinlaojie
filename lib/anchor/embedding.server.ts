@@ -51,7 +51,7 @@ export async function embedImage(image: Blob) {
     version: body.embedding_version as string,
   };
 }
-/** Called only after an asset write permission check. Never called by recognition. */
+/** Called by asset saves and the public feature-generation endpoint, never by recognition. */
 export async function syncAnchorEmbedding(assetId: string, fileUrl: string) {
   if (!modelConfigured()) return "unconfigured";
   const admin = createAdminClient();

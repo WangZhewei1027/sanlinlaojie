@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { authorizeRecognition } from "@/lib/anchor/access.server";
 import { recognizeAnchor } from "@/lib/anchor/recognize.server";
 import {
   MatchingError,
@@ -13,7 +12,6 @@ export async function POST(request: Request) {
     const workspaceId = requireUuid(
       new URL(request.url).searchParams.get("workspace_id"),
     );
-    await authorizeRecognition(request, workspaceId);
     // Bound the entire multipart body, including chunked uploads, before parsing.
     const reader = request.body?.getReader();
     if (!reader) throw new MatchingError("缺少图片");
