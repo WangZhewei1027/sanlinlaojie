@@ -1,4 +1,7 @@
 export type MatchingStatus =
+  | "status_error"
+  | "saving"
+  | "unsaved"
   | "loading"
   | "missing_image"
   | "pending"
@@ -12,6 +15,9 @@ export interface MatchingPointPanelProps {
   isEditing: boolean;
   status: MatchingStatus;
   error?: string | null;
+  statusError?: string | null;
+  updatedAt?: string | null;
+  onRefresh?: () => void;
   canManage: boolean;
   childrenAssets: { id: string; name: string }[];
   availableAssets: { id: string; name: string }[];

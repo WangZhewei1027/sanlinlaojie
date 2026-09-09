@@ -1,14 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useManageStore } from "../../store";
 import type { Asset } from "../../types";
-import { MatchingPointPanel, type MatchingStatus } from "./MatchingPointPanel";
+import { MatchingPointPanel } from "./MatchingPointPanel";
+import { useMatchingStatus } from "./hooks/useMatchingStatus";
 
 interface Props {
   asset: Asset;
   workspaceId: string | null;
   isEditing: boolean;
+  isSaving: boolean;
   readOnly: boolean;
   imageFile: File | null;
   onImageSelect: (file: File) => void;
@@ -18,49 +20,9 @@ interface Props {
 export function MatchingPointSection(props: Props) {
   const { t } = useTranslation();
   const assets = useManageStore((s) => s.assets);
-  const [status, setStatus] = useState<MatchingStatus>("loading");
+  const matching = useMatchingStatus(props.asset.id, props.asset.file_url, props.isSaving);
   const [error, setError] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setStatus("loading");
-    setError(null);
-    fetch(`/api/assets/${props.asset.id}/matching`, {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error);
-        return body;
-      })
-      .then((body) => setStatus(body.data.status))
-      .catch((error) => {
-        if (!controller.signal.aborted) {
-          setStatus("failed");
-          setError(error.message || t("matching.loadFailed"));
-        }
-      });
-    return () => controller.abort();
-  }, [props.asset.id, props.asset.file_url, revision, t]);
-  async function rebuild() {
-    setStatus("processing");
-    setError(null);
-    try {
-      const response = await fetch(`/api/assets/${props.asset.id}/matching`, {
-        method: "POST",
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setRevision((v) => v + 1);
-    } catch (error) {
-      setStatus("failed");
-      setError(
-        error instanceof Error ? error.message : t("matching.loadFailed"),
-      );
-    }
-  }
   async function attach(id: string, parentId: string | null) {
     if (!props.onUpdateAsset) return;
     setAttaching(true);
@@ -88,7 +50,10 @@ export function MatchingPointSection(props: Props) {
       imageUrl={props.asset.file_url}
       imageFile={props.imageFile}
       isEditing={props.isEditing}
-      status={status}
+      status={props.isSaving && props.imageFile ? "saving" : matching.status}
+      updatedAt={matching.updatedAt}
+      statusError={matching.error}
+      onRefresh={matching.refresh}
       error={error}
       canManage={
         !props.readOnly && !!props.workspaceId && !!props.onUpdateAsset
@@ -100,7 +65,7 @@ export function MatchingPointSection(props: Props) {
       attaching={attaching}
       onImageSelect={props.onImageSelect}
       onImageRemove={props.onImageRemove}
-      onRebuild={rebuild}
+      onRebuild={matching.rebuild}
       onAttach={(id) => attach(id, props.asset.id)}
       onDetach={(id) => attach(id, null)}
     />

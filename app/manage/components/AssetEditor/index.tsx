@@ -138,7 +138,7 @@ export function AssetEditor({
 
           {selectedAsset.file_type === "anchor" && (
             <MatchingPointSection key={selectedAsset.id} asset={selectedAsset} workspaceId={selectedWorkspaceId}
-              isEditing={isEditing} readOnly={readOnly} imageFile={imageFile}
+              isEditing={isEditing} isSaving={isSaving} readOnly={readOnly} imageFile={imageFile}
               onImageSelect={setImageFile} onImageRemove={() => setImageFile(null)} onUpdateAsset={onUpdateAsset} />
           )}
 
