@@ -58,19 +58,25 @@ export async function POST(request: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    const status = error instanceof MatchingError ? error.status : 503;
+    const matchingError = error instanceof MatchingError ? error : null;
+    const status = matchingError?.status ?? 503;
+    const retryAfterSeconds =
+      status === 429 ? (matchingError?.retryAfterSeconds ?? 5) : undefined;
     return NextResponse.json(
       {
-        error:
-          error instanceof MatchingError
-            ? error.message
-            : "匹配服务暂不可用，请稍后重试",
+        error: matchingError?.message ?? "匹配服务暂不可用，请稍后重试",
+        ...(matchingError?.code ? { code: matchingError.code } : {}),
+        ...(retryAfterSeconds !== undefined
+          ? { retry_after_ms: retryAfterSeconds * 1000 }
+          : {}),
       },
       {
         status,
         headers: {
           "Cache-Control": "no-store",
-          ...(status === 429 ? { "Retry-After": "5" } : {}),
+          ...(retryAfterSeconds !== undefined
+            ? { "Retry-After": String(retryAfterSeconds) }
+            : {}),
         },
       },
     );

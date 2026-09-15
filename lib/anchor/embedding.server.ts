@@ -37,6 +37,8 @@ export async function embedImage(image: Blob) {
     throw new MatchingError(
       response.status === 429 ? "匹配服务繁忙，请稍后重试" : "匹配服务暂不可用",
       response.status === 429 ? 429 : 502,
+      response.status === 429 ? "model_busy" : undefined,
+      response.status === 429 ? 2 : undefined,
     );
   const body = await response.json();
   if (

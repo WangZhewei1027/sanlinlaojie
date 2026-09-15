@@ -2,10 +2,13 @@
 export const EMBEDDING_DIM = 8448;
 export const MAX_MATCH_IMAGE_BYTES = 4 * 1024 * 1024;
 export const MATCH_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export type MatchingErrorCode = "workspace_rate_limited" | "model_busy";
 export class MatchingError extends Error {
   constructor(
     message: string,
     public status = 400,
+    public code?: MatchingErrorCode,
+    public retryAfterSeconds?: number,
   ) {
     super(message);
   }

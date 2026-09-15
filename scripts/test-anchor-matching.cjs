@@ -263,7 +263,10 @@ test("reference deleted or moved during inference cannot return its assets", asy
 });
 test("workspace rate limit stops inference", async () => {
   const f = recognitionFixture({ allowed: false });
-  await assert.rejects(f.run(), (e) => e.status === 429);
+  await assert.rejects(
+    f.run(),
+    (e) => e.status === 429 && e.code === "workspace_rate_limited" && e.retryAfterSeconds === 60,
+  );
   assert.equal(f.count(), 0);
 });
 test("uncalibrated service fails closed", async () => {
@@ -479,5 +482,89 @@ test("reference generation checks its generation ID before publishing ready", as
     assert.equal(updates[1].status, "failed");
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test("model saturation has a short retry distinct from the workspace budget", async () => {
+  const originalFetch = global.fetch;
+  const originalEndpoint = process.env.SAGE_EAS_ENDPOINT;
+  const originalToken = process.env.SAGE_EAS_TOKEN;
+  process.env.SAGE_EAS_ENDPOINT = "https://model.test";
+  process.env.SAGE_EAS_TOKEN = "test-token";
+  const { embedImage } = loader({
+    "@/lib/supabase/admin": { createAdminClient: () => ({}) },
+  })("lib/anchor/embedding.server.ts");
+  try {
+    global.fetch = async () => new Response("busy", { status: 429 });
+    await assert.rejects(
+      embedImage(new Blob(["frame"], { type: "image/jpeg" })),
+      (e) => e.status === 429 && e.code === "model_busy" && e.retryAfterSeconds === 2,
+    );
+    global.fetch = async () => new Response("unavailable", { status: 503 });
+    await assert.rejects(
+      embedImage(new Blob(["frame"], { type: "image/jpeg" })),
+      (e) => e.status === 502 && e.code === undefined && e.retryAfterSeconds === undefined,
+    );
+  } finally {
+    global.fetch = originalFetch;
+    if (originalEndpoint === undefined) delete process.env.SAGE_EAS_ENDPOINT;
+    else process.env.SAGE_EAS_ENDPOINT = originalEndpoint;
+    if (originalToken === undefined) delete process.env.SAGE_EAS_TOKEN;
+    else process.env.SAGE_EAS_TOKEN = originalToken;
+  }
+});
+test("recognition API exposes matching 429 body/header delays and keeps other errors compatible", async () => {
+  let nextError;
+  const load = loader({
+    "@/lib/anchor/recognize.server": {
+      recognizeAnchor: async () => { throw nextError; },
+    },
+  });
+  const { MatchingError } = load("lib/anchor-matching.ts");
+  const { POST } = load("app/api/miniapp/anchors/recognize/route.ts");
+  const cases = [
+    {
+      error: new MatchingError("workspace busy", 429, "workspace_rate_limited", 60),
+      status: 429,
+      retry: "60",
+      body: { error: "workspace busy", code: "workspace_rate_limited", retry_after_ms: 60000 },
+    },
+    {
+      error: new MatchingError("model busy", 429, "model_busy", 2),
+      status: 429,
+      retry: "2",
+      body: { error: "model busy", code: "model_busy", retry_after_ms: 2000 },
+    },
+    {
+      error: new MatchingError("legacy busy", 429),
+      status: 429,
+      retry: "5",
+      body: { error: "legacy busy", retry_after_ms: 5000 },
+    },
+    {
+      error: new MatchingError("not configured", 503),
+      status: 503,
+      retry: null,
+      body: { error: "not configured" },
+    },
+    {
+      error: new Error("private upstream details"),
+      status: 503,
+      retry: null,
+      body: { error: "匹配服务暂不可用，请稍后重试" },
+    },
+  ];
+  for (const scenario of cases) {
+    nextError = scenario.error;
+    const form = gpsForm();
+    form.set("image", new Blob(["frame"], { type: "image/jpeg" }), "q.jpg");
+    const response = await POST(new Request(
+      `https://app.test/api/miniapp/anchors/recognize?workspace_id=${workspace}`,
+      { method: "POST", body: form },
+    ));
+    assert.equal(response.status, scenario.status);
+    assert.equal(response.headers.get("Retry-After"), scenario.retry);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.deepEqual(await response.json(), scenario.body);
   }
 });

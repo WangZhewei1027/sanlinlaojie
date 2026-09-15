@@ -70,7 +70,13 @@ export async function recognizeAnchor(
   mark("rate_limit_ms");
   if (limitError)
     throw new MatchingError("匹配接口未就绪，请检查数据库迁移", 503);
-  if (!allowed) throw new MatchingError("请求过于频繁，请稍后重试", 429);
+  if (!allowed)
+    throw new MatchingError(
+      "工作空间请求过于频繁，请稍后重试",
+      429,
+      "workspace_rate_limited",
+      60,
+    );
   const { data, error } = await admin.rpc("find_nearby_matching_anchors", {
     p_workspace_id: workspaceId,
     p_lat: gps.latitude,
