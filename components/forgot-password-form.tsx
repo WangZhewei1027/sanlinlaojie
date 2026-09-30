@@ -34,6 +34,8 @@ export function ForgotPasswordForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
+  // 验证码通过后服务端签发的凭证，重置密码时必须带上
+  const [smsTicket, setSmsTicket] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,6 +101,7 @@ export function ForgotPasswordForm({
         setError(formatServerAuthError(t, result, "auth.invalidOtpCode"));
         return;
       }
+      setSmsTicket(result.ticket ?? "");
       setPhoneStep("newPassword");
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
@@ -129,9 +132,15 @@ export function ForgotPasswordForm({
       const result = await resetPasswordByPhone({
         phone: fullPhone,
         newPassword,
+        ticket: smsTicket,
       });
       if (!result.success) {
         setError(formatServerAuthError(t, result));
+        // 凭证过期：回到验证码页，用户可点「重新发送」
+        if (result.code === "code_expired") {
+          setOtpCode("");
+          setPhoneStep("otp");
+        }
         return;
       }
       setSuccess(true);

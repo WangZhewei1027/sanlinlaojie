@@ -9,6 +9,7 @@ import { Config } from "@alicloud/openapi-client";
 import { RuntimeOptions } from "@alicloud/tea-util";
 import Credential from "@alicloud/credentials";
 import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
+import { issueSmsTicket, verifySmsTicket } from "@/lib/auth/sms-ticket.server";
 
 // ─── 阿里云号码认证服务客户端 ─────────────────────────────────
 // 凭证通过默认链读取（环境变量 ALIBABA_CLOUD_ACCESS_KEY_ID /
@@ -86,11 +87,17 @@ export async function SendSmsVerifyCode(
 
 /**
  * 校验短信验证码（阿里云号码认证服务）
+ * 通过时返回 ticket，注册 / 重置密码时必须带上它
  */
 export async function CheckSmsVerifyCode(
   phone: string,
   code: string,
-): Promise<{ success: boolean; code?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  ticket?: string;
+  code?: string;
+  error?: string;
+}> {
   const phoneNumber = phone.replace(/^\+/, "");
 
   try {
@@ -104,7 +111,7 @@ export async function CheckSmsVerifyCode(
     const resp = await client.checkSmsVerifyCodeWithOptions(request, runtime);
 
     if (resp.body?.code === "OK" && resp.body?.model?.verifyResult === "PASS") {
-      return { success: true };
+      return { success: true, ticket: issueSmsTicket(phoneToEmail(phone)) };
     }
 
     // 阿里云对过期/错误的验证码统一返回非 PASS；带 EXPIRE 字样的归为过期
@@ -135,33 +142,50 @@ function phoneToEmail(phone: string): string {
   return `${digits}@${PHONE_EMAIL_DOMAIN}`;
 }
 
+/** 凭证缺失、伪造或过期时的统一返回；前端据此让用户重新获取验证码 */
+const TICKET_REJECTED = {
+  code: "code_expired",
+  error: "SMS verification required",
+} as const;
+
 /**
  * 通过手机号重置密码（服务端 admin）
- * 先根据虚拟邮箱找到用户，再更新密码
+ * 先校验短信验证凭证，再根据虚拟邮箱找到用户并更新密码
  */
 export async function resetPasswordByPhone(params: {
   phone: string;
   newPassword: string;
+  ticket: string;
 }): Promise<{ success: boolean; code?: string; error?: string }> {
-  const { phone, newPassword } = params;
-  const supabase = createAdminClient();
+  const { phone, newPassword, ticket } = params;
   const email = phoneToEmail(phone);
-
-  // 通过虚拟邮箱查找用户
-  const { data: usersData, error: listError } =
-    await supabase.auth.admin.listUsers();
-
-  if (listError) {
-    return { success: false, error: listError.message };
+  if (!verifySmsTicket(ticket, email)) {
+    return { success: false, ...TICKET_REJECTED };
   }
 
-  const user = usersData.users.find((u) => u.email === email);
-  if (!user) {
+  const supabase = createAdminClient();
+
+  // 通过虚拟邮箱查找用户；listUsers 默认只返回第一页，必须翻页
+  const perPage = 1000;
+  let userId: string | null = null;
+  for (let page = 1; !userId; page++) {
+    const { data, error: listError } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (listError) {
+      return { success: false, error: listError.message };
+    }
+    userId = data.users.find((u) => u.email === email)?.id ?? null;
+    if (data.users.length < perPage) break;
+  }
+
+  if (!userId) {
     return { success: false, code: "user_not_found", error: "User not found" };
   }
 
   const { error: updateError } = await supabase.auth.admin.updateUserById(
-    user.id,
+    userId,
     { password: newPassword },
   );
 
@@ -175,15 +199,20 @@ export async function resetPasswordByPhone(params: {
 export async function createUserByPhone(params: {
   phone: string;
   password: string;
+  ticket: string;
 }): Promise<{
   userId: string | null;
   email: string;
   code?: string;
   error?: string;
 }> {
-  const { phone, password } = params;
-  const supabase = createAdminClient();
+  const { phone, password, ticket } = params;
   const email = phoneToEmail(phone);
+  if (!verifySmsTicket(ticket, email)) {
+    return { userId: null, email, ...TICKET_REJECTED };
+  }
+
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase.auth.admin.createUser({
     email,
