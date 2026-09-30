@@ -177,10 +177,11 @@ function PhoneSignUpForm({ next }: { next: string }) {
         return;
       }
 
-      // 2. 验证码通过，服务端创建用户
+      // 2. 验证码通过，服务端凭验证凭证创建用户
       const createResult = await createUserByPhone({
         phone: fullPhone,
         password,
+        ticket: checkResult.ticket ?? "",
       });
 
       if (createResult.error) {
