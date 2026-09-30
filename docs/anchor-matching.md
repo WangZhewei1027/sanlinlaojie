@@ -1,5 +1,8 @@
 # 匹配点与小程序混合识别
 
+> 识别新增小程序直连 Supabase Edge Function 方案，包含两次数据库 RPC、请求 ID 和模型细分耗时；见 [小程序直连识别](./edge-anchor-recognition.md)。本文原 Vercel 接口继续保留兼容，参考特征生成仍由管理端处理。
+
+
 `asset.file_type = 'anchor'` 保持兼容，管理端展示为「匹配点」。每个匹配点先存一张参考图片，使用现有 `asset.file_url`、`content_hash`；子素材通过现有 `anchor_id` 关联。匹配只代表识别到附近地点，不提供相机 6DoF 或厘米级 AR 重定位。
 
 ## 管理端
