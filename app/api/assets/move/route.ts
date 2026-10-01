@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db, sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getWorkspaceOrgIds } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
@@ -13,19 +14,16 @@ interface AssetMove {
 
 /**
  * 批量移动素材坐标。拖动松手后一次性提交所有被拖素材的新坐标，
- * 服务端一次鉴权 + 一条 SQL（move_assets RPC）更新，避免每个素材单发一次 PATCH。
+ * 服务端一次鉴权 + 一条 SQL（move_assets 函数）更新，避免每个素材单发一次 PATCH。
  */
 export async function POST(request: Request) {
-  const supabase = await createClient();
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "未授权" }, { status: 401 });
+  }
+
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
     const body = await request.json().catch(() => ({}));
     const rawMoves: AssetMove[] = Array.isArray(body?.moves) ? body.moves : [];
 
@@ -45,29 +43,26 @@ export async function POST(request: Request) {
     const ids = moves.map((m) => m.assetId);
 
     // 鉴权：super_admin 放行；否则要求对涉及的每个 org 都有 org.assets.write。
-    const { data: userData } = await supabase
-      .from("users")
+    const userData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
-    if (!isSuperAdmin(userData?.role as string | undefined)) {
-      const { data: assetRows } = await supabase
-        .from("asset")
+    if (!isSuperAdmin(userData?.role)) {
+      const assetRows = await db
+        .selectFrom("asset")
         .select("workspace_id")
-        .in("id", ids);
+        .where("id", "in", ids)
+        .execute();
 
       const allWorkspaceIds = Array.from(
-        new Set(
-          (assetRows ?? []).flatMap(
-            (a) => (a.workspace_id as string[] | null) ?? [],
-          ),
-        ),
+        new Set(assetRows.flatMap((a) => a.workspace_id ?? [])),
       );
-      const orgIds = await getWorkspaceOrgIds(supabase, allWorkspaceIds);
+      const orgIds = await getWorkspaceOrgIds(allWorkspaceIds);
 
       const deny = async (msg: string) => {
-        await logError(supabase, {
+        await logError({
           userId: user.id,
           method: "POST",
           path: "/api/assets/move",
@@ -82,17 +77,15 @@ export async function POST(request: Request) {
         return deny("权限不足: 资产无有效 org 归属");
       }
 
-      const { data: memberships } = await supabase
-        .from("organization_member")
-        .select("organization_id, role")
-        .eq("user_id", user.id)
-        .in("organization_id", orgIds);
+      const memberships = await db
+        .selectFrom("organization_member")
+        .select(["organization_id", "role"])
+        .where("user_id", "=", user.id)
+        .where("organization_id", "in", orgIds)
+        .execute();
 
       const roleByOrg = new Map(
-        (memberships ?? []).map((m) => [
-          m.organization_id as string,
-          m.role as string,
-        ]),
+        memberships.map((m) => [m.organization_id, m.role] as const),
       );
 
       for (const orgId of orgIds) {
@@ -102,16 +95,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const { error: rpcError } = await supabase.rpc("move_assets", {
-      _moves: moves,
-    });
-
-    if (rpcError) throw rpcError;
+    // 一条 SQL 批量写 location + metadata 坐标（public.move_assets 不变）
+    await sql`select public.move_assets(${JSON.stringify(moves)}::jsonb)`.execute(db);
 
     return NextResponse.json({ success: true, count: moves.length });
   } catch (error) {
     console.error("批量移动资产失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "POST",
       path: "/api/assets/move",
       status: 500,

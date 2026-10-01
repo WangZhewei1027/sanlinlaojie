@@ -874,7 +874,8 @@
       "invalidPhone": "Invalid phone number. Please check your input",
       "smsSendFailed": "Failed to send verification code. Please try again later",
       "phoneNotRegistered": "This phone number is not registered",
-      "accountCreatedLoginFailed": "Your account was created, but automatic sign-in failed. Please sign in manually from the login page"
+      "accountCreatedLoginFailed": "Your account was created, but automatic sign-in failed. Please sign in manually from the login page",
+      "resetLinkInvalid": "This reset link is invalid or has expired. Please request a new one"
     }
   },
   "matching": {

@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { db, sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
+import { deleteAuthUser } from "@/lib/auth/users.server";
 import { logErrorSafe } from "@/lib/log-error";
 import {
   computeUserDeletionPlan,
@@ -12,23 +13,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
     // 检查权限
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
+    const userData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (userData?.role !== "super_admin") {
       await logErrorSafe({
@@ -42,7 +40,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { role } = body;
+    const role: "super_admin" | "user" | undefined = body.role;
 
     if (!role || !["super_admin", "user"].includes(role)) {
       return NextResponse.json({ error: "无效的角色" }, { status: 400 });
@@ -56,14 +54,12 @@ export async function PUT(
       );
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .update({ role })
-      .eq("user_id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .updateTable("users")
+      .set({ role })
+      .where("user_id", "=", id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -87,22 +83,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: callerData } = await supabase
-      .from("users")
+    const callerData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (callerData?.role !== "super_admin") {
       await logErrorSafe({
@@ -119,13 +112,11 @@ export async function DELETE(
       return NextResponse.json({ error: "不能删除自己" }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-
-    const { data: target } = await admin
-      .from("users")
+    const target = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", id)
-      .single();
+      .where("user_id", "=", id)
+      .executeTakeFirst();
 
     if (!target) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
@@ -138,20 +129,19 @@ export async function DELETE(
       );
     }
 
-    const plan = await computeUserDeletionPlan(admin, id);
+    const plan = await computeUserDeletionPlan(id);
 
     if (plan.promoteOrgIds.length > 0) {
-      const { error: promoteError } = await admin.rpc(
-        "promote_owner_successors",
-        { _org_ids: plan.promoteOrgIds, _excluding_user: id },
+      await sql`select public.promote_owner_successors(${plan.promoteOrgIds}::uuid[], ${id}::uuid)`.execute(
+        db,
       );
-      if (promoteError) throw promoteError;
     }
 
-    const purge = await purgeOrganizations(admin, plan.deleteOrgIds);
+    const purge = await purgeOrganizations(plan.deleteOrgIds);
 
-    const { error: authError } = await admin.auth.admin.deleteUser(id);
-    if (authError) throw authError;
+    // 删除 auth.users 行，外键级联清掉 public.users / 成员关系 / 分配
+    const deleted = await deleteAuthUser(id);
+    if (!deleted) throw new Error(`auth user not found: ${id}`);
 
     return NextResponse.json({
       success: true,

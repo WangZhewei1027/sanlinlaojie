@@ -1,0 +1,15 @@
+.git
+node_modules
+.next
+out
+.env*
+!.env.example
+deploy
+docs
+stories
+storybook-static
+supabase
+*.md
+.DS_Store
+# 2.6 GB Cesium tileset is served from OSS, never from the image
+public/js/viewer/terra_b3dms

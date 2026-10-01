@@ -1,8 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { formatAuthError } from "@/lib/auth/auth-error";
+import { authClient } from "@/lib/auth/client";
+import { setOwnPassword } from "@/lib/auth/password.server";
+import { formatAuthError, formatServerAuthError } from "@/lib/auth/auth-error";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,10 +14,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+// 两种进入方式：
+// 1. 邮件重置链接：Better Auth 校验后跳到 ?token=…（失效则 ?error=INVALID_TOKEN），
+//    凭 token 调 resetPassword，完成后未登录，回登录页
+// 2. 已登录用户直接访问（无 token）：走 server action 直接改密码，完成后回首页
 export function UpdatePasswordForm({
   className,
   ...props
@@ -27,11 +32,13 @@ export function UpdatePasswordForm({
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+  const linkError = searchParams.get("error");
   const { t } = useTranslation();
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
@@ -47,18 +54,40 @@ export function UpdatePasswordForm({
       return;
     }
 
+    // 链接已失效：提示重新发送重置邮件
+    if (!token && linkError) {
+      setError(t("auth.errors.resetLinkInvalid"));
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      if (token) {
+        const { error } = await authClient.resetPassword({
+          newPassword: password,
+          token,
+        });
+        if (error) throw error;
+      } else {
+        const result = await setOwnPassword(password);
+        if (!result.success) {
+          setError(formatServerAuthError(t, result));
+          setIsLoading(false);
+          return;
+        }
+      }
       setIsRedirecting(true);
       // Force full refresh so server components reload with updated auth state
       router.refresh();
-      router.push("/");
+      router.push(token ? "/auth/login" : "/");
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
       setIsLoading(false);
     }
   };
+
+  const displayError =
+    error ?? (linkError ? t("auth.errors.resetLinkInvalid") : null);
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -94,7 +123,9 @@ export function UpdatePasswordForm({
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {displayError && (
+                <p className="text-sm text-destructive">{displayError}</p>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isRedirecting
                   ? t("auth.redirecting")

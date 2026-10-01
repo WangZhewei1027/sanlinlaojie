@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { LogOut, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { createClient } from "@/lib/supabase/client";
+import { authClient, type SessionUser } from "@/lib/auth/client";
 import { useManageStore } from "@/app/manage/store";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,8 +15,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { hasEnvVars } from "@/lib/utils";
-import { EnvVarWarning } from "@/components/env-var-warning";
 import { useModuleLinks } from "@/components/use-module-links";
 import { displayAccount } from "@/lib/phone-email";
 
@@ -25,21 +22,15 @@ function getInitials(email: string): string {
   return email.charAt(0).toUpperCase();
 }
 
-function getDisplayName(user: User, fallback: string): string {
-  const meta = user.user_metadata ?? {};
-  return (
-    (meta.full_name as string) ||
-    (meta.name as string) ||
-    (meta.user_name as string) ||
-    (user.email ? displayAccount(user.email).split("@")[0] : fallback)
-  );
+function getDisplayName(user: SessionUser, fallback: string): string {
+  return user.name || displayAccount(user.email).split("@")[0] || fallback;
 }
 
 function AvatarCircle({
   user,
   size = "md",
 }: {
-  user: User | null;
+  user: SessionUser | null;
   size?: "sm" | "md" | "lg";
 }) {
   const dim =
@@ -73,59 +64,46 @@ function AvatarCircle({
     <span
       className={`${dim} rounded-full bg-primary text-primary-foreground flex items-center justify-center font-medium select-none`}
     >
-      {getInitials(user.email ?? "?")}
+      {getInitials(user.email || "?")}
     </span>
   );
 }
 
 export function UserAvatarMenu() {
   const { t } = useTranslation();
-  const [user, setUser] = useState<User | null>(null);
+  // Better Auth 的 session store：登录 / 登出后自动更新
+  const { data: session } = authClient.useSession();
+  const user = session?.user ?? null;
+  const userId = user?.id ?? null;
   const [dbName, setDbName] = useState<string | null>(null);
-  const supabase = createClient();
   const router = useRouter();
   const reset = useManageStore((state) => state.reset);
   const moduleLinks = useModuleLinks(!!user);
 
+  // 展示名以 public.users.name 为准（设置页可改），通过 /api/users/me 读取
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
-  useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setDbName(null);
       return;
     }
     let active = true;
-    supabase
-      .from("users")
-      .select("name")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (active) setDbName(data?.name ?? null);
-      });
+    fetch("/api/users/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (active) setDbName(json?.data?.name ?? null);
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
-  }, [supabase, user]);
+  }, [userId]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await authClient.signOut();
     reset();
     router.refresh();
     router.push("/auth/login");
   };
-
-  if (!hasEnvVars) {
-    return <EnvVarWarning />;
-  }
 
   if (!user) {
     return (
@@ -161,7 +139,7 @@ export function UserAvatarMenu() {
             {dbName?.trim() || getDisplayName(user, t("account.defaultName"))}
           </p>
           <p className="text-sm text-muted-foreground leading-tight mt-1 truncate">
-            {displayAccount(user.email ?? null)}
+            {displayAccount(user.email)}
           </p>
         </div>
         <DropdownMenuSeparator className="my-0" />

@@ -2,6 +2,17 @@
  * Cesium Viewer 配置模块
  */
 
+// 页面参数（由 app/manage/components/ViewerFrame.tsx 拼到 iframe 地址上）
+const PAGE_PARAMS = new URLSearchParams(window.location.search);
+
+// 对象存储基址（NEXT_PUBLIC_MEDIA_BASE_URL）：Cesium 库在 static/cesium/<版本>/，瓦片在 tiles/。
+// 为空时回退到仓库内的本地瓦片（public/js/viewer/terra_b3dms），仅用于本地调试。
+export const MEDIA_BASE_URL = (PAGE_PARAMS.get("media") || "").replace(/\/+$/, "");
+
+// 天地图 key（NEXT_PUBLIC_TIANDITU_KEY）：配置后底图用天地图影像 + 注记（WGS84，与 GPS 一致），
+// 不再依赖境外的 Cesium Ion / Bing 影像；为空则沿用 Ion 默认底图
+export const TIANDITU_KEY = PAGE_PARAMS.get("tdt") || "";
+
 // Cesium Ion token (使用默认 token，生产环境需要自己的 token)
 export const CESIUM_ION_TOKEN =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhOGY2YWFlOC01YWRlLTRlMTAtYmEwZC1hY2YyYTc3YTZmYmMiLCJpZCI6MzY3ODkyLCJpYXQiOjE3NjUyNTg2OTJ9.QOxskQVs1h4gUDRB7c_VvaBniXIgwuronD6__ZiPY_U";
@@ -56,7 +67,9 @@ const sse = (fallback) =>
 // 移动端 GPU 内存有限，超限会直接杀掉 WebGL 上下文（导致渲染中断），
 // 因此用更保守的精度和瓦片缓存
 export const TILESET_CONFIG = {
-  url: "./terra_b3dms/tileset.json",
+  url: MEDIA_BASE_URL
+    ? `${MEDIA_BASE_URL}/tiles/terra_b3dms/tileset.json`
+    : "./terra_b3dms/tileset.json",
   options: IS_MOBILE
     ? {
         maximumScreenSpaceError: sse(16),
@@ -81,7 +94,8 @@ export const TILESET_CONFIG = {
 export const VIEWER_CONFIG = {
   timeline: false,
   animation: false,
-  baseLayerPicker: true,
+  // 天地图模式下底图固定，不显示 Ion 图层选择器
+  baseLayerPicker: !TIANDITU_KEY,
   geocoder: false,
   homeButton: false,
   navigationHelpButton: false,

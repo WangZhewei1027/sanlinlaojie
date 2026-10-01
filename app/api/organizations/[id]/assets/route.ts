@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 // 获取 organization 下所有 workspace 的 assets（用于 "All workspaces" 视图）
@@ -9,12 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id: organizationId } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
@@ -26,45 +23,34 @@ export async function GET(
     const requireLocation = searchParams.get("requireLocation") === "true";
 
     // 先查出该 organization 下的所有 workspace IDs
-    const { data: workspaceRows, error: wsError } = await supabase
-      .from("workspace")
+    const workspaceRows = await db
+      .selectFrom("workspace")
       .select("id")
-      .eq("organization_id", organizationId);
+      .where("organization_id", "=", organizationId)
+      .execute();
 
-    if (wsError) {
-      console.error("查询 workspaces 失败:", wsError);
-      return NextResponse.json({ error: "查询工作空间失败" }, { status: 500 });
-    }
-
-    const workspaceIds = (workspaceRows ?? []).map((w) => w.id);
+    const workspaceIds = workspaceRows.map((w) => w.id);
 
     if (workspaceIds.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
-    // asset.workspace_id 是数组，使用 overlaps 判断是否与本组织的任一 workspace 相交。
-    // 分页拉全量，避免 PostgREST 默认 1000 行上限截断（否则派生的 file_type 选项与列表都会缺失）。
-    const { data, error } = await fetchAllRows(() => {
-      let query = supabase
-        .from("asset")
-        .select("*")
-        .overlaps("workspace_id", workspaceIds);
+    // asset.workspace_id 是数组，用 && 判断是否与本组织的任一 workspace 相交。
+    // 直连 Postgres 无行数上限，一次拉全量（派生的 file_type 选项与列表都依赖完整集合）。
+    let query = db
+      .selectFrom("asset")
+      .selectAll()
+      .where("workspace_id", "&&", workspaceIds);
 
-      if (type) {
-        query = query.eq("file_type", type);
-      }
-
-      if (requireLocation) {
-        query = query.not("location", "is", null);
-      }
-
-      return query;
-    });
-
-    if (error) {
-      console.error("查询 assets 失败:", error);
-      return NextResponse.json({ error: "查询资源失败" }, { status: 500 });
+    if (type) {
+      query = query.where("file_type", "=", type);
     }
+
+    if (requireLocation) {
+      query = query.where("location", "is not", null);
+    }
+
+    const data = await query.execute();
 
     return NextResponse.json({ data });
   } catch (error) {

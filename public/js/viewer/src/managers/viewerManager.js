@@ -2,17 +2,51 @@
  * Cesium Viewer 管理模块
  */
 
-import { VIEWER_CONFIG, CAMERA_CONFIG, IS_MOBILE } from "../utils/config.js";
+import {
+  VIEWER_CONFIG,
+  CAMERA_CONFIG,
+  IS_MOBILE,
+  TIANDITU_KEY,
+} from "../utils/config.js";
 import { getOriginCoordinates } from "../utils/coordinateUtils.js";
 import { preferWebgl1 } from "./recoveryManager.js";
 
 let viewer = null;
 
-/** 在 VIEWER_CONFIG 基础上追加 WebGL1 降级选项 */
+/**
+ * 天地图 WMTS 图层（球面墨卡托 "w" 瓦片集，EPSG:3857）
+ * @param {"img" | "cia"} layer - img 影像；cia 影像注记
+ */
+function tiandituLayer(layer) {
+  return Cesium.ImageryLayer.fromProviderAsync(
+    Promise.resolve(
+      new Cesium.WebMapTileServiceImageryProvider({
+        url: `https://t{s}.tianditu.gov.cn/${layer}_w/wmts?tk=${TIANDITU_KEY}`,
+        layer,
+        style: "default",
+        format: "tiles",
+        tileMatrixSetID: "w",
+        subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"],
+        maximumLevel: 18,
+        credit: "天地图",
+      }),
+    ),
+  );
+}
+
+/** 基础 Viewer 选项：配置了天地图 key 时用天地图影像做底图 */
+function baseConfig() {
+  return TIANDITU_KEY
+    ? { ...VIEWER_CONFIG, baseLayer: tiandituLayer("img") }
+    : VIEWER_CONFIG;
+}
+
+/** 在基础选项上追加 WebGL1 降级选项 */
 function webgl1Config() {
+  const base = baseConfig();
   return {
-    ...VIEWER_CONFIG,
-    contextOptions: { ...VIEWER_CONFIG.contextOptions, requestWebgl1: true },
+    ...base,
+    contextOptions: { ...base.contextOptions, requestWebgl1: true },
   };
 }
 
@@ -31,13 +65,18 @@ export function initViewer(containerId = "cesiumContainer") {
   try {
     viewer = new Cesium.Viewer(
       containerId,
-      useWebgl1 ? webgl1Config() : VIEWER_CONFIG,
+      useWebgl1 ? webgl1Config() : baseConfig(),
     );
   } catch (error) {
     // iOS Safari 偶发返回残缺的 WebGL2 上下文，回退到 WebGL1 重试
     console.warn("WebGL2 初始化失败，回退到 WebGL1 重试:", error);
     document.getElementById(containerId).innerHTML = "";
     viewer = new Cesium.Viewer(containerId, webgl1Config());
+  }
+
+  if (TIANDITU_KEY) {
+    // 影像之上叠加地名注记
+    viewer.imageryLayers.add(tiandituLayer("cia"));
   }
 
   if (IS_MOBILE) {

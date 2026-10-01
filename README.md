@@ -1,6 +1,6 @@
 # 三林老街 AR 记忆 · 全栈项目
 
-> 以增强现实为核心的三林老街文化遗产互动体验平台，由 **Web 管理端**（Next.js）和 **微信小程序 AR 端**（xr-frame）共同构成，共享同一套 Supabase 后端。
+> 以增强现实为核心的三林老街文化遗产互动体验平台，由 **Web 管理端**（Next.js）和 **微信小程序 AR 端**（xr-frame）共同构成。Web 端自 2026-10 起部署在阿里云（自建 PostgreSQL + PostGIS、Better Auth、OSS）；小程序端仍连接原 Supabase 项目，待迁移到 Web 端的 `/api/miniapp/*` 接口。
 
 ---
 
@@ -11,7 +11,7 @@
 | **sanlinlaojie** | `sanlinlaojie/` | Web 管理平台 |
 | **xr-frame-plant-trees** | `xr-frame-plant-trees/` | 微信小程序 GPS AR 体验 |
 
-两者通过同一个 Supabase 实例共享数据（素材库、组织、工作区、弹幕等）。
+两者共享同一套数据模型（素材库、组织、工作区、弹幕等）；迁移完成前小程序读到的是 Supabase 上冻结的旧数据，见 `docs/aliyun-migration-plan.md`。
 
 ---
 
@@ -19,10 +19,12 @@
 
 ### 技术栈
 
-- **框架**：Next.js 15 (App Router) + React 19 + TypeScript
+- **框架**：Next.js 16 (App Router) + React 19 + TypeScript
 - **UI**：ShadcnUI + Radix UI + TailwindCSS
-- **后端/鉴权**：Supabase（PostgreSQL + PostGIS + Auth）
-- **媒体存储**：Cloudinary
+- **数据库**：PostgreSQL 17 + PostGIS（Docker 自建，Kysely 查询，`db/schema.sql`）
+- **鉴权**：Better Auth（邮箱密码 + 阿里云短信手机号）
+- **媒体存储**：阿里云 OSS（上传经 `/api/upload` 中转，内容 hash 去重）
+- **部署**：阿里云轻量服务器 · Docker Compose（Caddy + Next standalone + PostGIS）
 - **3D 渲染**：Three.js + React Three Fiber
 - **地图**：OpenStreetMap / CesiumJS
 - **国际化**：i18next + react-i18next
@@ -79,21 +81,29 @@ sanlinlaojie/
 ├─ hooks/             # 全局 Hooks
 ├─ lib/
 │  ├─ upload/         # 文件上传模块（模块化、可扩展）
-│  ├─ supabase/       # Supabase 客户端
+│  ├─ db/             # Kysely 实例与生成的表类型
+│  ├─ auth/           # Better Auth 服务端/客户端、手机号短信流程
+│  ├─ storage/        # OSS 适配器与公开 URL 工具
 │  ├─ permissions.ts  # 权限逻辑
 │  ├─ image-compression.ts
 │  ├─ audio-compression.ts
 │  └─ exif-reader.ts
 ├─ locales/           # i18n 翻译文件
-└─ supabase/          # 数据库迁移脚本
+├─ db/                # schema.sql（基线）+ migrations/
+├─ deploy/            # docker-compose、Caddyfile、服务器 env 模板
+├─ scripts/           # 部署、数据库迁移、一次性数据迁移脚本
+└─ supabase/          # 旧 Supabase 迁移与 Edge Function（仅小程序仍在使用）
 ```
 
 ### 开发命令
 
 ```bash
-npm run dev    # 启动开发服务器（localhost:3000）
-npm run build  # 生产构建
-npm run lint   # ESLint 检查
+npm run dev         # 启动开发服务器（localhost:3000）
+npm run build       # 生产构建
+npm run lint        # ESLint 检查
+npm run db:migrate  # 应用 db/schema.sql 与 db/migrations 到 DATABASE_URL
+npm run db:codegen  # 重新生成 lib/db/types.ts
+npm run deploy      # 构建镜像并部署到阿里云服务器（scripts/deploy.sh）
 ```
 
 ### 组件拆分规范
@@ -176,9 +186,9 @@ xr-frame-plant-trees/
 
 ---
 
-## 三、数据库（Supabase + PostGIS）
+## 三、数据库（PostgreSQL + PostGIS）
 
-两个端共用，核心表包括：
+结构以 `db/schema.sql` 为准（含全部函数与触发器）。核心表包括：
 
 - **organizations** — 组织（对应一个物理场景/街区）
 - **workspaces** — 工作区（组织下的子空间，通过 QR 码区分）
@@ -186,7 +196,7 @@ xr-frame-plant-trees/
 - **members** — 组织成员与角色
 - **danmaku** — 弹幕记录
 
-> 如数据结构有变动，请通过 Supabase MCP 获取最新 schema，不要以本文档为准。
+> 表名实际为单数（`organization`、`workspace`、`asset`、`organization_member`），以 `db/schema.sql` 与 `lib/db/types.ts` 为准，不要以本文档为准。
 
 ---
 
@@ -196,8 +206,10 @@ xr-frame-plant-trees/
 
 ```bash
 cd sanlinlaojie
-cp .env.example .env.local   # 填入 Supabase / Cloudinary 等环境变量
+cp deploy/env.example .env.local   # 填入数据库、阿里云 AccessKey、OSS 等变量
+docker run -d --name sanlin-dev-db --platform linux/amd64 -e POSTGRES_PASSWORD=sanlin -e POSTGRES_DB=sanlin -p 55432:5432 postgis/postgis:17-3.5
 npm install
+npm run db:migrate
 npm run dev
 ```
 
@@ -221,3 +233,5 @@ npm run dev
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
 | [docs/asset-storage-lifecycle.md](docs/asset-storage-lifecycle.md) | 内容 hash 去重与文件删除机制 |
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
+| [docs/data-layer.md](docs/data-layer.md) | 数据库 / 认证 / 存储模块约定 |
+| [docs/aliyun-migration-plan.md](docs/aliyun-migration-plan.md) | 阿里云迁移方案与执行记录 |

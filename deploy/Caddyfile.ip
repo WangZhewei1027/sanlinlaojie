@@ -1,0 +1,27 @@
+# Temporary variant used while the domain cannot be served from a mainland
+# server (ICP filing pending): serve https://<server IP> with Caddy's own CA.
+# Browsers show a one-time certificate warning; HTTPS is still required so
+# that geolocation / camera APIs work on the on-site capture page.
+# Selected by CADDYFILE=Caddyfile.ip in the deploy env file.
+{
+	# Clients never send SNI for an IP address, and inside Docker the socket's
+	# local address is the container IP, so tell Caddy which certificate to
+	# pick when SNI is absent.
+	default_sni {$SITE_ADDRESS}
+}
+
+{$SITE_ADDRESS} {
+	tls internal
+	encode zstd gzip
+
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy app:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

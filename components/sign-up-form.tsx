@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { safeNext } from "@/lib/safe-next";
 import {
   SendSmsVerifyCode,
@@ -38,7 +38,6 @@ function EmailSignUpForm({ next }: { next: string }) {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
@@ -49,14 +48,22 @@ function EmailSignUpForm({ next }: { next: string }) {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await authClient.signUp.email({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}${next}`,
-        },
+        // Better Auth 要求 name 字段；表单不收集，传空串由 DB 触发器存为 NULL
+        name: "",
+        // 邮件确认链接点击后的落地页（配置了 SMTP 才会发信）
+        callbackURL: next,
       });
       if (error) throw error;
+      // 不要求邮件确认时 Better Auth 会直接建立会话（返回 token），此时无需
+      // 让用户去查邮件，直接进入目标页；需要确认时才展示"请查收邮件"
+      if (data?.token) {
+        router.refresh();
+        router.push(next);
+        return;
+      }
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
@@ -190,8 +197,7 @@ function PhoneSignUpForm({ next }: { next: string }) {
       }
 
       // 3. 用创建好的账号登录（使用手机号对应的虚拟邮箱）
-      const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await authClient.signIn.email({
         email: createResult.email,
         password,
       });

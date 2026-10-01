@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import "server-only";
+import { db } from "@/lib/db";
 
 const MAX_MESSAGE = 2000;
 
@@ -17,38 +17,27 @@ export interface LogErrorEntry {
  * throws, so callers can `await logError(...)` safely without a try/catch — a
  * logging failure must never affect the main response.
  */
-export async function logError(
-  supabase: SupabaseClient,
-  entry: LogErrorEntry,
-): Promise<void> {
+export async function logError(entry: LogErrorEntry): Promise<void> {
   try {
-    await supabase.from("error_log").insert({
-      user_id: entry.userId ?? null,
-      scope: "api",
-      method: entry.method ?? null,
-      path: entry.path ?? null,
-      status: entry.status ?? null,
-      message:
-        entry.message == null
-          ? null
-          : String(entry.message).slice(0, MAX_MESSAGE),
-      context: entry.context ?? null,
-    });
+    await db
+      .insertInto("error_log")
+      .values({
+        user_id: entry.userId ?? null,
+        scope: "api",
+        method: entry.method ?? null,
+        path: entry.path ?? null,
+        status: entry.status ?? null,
+        message:
+          entry.message == null
+            ? null
+            : String(entry.message).slice(0, MAX_MESSAGE),
+        context: entry.context ? JSON.stringify(entry.context) : null,
+      })
+      .execute();
   } catch {
     // swallow — logging must not break the request
   }
 }
 
-/**
- * Same as logError but creates its own server client, so it can be called from
- * a route's catch block where the request-scoped client is out of scope.
- * Never throws.
- */
-export async function logErrorSafe(entry: LogErrorEntry): Promise<void> {
-  try {
-    const supabase = await createClient();
-    await logError(supabase, entry);
-  } catch {
-    // swallow
-  }
-}
+/** Alias kept for call sites written against the Supabase-era API. */
+export const logErrorSafe = logError;

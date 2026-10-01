@@ -1,11 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
+import { getUserContext } from "@/lib/permissions.server";
+import { isSuperAdmin } from "@/lib/permissions";
 import { logErrorSafe } from "@/lib/log-error";
 import { ALL_UPLOAD_TYPES } from "@/lib/upload/types";
 
 // 全局应用配置（app_config 表，仅 super_admin 可读写）。
-// 表启用 RLS 且无 policy，必须经 service-role 访问，所以先做严格权限检查。
+// 数据库连接拥有全部权限、没有 RLS 兜底，所以访问前必须先做严格权限检查。
 // 目前唯一的键：default_allowed_file_types —— 新建组织时写入的默认文件类型。
 
 const CONFIG_KEYS = ["default_allowed_file_types"] as const;
@@ -22,19 +24,12 @@ function validateValue(key: ConfigKey, value: unknown): string | null {
 }
 
 async function requireSuperAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return { error: "未授权", status: 401, userId: null };
 
-  const { data: userData } = await supabase
-    .from("users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
+  const { globalRole } = await getUserContext(user.id);
 
-  if (userData?.role !== "super_admin") {
+  if (!isSuperAdmin(globalRole)) {
     return { error: "权限不足", status: 403, userId: user.id };
   }
   return { error: null, status: 200, userId: user.id };
@@ -47,17 +42,13 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("app_config")
-      .select("key, value")
-      .in("key", [...CONFIG_KEYS]);
+    const rows = await db
+      .selectFrom("app_config")
+      .select(["key", "value"])
+      .where("key", "in", [...CONFIG_KEYS])
+      .execute();
 
-    if (error) throw error;
-
-    const config = Object.fromEntries(
-      (data ?? []).map((row) => [row.key, row.value]),
-    );
+    const config = Object.fromEntries(rows.map((row) => [row.key, row.value]));
     return NextResponse.json({ data: config });
   } catch (error) {
     console.error("获取应用配置失败:", error);
@@ -97,14 +88,17 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("app_config")
-      .upsert({ key, value, updated_at: new Date().toISOString() })
-      .select("key, value")
-      .single();
-
-    if (error) throw error;
+    // jsonb 列：写入时序列化成字符串，读回来已是解析后的值
+    const serialized = JSON.stringify(value);
+    const updatedAt = new Date().toISOString();
+    const data = await db
+      .insertInto("app_config")
+      .values({ key, value: serialized, updated_at: updatedAt })
+      .onConflict((oc) =>
+        oc.column("key").doUpdateSet({ value: serialized, updated_at: updatedAt }),
+      )
+      .returning(["key", "value"])
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {

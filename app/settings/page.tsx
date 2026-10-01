@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Check, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,6 @@ import { Text } from "@/components/ui/typography";
 export default function SettingsPage() {
   const { t } = useTranslation();
   const router = useRouter();
-  const supabase = createClient();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,9 +35,8 @@ export default function SettingsPage() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
+      const user = session?.user;
       if (!user) {
         router.push("/auth/login");
         return;
@@ -48,7 +46,7 @@ export default function SettingsPage() {
         if (!res.ok) throw new Error();
         const { data } = await res.json();
         if (!active) return;
-        setEmail(data?.email ?? user.email ?? "");
+        setEmail(data?.email ?? user.email);
         setName(data?.name ?? "");
         setInitialName(data?.name ?? "");
       } catch {
@@ -60,7 +58,7 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
-  }, [supabase.auth, router, t]);
+  }, [router, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

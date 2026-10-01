@@ -1,17 +1,22 @@
 /**
  * 批量注册User脚本
  *
- * 使用 Supabase Admin API (service_role key) 批量创建User，并可选分配到组织和工作区。
+ * 直接写入自建数据库：auth.users / auth.account（Better Auth 读取的表），触发器
+ * handle_new_user() 同步 public.users 并创建个人组织 / 默认工作区；可选再把用户
+ * 加入指定组织和工作区。
  *
  * 用法:
  *   1. 在 .env.local 中配置:
- *        NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
- *        SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+ *        DATABASE_URL=postgres://user:pass@host:5432/dbname
  *
  *   2. 编辑下方 USERS 数组，填入要注册的User信息
  *
- *   3. 运行:
- *        npx tsx scripts/batch-register-users.ts
+ *   3. 运行（必须带 --conditions react-server）:
+ *        npx tsx --conditions react-server scripts/batch-register-users.ts
+ *
+ *      lib/db 与 lib/auth/users.server 以 `import "server-only"` 标记，该包在
+ *      非 React Server 环境下一经 import 就抛错；"react-server" 这个 exports
+ *      condition 让它解析到空模块（见 node_modules/server-only/package.json）。
  *
  *   可选参数:
  *     --dry-run                  仅打印即将创建的User，不实际执行
@@ -22,15 +27,15 @@
  *     --workspace-role <role>    工作区角色 (默认 member)
  *
  *   示例:
- *     npx tsx scripts/batch-register-users.ts --dry-run
- *     npx tsx scripts/batch-register-users.ts --file users.json
- *     npx tsx scripts/batch-register-users.ts --file users.json --org <org_uuid> --workspace <ws_uuid>
- *     npx tsx scripts/batch-register-users.ts --file users.json --org <org_uuid> --org-role admin
+ *     npx tsx --conditions react-server scripts/batch-register-users.ts --dry-run
+ *     npx tsx --conditions react-server scripts/batch-register-users.ts --file users.json
+ *     npx tsx --conditions react-server scripts/batch-register-users.ts --file users.json --org <org_uuid> --workspace <ws_uuid>
+ *     npx tsx --conditions react-server scripts/batch-register-users.ts --file users.json --org <org_uuid> --org-role admin
  */
 
-import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
+import { loadEnvFile } from "./lib/env";
 
 // ─── 类型定义 ────────────────────────────────────────────
 
@@ -41,7 +46,7 @@ interface UserInput {
   password: string;
   /** User显示名称（可选） */
   name?: string;
-  /** 额外的 user_metadata（可选） */
+  /** 已弃用：自建认证没有 user_metadata，保留字段仅为兼容旧的 JSON 文件，会被忽略 */
   metadata?: Record<string, unknown>;
   /** 覆盖全局 --org（可选） */
   orgId?: string;
@@ -95,31 +100,11 @@ const USERS: UserInput[] = [
   { email: "eu2094@nyu.edu", password: "12345678", name: "User30" },
 ];
 
-// ─── 环境变量加载 ──────────────────────────────────────────
-
-function loadEnv() {
-  // 尝试从 .env.local 加载环境变量（简易实现，无需 dotenv 依赖）
-  const envPath = path.resolve(process.cwd(), ".env.local");
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, "utf-8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIndex = trimmed.indexOf("=");
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
-      if (!process.env[key]) {
-        process.env[key] = value;
-      }
-    }
-  }
-}
-
 // ─── 主函数 ──────────────────────────────────────────────
 
 async function main() {
-  loadEnv();
+  // lib/db 在模块加载时就读取 DATABASE_URL，所以先加载 .env.local，再动态 import
+  loadEnvFile();
 
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
@@ -163,23 +148,14 @@ async function main() {
   }
 
   // 验证环境变量
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!process.env.DATABASE_URL) {
     console.error("❌ 缺少环境变量，请在 .env.local 中配置:");
-    if (!supabaseUrl) console.error("   - NEXT_PUBLIC_SUPABASE_URL");
-    if (!serviceRoleKey) console.error("   - SUPABASE_SERVICE_ROLE_KEY");
+    console.error("   - DATABASE_URL");
     process.exit(1);
   }
 
-  // 创建 Admin 客户端（使用 service_role key 绕过 RLS）
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  const { db } = await import("@/lib/db");
+  const { createUserWithPassword } = await import("@/lib/auth/users.server");
 
   // 打印配置摘要
   console.log(`\n🚀 准备注册 ${users.length} 个User`);
@@ -249,89 +225,50 @@ async function main() {
     }
 
     try {
-      // ① 创建 auth 用户
-      const { data, error } = await supabase.auth.admin.createUser({
+      // ① 创建 auth 用户（邮箱自动确认）；触发器同步 public.users（含 name）
+      //    邮箱已注册时抛 UserExistsError，走下方统一的失败处理
+      const { id: userId } = await createUserWithPassword({
         email: user.email,
         password: user.password,
-        email_confirm: true, // 自动确认邮箱，跳过验证流程
-        user_metadata: {
-          ...(user.name ? { name: user.name } : {}),
-          ...user.metadata,
-        },
+        name: user.name,
+        emailVerified: true,
       });
 
-      if (error) {
-        console.log(`${index} ❌ ${user.email} — ${error.message}`);
-        results.push({
-          email: user.email,
-          success: false,
-          error: error.message,
-        });
-        failCount++;
-        continue;
-      }
-
-      const userId = data.user.id;
-
-      // ② 同步到 public.users（upsert，无触发器时手动维护）
-      const { error: userUpsertError } = await supabase.from("users").upsert(
-        {
-          user_id: userId,
-          email: user.email,
-          name: user.name ?? null,
-        },
-        { onConflict: "user_id" },
-      );
-
-      if (userUpsertError) {
-        console.warn(
-          `${index} ⚠️  ${user.email} — public.users 同步失败: ${userUpsertError.message}`,
-        );
-      }
-
-      // ③ 加入组织
+      // ② 加入组织（已是成员则更新角色）
       let orgAssigned = false;
       if (orgId) {
-        const { error: orgError } = await supabase
-          .from("organization_member")
-          .upsert(
-            {
-              organization_id: orgId,
-              user_id: userId,
-              role: orgRole,
-            },
-            { onConflict: "organization_id,user_id" },
-          );
-
-        if (orgError) {
-          console.warn(
-            `${index} ⚠️  ${user.email} — 加入组织失败: ${orgError.message}`,
-          );
-        } else {
+        try {
+          await db
+            .insertInto("organization_member")
+            .values({ organization_id: orgId, user_id: userId, role: orgRole })
+            .onConflict((oc) =>
+              oc.columns(["organization_id", "user_id"]).doUpdateSet({ role: orgRole }),
+            )
+            .execute();
           orgAssigned = true;
+        } catch (orgError) {
+          console.warn(
+            `${index} ⚠️  ${user.email} — 加入组织失败: ${errorMessage(orgError)}`,
+          );
         }
       }
 
-      // ④ 分配工作区
+      // ③ 分配工作区（已分配则更新角色）
       let workspaceAssigned = false;
       if (workspaceId) {
-        const { error: wsError } = await supabase
-          .from("workspace_assignment")
-          .upsert(
-            {
-              workspace_id: workspaceId,
-              user_id: userId,
-              role: workspaceRole,
-            },
-            { onConflict: "user_id,workspace_id" },
-          );
-
-        if (wsError) {
-          console.warn(
-            `${index} ⚠️  ${user.email} — 分配工作区失败: ${wsError.message}`,
-          );
-        } else {
+        try {
+          await db
+            .insertInto("workspace_assignment")
+            .values({ workspace_id: workspaceId, user_id: userId, role: workspaceRole })
+            .onConflict((oc) =>
+              oc.columns(["user_id", "workspace_id"]).doUpdateSet({ role: workspaceRole }),
+            )
+            .execute();
           workspaceAssigned = true;
+        } catch (wsError) {
+          console.warn(
+            `${index} ⚠️  ${user.email} — 分配工作区失败: ${errorMessage(wsError)}`,
+          );
         }
       }
 
@@ -353,15 +290,10 @@ async function main() {
       });
       successCount++;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       console.log(`${index} ❌ ${user.email} — ${message}`);
       results.push({ email: user.email, success: false, error: message });
       failCount++;
-    }
-
-    // 简单限速，避免触发 rate limit
-    if (i < users.length - 1) {
-      await sleep(200);
     }
   }
 
@@ -387,6 +319,9 @@ async function main() {
   );
   fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), "utf-8");
   console.log(`\n📁 结果已保存到 ${outputPath}`);
+
+  // 关闭连接池，否则进程不会退出
+  await db.destroy();
 }
 
 /** 从 argv 中读取命名参数值，例如 getArg(args, '--org') */
@@ -398,8 +333,8 @@ function getArg(args: string[], name: string): string | undefined {
   return undefined;
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 main().catch((err) => {

@@ -1,0 +1,22 @@
+# SITE_ADDRESS comes from .env: ":80" while testing by IP, the domain(s) in
+# production (e.g. "spatialmemory.online, www.spatialmemory.online"); Caddy
+# then obtains Let's Encrypt certificates automatically. SITE_DOMAIN is the
+# canonical host: requests for www.<SITE_DOMAIN> are redirected to it.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	@www host www.{$SITE_DOMAIN}
+	redir @www https://{$SITE_DOMAIN}{uri} permanent
+
+	# uploads go through the app (5 MiB files + multipart overhead)
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy app:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

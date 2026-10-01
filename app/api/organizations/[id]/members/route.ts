@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db, jsonObjectFrom } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { getUserContext } from "@/lib/permissions.server";
 import { logErrorSafe } from "@/lib/log-error";
@@ -10,18 +11,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     // super_admin or any org member can view members
     if (
@@ -31,26 +29,23 @@ export async function GET(
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
-    const { data, error } = await supabase
-      .from("organization_member")
-      .select(
-        `
-        id,
-        role,
-        created_at,
-        user_id,
-        users (
-          user_id,
-          name,
-          email,
-          role
-        )
-      `,
-      )
-      .eq("organization_id", id)
-      .order("created_at", { ascending: true });
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("organization_member")
+      .select((eb) => [
+        "organization_member.id",
+        "organization_member.role",
+        "organization_member.created_at",
+        "organization_member.user_id",
+        jsonObjectFrom(
+          eb
+            .selectFrom("users")
+            .select(["users.user_id", "users.name", "users.email", "users.role"])
+            .whereRef("users.user_id", "=", "organization_member.user_id"),
+        ).as("users"),
+      ])
+      .where("organization_member.organization_id", "=", id)
+      .orderBy("organization_member.created_at", "asc")
+      .execute();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -71,18 +66,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     if (
       !isSuperAdmin(globalRole) &&
@@ -111,12 +103,12 @@ export async function POST(
     }
 
     // 检查是否已经是成员
-    const { data: existing } = await supabase
-      .from("organization_member")
+    const existing = await db
+      .selectFrom("organization_member")
       .select("id")
-      .eq("organization_id", id)
-      .eq("user_id", user_id)
-      .single();
+      .where("organization_id", "=", id)
+      .where("user_id", "=", user_id)
+      .executeTakeFirst();
 
     if (existing) {
       return NextResponse.json(
@@ -125,18 +117,19 @@ export async function POST(
       );
     }
 
-    const { data, error } = await supabase
-      .from("organization_member")
-      .insert({
-        organization_id: id,
-        user_id,
-        role,
-      })
-      .select()
-      .single();
-
-    // 唯一约束兜并发：撞重复视为「已是成员」
-    if (error) {
+    let data;
+    try {
+      data = await db
+        .insertInto("organization_member")
+        .values({
+          organization_id: id,
+          user_id,
+          role,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    } catch (error) {
+      // 唯一约束兜并发：撞重复视为「已是成员」
       if ((error as { code?: string }).code === "23505") {
         return NextResponse.json(
           { error: "该用户已经是此组织的成员" },
@@ -165,18 +158,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     if (
       !isSuperAdmin(globalRole) &&
@@ -197,12 +187,12 @@ export async function PATCH(
     }
 
     // Get target member's current role
-    const { data: targetMember } = await supabase
-      .from("organization_member")
-      .select("role, user_id")
-      .eq("id", member_id)
-      .eq("organization_id", id)
-      .single();
+    const targetMember = await db
+      .selectFrom("organization_member")
+      .select(["role", "user_id"])
+      .where("id", "=", member_id)
+      .where("organization_id", "=", id)
+      .executeTakeFirst();
 
     if (!targetMember) {
       return NextResponse.json({ error: "成员不存在" }, { status: 404 });
@@ -230,13 +220,14 @@ export async function PATCH(
 
     // 不能把唯一的 owner 降级，否则组织将无人拥有
     if (targetMember.role === "owner" && role !== "owner") {
-      const { count: ownerCount } = await supabase
-        .from("organization_member")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", id)
-        .eq("role", "owner");
+      const { count: ownerCount } = await db
+        .selectFrom("organization_member")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("organization_id", "=", id)
+        .where("role", "=", "owner")
+        .executeTakeFirstOrThrow();
 
-      if ((ownerCount ?? 0) <= 1) {
+      if (ownerCount <= 1) {
         return NextResponse.json(
           { error: "不能降级唯一的拥有者，请先转让所有权" },
           { status: 400 },
@@ -244,15 +235,13 @@ export async function PATCH(
       }
     }
 
-    const { data, error } = await supabase
-      .from("organization_member")
-      .update({ role })
-      .eq("id", member_id)
-      .eq("organization_id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .updateTable("organization_member")
+      .set({ role })
+      .where("id", "=", member_id)
+      .where("organization_id", "=", id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -273,18 +262,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     if (
       !isSuperAdmin(globalRole) &&
@@ -301,12 +287,12 @@ export async function DELETE(
     }
 
     // Get target member's role
-    const { data: targetMember } = await supabase
-      .from("organization_member")
+    const targetMember = await db
+      .selectFrom("organization_member")
       .select("role")
-      .eq("id", member_id)
-      .eq("organization_id", id)
-      .single();
+      .where("id", "=", member_id)
+      .where("organization_id", "=", id)
+      .executeTakeFirst();
 
     // Admin cannot remove owners
     if (
@@ -319,13 +305,14 @@ export async function DELETE(
 
     // 不能移除唯一的 owner，否则组织将无人拥有
     if (targetMember?.role === "owner") {
-      const { count: ownerCount } = await supabase
-        .from("organization_member")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", id)
-        .eq("role", "owner");
+      const { count: ownerCount } = await db
+        .selectFrom("organization_member")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("organization_id", "=", id)
+        .where("role", "=", "owner")
+        .executeTakeFirstOrThrow();
 
-      if ((ownerCount ?? 0) <= 1) {
+      if (ownerCount <= 1) {
         return NextResponse.json(
           { error: "不能移除唯一的拥有者，请先转让所有权" },
           { status: 400 },
@@ -333,13 +320,11 @@ export async function DELETE(
       }
     }
 
-    const { error } = await supabase
-      .from("organization_member")
-      .delete()
-      .eq("id", member_id)
-      .eq("organization_id", id);
-
-    if (error) throw error;
+    await db
+      .deleteFrom("organization_member")
+      .where("id", "=", member_id)
+      .where("organization_id", "=", id)
+      .execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {

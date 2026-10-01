@@ -1,26 +1,21 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("user_id, name, email, role")
-      .eq("user_id", user.id)
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("users")
+      .select(["user_id", "name", "email", "role"])
+      .where("user_id", "=", user.id)
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -37,11 +32,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
@@ -61,14 +52,12 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .update({ name })
-      .eq("user_id", user.id)
-      .select("user_id, name, email, role")
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .updateTable("users")
+      .set({ name })
+      .where("user_id", "=", user.id)
+      .returning(["user_id", "name", "email", "role"])
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {

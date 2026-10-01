@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db, sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin, type OrgPermission } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
@@ -9,16 +10,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const { data, error } = await supabase
-      .from("workspace")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("workspace")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -33,14 +31,11 @@ export async function GET(
  * on success, or a NextResponse (401/403/404) to short-circuit.
  */
 async function authorizeWorkspaceMutation(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string,
   permission: OrgPermission,
   method: string,
 ): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   if (!user) {
     return {
@@ -49,7 +44,7 @@ async function authorizeWorkspaceMutation(
     };
   }
 
-  const orgId = await getWorkspaceOrgId(supabase, workspaceId);
+  const orgId = await getWorkspaceOrgId(workspaceId);
   if (!orgId) {
     return {
       ok: false,
@@ -57,9 +52,9 @@ async function authorizeWorkspaceMutation(
     };
   }
 
-  const { globalRole, orgRole } = await getUserContext(supabase, user.id, orgId);
+  const { globalRole, orgRole } = await getUserContext(user.id, orgId);
   if (!isSuperAdmin(globalRole) && !hasOrgPermission(orgRole, permission)) {
-    await logError(supabase, {
+    await logError({
       userId: user.id,
       method,
       path: `/api/workspaces/${workspaceId}`,
@@ -80,11 +75,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
     const auth = await authorizeWorkspaceMutation(
-      supabase,
       id,
       "org.workspaces.edit",
       "PUT",
@@ -98,22 +91,20 @@ export async function PUT(
       return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from("workspace")
-      .update({
+    const data = await db
+      .updateTable("workspace")
+      .set({
         name,
         description: description || null,
       })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
     console.error("更新 workspace 失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "PUT",
       path: `/api/workspaces/${id}`,
       status: 500,
@@ -127,11 +118,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
     const auth = await authorizeWorkspaceMutation(
-      supabase,
       id,
       "org.workspaces.delete",
       "DELETE",
@@ -140,26 +129,25 @@ export async function DELETE(
 
     // 检查是否有关联的资产
     // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
-    const { count } = await supabase
-      .from("asset")
-      .select("*", { count: "exact", head: true })
-      .contains("workspace_id", [id]);
+    const { count } = await db
+      .selectFrom("asset")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where(sql<boolean>`workspace_id @> array[${id}::uuid]`)
+      .executeTakeFirstOrThrow();
 
-    if (count && count > 0) {
+    if (count > 0) {
       return NextResponse.json(
         { error: `无法删除：该工作空间包含 ${count} 个资产` },
         { status: 400 },
       );
     }
 
-    const { error } = await supabase.from("workspace").delete().eq("id", id);
-
-    if (error) throw error;
+    await db.deleteFrom("workspace").where("id", "=", id).execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("删除 workspace 失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "DELETE",
       path: `/api/workspaces/${id}`,
       status: 500,

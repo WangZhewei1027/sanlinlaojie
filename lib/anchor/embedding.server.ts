@@ -1,7 +1,8 @@
+import "server-only";
 import { readReference } from "./reference.server";
 export { referenceUrl } from "./reference.server";
 import { createHash, randomUUID } from "node:crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db, sql } from "@/lib/db";
 import {
   MatchingError,
   MATCH_IMAGE_TYPES,
@@ -56,14 +57,16 @@ export async function embedImage(image: Blob) {
 /** Called by asset saves and the public feature-generation endpoint, never by recognition. */
 export async function syncAnchorEmbedding(assetId: string, fileUrl: string) {
   if (!modelConfigured()) return "unconfigured";
-  const admin = createAdminClient();
   const generation = randomUUID();
-  const { data: started, error } = await admin.rpc("begin_anchor_embedding", {
-    p_anchor_id: assetId,
-    p_image_url: fileUrl,
-    p_generation: generation,
-  });
-  if (error) throw new MatchingError("匹配特征表不可用，请检查数据库迁移", 503);
+  let started: boolean;
+  try {
+    const { rows } = await sql<{ started: boolean }>`
+      select public.begin_anchor_embedding(${assetId}::uuid, ${fileUrl}, ${generation}::uuid) as started
+    `.execute(db);
+    started = rows[0]?.started === true;
+  } catch {
+    throw new MatchingError("匹配特征表不可用，请检查数据库迁移", 503);
+  }
   if (!started) throw new MatchingError("匹配图片已变更，请刷新后重试", 409);
   try {
     const image = await readReference(fileUrl);
@@ -71,29 +74,35 @@ export async function syncAnchorEmbedding(assetId: string, fileUrl: string) {
     const checksum = createHash("sha256")
       .update(Buffer.from(await image.arrayBuffer()))
       .digest("hex");
-    const { data: saved, error: saveError } = await admin
-      .from("anchor_embedding")
-      .update({
-        status: "ready",
-        embedding: result.embedding,
-        embedding_version: result.version,
-        image_sha256: checksum,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("anchor_id", assetId)
-      .eq("generation", generation)
-      .select("anchor_id")
-      .maybeSingle();
-    if (!saved && !saveError)
+    let saved: { anchor_id: string } | undefined;
+    try {
+      saved = await db
+        .updateTable("anchor_embedding")
+        .set({
+          status: "ready",
+          embedding: result.embedding,
+          embedding_version: result.version,
+          image_sha256: checksum,
+          updated_at: new Date(),
+        })
+        .where("anchor_id", "=", assetId)
+        .where("generation", "=", generation)
+        .returning("anchor_id")
+        .executeTakeFirst();
+    } catch {
+      throw new MatchingError("无法保存匹配特征", 503);
+    }
+    if (!saved)
       throw new MatchingError("匹配图片或生成任务已变更，请刷新后重试", 409);
-    if (saveError) throw new MatchingError("无法保存匹配特征", 503);
     return "ready";
   } catch (error) {
-    await admin
-      .from("anchor_embedding")
-      .update({ status: "failed" })
-      .eq("anchor_id", assetId)
-      .eq("generation", generation);
+    await db
+      .updateTable("anchor_embedding")
+      .set({ status: "failed" })
+      .where("anchor_id", "=", assetId)
+      .where("generation", "=", generation)
+      .execute()
+      .catch(() => undefined);
     throw error;
   }
 }

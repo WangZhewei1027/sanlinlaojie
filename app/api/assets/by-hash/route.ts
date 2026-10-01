@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { isSuperAdmin } from "@/lib/permissions";
 
@@ -11,11 +12,7 @@ import { isSuperAdmin } from "@/lib/permissions";
  * 命中则复用返回的 file_url、跳过重复存储上传；未命中返回 { file_url: null }。
  */
 export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   if (!user) {
     return NextResponse.json({ error: "未授权" }, { status: 401 });
@@ -34,46 +31,42 @@ export async function GET(request: Request) {
   }
 
   // 解析目标 workspace 所属组织；不存在则拒绝
-  const orgId = await getWorkspaceOrgId(supabase, workspaceId);
+  const orgId = await getWorkspaceOrgId(workspaceId);
   if (!orgId) {
     return NextResponse.json({ error: "工作区不存在" }, { status: 404 });
   }
 
   // 鉴权：super_admin 放行；否则必须是该组织成员
-  const { globalRole, orgRole } = await getUserContext(supabase, user.id, orgId);
+  const { globalRole, orgRole } = await getUserContext(user.id, orgId);
   if (!isSuperAdmin(globalRole ?? undefined) && !orgRole) {
     return NextResponse.json({ error: "权限不足" }, { status: 403 });
   }
 
-  // 组织内去重：只匹配 workspace_id 与本组织 workspace 集合有交集的资产
-  const { data: wsRows, error: wsError } = await supabase
-    .from("workspace")
-    .select("id")
-    .eq("organization_id", orgId);
+  try {
+    // 组织内去重：只匹配 workspace_id 与本组织 workspace 集合有交集的资产
+    const wsRows = await db
+      .selectFrom("workspace")
+      .select("id")
+      .where("organization_id", "=", orgId)
+      .execute();
 
-  if (wsError) {
-    console.error("by-hash 查询组织 workspace 失败:", wsError);
-    return NextResponse.json({ error: "查询失败" }, { status: 500 });
-  }
+    const orgWorkspaceIds = wsRows.map((w) => w.id);
+    if (orgWorkspaceIds.length === 0) {
+      return NextResponse.json({ file_url: null });
+    }
 
-  const orgWorkspaceIds = (wsRows ?? []).map((w) => w.id as string);
-  if (orgWorkspaceIds.length === 0) {
-    return NextResponse.json({ file_url: null });
-  }
+    const data = await db
+      .selectFrom("asset")
+      .select("file_url")
+      .where("content_hash", "=", hash)
+      .where("file_url", "is not", null)
+      .where("workspace_id", "&&", orgWorkspaceIds)
+      .limit(1)
+      .executeTakeFirst();
 
-  const { data, error } = await supabase
-    .from("asset")
-    .select("file_url")
-    .eq("content_hash", hash)
-    .not("file_url", "is", null)
-    .overlaps("workspace_id", orgWorkspaceIds)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
+    return NextResponse.json({ file_url: data?.file_url ?? null });
+  } catch (error) {
     console.error("by-hash 查询失败:", error);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });
   }
-
-  return NextResponse.json({ file_url: data?.file_url ?? null });
 }

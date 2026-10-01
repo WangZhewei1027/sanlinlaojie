@@ -1,27 +1,33 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { db, sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 import { DEFAULT_UPLOAD_TYPES } from "@/lib/upload/types";
+
+// get_user_organizations(p_user_id) 的返回行（db/schema.sql）
+interface UserOrganizationRow {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: Date;
+  role: string;
+  map_center: { lat: number; lng: number } | null;
+  allowed_file_types: string[] | null;
+  pinned_at: Date | null;
+}
 
 // 获取用户可访问的所有 organization
 export async function GET() {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data, error } = await supabase.rpc("get_user_organizations", {
-      p_user_id: user.id,
-    });
-
-    if (error) throw error;
+    const { rows: data } = await sql<UserOrganizationRow>`
+      select * from public.get_user_organizations(${user.id}::uuid)
+    `.execute(db);
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -39,21 +45,17 @@ export async function GET() {
 // 创建新的 organization（仅 admin）
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
+    const userData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (userData?.role !== "super_admin") {
       await logErrorSafe({
@@ -73,41 +75,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
-    // 新组织的默认文件类型来自全局配置（app_config 启用 RLS 无 policy，
-    // 需 service-role 读取）；配置缺失时兜底为代码默认集合
-    const { data: cfg } = await createAdminClient()
-      .from("app_config")
+    // 新组织的默认文件类型来自全局配置（app_config）；配置缺失时兜底为代码默认集合
+    const cfg = await db
+      .selectFrom("app_config")
       .select("value")
-      .eq("key", "default_allowed_file_types")
-      .single();
+      .where("key", "=", "default_allowed_file_types")
+      .executeTakeFirst();
     const defaultFileTypes = Array.isArray(cfg?.value)
-      ? cfg.value
+      ? (cfg.value as string[])
       : DEFAULT_UPLOAD_TYPES;
 
-    // 创建 organization
-    const { data: org, error: orgError } = await supabase
-      .from("organization")
-      .insert({
-        name,
-        description: description || null,
-        created_by: user.id,
-        allowed_file_types: defaultFileTypes,
-      })
-      .select()
-      .single();
+    // 创建 organization，并将创建者设为 owner（同一事务，避免留下无主组织）
+    const org = await db.transaction().execute(async (trx) => {
+      const created = await trx
+        .insertInto("organization")
+        .values({
+          name,
+          description: description || null,
+          created_by: user.id,
+          allowed_file_types: defaultFileTypes,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    if (orgError) throw orgError;
+      await trx
+        .insertInto("organization_member")
+        .values({
+          organization_id: created.id,
+          user_id: user.id,
+          role: "owner",
+        })
+        .execute();
 
-    // 将创建者设为 owner
-    const { error: memberError } = await supabase
-      .from("organization_member")
-      .insert({
-        organization_id: org.id,
-        user_id: user.id,
-        role: "owner",
-      });
-
-    if (memberError) throw memberError;
+      return created;
+    });
 
     return NextResponse.json({ data: org }, { status: 201 });
   } catch (error) {

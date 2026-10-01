@@ -2,9 +2,9 @@ import type { TFunction } from "i18next";
 
 // 统一把登录/注册/重置密码流程中的各种错误翻译成用户可读的 i18n 文案。
 // 覆盖三类来源：
-// 1. supabase-js 抛出的 AuthError（带 code / status / message）
+// 1. Better Auth 客户端返回的 error（{ code / status / message }，见 lib/auth/client.ts）
 // 2. 浏览器网络层错误（fetch 失败、server action 调用失败）
-// 3. 服务端 server action 返回的机器码（lib/auth/sms.ts 的 code 字段）
+// 3. 服务端 server action 返回的机器码（lib/auth/sms.ts、lib/auth/password.server.ts 的 code 字段）
 //
 // UI 上永远只显示映射后的文案，绝不透出原始英文报错；
 // 未识别的错误原文通过 /api/errors 静默上报到 error_log 供排查。
@@ -17,16 +17,21 @@ const NETWORK_MESSAGE_RE =
 
 function messageToKey(msg: string): string | null {
   if (NETWORK_MESSAGE_RE.test(msg)) return "auth.errors.network";
-  if (/invalid login credentials/i.test(msg)) {
+  if (/invalid (login credentials|email or password|password)/i.test(msg)) {
     return "auth.errors.invalidCredentials";
   }
   if (/already (been )?registered|already exists/i.test(msg)) {
     return "auth.errors.userExists";
   }
-  if (/email not confirmed/i.test(msg)) return "auth.errors.emailNotConfirmed";
+  if (/email not (confirmed|verified)/i.test(msg)) {
+    return "auth.errors.emailNotConfirmed";
+  }
   if (/rate limit|too many/i.test(msg)) return "auth.errors.rateLimited";
   if (/password.*(weak|short|at least)/i.test(msg)) {
     return "auth.errors.weakPassword";
+  }
+  if (/invalid token|token expired/i.test(msg)) {
+    return "auth.errors.resetLinkInvalid";
   }
   return null;
 }
@@ -40,51 +45,46 @@ export function authErrorKey(error: unknown): string {
     return "auth.errors.unknown";
   }
 
-  const { name, status, code, message } = error as {
-    name?: string;
+  const { status, code, message } = error as {
     status?: number;
     code?: string;
     message?: string;
   };
 
-  // 网络层失败：supabase-js 的可重试 fetch 错误，或 server action 请求本身失败
-  if (
-    name === "AuthRetryableFetchError" ||
-    status === 0 ||
-    error instanceof TypeError
-  ) {
+  // 网络层失败：fetch 本身抛出的 TypeError，或 server action 请求本身失败
+  if (status === 0 || error instanceof TypeError) {
     return "auth.errors.network";
   }
 
+  // Better Auth 的限流只返回 429，没有稳定的 code
+  if (status === 429) return "auth.errors.rateLimited";
+
+  // Better Auth 的 BASE_ERROR_CODES（@better-auth/core/error）
   switch (code) {
-    case "invalid_credentials":
+    case "INVALID_EMAIL_OR_PASSWORD":
+    case "INVALID_PASSWORD":
+    case "USER_NOT_FOUND":
       return "auth.errors.invalidCredentials";
-    case "user_already_exists":
-    case "email_exists":
-    case "phone_exists":
+    case "USER_ALREADY_EXISTS":
+    case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
       return "auth.errors.userExists";
-    case "email_not_confirmed":
+    case "EMAIL_NOT_VERIFIED":
       return "auth.errors.emailNotConfirmed";
-    case "over_request_rate_limit":
-    case "over_email_send_rate_limit":
-    case "over_sms_send_rate_limit":
-      return "auth.errors.rateLimited";
-    case "weak_password":
+    case "PASSWORD_TOO_SHORT":
+    case "PASSWORD_TOO_LONG":
       return "auth.errors.weakPassword";
-    case "same_password":
-      return "auth.errors.samePassword";
-    case "email_address_invalid":
-    case "validation_failed":
+    case "INVALID_EMAIL":
       return "auth.errors.invalidEmail";
-    case "otp_expired":
-      return "auth.otpExpired";
-    case "session_expired":
-    case "session_not_found":
-    case "refresh_token_not_found":
+    // 邮件重置链接里的 token 无效 / 过期
+    case "INVALID_TOKEN":
+    case "TOKEN_EXPIRED":
+      return "auth.errors.resetLinkInvalid";
+    case "SESSION_EXPIRED":
+    case "SESSION_NOT_FRESH":
       return "auth.errors.sessionExpired";
   }
 
-  // 部分旧版本 / 边缘路径没有 code，按 message 兜底匹配
+  // 没有 code 的边缘路径，按 message 兜底匹配
   return messageToKey(message ?? "") ?? "auth.errors.unknown";
 }
 
@@ -130,7 +130,7 @@ export function formatAuthError(t: TFunction, error: unknown): string {
   return t(key);
 }
 
-/** 服务端 server action 返回的机器码 → i18n key（见 lib/auth/sms.ts） */
+/** 服务端 server action 返回的机器码 → i18n key（见 lib/auth/sms.ts、lib/auth/password.server.ts） */
 const SERVER_CODE_KEYS: Record<string, string> = {
   sms_rate_limited: "auth.errors.smsRateLimited",
   invalid_phone: "auth.errors.invalidPhone",
@@ -139,6 +139,8 @@ const SERVER_CODE_KEYS: Record<string, string> = {
   code_expired: "auth.otpExpired",
   user_exists: "auth.errors.userExists",
   user_not_found: "auth.errors.phoneNotRegistered",
+  unauthorized: "auth.errors.sessionExpired",
+  password_too_short: "auth.errors.weakPassword",
 };
 
 /**

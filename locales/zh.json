@@ -874,7 +874,8 @@
       "invalidPhone": "手机号格式不正确，请检查输入",
       "smsSendFailed": "验证码发送失败，请稍后重试",
       "phoneNotRegistered": "该手机号尚未注册",
-      "accountCreatedLoginFailed": "账号已创建成功，但自动登录失败，请返回登录页手动登录"
+      "accountCreatedLoginFailed": "账号已创建成功，但自动登录失败，请返回登录页手动登录",
+      "resetLinkInvalid": "重置链接无效或已过期，请重新发送重置邮件"
     }
   },
   "matching": {

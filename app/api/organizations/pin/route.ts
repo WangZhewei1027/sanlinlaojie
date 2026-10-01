@@ -1,16 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext } from "@/lib/permissions.server";
 import { isSuperAdmin } from "@/lib/permissions";
 import { logErrorSafe } from "@/lib/log-error";
 
-// 置顶/取消置顶组织。用户级偏好，写 user_organization_pin（RLS 限定本人行）。
+// 置顶/取消置顶组织。用户级偏好，写 user_organization_pin。
+// 没有 RLS 兜底，所有写入都显式限定为当前用户的 user_id。
 export async function POST(request: Request) {
-  const supabase = await createClient();
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
@@ -27,7 +26,6 @@ export async function POST(request: Request) {
 
     // 只能置顶自己可见的组织：本组织成员，或 super_admin（可见全部）
     const { globalRole, orgRole } = await getUserContext(
-      supabase,
       user.id,
       organizationId,
     );
@@ -37,18 +35,19 @@ export async function POST(request: Request) {
 
     if (pinned) {
       // 已置顶时保持原 pinned_at（置顶顺序不变），因此忽略冲突而非更新
-      const { error } = await supabase.from("user_organization_pin").upsert(
-        { user_id: user.id, organization_id: organizationId },
-        { onConflict: "user_id,organization_id", ignoreDuplicates: true },
-      );
-      if (error) throw error;
+      await db
+        .insertInto("user_organization_pin")
+        .values({ user_id: user.id, organization_id: organizationId })
+        .onConflict((oc) =>
+          oc.columns(["user_id", "organization_id"]).doNothing(),
+        )
+        .execute();
     } else {
-      const { error } = await supabase
-        .from("user_organization_pin")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("organization_id", organizationId);
-      if (error) throw error;
+      await db
+        .deleteFrom("user_organization_pin")
+        .where("user_id", "=", user.id)
+        .where("organization_id", "=", organizationId)
+        .execute();
     }
 
     return NextResponse.json({ success: true });

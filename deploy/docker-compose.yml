@@ -1,0 +1,72 @@
+# Production stack on the Aliyun server (/opt/sanlin). Deployed by
+# scripts/deploy.sh, which copies this file, Caddyfile and the .env file.
+#
+#   caddy  — TLS termination (Let's Encrypt) and reverse proxy
+#   app    — Next.js standalone server (image built locally, loaded over SSH)
+#   db     — PostgreSQL 17 + PostGIS; data in the db-data volume, bound to
+#            127.0.0.1 only so migrations run through an SSH tunnel
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sanlin
+      POSTGRES_USER: sanlin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=50
+    shm_size: 256m
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sanlin -d sanlin"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: sanlin-web:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://sanlin:${POSTGRES_PASSWORD}@db:5432/sanlin
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      SITE_DOMAIN: ${SITE_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

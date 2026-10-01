@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 
 const MAX_MESSAGE = 2000;
 const MAX_PATH = 500;
@@ -17,10 +18,7 @@ const MAX_PATH = 500;
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     const body = (await request.json().catch(() => ({}))) as {
       method?: unknown;
@@ -30,19 +28,26 @@ export async function POST(request: Request) {
       context?: unknown;
     };
 
-    await supabase.from("error_log").insert({
-      user_id: user?.id ?? null,
-      scope: "client",
-      method: typeof body.method === "string" ? body.method.slice(0, 16) : null,
-      path: typeof body.path === "string" ? body.path.slice(0, MAX_PATH) : null,
-      status: Number.isInteger(body.status) ? (body.status as number) : null,
-      message:
-        typeof body.message === "string"
-          ? body.message.slice(0, MAX_MESSAGE)
-          : null,
-      context:
-        body.context && typeof body.context === "object" ? body.context : null,
-    });
+    await db
+      .insertInto("error_log")
+      .values({
+        user_id: user?.id ?? null,
+        scope: "client",
+        method:
+          typeof body.method === "string" ? body.method.slice(0, 16) : null,
+        path:
+          typeof body.path === "string" ? body.path.slice(0, MAX_PATH) : null,
+        status: Number.isInteger(body.status) ? (body.status as number) : null,
+        message:
+          typeof body.message === "string"
+            ? body.message.slice(0, MAX_MESSAGE)
+            : null,
+        context:
+          body.context && typeof body.context === "object"
+            ? JSON.stringify(body.context)
+            : null,
+      })
+      .execute();
 
     return NextResponse.json({ ok: true });
   } catch {

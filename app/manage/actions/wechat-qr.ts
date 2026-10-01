@@ -1,17 +1,13 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
-
-import {
-  WECHAT_QR_BUCKET,
-  WECHAT_QR_ENV_VERSION,
-  buildQrStoragePath,
-} from "@/lib/wechat-qr";
+import { getSessionUser } from "@/lib/auth/server";
+import { headObject, mediaUrl, putObject } from "@/lib/storage/oss";
+import { WECHAT_QR_ENV_VERSION, buildQrObjectKey } from "@/lib/wechat-qr";
 
 const MINIPROGRAM_PAGE = "pages/index/index";
 // QR content never changes for a given org/workspace, so let browsers/CDN
 // cache the image long-term (1 year).
-const QR_CACHE_CONTROL = "31536000";
+const QR_CACHE_CONTROL = "public, max-age=31536000";
 const QR_WIDTH = 430;
 
 const TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token";
@@ -23,18 +19,8 @@ interface TokenCache {
 }
 
 // Module-level in-memory cache for the WeChat access_token (valid 7200s).
+// Fine for a single app instance; share it (e.g. Redis) before scaling out.
 let tokenCache: TokenCache | null = null;
-
-function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url) throw new Error("Missing env var: NEXT_PUBLIC_SUPABASE_URL");
-  if (!serviceKey)
-    throw new Error("Missing env var: SUPABASE_SERVICE_ROLE_KEY");
-  return createClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 async function getAccessToken(): Promise<string> {
   const now = Date.now();
@@ -119,53 +105,38 @@ export async function getOrCreateWorkspaceQRCode(input: {
   workspaceId?: string | null;
 }): Promise<{ url?: string; error?: string }> {
   try {
+    // Generating codes spends WeChat API quota: signed-in users only.
+    if (!(await getSessionUser())) {
+      return { error: "未授权" };
+    }
+
     const orgId = input.organizationId?.trim();
     if (!orgId) {
       return { error: "organizationId is required" };
     }
     const wsId = input.workspaceId?.trim() || null;
+    const key = buildQrObjectKey(orgId, wsId);
 
-    const supabase = getAdminClient();
-    const storagePath = buildQrStoragePath(orgId, wsId);
-    const storage = supabase.storage.from(WECHAT_QR_BUCKET);
-
-    // 1. Cache check via HEAD request (no file body transfer). A transient
-    // failure counts as a miss — the upload step treats duplicates as success.
-    let fileExists = false;
+    // 1. Cache check via HEAD (no body transfer). A transient failure counts
+    // as a miss — re-uploading the same content is harmless.
+    let exists = false;
     try {
-      const { data } = await storage.exists(storagePath);
-      fileExists = Boolean(data);
+      exists = (await headObject(key)) !== null;
     } catch {
       // fall through to regeneration
     }
-    if (fileExists) {
-      const { data } = storage.getPublicUrl(storagePath);
-      return { url: data.publicUrl };
+    if (exists) {
+      return { url: mediaUrl(key) };
     }
 
-    // 2. Cache miss: call WeChat to generate.
+    // 2. Cache miss: call WeChat to generate, then store.
     const miniProgramPath = buildMiniProgramPath(orgId, wsId);
     const buffer = await fetchQrFromWeChat(miniProgramPath);
-
-    // 3. Upload (treat duplicate as success for race-safety).
-    const { error: uploadError } = await storage.upload(storagePath, buffer, {
+    const url = await putObject(key, buffer, {
       contentType: "image/png",
       cacheControl: QR_CACHE_CONTROL,
-      upsert: false,
     });
-    if (uploadError) {
-      const msg = uploadError.message?.toLowerCase() ?? "";
-      const isDuplicate =
-        msg.includes("duplicate") ||
-        msg.includes("already exists") ||
-        msg.includes("resource already exists");
-      if (!isDuplicate) {
-        return { error: `Storage upload failed: ${uploadError.message}` };
-      }
-    }
-
-    const { data } = storage.getPublicUrl(storagePath);
-    return { url: data.publicUrl };
+    return { url };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: message };

@@ -1,6 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse, connection } from "next/server";
+import { db, sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
+import { getUserContext } from "@/lib/permissions.server";
+import { isSuperAdmin } from "@/lib/permissions";
 import { logErrorSafe } from "@/lib/log-error";
 
 const MAX_LIMIT = 200;
@@ -8,8 +10,8 @@ const MAX_LIMIT = 200;
 /**
  * Super-admin Error Log query endpoint. Verifies the caller is super_admin,
  * then delegates filtering + pagination + aggregation to the `error_log_query`
- * Postgres function via the service-role client (error_log is service-role
- * only). Returns { total, rows, stats } for the analysis page.
+ * Postgres function (error_log is only ever touched from the server).
+ * Returns { total, rows, stats } for the analysis page.
  *
  * Query params: scope, statusClass ('zero'|'4xx'|'5xx'), q, from, to, limit,
  * offset. All optional.
@@ -17,23 +19,15 @@ const MAX_LIMIT = 200;
 export async function GET(request: Request) {
   await connection();
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
+    const { globalRole } = await getUserContext(user.id);
 
-    if (userData?.role !== "super_admin") {
+    if (!isSuperAdmin(globalRole)) {
       await logErrorSafe({
         userId: user.id,
         method: "GET",
@@ -58,25 +52,22 @@ export async function GET(request: Request) {
       : 50;
     const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
 
-    const admin = createAdminClient();
-    const { data, error } = await admin.rpc("error_log_query", {
-      p_scope: scope === "client" || scope === "api" ? scope : null,
-      p_status_class:
-        statusClass === "zero" ||
-        statusClass === "4xx" ||
-        statusClass === "5xx"
-          ? statusClass
-          : null,
-      p_q: q && q.trim() ? q.trim() : null,
-      p_from: from || null,
-      p_to: to || null,
-      p_limit: limit,
-      p_offset: offset,
-    });
+    const pScope = scope === "client" || scope === "api" ? scope : null;
+    const pStatusClass =
+      statusClass === "zero" || statusClass === "4xx" || statusClass === "5xx"
+        ? statusClass
+        : null;
+    const pQ = q && q.trim() ? q.trim() : null;
+    const pFrom = from || null;
+    const pTo = to || null;
 
-    if (error) throw error;
+    const { rows } = await sql<{ v: unknown }>`
+      select public.error_log_query(
+        ${pScope}, ${pStatusClass}, ${pQ}, ${pFrom}, ${pTo}, ${limit}, ${offset}
+      ) as v
+    `.execute(db);
 
-    return NextResponse.json(data);
+    return NextResponse.json(rows[0].v);
   } catch (error) {
     console.error("获取错误日志失败:", error);
     await logErrorSafe({

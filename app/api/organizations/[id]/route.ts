@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
@@ -10,24 +11,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
-      .from("organization")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("organization")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -41,21 +37,18 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     if (!isSuperAdmin(globalRole) && !hasOrgPermission(orgRole, "org.settings")) {
-      await logError(supabase, {
+      await logError({
         userId: user.id,
         method: "PUT",
         path: `/api/organizations/${id}`,
@@ -69,7 +62,14 @@ export async function PUT(
     const body = await request.json();
     const { name, description, map_center, allowed_file_types, config } = body;
 
-    const updatePayload: Record<string, unknown> = { name, description };
+    // jsonb 列（map_center / config）以 JSON 字符串写入；值为 undefined 的键不会被更新
+    const updatePayload: {
+      name?: string;
+      description?: string | null;
+      map_center?: string | null;
+      allowed_file_types?: string[] | null;
+      config?: string;
+    } = { name, description };
 
     // 组织配置字段（与 super-admin 的 updateOrganization action 同语义）：
     // 仅在请求携带时更新，且做形状校验，防止写入脏数据
@@ -87,7 +87,7 @@ export async function PUT(
       updatePayload.map_center =
         map_center === null
           ? null
-          : { lat: map_center.lat, lng: map_center.lng };
+          : JSON.stringify({ lat: map_center.lat, lng: map_center.lng });
     }
 
     if (allowed_file_types !== undefined) {
@@ -117,22 +117,20 @@ export async function PUT(
       ) {
         delete safeConfig.text_asset_miniapp_style;
       }
-      updatePayload.config = safeConfig;
+      updatePayload.config = JSON.stringify(safeConfig);
     }
 
-    const { data, error } = await supabase
-      .from("organization")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await db
+      .updateTable("organization")
+      .set(updatePayload)
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
     return NextResponse.json({ data });
   } catch (error) {
     console.error("更新 organization 失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "PUT",
       path: `/api/organizations/${id}`,
       status: 500,
@@ -147,21 +145,18 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { globalRole, orgRole } = await getUserContext(supabase, user.id, id);
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
 
     if (!isSuperAdmin(globalRole) && !hasOrgPermission(orgRole, "org.delete")) {
-      await logError(supabase, {
+      await logError({
         userId: user.id,
         method: "DELETE",
         path: `/api/organizations/${id}`,
@@ -173,27 +168,26 @@ export async function DELETE(
     }
 
     // 检查是否有关联的 workspace
-    const { data: workspaces } = await supabase
-      .from("workspace")
+    const workspace = await db
+      .selectFrom("workspace")
       .select("id")
-      .eq("organization_id", id)
-      .limit(1);
+      .where("organization_id", "=", id)
+      .limit(1)
+      .executeTakeFirst();
 
-    if (workspaces && workspaces.length > 0) {
+    if (workspace) {
       return NextResponse.json(
         { error: "该组织下还有工作空间，请先删除所有工作空间" },
         { status: 400 },
       );
     }
 
-    const { error } = await supabase.from("organization").delete().eq("id", id);
-
-    if (error) throw error;
+    await db.deleteFrom("organization").where("id", "=", id).execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("删除 organization 失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "DELETE",
       path: `/api/organizations/${id}`,
       status: 500,

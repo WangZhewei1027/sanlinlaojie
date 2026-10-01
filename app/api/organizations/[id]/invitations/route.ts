@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
@@ -8,16 +9,13 @@ import { logError } from "@/lib/log-error";
 const LINK_ROLES = ["admin", "member", "viewer"] as const;
 
 async function requireInviteAccess(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string,
   method: string,
 ): Promise<
   | { ok: true; userId: string }
   | { ok: false; response: NextResponse }
 > {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   if (!user) {
     return {
@@ -26,9 +24,9 @@ async function requireInviteAccess(
     };
   }
 
-  const { globalRole, orgRole } = await getUserContext(supabase, user.id, orgId);
+  const { globalRole, orgRole } = await getUserContext(user.id, orgId);
   if (!isSuperAdmin(globalRole) && !hasOrgPermission(orgRole, "org.members.add")) {
-    await logError(supabase, {
+    await logError({
       userId: user.id,
       method,
       path: `/api/organizations/${orgId}/invitations`,
@@ -50,27 +48,32 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
-    const auth = await requireInviteAccess(supabase, id, "GET");
+    const auth = await requireInviteAccess(id, "GET");
     if (!auth.ok) return auth.response;
 
-    const { data, error } = await supabase
-      .from("organization_invitation")
-      .select(
-        "id, token, role, workspace_id, expires_at, use_count, created_at, created_by",
-      )
-      .eq("organization_id", id)
-      .eq("revoked", false)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("organization_invitation")
+      .select([
+        "id",
+        "token",
+        "role",
+        "workspace_id",
+        "expires_at",
+        "use_count",
+        "created_at",
+        "created_by",
+      ])
+      .where("organization_id", "=", id)
+      .where("revoked", "=", false)
+      .orderBy("created_at", "desc")
+      .execute();
 
     return NextResponse.json({ data });
   } catch (error) {
     console.error("获取邀请列表失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "GET",
       path: `/api/organizations/${id}/invitations`,
       status: 500,
@@ -85,10 +88,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
-    const auth = await requireInviteAccess(supabase, id, "POST");
+    const auth = await requireInviteAccess(id, "POST");
     if (!auth.ok) return auth.response;
 
     const body = await request.json().catch(() => ({}));
@@ -103,7 +105,7 @@ export async function POST(
 
     // workspace_id 必须属于本 org
     if (workspace_id) {
-      const wsOrg = await getWorkspaceOrgId(supabase, workspace_id);
+      const wsOrg = await getWorkspaceOrgId(workspace_id);
       if (wsOrg !== id) {
         return NextResponse.json(
           { error: "workspace 不属于该组织" },
@@ -114,9 +116,9 @@ export async function POST(
 
     const token = crypto.randomUUID();
 
-    const { data, error } = await supabase
-      .from("organization_invitation")
-      .insert({
+    const data = await db
+      .insertInto("organization_invitation")
+      .values({
         organization_id: id,
         workspace_id,
         token,
@@ -124,19 +126,21 @@ export async function POST(
         expires_at,
         created_by: auth.userId,
       })
-      .select("id, token, role, workspace_id, expires_at")
-      .single();
+      .returning(["id", "token", "role", "workspace_id", "expires_at"])
+      .executeTakeFirstOrThrow();
 
-    if (error) throw error;
-
-    const origin = new URL(request.url).origin;
+    // 应用跑在反向代理之后，request.url 的 origin 是内网地址；
+    // 邀请链接以站点公网地址为准，仅在未配置时退回请求 origin
+    const origin = (
+      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    ).replace(/\/+$/, "");
     return NextResponse.json(
       { data: { ...data, url: `${origin}/invite/${token}` } },
       { status: 201 },
     );
   } catch (error) {
     console.error("创建邀请失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "POST",
       path: `/api/organizations/${id}/invitations`,
       status: 500,
@@ -151,10 +155,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
   const { id } = await params;
   try {
-    const auth = await requireInviteAccess(supabase, id, "DELETE");
+    const auth = await requireInviteAccess(id, "DELETE");
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
@@ -166,18 +169,17 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase
-      .from("organization_invitation")
-      .update({ revoked: true })
-      .eq("id", invitationId)
-      .eq("organization_id", id);
-
-    if (error) throw error;
+    await db
+      .updateTable("organization_invitation")
+      .set({ revoked: true })
+      .where("id", "=", invitationId)
+      .where("organization_id", "=", id)
+      .execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("撤销邀请失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "DELETE",
       path: `/api/organizations/${id}/invitations`,
       status: 500,
