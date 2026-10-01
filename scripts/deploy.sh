@@ -51,8 +51,13 @@ docker save "$IMAGE:$TAG" | gzip -1 | ssh "$HOST" "gunzip | docker load"
 
 echo "▶ copying compose files"
 ssh "$HOST" "mkdir -p $DIR"
-scp -q deploy/docker-compose.yml deploy/Caddyfile "$HOST:$DIR/"
+scp -q deploy/docker-compose.yml deploy/Caddyfile deploy/backup.sh "$HOST:$DIR/"
 scp -q "$ENV_FILE" "$HOST:$DIR/.env"
+ssh "$HOST" "chmod 600 $DIR/.env; chmod +x $DIR/backup.sh"
+
+echo "▶ nightly backup cron (03:30 server time) + ossutil"
+ssh "$HOST" 'command -v ossutil >/dev/null || (curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh | bash >/dev/null 2>&1) || echo "ossutil install failed — backups will not upload"
+printf "30 3 * * * root /opt/sanlin/backup.sh >> /var/log/sanlin-backup.log 2>&1\n" > /etc/cron.d/sanlin-backup && chmod 644 /etc/cron.d/sanlin-backup'
 
 echo "▶ starting"
 ssh "$HOST" "cd $DIR && docker tag $IMAGE:$TAG $IMAGE:latest && docker compose up -d --remove-orphans && docker image prune -f >/dev/null && docker compose ps"

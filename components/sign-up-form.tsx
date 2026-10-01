@@ -48,7 +48,7 @@ function EmailSignUpForm({ next }: { next: string }) {
     }
 
     try {
-      const { error } = await authClient.signUp.email({
+      const { data, error } = await authClient.signUp.email({
         email,
         password,
         // Better Auth 要求 name 字段；表单不收集，传空串由 DB 触发器存为 NULL
@@ -57,6 +57,13 @@ function EmailSignUpForm({ next }: { next: string }) {
         callbackURL: next,
       });
       if (error) throw error;
+      // 不要求邮件确认时 Better Auth 会直接建立会话（返回 token），此时无需
+      // 让用户去查邮件，直接进入目标页；需要确认时才展示"请查收邮件"
+      if (data?.token) {
+        router.refresh();
+        router.push(next);
+        return;
+      }
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
       setError(formatAuthError(t, error));

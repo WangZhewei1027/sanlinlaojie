@@ -21,22 +21,24 @@ declare global {
   var __sanlinPgPool: Pool | undefined;
 }
 
-function createPool(): Pool {
+// The pool is created on first use, not at import time: `next build` loads
+// every route module to collect metadata, and the build image has no
+// DATABASE_URL. Survives Next.js dev hot-reloads without leaking pools.
+function getPool(): Pool {
+  if (globalThis.__sanlinPgPool) return globalThis.__sanlinPgPool;
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not set");
-  return new Pool({
+  const pool = new Pool({
     connectionString,
     max: Number(process.env.DATABASE_POOL_MAX ?? 10),
     idleTimeoutMillis: 30_000,
   });
+  globalThis.__sanlinPgPool = pool;
+  return pool;
 }
 
-// Survive Next.js dev hot-reloads without leaking pools.
-const pool = globalThis.__sanlinPgPool ?? createPool();
-if (process.env.NODE_ENV !== "production") globalThis.__sanlinPgPool = pool;
-
 export const db = new Kysely<DB>({
-  dialect: new PostgresDialect({ pool }),
+  dialect: new PostgresDialect({ pool: async () => getPool() }),
 });
 
 export { sql, jsonArrayFrom, jsonObjectFrom };
