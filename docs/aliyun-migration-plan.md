@@ -11,7 +11,9 @@
 | OSS | 桶 `sanlinlaojie-media`（public-read，须关闭"阻止公共访问"；CORS 允许 GET/HEAD）：`assets/`、`wechat-qrcodes/`（1,122 个对象已全量复制）、`static/cesium/1.111/`、`static/draco/gltf/`、`tiles/terra_b3dms/`。备份桶 `sanlinlaojie-backups`（私有，30 天过期） |
 | 凭证 | 新建 RAM 用户 `sanlin-app`（仅该桶 + 号码认证服务），替换掉原先放在 `.env.local` 里的主账号 AccessKey |
 | CI/CD | `.github/workflows/deploy.yml`：push main → 构建镜像 → SSH 部署；密钥 `DEPLOY_SSH_KEY` 与变量已配置 |
-| 待办 | ① 把 Supabase 库的数据导入（`scripts/migrate/`，需 `SUPABASE_DB_URL`）；② DNS 切到服务器并把 `SITE_ADDRESS` / `NEXT_PUBLIC_SITE_URL` 改成域名；③ 绑定 `media.spatialmemory.online`（可选 CDN）后用 `rewrite-urls.sh` 换 URL 前缀；④ 配 SMTP（邮件确认/找回）与天地图 key；⑤ 小程序改调 `/api/miniapp/*`（第 5 节），之后才能关 Supabase |
+| 数据 | 2026-10-01 已从 Supabase 导入线上库（152 用户 / 2,031 素材，逐表核对一致），媒体 URL 已改到 OSS，夜间备份已验证 |
+| 切换 | 2026-10-01 DNS 已指向服务器，站点 `https://spatialmemory.online`（www 跳转到主域名），Caddy 自动签证书；Vercel 项目可删除 |
+| 待办 | ① 绑定 `media.spatialmemory.online`（可选 CDN）后用 `rewrite-urls.sh` 换 URL 前缀并改 `NEXT_PUBLIC_MEDIA_BASE_URL`；② 配 SMTP（邮件确认/找回）与天地图 key；③ 小程序改调 `/api/miniapp/*`（第 5 节），之后才能关 Supabase |
 
 目标：把整个后端改为自己部署的 Docker 服务，运行在阿里云上，不再依赖 Vercel 托管，也不再使用 Supabase 的任何组件；媒体文件迁到阿里云 OSS + CDN。
 
