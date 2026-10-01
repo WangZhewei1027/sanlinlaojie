@@ -40,7 +40,13 @@ function createAuth() {
       .filter(Boolean),
     database: { db, type: "postgres", schemaName: "auth" },
     advanced: {
-      database: { generateId: "uuid" },
+      database: {
+        generateId: "uuid",
+        // The runtime schema check introspects the connection's search_path
+        // and reports our `auth.*` tables as missing although every query is
+        // schema-qualified and works; db/schema.sql is the source of truth.
+        validateSchema: false,
+      },
       // Running behind Caddy, which terminates TLS and forwards X-Forwarded-*.
       useSecureCookies: siteUrl.startsWith("https://"),
     },
