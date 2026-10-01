@@ -11,7 +11,9 @@
 #   1. auth.users + auth.account (credential provider, bcrypt hash as-is) from
 #      auth-users.csv — with triggers off, so handle_new_user() does not create
 #      duplicate personal organizations;
-#   2. public tables from public-data.sql (COPY statements, triggers off);
+#   2. public tables from public-data.sql (COPY statements, triggers off) — the
+#      app_config row seeded by db/schema.sql is dropped first so the exported
+#      row wins;
 #   3. public.users.last_sign_in_at from the exported auth data.
 # Media URLs are NOT rewritten here — see rewrite-urls.sh.
 set -euo pipefail
@@ -35,6 +37,7 @@ echo "▶ importing"
   -c "\copy supabase_auth_users from '$OUT/auth-users.csv' csv header" \
   -c "insert into auth.users (id, name, email, email_verified, created_at, updated_at) select id, name, email, email_verified, created_at, updated_at from supabase_auth_users" \
   -c "insert into auth.account (user_id, account_id, provider_id, password, created_at, updated_at) select id, id::text, 'credential', encrypted_password, created_at, updated_at from supabase_auth_users" \
+  -c "delete from public.app_config" \
   -f "$OUT/public-data.sql" \
   -c "update public.users u set last_sign_in_at = s.last_sign_in_at from supabase_auth_users s where s.id = u.user_id" \
   -c "set session_replication_role = default"
