@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# server env files (scripts/deploy.sh)
+deploy/.env*
+
+# one-shot migration exports (scripts/migrate/)
+.migration/

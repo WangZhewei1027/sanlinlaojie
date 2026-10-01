@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse, connection } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 // GET /api/users/by-ids?ids=a,b,c
@@ -10,11 +11,7 @@ export async function GET(request: Request) {
   // build 预渲染的退出信号若被 catch 截获，会误写一条 500 错误日志
   await connection();
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
@@ -30,17 +27,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("user_id, name, email")
-      .in("user_id", ids);
+    const data = await db
+      .selectFrom("users")
+      .select(["user_id", "name", "email"])
+      .where("user_id", "in", ids)
+      .execute();
 
-    if (error) {
-      console.error("查询用户信息失败:", error);
-      return NextResponse.json({ error: "查询用户信息失败" }, { status: 500 });
-    }
-
-    return NextResponse.json({ data: data || [] });
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("查询用户信息失败:", error);
     await logErrorSafe({

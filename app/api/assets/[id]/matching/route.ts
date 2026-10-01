@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { getMatchingAnchor } from "@/lib/anchor/access.server";
 import {
   modelConfigured,
   syncAnchorEmbedding,
 } from "@/lib/anchor/embedding.server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { MatchingError } from "@/lib/anchor-matching";
-export const maxDuration = 60;
 type Context = { params: Promise<{ id: string }> };
 function failure(error: unknown) {
   return NextResponse.json(
@@ -25,13 +24,14 @@ export async function GET(_: Request, { params }: Context) {
       return NextResponse.json({ data: { status: "missing_image" } });
     if (!modelConfigured())
       return NextResponse.json({ data: { status: "unconfigured" } });
-    const { data, error } = await createAdminClient()
-      .from("anchor_embedding")
-      .select("image_url,status,embedding_version,updated_at")
-      .eq("anchor_id", id)
-      .maybeSingle();
-    if (error)
-      throw new MatchingError("匹配特征表未就绪，请检查数据库迁移", 503);
+    const data = await db
+      .selectFrom("anchor_embedding")
+      .select(["image_url", "status", "embedding_version", "updated_at"])
+      .where("anchor_id", "=", id)
+      .executeTakeFirst()
+      .catch(() => {
+        throw new MatchingError("匹配特征表未就绪，请检查数据库迁移", 503);
+      });
     return NextResponse.json(
       {
         data: {

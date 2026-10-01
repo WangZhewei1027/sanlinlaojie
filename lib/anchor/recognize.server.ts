@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import "server-only";
+import { db, sql } from "@/lib/db";
 import {
   chooseMatch,
   cosine,
@@ -17,6 +17,20 @@ interface Candidate {
   metadata: Record<string, unknown>;
   distance_meters: number;
 }
+
+async function findNearbyAnchors(
+  workspaceId: string,
+  gps: { latitude: number; longitude: number; radius: number },
+): Promise<Candidate[]> {
+  const { rows } = await sql<Candidate>`
+    select id, name, file_url, metadata, distance_meters
+    from public.find_nearby_matching_anchors(
+      ${workspaceId}::uuid, ${gps.latitude}, ${gps.longitude}, ${gps.radius}
+    )
+  `.execute(db);
+  return rows;
+}
+
 export async function recognizeAnchor(
   workspaceId: string,
   form: FormData,
@@ -61,15 +75,17 @@ export async function recognizeAnchor(
     ...diagnostics,
     timings_ms: { ...timings, matching_total_ms: Math.round(performance.now() - startedAt) },
   });
-  const admin = createAdminClient();
   mark("validation_ms");
-  const { data: allowed, error: limitError } = await admin.rpc(
-    "consume_anchor_match_request",
-    { p_workspace_id: workspaceId },
-  );
-  mark("rate_limit_ms");
-  if (limitError)
+  let allowed: boolean;
+  try {
+    const { rows } = await sql<{ allowed: boolean }>`
+      select public.consume_anchor_match_request(${workspaceId}::uuid) as allowed
+    `.execute(db);
+    allowed = rows[0]?.allowed === true;
+  } catch {
     throw new MatchingError("匹配接口未就绪，请检查数据库迁移", 503);
+  }
+  mark("rate_limit_ms");
   if (!allowed)
     throw new MatchingError(
       "工作空间请求过于频繁，请稍后重试",
@@ -77,15 +93,13 @@ export async function recognizeAnchor(
       "workspace_rate_limited",
       60,
     );
-  const { data, error } = await admin.rpc("find_nearby_matching_anchors", {
-    p_workspace_id: workspaceId,
-    p_lat: gps.latitude,
-    p_lng: gps.longitude,
-    p_radius: gps.radius,
-  });
+  let candidates: Candidate[];
+  try {
+    candidates = await findNearbyAnchors(workspaceId, gps);
+  } catch {
+    throw new MatchingError("无法查询附近匹配点", 503);
+  }
   mark("gps_query_ms");
-  if (error) throw new MatchingError("无法查询附近匹配点", 503);
-  const candidates = (data ?? []) as Candidate[];
   diagnostics.candidate_count = candidates.length;
   const empty = (reason: string) => ({
     matched: false,
@@ -98,16 +112,22 @@ export async function recognizeAnchor(
   if (!candidates.length) return empty("no_nearby_anchor");
   if (candidates.length > 200)
     throw new MatchingError("附近匹配点过多，请缩小工作空间", 422);
-  const { data: rows, error: featureError } = await admin
-    .from("anchor_embedding")
-    .select("anchor_id,image_url,embedding,embedding_version,status")
-    .in(
-      "anchor_id",
-      candidates.map((c) => c.id),
-    );
+  let rows;
+  try {
+    rows = await db
+      .selectFrom("anchor_embedding")
+      .select(["anchor_id", "image_url", "embedding", "embedding_version", "status"])
+      .where(
+        "anchor_id",
+        "in",
+        candidates.map((c) => c.id),
+      )
+      .execute();
+  } catch {
+    throw new MatchingError("无法读取匹配特征", 503);
+  }
   mark("reference_read_ms");
-  if (featureError) throw new MatchingError("无法读取匹配特征", 503);
-  const ready = (rows ?? []).filter(
+  const ready = rows.filter(
     (r) =>
       r.status === "ready" &&
       candidates.some(
@@ -122,7 +142,7 @@ export async function recognizeAnchor(
   if (ready.some((r) => r.embedding_version !== query.version))
     return empty("model_version_mismatch");
   const ranked = ready.map((row) => ({
-    id: row.anchor_id as string,
+    id: row.anchor_id,
     score: cosine(query.embedding, validateEmbedding(row.embedding)),
     distance_meters: candidates.find((c) => c.id === row.anchor_id)!
       .distance_meters,
@@ -137,19 +157,19 @@ export async function recognizeAnchor(
   if (!result.match) return empty(result.reason);
   const candidate = candidates.find((c) => c.id === result.match!.id)!;
   // Detect replacement/deletion/movement while inference was in flight.
-  const { data: current } = await admin.rpc("find_nearby_matching_anchors", {
-    p_workspace_id: workspaceId,
-    p_lat: gps.latitude,
-    p_lng: gps.longitude,
-    p_radius: gps.radius,
-  });
+  let current: Candidate[] | null = null;
+  try {
+    current = await findNearbyAnchors(workspaceId, gps);
+  } catch {
+    current = null;
+  }
   mark("candidate_recheck_ms");
   if (
     !current ||
     current.length !== candidates.length ||
     !candidates.every((old) =>
-      current.some(
-        (c: Candidate) =>
+      current!.some(
+        (c) =>
           c.id === old.id &&
           c.file_url === old.file_url &&
           c.distance_meters === old.distance_meters,
@@ -157,19 +177,23 @@ export async function recognizeAnchor(
     )
   )
     return empty("reference_changed");
-  const { data: assets, error: assetsError } = await fetchAllRows(() =>
-    admin
-      .from("asset")
-      .select(
-        "id,name,file_type,file_url,text_content,anchor_id,tag_ids,metadata,is_huge,config",
-      )
-      .order("id")
-      .eq("anchor_id", candidate.id)
-      .neq("file_type", "anchor")
-      .contains("workspace_id", [workspaceId]),
-  );
+  let assets;
+  try {
+    assets = await db
+      .selectFrom("asset")
+      .select([
+        "id", "name", "file_type", "file_url", "text_content", "anchor_id",
+        "tag_ids", "metadata", "is_huge", "config",
+      ])
+      .where("anchor_id", "=", candidate.id)
+      .where("file_type", "<>", "anchor")
+      .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
+      .orderBy("id")
+      .execute();
+  } catch {
+    throw new MatchingError("无法读取挂载素材", 503);
+  }
   mark("assets_read_ms");
-  if (assetsError) throw new MatchingError("无法读取挂载素材", 503);
   return {
     matched: true,
     reason: "matched",
@@ -179,7 +203,7 @@ export async function recognizeAnchor(
       distance_meters: result.match.distance_meters,
       cosine_similarity: result.match.score,
     },
-    assets: assets ?? [],
+    assets,
     gps_radius_meters: gps.radius,
     embedding_version: query.version,
     diagnostics: snapshot(),

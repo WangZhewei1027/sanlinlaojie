@@ -1,6 +1,5 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import Dypnsapi20170525, {
   SendSmsVerifyCodeRequest,
   CheckSmsVerifyCodeRequest,
@@ -10,6 +9,12 @@ import { RuntimeOptions } from "@alicloud/tea-util";
 import Credential from "@alicloud/credentials";
 import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
 import { issueSmsTicket, verifySmsTicket } from "@/lib/auth/sms-ticket.server";
+import {
+  createUserWithPassword,
+  findAuthUserByEmail,
+  setUserPassword,
+  UserExistsError,
+} from "@/lib/auth/users.server";
 
 // ─── 阿里云号码认证服务客户端 ─────────────────────────────────
 // 凭证通过默认链读取（环境变量 ALIBABA_CLOUD_ACCESS_KEY_ID /
@@ -134,7 +139,7 @@ export async function CheckSmsVerifyCode(
 // ─── 手机号注册（服务端）──────────────────────────────────────
 
 /**
- * 将手机号转为唯一邮箱，用于 Supabase Auth 创建用户
+ * 将手机号转为唯一邮箱，用作账号的登录邮箱
  * 例如 +8613800138000 → 8613800138000@phone.sanlinlaojie.local
  */
 function phoneToEmail(phone: string): string {
@@ -149,7 +154,7 @@ const TICKET_REJECTED = {
 } as const;
 
 /**
- * 通过手机号重置密码（服务端 admin）
+ * 通过手机号重置密码
  * 先校验短信验证凭证，再根据虚拟邮箱找到用户并更新密码
  */
 export async function resetPasswordByPhone(params: {
@@ -163,37 +168,20 @@ export async function resetPasswordByPhone(params: {
     return { success: false, ...TICKET_REJECTED };
   }
 
-  const supabase = createAdminClient();
-
-  // 通过虚拟邮箱查找用户；listUsers 默认只返回第一页，必须翻页
-  const perPage = 1000;
-  let userId: string | null = null;
-  for (let page = 1; !userId; page++) {
-    const { data, error: listError } = await supabase.auth.admin.listUsers({
-      page,
-      perPage,
-    });
-    if (listError) {
-      return { success: false, error: listError.message };
+  try {
+    const user = await findAuthUserByEmail(email);
+    if (!user) {
+      return { success: false, code: "user_not_found", error: "User not found" };
     }
-    userId = data.users.find((u) => u.email === email)?.id ?? null;
-    if (data.users.length < perPage) break;
+    await setUserPassword(user.id, newPassword);
+    return { success: true };
+  } catch (error) {
+    console.error("[SMS] reset password error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Reset failed",
+    };
   }
-
-  if (!userId) {
-    return { success: false, code: "user_not_found", error: "User not found" };
-  }
-
-  const { error: updateError } = await supabase.auth.admin.updateUserById(
-    userId,
-    { password: newPassword },
-  );
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  return { success: true };
 }
 
 export async function createUserByPhone(params: {
@@ -212,28 +200,22 @@ export async function createUserByPhone(params: {
     return { userId: null, email, ...TICKET_REJECTED };
   }
 
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      phone,
-    },
-  });
-
-  if (error) {
-    const isExists =
-      error.code === "email_exists" ||
-      /already (been )?registered|already exists/i.test(error.message);
+  try {
+    const { id } = await createUserWithPassword({
+      email,
+      password,
+      emailVerified: true,
+    });
+    return { userId: id, email };
+  } catch (error) {
+    if (error instanceof UserExistsError) {
+      return { userId: null, email, code: "user_exists", error: error.message };
+    }
+    console.error("[SMS] create user error:", error);
     return {
       userId: null,
       email,
-      code: isExists ? "user_exists" : undefined,
-      error: error.message,
+      error: error instanceof Error ? error.message : "Sign-up failed",
     };
   }
-
-  return { userId: data.user.id, email };
 }

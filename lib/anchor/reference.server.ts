@@ -1,5 +1,8 @@
+import "server-only";
 import { MatchingError, MAX_MATCH_IMAGE_BYTES } from "@/lib/anchor-matching";
-/** References must use this project's public assets bucket, never arbitrary URLs (SSRF). */
+import { assetKeyFromUrl } from "@/lib/storage/public-url";
+
+/** References must be this project's uploaded media (assets/ on our media host), never arbitrary URLs (SSRF). */
 export function referenceUrl(value: unknown): URL {
   if (typeof value !== "string") throw new MatchingError("请上传一张匹配图片");
   let url: URL;
@@ -8,17 +11,15 @@ export function referenceUrl(value: unknown): URL {
   } catch {
     throw new MatchingError("匹配图片地址无效");
   }
-  const base = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+  const key = assetKeyFromUrl(value);
   if (
-    url.origin !== base.origin ||
+    !key ||
     url.username ||
     url.password ||
     url.search ||
-    url.hash ||
-    !url.pathname.startsWith("/storage/v1/object/public/assets/") ||
-    !url.pathname.slice("/storage/v1/object/public/assets/".length)
+    url.hash
   )
-    throw new MatchingError("匹配图片必须来自当前项目的 assets 存储桶");
+    throw new MatchingError("匹配图片必须来自当前项目的媒体存储");
   return url;
 }
 export async function readReference(url: string): Promise<Blob> {

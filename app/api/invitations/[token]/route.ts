@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { db, sql, jsonObjectFrom } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { getWorkspaceOrgId } from "@/lib/permissions.server";
 import { logError } from "@/lib/log-error";
 
@@ -9,7 +10,7 @@ interface InvitationRow {
   workspace_id: string | null;
   role: string;
   revoked: boolean;
-  expires_at: string | null;
+  expires_at: Date | null;
   use_count: number;
 }
 
@@ -27,26 +28,36 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { token } = await params;
 
-    const { data: inv } = await supabase
-      .from("organization_invitation")
-      .select(
-        "id, organization_id, workspace_id, role, revoked, expires_at, use_count, organization(name)",
-      )
-      .eq("token", token)
-      .single();
+    const inv = await db
+      .selectFrom("organization_invitation")
+      .select((eb) => [
+        "organization_invitation.id",
+        "organization_invitation.organization_id",
+        "organization_invitation.workspace_id",
+        "organization_invitation.role",
+        "organization_invitation.revoked",
+        "organization_invitation.expires_at",
+        "organization_invitation.use_count",
+        jsonObjectFrom(
+          eb
+            .selectFrom("organization")
+            .select("organization.name")
+            .whereRef("organization.id", "=", "organization_invitation.organization_id"),
+        ).as("organization"),
+      ])
+      .where("organization_invitation.token", "=", token)
+      .executeTakeFirst();
 
-    const reason = invalidReason(inv as InvitationRow | null);
+    const reason = invalidReason(inv ?? null);
 
     return NextResponse.json({
       data: {
         valid: reason === null,
         reason,
         role: inv?.role ?? null,
-        organization_name:
-          (inv?.organization as { name?: string } | null)?.name ?? null,
+        organization_name: inv?.organization?.name ?? null,
         has_workspace: Boolean(inv?.workspace_id),
       },
     });
@@ -61,63 +72,68 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
-  const supabase = await createClient();
   const { token } = await params;
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: inv } = await supabase
-      .from("organization_invitation")
-      .select(
-        "id, organization_id, workspace_id, role, revoked, expires_at, use_count",
-      )
-      .eq("token", token)
-      .single();
+    const inv = await db
+      .selectFrom("organization_invitation")
+      .select([
+        "id",
+        "organization_id",
+        "workspace_id",
+        "role",
+        "revoked",
+        "expires_at",
+        "use_count",
+      ])
+      .where("token", "=", token)
+      .executeTakeFirst();
 
-    const invitation = inv as InvitationRow | null;
+    const invitation: InvitationRow | null = inv ?? null;
     const reason = invalidReason(invitation);
     if (reason || !invitation) {
       return NextResponse.json({ error: reason ?? "邀请无效" }, { status: 400 });
     }
 
     // ① org 强制：先写成员行（幂等）
-    const { error: memberError } = await supabase
-      .from("organization_member")
-      .upsert(
-        {
-          organization_id: invitation.organization_id,
-          user_id: user.id,
-          role: invitation.role,
-        },
-        { onConflict: "organization_id,user_id", ignoreDuplicates: true },
-      );
-
-    if (memberError) throw memberError;
+    await db
+      .insertInto("organization_member")
+      .values({
+        organization_id: invitation.organization_id,
+        user_id: user.id,
+        role: invitation.role,
+      })
+      .onConflict((oc) =>
+        oc.columns(["organization_id", "user_id"]).doNothing(),
+      )
+      .execute();
 
     // ② workspace 可选：复核归属后分配（幂等）
     if (invitation.workspace_id) {
-      const wsOrg = await getWorkspaceOrgId(supabase, invitation.workspace_id);
+      const wsOrg = await getWorkspaceOrgId(invitation.workspace_id);
       if (wsOrg === invitation.organization_id) {
-        const { error: assignError } = await supabase
-          .from("workspace_assignment")
-          .upsert(
-            { user_id: user.id, workspace_id: invitation.workspace_id },
-            { onConflict: "workspace_id,user_id", ignoreDuplicates: true },
-          );
-        if (assignError) throw assignError;
+        await db
+          .insertInto("workspace_assignment")
+          .values({ user_id: user.id, workspace_id: invitation.workspace_id })
+          .onConflict((oc) =>
+            oc.columns(["workspace_id", "user_id"]).doNothing(),
+          )
+          .execute();
       }
     }
 
-    await supabase
-      .from("organization_invitation")
-      .update({ use_count: invitation.use_count + 1 })
-      .eq("id", invitation.id);
+    // 使用计数仅作展示；加入已完成，计数写入失败不影响结果（沿用原实现：忽略该错误）
+    await db
+      .updateTable("organization_invitation")
+      .set({ use_count: sql<number>`use_count + 1` })
+      .where("id", "=", invitation.id)
+      .execute()
+      .catch(() => undefined);
 
     return NextResponse.json({
       data: {
@@ -127,7 +143,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("接受邀请失败:", error);
-    await logError(supabase, {
+    await logError({
       method: "POST",
       path: `/api/invitations/${token}`,
       status: 500,

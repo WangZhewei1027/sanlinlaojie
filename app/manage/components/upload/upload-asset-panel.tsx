@@ -13,7 +13,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import {
   FileUploadService,
   StorageUploadResult,
@@ -118,10 +118,8 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
         throw new Error(t("upload.selectWorkspace"));
       }
 
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
+      const user = session?.user;
 
       if (!user) {
         throw new Error(t("upload.pleaseLogin"));

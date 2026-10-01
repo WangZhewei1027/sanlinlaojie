@@ -10,9 +10,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const TICKET_TTL_MS = 10 * 60 * 1000;
 
 function ticketKey(): Buffer {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
-  // 从 service role key 派生专用子密钥，避免直接用它做签名
+  const secret = process.env.SMS_TICKET_SECRET;
+  if (!secret) throw new Error("SMS_TICKET_SECRET is not set");
+  // 派生专用子密钥，避免直接用原始密钥做签名
   return createHmac("sha256", secret)
     .update("sms-verification-ticket/v1")
     .digest();

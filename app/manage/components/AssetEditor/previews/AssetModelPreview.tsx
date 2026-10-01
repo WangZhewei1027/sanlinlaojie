@@ -55,8 +55,14 @@ class PreviewErrorBoundary extends Component<
   }
 }
 
+// Draco 解码器自托管在对象存储上（drei 默认从 Google gstatic 加载，内地不可达）。
+// 文件来自 three/examples/jsm/libs/draco/gltf/，由 scripts/migrate 上传到 static/draco/gltf/。
+const DRACO_DECODER_PATH = process.env.NEXT_PUBLIC_MEDIA_BASE_URL
+  ? `${process.env.NEXT_PUBLIC_MEDIA_BASE_URL.replace(/\/+$/, "")}/static/draco/gltf/`
+  : undefined;
+
 function Model({ url, onLoaded }: ModelProps) {
-  const { scene, animations } = useGLTF(url);
+  const { scene, animations } = useGLTF(url, DRACO_DECODER_PATH);
   const { camera, controls } = useThree();
   const ref = useRef<THREE.Group>(null);
   const { actions } = useAnimations(animations, ref);

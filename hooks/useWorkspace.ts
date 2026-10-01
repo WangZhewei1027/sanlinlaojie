@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { ALL_WORKSPACES_ID } from "@/app/manage/constants";
 import { useManageStore } from "@/app/manage/store";
 
@@ -100,10 +100,8 @@ export function useWorkspace(
   );
 
   const initializeUser = useCallback(async () => {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: session } = await authClient.getSession();
+    const user = session?.user ?? null;
 
     if (!user) {
       // Clear state when no user
@@ -173,47 +171,43 @@ export function useWorkspace(
     initializeUser();
   }, [initializeUser]);
 
-  // Re-initialize when auth state changes (login/logout)
+  // Re-initialize when auth state changes (login/logout). Better Auth's
+  // useSession() re-renders on sign-in / sign-out; we only react when the
+  // signed-in user actually changes, never on session refreshes.
+  const { data: session, isPending } = authClient.useSession();
+  const sessionUserId = session?.user.id ?? null;
   const initializedRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    lastUserIdRef.current = userId;
-  }, [userId]);
 
   useEffect(() => {
-    const supabase = createClient();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      // Skip the initial INITIAL_SESSION event to avoid double-fetching
-      if (!initializedRef.current) {
-        initializedRef.current = true;
-        return;
-      }
-      const nextUserId = session?.user?.id ?? null;
-      const userChanged = nextUserId !== lastUserIdRef.current;
+    // Wait for the first resolved session so the mount-time initializeUser()
+    // is not duplicated.
+    if (isPending) return;
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      lastUserIdRef.current = sessionUserId;
+      return;
+    }
+    if (sessionUserId === lastUserIdRef.current) {
+      // Session refresh / same user: do nothing. Token rotation doesn't change
+      // org membership; server APIs enforce permission on every request.
+      // Avoid silent re-init to prevent cascading re-renders.
+      return;
+    }
+    lastUserIdRef.current = sessionUserId;
 
-      if (event === "SIGNED_OUT" || (event === "SIGNED_IN" && userChanged)) {
-        if (event === "SIGNED_OUT") {
-          // Session ended (explicit logout OR expiry): clear the persisted
-          // org/workspace selection so the next user on this machine does
-          // not inherit it. Explicit logout buttons also call reset(), but
-          // session expiry only surfaces here.
-          useManageStore.getState().reset();
-        }
-        // Real auth transition: reload org/workspace data.
-        setLoading(true);
-        setError(null);
-        initializeUser();
-      }
-      // TOKEN_REFRESHED / same-user SIGNED_IN / USER_UPDATED: do nothing.
-      // Token rotation doesn't change org membership; server APIs enforce
-      // permission on every request. Avoid silent re-init to prevent
-      // cascading re-renders (workspace flip-flop, asset refetch).
-    });
-
-    return () => subscription.unsubscribe();
-  }, [initializeUser]);
+    if (sessionUserId === null) {
+      // Session ended (explicit logout OR expiry): clear the persisted
+      // org/workspace selection so the next user on this machine does
+      // not inherit it. Explicit logout buttons also call reset(), but
+      // session expiry only surfaces here.
+      useManageStore.getState().reset();
+    }
+    // Real auth transition: reload org/workspace data.
+    setLoading(true);
+    setError(null);
+    initializeUser();
+  }, [isPending, sessionUserId, initializeUser]);
 
   const setPreferredWorkspaceId = useCallback((id: string | null) => {
     preferredWorkspaceIdRef.current = id;

@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse, connection } from "next/server";
+import { db, jsonArrayFrom, jsonObjectFrom } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 // GET all organizations with members (super_admin only)
@@ -8,21 +9,17 @@ export async function GET() {
   // build 预渲染的退出信号若被 catch 截获，会误写一条 500 错误日志
   await connection();
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
+    const userData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (userData?.role !== "super_admin") {
       await logErrorSafe({
@@ -35,33 +32,40 @@ export async function GET() {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
-    const { data, error } = await supabase
-      .from("organization")
-      .select(
-        `
-        id,
-        name,
-        description,
-        created_at,
-        created_by,
-        map_center,
-        allowed_file_types,
-        config,
-        organization_member (
-          id,
-          role,
-          user_id,
-          users (
-            user_id,
-            name,
-            email
-          )
-        )
-      `,
-      )
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
+    const data = await db
+      .selectFrom("organization")
+      .select((eb) => [
+        "organization.id",
+        "organization.name",
+        "organization.description",
+        "organization.created_at",
+        "organization.created_by",
+        "organization.map_center",
+        "organization.allowed_file_types",
+        "organization.config",
+        jsonArrayFrom(
+          eb
+            .selectFrom("organization_member")
+            .select((eb2) => [
+              "organization_member.id",
+              "organization_member.role",
+              "organization_member.user_id",
+              jsonObjectFrom(
+                eb2
+                  .selectFrom("users")
+                  .select(["users.user_id", "users.name", "users.email"])
+                  .whereRef("users.user_id", "=", "organization_member.user_id"),
+              ).as("users"),
+            ])
+            .whereRef(
+              "organization_member.organization_id",
+              "=",
+              "organization.id",
+            ),
+        ).as("organization_member"),
+      ])
+      .orderBy("organization.created_at", "desc")
+      .execute();
 
     return NextResponse.json({ data });
   } catch (error) {

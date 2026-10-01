@@ -1,39 +1,40 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
+import "server-only";
+import { db } from "@/lib/db";
 import { MatchingError, requireUuid } from "@/lib/anchor-matching";
-
-type Supa = SupabaseClient;
 
 /** Public matching endpoints validate the target asset without requiring login. */
 export async function getMatchingAnchor(id: string) {
   requireUuid(id, "anchor_id");
-  const { data: asset, error } = await createAdminClient()
-    .from("asset")
-    .select("id,file_type,file_url")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new MatchingError("无法查询匹配点", 503);
+  let asset;
+  try {
+    asset = await db
+      .selectFrom("asset")
+      .select(["id", "file_type", "file_url"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+  } catch {
+    throw new MatchingError("无法查询匹配点", 503);
+  }
   if (!asset || asset.file_type !== "anchor")
     throw new MatchingError("匹配点不存在", 404);
   return asset;
 }
 
 export async function validateAnchorLink(
-  supabase: Supa,
   anchorId: unknown,
   fileType: string,
   workspaces: string[],
   assetId?: string,
 ) {
   if (anchorId === null || anchorId === undefined) return;
-  requireUuid(anchorId, "anchor_id");
-  if (fileType === "anchor" || anchorId === assetId)
+  const id = requireUuid(anchorId, "anchor_id");
+  if (fileType === "anchor" || id === assetId)
     throw new MatchingError("匹配点不能挂载匹配点");
-  const { data: parent } = await supabase
-    .from("asset")
-    .select("id,file_type,workspace_id")
-    .eq("id", anchorId)
-    .single();
+  const parent = await db
+    .selectFrom("asset")
+    .select(["id", "file_type", "workspace_id"])
+    .where("id", "=", id)
+    .executeTakeFirst();
   if (
     !parent ||
     parent.file_type !== "anchor" ||

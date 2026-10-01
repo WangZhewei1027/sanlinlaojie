@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 import { computeUserDeletionPlan } from "@/lib/user-deletion.server";
 
@@ -12,22 +12,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: callerData } = await supabase
-      .from("users")
+    const callerData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (callerData?.role !== "super_admin") {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
@@ -37,13 +34,11 @@ export async function GET(
       return NextResponse.json({ data: { blocked: "self", orgs: [] } });
     }
 
-    const admin = createAdminClient();
-
-    const { data: target } = await admin
-      .from("users")
+    const target = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", id)
-      .single();
+      .where("user_id", "=", id)
+      .executeTakeFirst();
 
     if (!target) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
@@ -53,7 +48,7 @@ export async function GET(
       return NextResponse.json({ data: { blocked: "super_admin", orgs: [] } });
     }
 
-    const plan = await computeUserDeletionPlan(admin, id);
+    const plan = await computeUserDeletionPlan(id);
 
     return NextResponse.json({ data: { blocked: null, orgs: plan.orgs } });
   } catch (error) {

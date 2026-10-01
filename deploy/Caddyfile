@@ -1,0 +1,17 @@
+# SITE_ADDRESS comes from .env: ":80" while testing by IP, the real domain(s)
+# in production (Caddy then obtains Let's Encrypt certificates automatically).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# uploads go through the app (5 MiB files + multipart overhead)
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy app:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

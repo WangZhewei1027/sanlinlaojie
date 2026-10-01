@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { purgeOrganizations } from "@/lib/user-deletion.server";
 import { revalidatePath } from "next/cache";
 
@@ -18,20 +18,17 @@ interface UpdateOrgPayload {
 }
 
 async function requireSuperAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error("未授权");
 
-  const { data: userData } = await supabase
-    .from("users")
+  const userData = await db
+    .selectFrom("users")
     .select("role")
-    .eq("user_id", user.id)
-    .single();
+    .where("user_id", "=", user.id)
+    .executeTakeFirst();
 
   if (userData?.role !== "super_admin") throw new Error("权限不足");
-  return supabase;
+  return user;
 }
 
 export async function updateOrganization(
@@ -39,7 +36,7 @@ export async function updateOrganization(
   payload: UpdateOrgPayload,
 ): Promise<{ error?: string }> {
   try {
-    const supabase = await requireSuperAdmin();
+    await requireSuperAdmin();
     const safePayload = { ...payload };
     if (safePayload.config) {
       const safeConfig = { ...safePayload.config };
@@ -53,11 +50,26 @@ export async function updateOrganization(
       }
       safePayload.config = safeConfig;
     }
-    const { error } = await supabase
-      .from("organization")
-      .update(safePayload)
-      .eq("id", id);
-    if (error) return { error: error.message };
+    // 未携带（undefined）的字段不更新；jsonb 列（map_center / config）以 JSON 字符串写入
+    await db
+      .updateTable("organization")
+      .set({
+        name: safePayload.name,
+        description: safePayload.description,
+        allowed_file_types: safePayload.allowed_file_types,
+        map_center:
+          safePayload.map_center === undefined
+            ? undefined
+            : safePayload.map_center === null
+              ? null
+              : JSON.stringify(safePayload.map_center),
+        config:
+          safePayload.config === undefined
+            ? undefined
+            : JSON.stringify(safePayload.config),
+      })
+      .where("id", "=", id)
+      .execute();
     revalidatePath("/super-admin/organizations");
     return {};
   } catch (err) {
@@ -73,7 +85,7 @@ export async function deleteOrganization(
     // 直接 delete organization 会被 workspace 的 NO ACTION 外键挡住；
     // 走完整清理器：先按引用计数删存储文件（去重共享的保留），
     // 再原子删除 组织内资产 / workspace / 组织（跨组织资产仅剥离本组织的 workspace）
-    await purgeOrganizations(createAdminClient(), [id]);
+    await purgeOrganizations([id]);
     revalidatePath("/super-admin/organizations");
     return {};
   } catch (err) {

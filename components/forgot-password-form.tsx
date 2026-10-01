@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import {
   SendSmsVerifyCode,
   CheckSmsVerifyCode,
@@ -51,15 +51,15 @@ export function ForgotPasswordForm({
   // ─── 邮箱重置：发送重置链接 ────────────────────────────────
   const handleEmailReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        account.trim(),
-        { redirectTo: `${window.location.origin}/auth/update-password` },
-      );
+      // 邮件里的链接经 Better Auth 校验后跳到 redirectTo?token=…
+      const { error } = await authClient.requestPasswordReset({
+        email: account.trim(),
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
       if (error) throw error;
       setSuccess(true);
     } catch (error: unknown) {

@@ -1,25 +1,22 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse, connection } from "next/server";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 export async function GET() {
   await connection();
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
-      .select("user_id, role")
-      .eq("user_id", user.id)
-      .single();
+    const userData = await db
+      .selectFrom("users")
+      .select(["user_id", "role"])
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (!userData) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });

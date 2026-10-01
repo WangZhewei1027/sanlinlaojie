@@ -1,8 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
+import { db, sql } from "@/lib/db";
+import { assetKeyFromUrl, deleteObjects } from "@/lib/storage/oss";
 import { logError } from "@/lib/log-error";
 
 /**
- * assets 桶存储文件的引用计数清理。
+ * 上传文件（assets/ 前缀）的引用计数清理。
  *
  * 内容 hash 去重 / 复制会让多个 asset 行共享同一个存储对象，且同一对象既可能
  * 被 file_url 引用，也可能被 shop 素材的 metadata.checkin_url 引用（去重按内容
@@ -14,42 +16,26 @@ import { logError } from "@/lib/log-error";
  * 绝不会出现"行还在但文件没了"的死链。
  */
 
-export const ASSETS_STORAGE_PATH_RE =
-  /\/storage\/v1\/object\/public\/assets\/(.+)/;
-
-/** 从公开 URL 解析出 assets 桶内路径；非本桶 URL 返回 null。 */
+/** 从公开 URL 解析出 OSS 对象 key（assets/…）；非本站上传文件返回 null。 */
 export function storagePathFromUrl(url: string): string | null {
-  try {
-    const match = new URL(url).pathname.match(ASSETS_STORAGE_PATH_RE);
-    return match ? decodeURIComponent(match[1]) : null;
-  } catch {
-    return null;
-  }
+  return assetKeyFromUrl(url);
 }
 
 /**
  * 统计仍引用该 URL 的 asset 行数（file_url + metadata.checkin_url 两个来源）。
- * 用 count 模式（head:true），不受 PostgREST 1000 行截断影响。
  */
-export async function countFileReferences(
-  supabase: SupabaseClient,
-  url: string,
-): Promise<number> {
-  const [byFileUrl, byCheckinUrl] = await Promise.all([
-    supabase
-      .from("asset")
-      .select("id", { count: "exact", head: true })
-      .eq("file_url", url),
-    supabase
-      .from("asset")
-      .select("id", { count: "exact", head: true })
-      .eq("metadata->>checkin_url", url),
-  ]);
-
-  if (byFileUrl.error) throw byFileUrl.error;
-  if (byCheckinUrl.error) throw byCheckinUrl.error;
-
-  return (byFileUrl.count ?? 0) + (byCheckinUrl.count ?? 0);
+export async function countFileReferences(url: string): Promise<number> {
+  const row = await db
+    .selectFrom("asset")
+    .select(({ fn }) => fn.countAll<number>().as("count"))
+    .where((eb) =>
+      eb.or([
+        eb("file_url", "=", url),
+        eb(sql<string>`metadata->>'checkin_url'`, "=", url),
+      ]),
+    )
+    .executeTakeFirstOrThrow();
+  return Number(row.count);
 }
 
 export type RemoveFileResult = "removed" | "kept" | "failed" | "skipped";
@@ -60,26 +46,26 @@ export type RemoveFileResult = "removed" | "kept" | "failed" | "skipped";
  * 存储删除失败不抛错：记入 error_log 后返回 "failed"，残留文件靠全局清扫兜底。
  */
 export async function removeStorageFileIfUnreferenced(
-  supabase: SupabaseClient,
   url: string,
   ctx: { userId?: string; method: string; path: string },
 ): Promise<RemoveFileResult> {
-  const filePath = storagePathFromUrl(url);
-  if (!filePath) return "skipped";
+  const key = storagePathFromUrl(url);
+  if (!key) return "skipped";
 
-  const refs = await countFileReferences(supabase, url);
+  const refs = await countFileReferences(url);
   if (refs > 0) return "kept";
 
-  const { error } = await supabase.storage.from("assets").remove([filePath]);
-  if (error) {
+  try {
+    await deleteObjects([key]);
+  } catch (error) {
     console.warn("删除存储文件失败:", error);
-    await logError(supabase, {
+    await logError({
       userId: ctx.userId,
       method: ctx.method,
       path: ctx.path,
       status: 500,
-      message: `storage remove failed: ${error.message}`,
-      context: { filePath, url },
+      message: `storage remove failed: ${error instanceof Error ? error.message : String(error)}`,
+      context: { key, url },
     });
     return "failed";
   }

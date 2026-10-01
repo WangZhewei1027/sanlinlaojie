@@ -13,6 +13,11 @@ const withMDX = createMDX({
 });
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle for the Docker image (see Dockerfile).
+  output: "standalone",
+  // Node-only server deps: keep them out of the bundle (ali-oss lazily requires
+  // optional proxy modules that Turbopack cannot resolve; pg has pg-native).
+  serverExternalPackages: ["ali-oss", "pg", "nodemailer"],
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
   cacheComponents: true,
   turbopack: {

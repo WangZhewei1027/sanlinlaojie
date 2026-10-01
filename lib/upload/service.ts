@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/client";
 import {
   UploadFile,
   UploadResult,
@@ -30,7 +29,6 @@ export interface StorageUploadResult {
  * 文件上传服务
  */
 export class FileUploadService {
-  private supabase = createClient();
 
   /**
    * 处理文件（压缩、提取元数据等）
@@ -94,57 +92,23 @@ export class FileUploadService {
   }
 
   /**
-   * 计算文件内容的 SHA-256（十六进制），用于全局去重。
-   */
-  async computeContentHash(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  /**
-   * 按内容 hash 查是否已有相同文件（组织内），命中则返回其 file_url。
-   * 去重按组织隔离：无 workspace 上下文时跳过去重，直接正常上传。
-   */
-  private async findExistingByHash(
-    hash: string,
-    workspaceId?: string,
-  ): Promise<string | null> {
-    if (!workspaceId) return null;
-    try {
-      const res = await fetch(
-        `/api/assets/by-hash?hash=${encodeURIComponent(
-          hash,
-        )}&workspace_id=${encodeURIComponent(workspaceId)}`,
-      );
-      if (!res.ok) return null;
-      const body = (await res.json()) as { file_url?: string | null };
-      return body.file_url ?? null;
-    } catch (err) {
-      console.warn("by-hash 查询失败，回退为正常上传:", err);
-      return null;
-    }
-  }
-
-  /**
-   * 上传文件到 Storage（带内容 hash 组织内去重）。
-   * 相同内容的文件命中同组织已有 file_url 时直接复用、跳过上传。
+   * 上传文件到对象存储（经 /api/upload 中转到 OSS，服务端按内容 hash 做组织内去重）。
+   * 相同内容的文件命中同组织已有 file_url 时服务端直接复用、不再写入新对象。
    * @param options.type 上传类型（用于大小校验；缺省按 MIME/扩展名推断）
    * @param options.workspaceId 目标 workspace，用于组织内去重；缺省则跳过去重
-   * @returns 文件公开 URL、内容 hash，以及新上传对象的桶内路径（复用时为 null）
+   * @returns 文件公开 URL、内容 hash，以及新上传对象的 key（复用时为 null）
    */
   async uploadToStorage(
     file: File,
     userId: string,
     options?: { type?: UploadType; workspaceId?: string },
   ): Promise<StorageUploadResult> {
+    void userId; // 上传归属由服务端根据会话决定
     console.log(
-      `开始上传文件到 Storage，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+      `开始上传文件，大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
     );
 
-    // 大小上限以类型配置为唯一事实来源（已含存储桶 5MB 硬上限约束）
+    // 大小上限以类型配置为唯一事实来源（已含存储 5MB 硬上限约束）
     const uploadType = options?.type ?? inferUploadType(file.type, file.name);
     const maxSizeMB = getEffectiveMaxSizeMB(uploadType);
     if (!validateFileSize(file, maxSizeMB)) {
@@ -155,45 +119,40 @@ export class FileUploadService {
       );
     }
 
-    // 计算内容 hash，命中同组织已有文件则复用，避免相同素材重复存储
-    const contentHash = await this.computeContentHash(file);
-    const existingUrl = await this.findExistingByHash(
-      contentHash,
-      options?.workspaceId,
-    );
-    if (existingUrl) {
-      console.log(`命中已有文件，复用 URL（跳过上传）: ${existingUrl}`);
-      return { url: existingUrl, contentHash, storagePath: null };
+    const form = new FormData();
+    form.set("file", file, file.name);
+    form.set("type", uploadType);
+    if (options?.workspaceId) form.set("workspace_id", options.workspaceId);
+
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const body = (await res.json().catch(() => ({}))) as {
+      url?: string;
+      contentHash?: string;
+      storagePath?: string | null;
+      error?: string;
+    };
+    if (!res.ok || !body.url || !body.contentHash) {
+      console.error("上传错误:", body.error);
+      throw new Error(body.error || "上传失败");
     }
 
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(7)}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
-
-    const { error } = await this.supabase.storage
-      .from("assets")
-      .upload(filePath, file);
-
-    if (error) {
-      console.error("Storage 上传错误:", error);
-      throw error;
+    if (body.storagePath === null) {
+      console.log(`命中已有文件，复用 URL（跳过上传）: ${body.url}`);
+    } else {
+      console.log(`文件上传成功: ${body.url}`);
     }
-
-    const {
-      data: { publicUrl },
-    } = this.supabase.storage.from("assets").getPublicUrl(filePath);
-
-    console.log(`文件上传成功: ${publicUrl}`);
-    return { url: publicUrl, contentHash, storagePath: filePath };
+    return {
+      url: body.url,
+      contentHash: body.contentHash,
+      storagePath: body.storagePath ?? null,
+    };
   }
 
   /**
    * 补偿清理：后续 DB 写入失败时删除刚上传的存储对象，避免孤儿文件。
    * 仅当本次确实上传了新对象（storagePath 非 null）才尝试删除；去重复用的
-   * 已有对象绝不能删。删除前对 file_url 与 metadata.checkin_url 做引用计数
-   * （并发 by-hash 命中可能已让新行引用该对象），仍被引用则保留。
+   * 已有对象绝不能删。服务端删除前对 file_url 与 metadata.checkin_url 做引用
+   * 计数（并发去重命中可能已让新行引用该对象），仍被引用则保留。
    * 尽力而为：任何失败都吞掉、不掩盖原始错误——残留孤儿文件由
    * /api/admin/clean 的全局清扫兜底回收。
    */
@@ -203,21 +162,9 @@ export class FileUploadService {
   }): Promise<void> {
     if (!upload.storagePath) return;
     try {
-      const [byFileUrl, byCheckinUrl] = await Promise.all([
-        this.supabase
-          .from("asset")
-          .select("id", { count: "exact", head: true })
-          .eq("file_url", upload.url),
-        this.supabase
-          .from("asset")
-          .select("id", { count: "exact", head: true })
-          .eq("metadata->>checkin_url", upload.url),
-      ]);
-      // 引用计数查询失败时宁可留孤儿文件也不冒险误删
-      if (byFileUrl.error || byCheckinUrl.error) return;
-      if ((byFileUrl.count ?? 0) + (byCheckinUrl.count ?? 0) > 0) return;
-
-      await this.supabase.storage.from("assets").remove([upload.storagePath]);
+      await fetch(`/api/upload?key=${encodeURIComponent(upload.storagePath)}`, {
+        method: "DELETE",
+      });
     } catch (err) {
       console.warn("补偿删除存储对象失败（将由全局清扫回收）:", err);
     }

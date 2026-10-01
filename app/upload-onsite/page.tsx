@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileUploadService } from "@/lib/upload/service";
 import { LocationData } from "@/lib/upload/types";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { GPSStatusCard } from "./components/GPSStatusCard";
 import { ModeSelector } from "./components/ModeSelector";
 import { CameraUpload } from "./components/CameraUpload";
@@ -58,10 +58,8 @@ export default function UploadOnsitePage() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
+      const user = session?.user;
 
       if (!user) {
         throw new Error(t("onsite.pleaseLogin") || "请先登录");
@@ -135,10 +133,8 @@ export default function UploadOnsitePage() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
+      const user = session?.user;
 
       if (!user) {
         throw new Error(t("onsite.pleaseLogin") || "请先登录");
@@ -182,10 +178,8 @@ export default function UploadOnsitePage() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
+      const user = session?.user;
 
       if (!user) {
         throw new Error(t("onsite.pleaseLogin") || "请先登录");

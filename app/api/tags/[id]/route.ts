@@ -1,5 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import type { Updateable } from "kysely";
+import { db, type DB } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
 // PATCH /api/tags/[id] - 更新标签
@@ -7,27 +9,24 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 获取当前用户
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "未授权" }, { status: 401 });
+  }
+
   try {
-    const supabase = await createClient();
     const { id: tagId } = await params;
 
-    // 获取当前用户
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
     // 获取标签信息
-    const { data: tag, error: fetchError } = await supabase
-      .from("tag")
+    const tag = await db
+      .selectFrom("tag")
       .select("id")
-      .eq("id", tagId)
-      .single();
+      .where("id", "=", tagId)
+      .executeTakeFirst();
 
-    if (fetchError || !tag) {
+    if (!tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
     }
 
@@ -36,7 +35,7 @@ export async function PATCH(
     const { name, color } = body;
 
     // 构建更新对象
-    const updates: Record<string, unknown> = {};
+    const updates: Updateable<DB["tag"]> = {};
     if (name !== undefined) {
       updates.name = name.trim();
     }
@@ -44,29 +43,31 @@ export async function PATCH(
       updates.color = color;
     }
 
-    // 更新标签
-    const { data: updatedTag, error: updateError } = await supabase
-      .from("tag")
-      .update(updates)
-      .eq("id", tagId)
-      .select("*")
-      .single();
-
-    if (updateError) {
-      console.error("更新标签失败:", updateError);
-      // 检查是否是唯一约束冲突
-      if (updateError.code === "23505") {
-        return NextResponse.json(
-          { error: "该工作空间已存在同名标签" },
-          { status: 409 }
-        );
-      }
-      return NextResponse.json({ error: "更新标签失败" }, { status: 500 });
-    }
+    // 更新标签（没有可更新字段时不下发 UPDATE——空 SET 是非法 SQL——直接回读）
+    const updatedTag =
+      Object.keys(updates).length > 0
+        ? await db
+            .updateTable("tag")
+            .set(updates)
+            .where("id", "=", tagId)
+            .returningAll()
+            .executeTakeFirstOrThrow()
+        : await db
+            .selectFrom("tag")
+            .selectAll()
+            .where("id", "=", tagId)
+            .executeTakeFirstOrThrow();
 
     return NextResponse.json({ tag: updatedTag });
   } catch (error) {
     console.error("更新标签失败:", error);
+    // 唯一约束冲突（tag_name_workspace_id_key）
+    if ((error as { code?: string }).code === "23505") {
+      return NextResponse.json(
+        { error: "该工作空间已存在同名标签" },
+        { status: 409 }
+      );
+    }
     await logErrorSafe({
       method: "PATCH",
       path: "/api/tags/[id]",
@@ -82,40 +83,29 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 获取当前用户
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "未授权" }, { status: 401 });
+  }
+
   try {
-    const supabase = await createClient();
     const { id: tagId } = await params;
 
-    // 获取当前用户
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
     // 获取标签信息
-    const { data: tag, error: fetchError } = await supabase
-      .from("tag")
+    const tag = await db
+      .selectFrom("tag")
       .select("id")
-      .eq("id", tagId)
-      .single();
+      .where("id", "=", tagId)
+      .executeTakeFirst();
 
-    if (fetchError || !tag) {
+    if (!tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
     }
 
     // 删除标签
-    const { error: deleteError } = await supabase
-      .from("tag")
-      .delete()
-      .eq("id", tagId);
-
-    if (deleteError) {
-      console.error("删除标签失败:", deleteError);
-      return NextResponse.json({ error: "删除标签失败" }, { status: 500 });
-    }
+    await db.deleteFrom("tag").where("id", "=", tagId).execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,10 +1,8 @@
 import { Suspense } from "react";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { EnvVarWarning } from "@/components/env-var-warning";
 import { NavbarSidebar } from "@/components/navbar-sidebar";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { UserAvatarMenu } from "@/components/user-avatar-menu";
-import { hasEnvVars } from "@/lib/utils";
 
 export function Navbar() {
   return (
@@ -17,13 +15,9 @@ export function Navbar() {
           <LanguageSwitcher />
           {/* Desktop: avatar dropdown */}
           <div className="hidden md:flex items-center gap-2">
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <UserAvatarMenu />
-              </Suspense>
-            )}
+            <Suspense>
+              <UserAvatarMenu />
+            </Suspense>
           </div>
           {/* Mobile: avatar drawer */}
           <div className="md:hidden">

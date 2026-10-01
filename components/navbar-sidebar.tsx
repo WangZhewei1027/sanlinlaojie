@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { LogOut, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -14,47 +12,30 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { createClient } from "@/lib/supabase/client";
+import { authClient, type SessionUser } from "@/lib/auth/client";
 import { useManageStore } from "@/app/manage/store";
 import { useModuleLinks } from "@/components/use-module-links";
-import { hasEnvVars } from "@/lib/utils";
 import { displayAccount } from "@/lib/phone-email";
 
 function getInitials(email: string): string {
   return email.charAt(0).toUpperCase();
 }
 
-function getDisplayName(user: User, fallback: string): string {
-  const meta = user.user_metadata ?? {};
-  return (
-    (meta.full_name as string) ||
-    (meta.name as string) ||
-    (meta.user_name as string) ||
-    (user.email ? displayAccount(user.email).split("@")[0] : fallback)
-  );
+function getDisplayName(user: SessionUser, fallback: string): string {
+  return user.name || displayAccount(user.email).split("@")[0] || fallback;
 }
 
 export function NavbarSidebar() {
   const { t } = useTranslation();
-  const [user, setUser] = useState<User | null>(null);
-  const supabase = createClient();
+  // Better Auth 的 session store：登录 / 登出后自动更新
+  const { data: session } = authClient.useSession();
+  const user = session?.user ?? null;
   const router = useRouter();
   const reset = useManageStore((state) => state.reset);
   const moduleLinks = useModuleLinks(!!user);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await authClient.signOut();
     reset();
     router.refresh();
     router.push("/auth/login");
@@ -69,7 +50,7 @@ export function NavbarSidebar() {
         >
           {user ? (
             <span className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium select-none">
-              {getInitials(user.email ?? "?")}
+              {getInitials(user.email || "?")}
             </span>
           ) : (
             <span className="h-8 w-8 rounded-full border border-border bg-muted flex items-center justify-center text-muted-foreground">
@@ -92,21 +73,19 @@ export function NavbarSidebar() {
       </DrawerTrigger>
       <DrawerContent>
         <div className="px-5 pt-5 pb-2">
-          {!hasEnvVars ? (
-            <EnvVarWarning />
-          ) : user ? (
+          {user ? (
             <div className="flex flex-col gap-5">
               {/* User info */}
               <div className="flex items-center gap-4">
                 <span className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-semibold select-none flex-shrink-0">
-                  {getInitials(user.email ?? "?")}
+                  {getInitials(user.email || "?")}
                 </span>
                 <div className="min-w-0">
                   <p className="text-base font-semibold truncate leading-tight">
                     {getDisplayName(user, t("account.defaultName"))}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1 truncate leading-tight">
-                    {displayAccount(user.email ?? null)}
+                    {displayAccount(user.email)}
                   </p>
                 </div>
               </div>

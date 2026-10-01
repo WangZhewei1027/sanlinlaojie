@@ -4,6 +4,7 @@ import { useManageStore } from "../../../store";
 import { isSpecificWorkspaceId } from "../../../constants";
 import type { Asset } from "../../../types";
 import { FileUploadService } from "@/lib/upload/service";
+import { authClient } from "@/lib/auth/client";
 import {
   getLinkAssetErrorKey,
   LinkAssetParseError,
@@ -123,11 +124,8 @@ export function useAssetEditor({
 
       if ((assetConfig?.previewType === "image" || selectedAsset.file_type === "anchor") && imageFile) {
         const uploadService = new FileUploadService();
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: session } = await authClient.getSession();
+        const user = session?.user;
         if (user) {
           const processed = await uploadService.processFile(imageFile, selectedAsset.file_type === "anchor" ? "anchor" : undefined);
           const { url, contentHash } = await uploadService.uploadToStorage(
@@ -141,11 +139,8 @@ export function useAssetEditor({
 
       if (selectedAsset.file_type === "shop" && checkinFile) {
         const uploadService = new FileUploadService();
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: session } = await authClient.getSession();
+        const user = session?.user;
         if (user) {
           const processed = await uploadService.processFile(checkinFile);
           const { url: checkinUrl } = await uploadService.uploadToStorage(

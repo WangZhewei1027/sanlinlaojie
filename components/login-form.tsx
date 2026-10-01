@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { safeNext } from "@/lib/safe-next";
 import { formatAuthError } from "@/lib/auth/auth-error";
 import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
@@ -45,12 +45,11 @@ export function LoginForm({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await authClient.signIn.email({
         email: resolveEmail(account),
         password,
       });

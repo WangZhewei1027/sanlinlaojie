@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { fetchJson } from "@/lib/fetch-json";
 import {
   Card,
@@ -37,12 +37,9 @@ export function InviteClient({ token }: { token: string }) {
     ran.current = true;
 
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: session } = await authClient.getSession();
 
-      if (!user) {
+      if (!session?.user) {
         router.replace(`/auth/login?next=/invite/${token}`);
         return;
       }

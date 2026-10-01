@@ -1,51 +1,28 @@
-import { createClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { createAdminClient as createServiceClient } from "@/lib/supabase/admin";
 import { NextResponse, connection } from "next/server";
+import { db, jsonArrayFrom, jsonObjectFrom } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/server";
+import {
+  createUserWithPassword,
+  deleteAuthUser,
+  UserExistsError,
+} from "@/lib/auth/users.server";
 import { logErrorSafe } from "@/lib/log-error";
-
-// Fetch last_sign_in_at for every auth user (lives in the auth schema, not
-// reachable via PostgREST). Returns a map keyed by user id; on any failure it
-// returns an empty map so the user list still renders.
-async function fetchLastSignInMap(): Promise<Map<string, string | null>> {
-  const map = new Map<string, string | null>();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) return map;
-
-  const admin = createAdminClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const perPage = 1000;
-  for (let page = 1; ; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) break;
-    for (const u of data.users) map.set(u.id, u.last_sign_in_at ?? null);
-    if (data.users.length < perPage) break;
-  }
-  return map;
-}
 
 export async function GET() {
   await connection();
   try {
-    const supabase = await createClient();
-
     // 检查权限
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
-      .from("users")
+    const userData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (userData?.role !== "super_admin") {
       await logErrorSafe({
@@ -58,38 +35,37 @@ export async function GET() {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
-    // 获取所有用户及其 workspace 分配情况
-    const { data: users, error } = await supabase
-      .from("users")
-      .select(
-        `
-        user_id,
-        name,
-        email,
-        role,
-        created_at,
-        workspace_assignment (
-          id,
-          workspace_id,
-          role,
-          created_at,
-          workspace (
-            id,
-            name
-          )
-        )
-      `,
-      )
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    // Merge in last_sign_in_at from the auth schema.
-    const lastSignInMap = await fetchLastSignInMap();
-    const data = (users ?? []).map((u) => ({
-      ...u,
-      last_sign_in_at: lastSignInMap.get(u.user_id) ?? null,
-    }));
+    // 获取所有用户及其 workspace 分配情况（last_sign_in_at 由 auth.session
+    // 触发器维护在 public.users 上）
+    const data = await db
+      .selectFrom("users")
+      .select((eb) => [
+        "user_id",
+        "name",
+        "email",
+        "role",
+        "created_at",
+        "last_sign_in_at",
+        jsonArrayFrom(
+          eb
+            .selectFrom("workspace_assignment")
+            .select((eb2) => [
+              "workspace_assignment.id",
+              "workspace_assignment.workspace_id",
+              "workspace_assignment.role",
+              "workspace_assignment.created_at",
+              jsonObjectFrom(
+                eb2
+                  .selectFrom("workspace")
+                  .select(["workspace.id", "workspace.name"])
+                  .whereRef("workspace.id", "=", "workspace_assignment.workspace_id"),
+              ).as("workspace"),
+            ])
+            .whereRef("workspace_assignment.user_id", "=", "users.user_id"),
+        ).as("workspace_assignment"),
+      ])
+      .orderBy("created_at", "desc")
+      .execute();
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -104,25 +80,21 @@ export async function GET() {
   }
 }
 
-// 手动注册用户（仅 super_admin）。通过 service role 创建 auth 用户
-// 并同步 public.users；邮箱自动确认，无需验证流程。
+// 手动注册用户（仅 super_admin）。直接写入 auth.users / auth.account，
+// 触发器 handle_new_user() 同步 public.users；邮箱自动确认，无需验证流程。
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const { data: callerData } = await supabase
-      .from("users")
+    const callerData = await db
+      .selectFrom("users")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .where("user_id", "=", user.id)
+      .executeTakeFirst();
 
     if (callerData?.role !== "super_admin") {
       await logErrorSafe({
@@ -139,7 +111,7 @@ export async function POST(request: Request) {
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const role = body.role ?? "user";
+    const role: "user" | "super_admin" = body.role ?? "user";
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "邮箱格式无效" }, { status: 400 });
@@ -154,39 +126,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "无效的角色" }, { status: 400 });
     }
 
-    const admin = createServiceClient();
-
-    const { data: created, error: createError } =
-      await admin.auth.admin.createUser({
+    let userId: string;
+    try {
+      ({ id: userId } = await createUserWithPassword({
         email,
         password,
-        email_confirm: true,
-        user_metadata: name ? { name } : {},
-      });
-
-    if (createError) {
-      if (createError.code === "email_exists") {
+        name,
+        emailVerified: true,
+      }));
+    } catch (createError) {
+      if (createError instanceof UserExistsError) {
         return NextResponse.json({ error: "该邮箱已被注册" }, { status: 400 });
       }
       throw createError;
     }
 
-    const userId = created.user.id;
-
-    const { error: upsertError } = await admin.from("users").upsert(
-      {
-        user_id: userId,
-        email,
-        name: name || null,
-        role,
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (upsertError) {
+    // public.users 行已由触发器创建，这里只补写 name / role
+    try {
+      await db
+        .updateTable("users")
+        .set({ name: name || null, role })
+        .where("user_id", "=", userId)
+        .execute();
+    } catch (updateError) {
       // 同步 public.users 失败则回滚 auth 用户，保证接口可重试
-      await admin.auth.admin.deleteUser(userId);
-      throw upsertError;
+      await deleteAuthUser(userId);
+      throw updateError;
     }
 
     return NextResponse.json({ data: { user_id: userId, email, name, role } });
