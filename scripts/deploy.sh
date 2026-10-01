@@ -51,7 +51,9 @@ docker save "$IMAGE:$TAG" | gzip -1 | ssh "$HOST" "gunzip | docker load"
 
 echo "▶ copying compose files"
 ssh "$HOST" "mkdir -p $DIR"
-scp -q deploy/docker-compose.yml deploy/Caddyfile deploy/backup.sh "$HOST:$DIR/"
+CADDYFILE=$(env_value CADDYFILE); CADDYFILE=${CADDYFILE:-Caddyfile}
+scp -q deploy/docker-compose.yml deploy/backup.sh "$HOST:$DIR/"
+scp -q "deploy/$CADDYFILE" "$HOST:$DIR/Caddyfile"
 scp -q "$ENV_FILE" "$HOST:$DIR/.env"
 ssh "$HOST" "chmod 600 $DIR/.env; chmod +x $DIR/backup.sh"
 
