@@ -1,6 +1,17 @@
 # 阿里云自托管迁移计划：脱离 Vercel 与 Supabase
 
-> 状态：**已选定路线 B**（完全脱离 Supabase，数据库只用普通 PostgreSQL + PostGIS），其余决策待定（2026-09-30）。本文基于对本仓库与小程序仓库 `xr-frame-plant-trees`（master `ea0eb83`）代码与文档的盘点；线上 Supabase 库与存储桶未能直接核查，相关结论已标注。决策结果请填入第 4 节「决定」列。
+> 状态：**路线 B 已实施**（2026-10-01，分支 `claude/aliyun-migration`）。代码层全部完成并通过构建；基础设施已就绪；数据迁移脚本已写好，等待 Supabase 数据库连接串后执行；小程序按用户要求本次不动。执行记录见第 0 节，原分析保留在后文供对照。
+
+## 0. 执行记录（2026-10-01）
+
+| 项 | 结果 |
+|---|---|
+| 代码 | supabase-js 全部移除：数据层 Kysely（`lib/db`，基线 `db/schema.sql`），认证 Better Auth（`lib/auth`，`auth` schema，bcrypt 哈希原样导入），存储 OSS（`lib/storage`，上传经 `/api/upload` 中转）。约定见 `docs/data-layer.md` |
+| 服务器 | 现有轻量服务器 `Ubuntu-gfoj`（上海，2C/2G）：加 2G swap、装 Docker 29.8.1，`/opt/sanlin` 跑 Caddy + Next standalone + PostGIS（`deploy/`）。镜像在本机构建后经 SSH 装载（服务器不能访问 Docker Hub） |
+| OSS | 桶 `sanlinlaojie-media`（public-read，须关闭"阻止公共访问"；CORS 允许 GET/HEAD）：`assets/`、`wechat-qrcodes/`（1,122 个对象已全量复制）、`static/cesium/1.111/`、`static/draco/gltf/`、`tiles/terra_b3dms/`。备份桶 `sanlinlaojie-backups`（私有，30 天过期） |
+| 凭证 | 新建 RAM 用户 `sanlin-app`（仅该桶 + 号码认证服务），替换掉原先放在 `.env.local` 里的主账号 AccessKey |
+| CI/CD | `.github/workflows/deploy.yml`：push main → 构建镜像 → SSH 部署；密钥 `DEPLOY_SSH_KEY` 与变量已配置 |
+| 待办 | ① 把 Supabase 库的数据导入（`scripts/migrate/`，需 `SUPABASE_DB_URL`）；② DNS 切到服务器并把 `SITE_ADDRESS` / `NEXT_PUBLIC_SITE_URL` 改成域名；③ 绑定 `media.spatialmemory.online`（可选 CDN）后用 `rewrite-urls.sh` 换 URL 前缀；④ 配 SMTP（邮件确认/找回）与天地图 key；⑤ 小程序改调 `/api/miniapp/*`（第 5 节），之后才能关 Supabase |
 
 目标：把整个后端改为自己部署的 Docker 服务，运行在阿里云上，不再依赖 Vercel 托管，也不再使用 Supabase 的任何组件；媒体文件迁到阿里云 OSS + CDN。
 
@@ -55,15 +66,15 @@
 
 | # | 决策 | 选项 | 建议 | 决定 |
 |---|---|---|---|---|
-| D1 | 地域与备案 | 内地（如华东 2 上海）并办 ICP 备案；或香港（免备案） | **上海 + 立即启动备案**。内地 CDN 加速需要备案，按微信规则小程序合法域名也要求备案。备案通常需要 1–3 周，是关键路径。已有域名 `spatialmemory.online`（网页在用），需确认它是否已备案、`.online` 后缀能否备案。确认 EAS 地域，服务器放同地域 | 待定 |
+| D1 | 地域与备案 | 内地（如华东 2 上海）并办 ICP 备案；或香港（免备案） | **上海 + 立即启动备案**。内地 CDN 加速需要备案，按微信规则小程序合法域名也要求备案。备案通常需要 1–3 周，是关键路径。已有域名 `spatialmemory.online`（网页在用），需确认它是否已备案、`.online` 后缀能否备案。确认 EAS 地域，服务器放同地域 | **上海**；域名已备案 |
 | D2 | 脱离 Supabase 到什么程度 | A 自托管 Supabase 组件；B 完全去掉 Supabase | — | **B** |
-| D3 | 数据库托管 | 阿里云 RDS PostgreSQL；或 ECS 上 Docker 自建（`postgis/postgis` 镜像） | 路线 B 只需要普通 PostgreSQL + PostGIS，两者都没有兼容问题，只是运维取舍。**建议 RDS**，省掉备份与高可用；若自建，必须定时 `pg_dump` 到 OSS 并演练恢复 | 待定 |
+| D3 | 数据库托管 | 阿里云 RDS PostgreSQL；或 ECS 上 Docker 自建（`postgis/postgis` 镜像） | 路线 B 只需要普通 PostgreSQL + PostGIS，两者都没有兼容问题，只是运维取舍。**建议 RDS**，省掉备份与高可用；若自建，必须定时 `pg_dump` 到 OSS 并演练恢复 | **ECS 上 Docker 自建**，每晚 pg_dump 到私有 OSS 桶；要换 RDS 只改连接串 |
 | D4 | 小程序接入方式 | — | 随 B 确定：改调 `/api/miniapp/*`，不再直连数据库 | **改调接口** |
-| D5 | 识别服务 | 合并回 Next 路由；保留 Deno 容器 | **合并回 Next**：`/api/miniapp/anchors/recognize` 已存在，把 Edge 版的两次 SQL 往返逻辑移植过去。自托管后 Next 与数据库、EAS 同地域，Edge 的延迟优势不再存在，也少维护一种运行时 | 待定 |
-| D6 | 部署形态 | 单台 ECS + docker compose；SAE / ACK | **先单台**。进程内状态（`revalidatePath` 缓存、微信 access_token）在多实例下需要 Redis | 待定 |
-| D7 | 认证库 | Better Auth；Auth.js；自写 | 需要：邮箱密码、邮件确认与找回、会话存 Postgres、可自定义密码校验（导入旧 bcrypt 哈希）、服务端创建会话（接入现有阿里云短信流程）。**Better Auth 满足这些**，选型前需做一次小原型验证 | 待定 |
-| D8 | 最终域名 | 例如 `api.<域名>`、`media.<域名>` | **现在就定下来**，小程序一次改到最终域名，过渡期靠 DNS 指向现有服务，之后切换无需再发版 | 待定 |
-| D9 | OSS / CDN 细项 | 见 6.3 | | 待定 |
+| D5 | 识别服务 | 合并回 Next 路由；保留 Deno 容器 | **合并回 Next**：`/api/miniapp/anchors/recognize` 已存在，把 Edge 版的两次 SQL 往返逻辑移植过去。自托管后 Next 与数据库、EAS 同地域，Edge 的延迟优势不再存在，也少维护一种运行时 | 网页端路由已迁；小程序仍走 Edge Function（本次不动） |
+| D6 | 部署形态 | 单台 ECS + docker compose；SAE / ACK | **先单台**。进程内状态（`revalidatePath` 缓存、微信 access_token）在多实例下需要 Redis | **单台 + docker compose** |
+| D7 | 认证库 | Better Auth；Auth.js；自写 | 需要：邮箱密码、邮件确认与找回、会话存 Postgres、可自定义密码校验（导入旧 bcrypt 哈希）、服务端创建会话（接入现有阿里云短信流程）。**Better Auth 满足这些**，选型前需做一次小原型验证 | **Better Auth 1.7**（已验证旧 bcrypt 哈希、手机号流程） |
+| D8 | 最终域名 | 例如 `api.<域名>`、`media.<域名>` | **现在就定下来**，小程序一次改到最终域名，过渡期靠 DNS 指向现有服务，之后切换无需再发版 | 网页 `spatialmemory.online`（同源 API），媒体 `media.spatialmemory.online`（切换前用桶原始域名） |
+| D9 | OSS / CDN 细项 | 见 6.3 | | 桶 public-read（与原 Supabase 公开桶一致），上传经 Next 中转而非浏览器直传；CDN 待开通 |
 
 ---
 

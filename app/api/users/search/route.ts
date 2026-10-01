@@ -10,13 +10,14 @@ import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
 // 必须带 organization_id 且调用者对该 org 有 org.members.add；查询用邮箱精确
 // 或 name/email ≥3 字符前缀（非全表模糊），降低用户枚举面。
 export async function GET(request: Request) {
+  // 会话读取放在 try 外：构建期预渲染靠它的拒绝来判定路由为动态，
+  // 被 catch 吞掉会打出一条无意义的失败日志
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "未授权" }, { status: 401 });
+  }
+
   try {
-    const user = await getSessionUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get("organization_id");
     const q = (searchParams.get("q") ?? "").trim();
