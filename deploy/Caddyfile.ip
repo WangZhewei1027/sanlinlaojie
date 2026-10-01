@@ -3,6 +3,13 @@
 # Browsers show a one-time certificate warning; HTTPS is still required so
 # that geolocation / camera APIs work on the on-site capture page.
 # Selected by CADDYFILE=Caddyfile.ip in the deploy env file.
+{
+	# Clients never send SNI for an IP address, and inside Docker the socket's
+	# local address is the container IP, so tell Caddy which certificate to
+	# pick when SNI is absent.
+	default_sni {$SITE_ADDRESS}
+}
+
 {$SITE_ADDRESS} {
 	tls internal
 	encode zstd gzip
