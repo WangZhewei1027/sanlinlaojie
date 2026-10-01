@@ -73,8 +73,13 @@ jobs:
           TAG=${{ github.sha }}
           docker save sanlin-web:$TAG | gzip -1 | ssh deploy "gunzip | docker load"
           ssh deploy "mkdir -p /opt/sanlin"
-          scp -q deploy/docker-compose.yml deploy/Caddyfile deploy:/opt/sanlin/
+          scp -q deploy/docker-compose.yml deploy/backup.sh deploy:/opt/sanlin/
+          scp -q deploy/Caddyfile deploy:/opt/sanlin/Caddyfile.domain
+          scp -q deploy/Caddyfile.ip deploy:/opt/sanlin/Caddyfile.ip
           ssh deploy "cd /opt/sanlin && test -f .env || { echo 'missing /opt/sanlin/.env on server'; exit 1; }"
+          # The server's .env decides which Caddyfile is live (CADDYFILE=Caddyfile
+          # for the domain + Let's Encrypt, Caddyfile.ip while ICP filing is pending).
+          ssh deploy 'cd /opt/sanlin && f=$(grep -E "^CADDYFILE=" .env | cut -d= -f2-); f=${f:-Caddyfile}; [ "$f" = Caddyfile ] && f=Caddyfile.domain; cp "$f" Caddyfile && echo "Caddyfile <- $f"'
           ssh deploy "cd /opt/sanlin && docker tag sanlin-web:$TAG sanlin-web:latest && docker compose up -d --remove-orphans && docker image prune -f >/dev/null && docker compose ps"
 
       - name: Smoke test
@@ -82,7 +87,8 @@ jobs:
           SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
         run: |
           for i in $(seq 1 12); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$SITE_URL/" || true)
+            # -k: the interim IP deployment uses Caddy's self-signed certificate
+            code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 "$SITE_URL/" || true)
             [ "$code" = "200" ] && { echo "ok ($code)"; exit 0; }
             echo "waiting… ($code)"; sleep 10
           done
