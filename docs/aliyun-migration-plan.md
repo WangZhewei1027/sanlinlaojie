@@ -13,7 +13,8 @@
 | CI/CD | `.github/workflows/deploy.yml`：push main → 构建镜像 → SSH 部署；密钥 `DEPLOY_SSH_KEY` 与变量已配置 |
 | 数据 | 2026-10-01 已从 Supabase 导入线上库（152 用户 / 2,031 素材，逐表核对一致），媒体 URL 已改到 OSS，夜间备份已验证 |
 | 切换 | 2026-10-01 DNS 已指向服务器，站点 `https://spatialmemory.online`（www 跳转到主域名），Caddy 自动签证书；Vercel 项目可删除 |
-| 待办 | ① 绑定 `media.spatialmemory.online`（可选 CDN）后用 `rewrite-urls.sh` 换 URL 前缀并改 `NEXT_PUBLIC_MEDIA_BASE_URL`；② 配 SMTP（邮件确认/找回）与天地图 key；③ 小程序改调 `/api/miniapp/*`（第 5 节），之后才能关 Supabase |
+| 小程序 | 2026-10-01 Web 端新增 `/api/miniapp/*`（`docs/miniapp-api.md`），小程序仓库分支 `aliyun-backend` 已把 `utils/supabase.ts` 换成 `utils/backend.ts`、识别地址改到 Web 平台、加入强制更新；待在微信后台配置服务器域名并发版。旧版本流量归零后即可关闭 Supabase 项目 |
+| 待办 | ① 绑定 `media.spatialmemory.online`（可选 CDN）后用 `rewrite-urls.sh` 换 URL 前缀并改 `NEXT_PUBLIC_MEDIA_BASE_URL`；② 配 SMTP（邮件确认/找回）与天地图 key；③ 小程序发版、旧版本归零后关闭 Supabase |
 
 目标：把整个后端改为自己部署的 Docker 服务，运行在阿里云上，不再依赖 Vercel 托管，也不再使用 Supabase 的任何组件；媒体文件迁到阿里云 OSS + CDN。
 

@@ -6,10 +6,24 @@ import {
   MATCH_IMAGE_TYPES,
   requireUuid,
 } from "@/lib/anchor-matching";
-export const maxDuration = 60;
+
+// The mini-program sends X-Recognition-Request-Id (same grammar as the former
+// Edge Function); it is echoed in the JSON and the response header so client
+// and server logs can be correlated.
+const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const requestedId = request.headers.get("X-Recognition-Request-Id");
+  const requestId =
+    requestedId && REQUEST_ID_RE.test(requestedId) ? requestedId : crypto.randomUUID();
+  const baseHeaders = {
+    "Cache-Control": "no-store",
+    "X-Recognition-Request-Id": requestId,
+  };
   try {
+    if (requestedId !== null && !REQUEST_ID_RE.test(requestedId))
+      throw new MatchingError("Invalid X-Recognition-Request-Id");
     const workspaceId = requireUuid(
       new URL(request.url).searchParams.get("workspace_id"),
     );
@@ -54,8 +68,8 @@ export async function POST(request: Request) {
     data.diagnostics.timings_ms.request_parse_ms = Math.round(parsedAt - startedAt);
     data.diagnostics.timings_ms.api_total_ms = Math.round(performance.now() - startedAt);
     return NextResponse.json(
-      { data },
-      { headers: { "Cache-Control": "no-store" } },
+      { data: { ...data, request_id: requestId } },
+      { headers: baseHeaders },
     );
   } catch (error) {
     const matchingError = error instanceof MatchingError ? error : null;
@@ -69,11 +83,15 @@ export async function POST(request: Request) {
         ...(retryAfterSeconds !== undefined
           ? { retry_after_ms: retryAfterSeconds * 1000 }
           : {}),
+        request_id: requestId,
+        diagnostics: {
+          timings_ms: { api_total_ms: Math.round(performance.now() - startedAt) },
+        },
       },
       {
         status,
         headers: {
-          "Cache-Control": "no-store",
+          ...baseHeaders,
           ...(retryAfterSeconds !== undefined
             ? { "Retry-After": String(retryAfterSeconds) }
             : {}),

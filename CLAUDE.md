@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **sanlinlaojie web platform** — a Next.js management console + Web AR experience for the 三林老街 (Sanlin Old Street) AR cultural-heritage project. The root `README.md` describes a larger monorepo that also contains a WeChat mini-program (`xr-frame-plant-trees/`); **that sibling project is not in this repo**. Everything here is the web side.
 
-The web side runs on **self-hosted infrastructure on Aliyun** (migrated from Vercel + Supabase on 2026-10-01; see `docs/aliyun-migration-plan.md`): one server running Docker Compose (Caddy + Next.js + PostgreSQL/PostGIS), media on OSS. **The mini-program still talks to the old Supabase project** (`supabase/` is kept only for that); until it is moved to `/api/miniapp/*` it reads a frozen copy of the data.
+The web side runs on **self-hosted infrastructure on Aliyun** (migrated from Vercel + Supabase on 2026-10-01; see `docs/aliyun-migration-plan.md`): one server running Docker Compose (Caddy + Next.js + PostgreSQL/PostGIS), media on OSS. The mini-program talks to the anonymous `/api/miniapp/*` routes (`docs/miniapp-api.md`); `supabase/` is kept only until the last Supabase-era mini-program build has drained.
 
 ## Commands
 

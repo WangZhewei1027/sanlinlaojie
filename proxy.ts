@@ -13,16 +13,15 @@ const PUBLIC_PREFIXES = [
   "/instructions",
   "/api/auth",
   "/api/errors",
+  // anonymous endpoints for the WeChat mini-program (docs/miniapp-api.md)
+  "/api/miniapp",
 ];
 
 function isPublic(pathname: string): boolean {
   if (pathname === "/") return true;
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return true;
-  // Recognition and reference-feature endpoints are intentionally public.
-  return (
-    pathname === "/api/miniapp/anchors/recognize" ||
-    /^\/api\/assets\/[^/]+\/matching$/.test(pathname)
-  );
+  // Reference-feature endpoint is intentionally public.
+  return /^\/api\/assets\/[^/]+\/matching$/.test(pathname);
 }
 
 export function proxy(request: NextRequest) {
