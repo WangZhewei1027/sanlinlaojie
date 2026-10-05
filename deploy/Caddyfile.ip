@@ -1,8 +1,13 @@
 # Temporary variant used while the domain cannot be served from a mainland
-# server (ICP filing pending): serve https://<server IP> with Caddy's own CA.
-# Browsers show a one-time certificate warning; HTTPS is still required so
-# that geolocation / camera APIs work on the on-site capture page.
+# server (ICP filing pending): serve https://<server IP> directly.
 # Selected by CADDYFILE=Caddyfile.ip in the deploy env file.
+#
+# Certificate: Let's Encrypt issues publicly trusted IP-address certificates
+# (GA since 2026-01-15, https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
+# but only under the 6-day "shortlived" profile; Caddy renews them
+# automatically. If issuance fails, Caddy falls back to its internal CA
+# (self-signed: browsers show a warning, but HTTPS — needed for the GPS and
+# camera APIs on the on-site capture page — keeps working).
 {
 	# Clients never send SNI for an IP address, and inside Docker the socket's
 	# local address is the container IP, so tell Caddy which certificate to
@@ -11,7 +16,12 @@
 }
 
 {$SITE_ADDRESS} {
-	tls internal
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+		issuer internal
+	}
 	encode zstd gzip
 
 	request_body {
