@@ -11,6 +11,12 @@ import { embedImage } from "./embedding.server";
 import type { ModelTelemetry } from "./model-telemetry";
 import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
 
+// Shared cap for everyone recognizing in one workspace (database counter, so
+// it holds across processes). Sized as a safety net above what the single GPU
+// worker can serve (~7 requests/s ≈ 420/min, measured 2026-10-08); fairness
+// between devices comes from the per-device limit in the route.
+const PER_WORKSPACE_PER_MINUTE = 600;
+
 interface Candidate {
   id: string;
   name: string;
@@ -95,7 +101,7 @@ export async function recognizeAnchor(
   let allowed: boolean;
   try {
     const { rows } = await sql<{ allowed: boolean }>`
-      select public.consume_anchor_match_request(${workspaceId}::uuid) as allowed
+      select public.consume_anchor_match_request(${workspaceId}::uuid, ${PER_WORKSPACE_PER_MINUTE}::integer) as allowed
     `.execute(db);
     allowed = rows[0]?.allowed === true;
   } catch {

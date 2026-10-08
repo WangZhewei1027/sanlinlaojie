@@ -78,6 +78,20 @@ export function clientIp(request: Request): string {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
+const CLIENT_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+
+/**
+ * Per-device key for rate limiting. The mini-program sends a random id it
+ * keeps in local storage (`X-Client-Id`), because many visitors can share
+ * one public IP (venue Wi-Fi, carrier NAT). Without a well-formed id the
+ * client IP is used. The id is self-asserted: rotating it escapes the
+ * per-device limit, so every route that uses this also keeps a shared cap.
+ */
+export function clientKey(request: Request): string {
+  const id = request.headers.get("x-client-id");
+  return id && CLIENT_ID_RE.test(id) ? `id:${id}` : `ip:${clientIp(request)}`;
+}
+
 export function json(data: unknown, status = 200): NextResponse {
   return NextResponse.json(data, {
     status,
