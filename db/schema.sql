@@ -622,7 +622,7 @@ begin
 end;
 $$;
 
-create function public.consume_anchor_match_request(p_workspace_id uuid) returns boolean
+create function public.consume_anchor_match_request(p_workspace_id uuid, p_limit integer default 120) returns boolean
 language plpgsql set search_path = public as $$
 declare used integer;
 begin
@@ -631,7 +631,7 @@ begin
     request_count=case when r.window_start < clock_timestamp()-interval '1 minute' then 1 else r.request_count+1 end,
     window_start=case when r.window_start < clock_timestamp()-interval '1 minute' then clock_timestamp() else r.window_start end
   returning request_count into used;
-  return used <= 120;
+  return used <= p_limit;
 end;
 $$;
 

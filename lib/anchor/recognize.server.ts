@@ -11,6 +11,14 @@ import { embedImage } from "./embedding.server";
 import type { ModelTelemetry } from "./model-telemetry";
 import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
 
+// Shared cap for everyone recognizing in one workspace (database counter, so
+// it holds across processes). Set just above what the model service can serve
+// — one A10 handles ~43 requests/s ≈ 2600/min (measured 2026-10-08) — because
+// hitting this cap blocks the whole workspace until the minute ends, while
+// overflow at the model only gets 429 model_queue_full with a 1 s retry.
+// Fairness between devices comes from the per-device limit in the route.
+const PER_WORKSPACE_PER_MINUTE = 3000;
+
 interface Candidate {
   id: string;
   name: string;
@@ -95,7 +103,7 @@ export async function recognizeAnchor(
   let allowed: boolean;
   try {
     const { rows } = await sql<{ allowed: boolean }>`
-      select public.consume_anchor_match_request(${workspaceId}::uuid) as allowed
+      select public.consume_anchor_match_request(${workspaceId}::uuid, ${PER_WORKSPACE_PER_MINUTE}::integer) as allowed
     `.execute(db);
     allowed = rows[0]?.allowed === true;
   } catch {

@@ -6,11 +6,19 @@ import {
   MATCH_IMAGE_TYPES,
   requireUuid,
 } from "@/lib/anchor-matching";
+import { consumeRequest } from "@/lib/miniapp/rate-limit";
+import { clientKey } from "@/lib/miniapp/request";
 
 // The mini-program sends X-Recognition-Request-Id (same grammar as the former
 // Edge Function); it is echoed in the JSON and the response header so client
 // and server logs can be correlated.
 const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+// Per-device limit. The mini-program captures one frame per second (60/min),
+// so 90 leaves headroom while stopping one device from crowding out the rest
+// of the workspace. Checked before the upload is read; rejected requests do
+// not count against the workspace-wide cap (lib/anchor/recognize.server.ts).
+const PER_CLIENT_PER_MINUTE = 90;
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -27,6 +35,18 @@ export async function POST(request: Request) {
     const workspaceId = requireUuid(
       new URL(request.url).searchParams.get("workspace_id"),
     );
+    const quota = consumeRequest(
+      `recognize:${workspaceId}:${clientKey(request)}`,
+      PER_CLIENT_PER_MINUTE,
+      60_000,
+    );
+    if (!quota.allowed)
+      throw new MatchingError(
+        "识别请求过于频繁，请稍后重试",
+        429,
+        "client_rate_limited",
+        Math.ceil(quota.retryAfterMs / 1000),
+      );
     // Bound the entire multipart body, including chunked uploads, before parsing.
     const reader = request.body?.getReader();
     if (!reader) throw new MatchingError("缺少图片");

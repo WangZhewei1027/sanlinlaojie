@@ -15,7 +15,7 @@
 | `POST /api/miniapp/assets/huge` | RPC `get_huge_assets` | `{ p_organization_id, p_workspace_id? }` |
 | `POST /api/miniapp/shops` | RPC `get_shop_assets` | `{ p_workspace_id, p_organization_id }` |
 | `POST /api/miniapp/text-assets` | RPC `upload_text_asset` | `{ content (≤500 字), p_workspace_id, p_organization_id?, user_lat?, user_lng? }`，返回函数的 json。**新增限流**：每 IP 每分钟 20 次、每工作空间每分钟 120 次（超出 `429`）；工作空间不存在 `404` |
-| `POST /api/miniapp/anchors/recognize?workspace_id=` | Supabase Edge Function `recognize-anchor` | multipart：`image`、`latitude`、`longitude`、`accuracy`、`gps_timestamp`、`coordinate_system=wgs84`；可带 `X-Recognition-Request-Id`，响应头与 `data.request_id` 回显；错误体含 `code`、`retry_after_ms`、`diagnostics`。工作空间级限流仍是数据库里的每分钟 120 次 |
+| `POST /api/miniapp/anchors/recognize?workspace_id=` | Supabase Edge Function `recognize-anchor` | multipart：`image`、`latitude`、`longitude`、`accuracy`、`gps_timestamp`、`coordinate_system=wgs84`；可带 `X-Recognition-Request-Id`，响应头与 `data.request_id` 回显；错误体含 `code`、`retry_after_ms`、`diagnostics`。可带 `X-Client-Id`（16–64 位 `[A-Za-z0-9_-]`，小程序随机生成并本地保存）。限流两层：每设备每分钟 90 次（无合法 `X-Client-Id` 时按 IP，进程内存计数，超出 `429 client_rate_limited`，`retry_after_ms` 为窗口剩余时间）；每工作空间每分钟 3000 次（数据库计数，超出 `429 workspace_rate_limited`） |
 
 实现：`app/api/miniapp/**/route.ts`，公共校验在 `lib/miniapp/request.ts`，限流在 `lib/miniapp/rate-limit.ts`（进程内存，单实例；多实例前需换成 Redis）。四个数据库函数原样保留在 `db/schema.sql`，接口只是 `select * from fn(...)` 的薄封装。
 
