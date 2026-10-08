@@ -6,9 +6,10 @@ import {
   finiteNumber,
   MatchingError,
   parseGps,
-  validateEmbedding,
 } from "@/lib/anchor-matching";
 import { embedImage } from "./embedding.server";
+import type { ModelTelemetry } from "./model-telemetry";
+import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
 
 interface Candidate {
   id: string;
@@ -35,6 +36,7 @@ export async function recognizeAnchor(
   workspaceId: string,
   form: FormData,
   image: Blob,
+  requestId?: string,
 ) {
   const startedAt = performance.now();
   let checkpoint = startedAt;
@@ -55,7 +57,7 @@ export async function recognizeAnchor(
     "SAGE_MATCH_THRESHOLD",
   );
   const margin = finiteNumber(
-    process.env.SAGE_MATCH_MARGIN ?? "0.03",
+    process.env.SAGE_MATCH_MARGIN || "0.03",
     0,
     2,
     "SAGE_MATCH_MARGIN",
@@ -70,10 +72,24 @@ export async function recognizeAnchor(
     second_similarity: null as number | null,
     score_gap: null as number | null,
     best_distance_meters: null as number | null,
+    // reference descriptors served from the in-process cache vs. read from the DB
+    reference_cache_hits: 0,
+    reference_cache_misses: 0,
   };
-  const snapshot = (): typeof diagnostics & { timings_ms: Record<string, number> } => ({
+  // Model-reported breakdown (queue / decode / inference / service total),
+  // folded into timings_ms so the client logs can split model_request_ms.
+  const telemetry: ModelTelemetry = { timings_ms: {} };
+  const snapshot = () => ({
     ...diagnostics,
-    timings_ms: { ...timings, matching_total_ms: Math.round(performance.now() - startedAt) },
+    ...(telemetry.upstream_status !== undefined ? { upstream_status: telemetry.upstream_status } : {}),
+    ...(telemetry.upstream_request_id ? { upstream_request_id: telemetry.upstream_request_id } : {}),
+    ...(telemetry.model_code ? { model_code: telemetry.model_code } : {}),
+    ...(telemetry.model_device ? { model_device: telemetry.model_device } : {}),
+    timings_ms: {
+      ...timings,
+      ...telemetry.timings_ms,
+      matching_total_ms: Math.round(performance.now() - startedAt),
+    } as Record<string, number>,
   });
   mark("validation_ms");
   let allowed: boolean;
@@ -112,38 +128,39 @@ export async function recognizeAnchor(
   if (!candidates.length) return empty("no_nearby_anchor");
   if (candidates.length > 200)
     throw new MatchingError("附近匹配点过多，请缩小工作空间", 422);
-  let rows;
+  // Reference metadata only (no 8448-dim vectors); vectors come from the
+  // in-process cache unless an anchor's reference changed since last round.
+  let references;
+  let ready;
   try {
-    rows = await db
-      .selectFrom("anchor_embedding")
-      .select(["anchor_id", "image_url", "embedding", "embedding_version", "status"])
-      .where(
-        "anchor_id",
-        "in",
-        candidates.map((c) => c.id),
-      )
-      .execute();
-  } catch {
+    const meta = await readReferenceMeta(candidates.map((c) => c.id));
+    ready = meta.filter(
+      (r) =>
+        r.status === "ready" &&
+        candidates.some((c) => c.id === r.anchor_id && c.file_url === r.image_url),
+    );
+    diagnostics.ready_reference_count = ready.length;
+    // Never silently omit an unprepared competitor and accept a different nearby point.
+    if (ready.length !== candidates.length) {
+      mark("reference_read_ms");
+      return empty("reference_not_ready");
+    }
+    references = await loadReferenceVectors(ready);
+  } catch (error) {
+    if (error instanceof MatchingError) throw error;
     throw new MatchingError("无法读取匹配特征", 503);
   }
+  diagnostics.reference_cache_hits = references.hits;
+  diagnostics.reference_cache_misses = references.misses;
   mark("reference_read_ms");
-  const ready = rows.filter(
-    (r) =>
-      r.status === "ready" &&
-      candidates.some(
-        (c) => c.id === r.anchor_id && c.file_url === r.image_url,
-      ),
-  );
-  diagnostics.ready_reference_count = ready.length;
-  // Never silently omit an unprepared competitor and accept a different nearby point.
-  if (ready.length !== candidates.length) return empty("reference_not_ready");
-  const query = await embedImage(image);
+  if (references.changed) return empty("reference_changed");
+  const query = await embedImage(image, { requestId, telemetry });
   mark("model_request_ms");
   if (ready.some((r) => r.embedding_version !== query.version))
     return empty("model_version_mismatch");
   const ranked = ready.map((row) => ({
     id: row.anchor_id,
-    score: cosine(query.embedding, validateEmbedding(row.embedding)),
+    score: cosine(query.embedding, references.vectors.get(row.anchor_id)!),
     distance_meters: candidates.find((c) => c.id === row.anchor_id)!
       .distance_meters,
   }));

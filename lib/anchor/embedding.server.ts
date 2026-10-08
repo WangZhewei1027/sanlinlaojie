@@ -9,11 +9,20 @@ import {
   MAX_MATCH_IMAGE_BYTES,
   validateEmbedding,
 } from "@/lib/anchor-matching";
+import { readModelTelemetry, REQUEST_ID_RE, type ModelTelemetry } from "./model-telemetry";
 
 export function modelConfigured() {
   return !!process.env.SAGE_EAS_ENDPOINT && !!process.env.SAGE_EAS_TOKEN;
 }
-export async function embedImage(image: Blob) {
+/**
+ * Compute the SAGE descriptor of an image. `requestId` is forwarded to the
+ * model (X-Recognition-Request-Id) so client, app and model logs line up;
+ * `telemetry` receives the model's own timing breakdown when it reports one.
+ */
+export async function embedImage(
+  image: Blob,
+  options: { requestId?: string; telemetry?: ModelTelemetry } = {},
+) {
   if (!modelConfigured()) throw new MatchingError("匹配服务尚未配置", 503);
   if (
     !MATCH_IMAGE_TYPES.includes(image.type) ||
@@ -21,27 +30,46 @@ export async function embedImage(image: Blob) {
     image.size > MAX_MATCH_IMAGE_BYTES
   )
     throw new MatchingError("匹配图须为 JPEG、PNG 或 WebP，且不超过 4 MiB");
+  const telemetry = options.telemetry ?? { timings_ms: {} };
   const form = new FormData();
   form.set("image", image, "image");
   const response = await fetch(
     `${process.env.SAGE_EAS_ENDPOINT!.replace(/\/$/, "")}/embed`,
     {
       method: "POST",
-      headers: { Authorization: process.env.SAGE_EAS_TOKEN! },
+      headers: {
+        Authorization: process.env.SAGE_EAS_TOKEN!,
+        ...(options.requestId && REQUEST_ID_RE.test(options.requestId)
+          ? { "X-Recognition-Request-Id": options.requestId }
+          : {}),
+      },
       body: form,
       signal: AbortSignal.timeout(25000),
       cache: "no-store",
       redirect: "error",
     },
   );
-  if (!response.ok)
-    throw new MatchingError(
-      response.status === 429 ? "匹配服务繁忙，请稍后重试" : "匹配服务暂不可用",
-      response.status === 429 ? 429 : 502,
-      response.status === 429 ? "model_busy" : undefined,
-      response.status === 429 ? 2 : undefined,
-    );
-  const body = await response.json();
+  telemetry.upstream_status = response.status;
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = await response.json();
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      body = parsed as Record<string, unknown>;
+  } catch {
+    // non-JSON error bodies are ignored; the status code decides below
+  }
+  readModelTelemetry(body, response.headers, telemetry);
+  if (!response.ok) {
+    if (response.status === 429) {
+      const code =
+        telemetry.model_code === "model_queue_full" ||
+        telemetry.model_code === "model_queue_timeout"
+          ? telemetry.model_code
+          : "model_busy";
+      throw new MatchingError("匹配服务繁忙，请稍后重试", 429, code, code === "model_busy" ? 2 : 1);
+    }
+    throw new MatchingError("匹配服务暂不可用", 502);
+  }
   if (
     body.model !== "sage_vitb" ||
     typeof body.embedding_version !== "string" ||
