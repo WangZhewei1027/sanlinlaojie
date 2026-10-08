@@ -12,10 +12,12 @@ import type { ModelTelemetry } from "./model-telemetry";
 import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
 
 // Shared cap for everyone recognizing in one workspace (database counter, so
-// it holds across processes). Sized as a safety net above what the single GPU
-// worker can serve (~7 requests/s ≈ 420/min, measured 2026-10-08); fairness
-// between devices comes from the per-device limit in the route.
-const PER_WORKSPACE_PER_MINUTE = 600;
+// it holds across processes). Set just above what the model service can serve
+// — one A10 handles ~43 requests/s ≈ 2600/min (measured 2026-10-08) — because
+// hitting this cap blocks the whole workspace until the minute ends, while
+// overflow at the model only gets 429 model_queue_full with a 1 s retry.
+// Fairness between devices comes from the per-device limit in the route.
+const PER_WORKSPACE_PER_MINUTE = 3000;
 
 interface Candidate {
   id: string;
