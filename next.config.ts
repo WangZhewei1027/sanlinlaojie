@@ -16,8 +16,9 @@ const nextConfig: NextConfig = {
   // Self-contained server bundle for the Docker image (see Dockerfile).
   output: "standalone",
   // Node-only server deps: keep them out of the bundle (ali-oss lazily requires
-  // optional proxy modules that Turbopack cannot resolve; pg has pg-native).
-  serverExternalPackages: ["ali-oss", "pg", "nodemailer"],
+  // optional proxy modules that Turbopack cannot resolve; pg has pg-native;
+  // undici ships wasm and is used for the model keep-alive agent).
+  serverExternalPackages: ["ali-oss", "pg", "nodemailer", "undici"],
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
   cacheComponents: true,
   turbopack: {

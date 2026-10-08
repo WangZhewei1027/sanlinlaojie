@@ -28,10 +28,21 @@ function getPool(): Pool {
   if (globalThis.__sanlinPgPool) return globalThis.__sanlinPgPool;
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not set");
+  // `min` keeps two connections open through idle periods: a fresh backend
+  // costs ~20–35 ms (connect + auth + cold catalog cache) per query, which the
+  // first anchor recognition after a pause used to pay (measured 2026-10-08).
+  // Connections above `min` are closed after 30 s idle.
   const pool = new Pool({
     connectionString,
     max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+    min: 2,
     idleTimeoutMillis: 30_000,
+  });
+  // An idle client that loses its connection (e.g. the database restarts)
+  // emits "error" on the pool; without a listener that would crash the
+  // process. The pool drops the client and opens a new one on demand.
+  pool.on("error", (error) => {
+    console.error("[db] idle client error:", error.message);
   });
   globalThis.__sanlinPgPool = pool;
   return pool;

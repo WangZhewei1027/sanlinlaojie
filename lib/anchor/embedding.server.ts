@@ -10,6 +10,7 @@ import {
   validateEmbedding,
 } from "@/lib/anchor-matching";
 import { readModelTelemetry, REQUEST_ID_RE, type ModelTelemetry } from "./model-telemetry";
+import { postEmbed } from "./model-client.server";
 
 export function modelConfigured() {
   return !!process.env.SAGE_EAS_ENDPOINT && !!process.env.SAGE_EAS_TOKEN;
@@ -31,24 +32,12 @@ export async function embedImage(
   )
     throw new MatchingError("匹配图须为 JPEG、PNG 或 WebP，且不超过 4 MiB");
   const telemetry = options.telemetry ?? { timings_ms: {} };
-  const form = new FormData();
-  form.set("image", image, "image");
-  const response = await fetch(
-    `${process.env.SAGE_EAS_ENDPOINT!.replace(/\/$/, "")}/embed`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: process.env.SAGE_EAS_TOKEN!,
-        ...(options.requestId && REQUEST_ID_RE.test(options.requestId)
-          ? { "X-Recognition-Request-Id": options.requestId }
-          : {}),
-      },
-      body: form,
-      signal: AbortSignal.timeout(25000),
-      cache: "no-store",
-      redirect: "error",
-    },
-  );
+  const response = await postEmbed(image, {
+    Authorization: process.env.SAGE_EAS_TOKEN!,
+    ...(options.requestId && REQUEST_ID_RE.test(options.requestId)
+      ? { "X-Recognition-Request-Id": options.requestId }
+      : {}),
+  });
   telemetry.upstream_status = response.status;
   let body: Record<string, unknown> = {};
   try {

@@ -35,6 +35,7 @@
 服务端配置（不要将 service role 或 EAS Token 写入小程序）：
 
 ```dotenv
+# 上海服务器用 VPC 地址 http://<uid>.vpc.cn-shanghai.pai-eas.aliyuncs.com/api/predict/<服务名>；本地开发用公网 https 地址。
 SAGE_EAS_ENDPOINT=https://你的EAS网关/api/predict/你的服务名
 SAGE_EAS_TOKEN=控制台提供的Token
 # 必填：用实际正负样本校准，不提供通用到达阈值默认值。
@@ -44,6 +45,8 @@ SAGE_MATCH_MARGIN=0.03
 ```
 
 同时需要项目现有的 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 和有效 `SUPABASE_SERVICE_ROLE_KEY`。EAS 需使用 ai-location 项目当前的 `POST /embed` 服务，返回 `sage_vitb` 的 8448 维向量及 `embedding_version`。EAS Token 以原值置入 Authorization，不加 Bearer。
+
+模型连接（`lib/anchor/model-client.server.ts`）：独立的 undici keep-alive 连接池，空闲连接保持 150 秒（Node 默认 4 秒；EAS 网关约 180 秒断开空闲连接，2026-10-08 实测 186 秒），识别停顿后的第一轮不再重建连接；连接被对端刚关闭时自动重试一次（/embed 幂等）。生产环境走 VPC 地址（内网、无 TLS），实测稳态与公网相同，都要经过 EAS 共享网关，约 55–75 ms 的固定开销；要去掉这部分需开通 EAS「VPC 高速直连」。
 
 新增表仍只允许 service_role 直接访问。公开接口在服务端通过 service_role 读取/生成特征；小程序不连接该私有表，也不会收到特征向量。EAS Token 继续仅用于管理端到模型服务的内部调用。`ANCHOR_PUBLIC_WORKSPACE_IDS` 已不参与识别鉴权，无需配置。
 

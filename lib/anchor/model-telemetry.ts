@@ -48,7 +48,7 @@ function safeId(value: unknown): string | undefined {
 /** Merge what the model reported (JSON body and/or headers) into `telemetry`. */
 export function readModelTelemetry(
   value: unknown,
-  headers: Headers,
+  headers: Pick<Headers, "get">,
   telemetry: ModelTelemetry,
 ): void {
   const root = record(value);
