@@ -229,9 +229,11 @@ npm run dev
 | [docs/i18n-guide.md](docs/i18n-guide.md) | 国际化使用指南 |
 | [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 地图素材交互逻辑 |
 | [docs/3d-model-preview.md](docs/3d-model-preview.md) | 3D 模型预览方案 |
+| [docs/performance-editor-plan.md](docs/performance-editor-plan.md) | Web 多媒体演出编辑器、共享 Three 运行时与分阶段改造方案 |
 | [docs/text-asset-miniapp-style.md](docs/text-asset-miniapp-style.md) | 文本素材小程序样式 |
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
 | [docs/asset-storage-lifecycle.md](docs/asset-storage-lifecycle.md) | 内容 hash 去重与文件删除机制 |
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
 | [docs/data-layer.md](docs/data-layer.md) | 数据库 / 认证 / 存储模块约定 |
+| [docs/deployment.md](docs/deployment.md) | 部署与运维手册：资源、发布、配置、数据库与备份、HTTPS/备案、识别模型、限流 |
 | [docs/aliyun-migration-plan.md](docs/aliyun-migration-plan.md) | 阿里云迁移方案与执行记录 |
