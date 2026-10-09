@@ -87,7 +87,7 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app (assets carry 
 
 ### Deployment
 
-`Dockerfile` (Next standalone, built for linux/amd64), `deploy/docker-compose.yml` (caddy + app + db), `deploy/Caddyfile`, `deploy/env.example`. `scripts/deploy.sh` builds locally and ships over SSH; `.github/workflows/deploy.yml` does the same on every push to `main` (needs the `DEPLOY_SSH_KEY` secret and `DEPLOY_HOST` / `NEXT_PUBLIC_*` variables). The server keeps `/opt/sanlin/.env`; migrations are run from a workstation through `scripts/db-tunnel.sh`.
+`Dockerfile` (Next standalone, built for linux/amd64), `deploy/docker-compose.yml` (caddy + app + db), `deploy/Caddyfile`, `deploy/env.example`. `scripts/deploy.sh` builds locally and ships over SSH; `.github/workflows/deploy.yml` does the same on every push to `main` (needs the `DEPLOY_SSH_KEY` secret and `DEPLOY_HOST` / `NEXT_PUBLIC_*` variables). The server keeps `/opt/sanlin/.env`; migrations are run from a workstation through `scripts/db-tunnel.sh`. **`docs/deployment.md` is the operations runbook**: resources, deploy paths, env, migrations and backups, TLS/ICP status, the PAI-EAS model service, rate limits and open items.
 
 ## Environment
 
