@@ -1,7 +1,7 @@
 ---
 title: 3D Model Preview
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-10-09
 ---
 
 # 3D Model Preview
@@ -12,16 +12,16 @@ updated: 2026-05-10
 
 | 功能 | 说明 |
 |------|------|
-| glTF / GLB 加载 | 通过 `useGLTF` 加载远程模型文件，支持 Draco 压缩 |
+| glTF / GLB 加载 | 通过 `useGLTF` 加载远程模型文件，支持 Draco 压缩（解码器自托管在 OSS `static/draco/gltf/`，经 `NEXT_PUBLIC_MEDIA_BASE_URL` 读取，不走 drei 默认的 gstatic） |
 | 自动适配视角 | 首次加载及切换资产时，根据模型包围盒自动调整相机距离与朝向，模型始终居中填满预览区 |
 | 动画自动播放 | 若模型内嵌动画剪辑，所有动画以 `LoopRepeat` 模式自动循环播放 |
 | 交互控制 | `OrbitControls`：鼠标拖拽旋转、滚轮缩放，禁用平移（`enablePan={false}`） |
-| 环境光照 | 使用 `Environment preset="city"` 提供 HDR 环境光，辅以环境光与平行光 |
+| 环境光照 | 使用 `<Environment files="/hdr/potsdamer_platz_1k.hdr" />` 加载本地 HDR 环境光（`preset` 会从国外 CDN 拉取，国内不可达），辅以环境光与平行光 |
 
 ## 文件位置
 
 ```
-app/manage/components/AssetEditor/AssetModelPreview.tsx
+app/manage/components/AssetEditor/previews/AssetModelPreview.tsx
 ```
 
 ## 组件接口
@@ -45,7 +45,7 @@ $$
 d = \frac{maxDim / 2}{\tan(fov / 2)} \times 1.5
 $$
 
-4. 将相机放置在模型中心正前方距离 $d$ 处，`near = d / 100`，`far = d \times 100`
+4. 将相机放置在模型中心正前方距离 $d$ 处，`near = max(d / 100, 0.01)`，`far = d \times 100`
 5. 将 `OrbitControls.target` 设置为模型中心，保证旋转轴心正确
 
 ## 动画播放逻辑

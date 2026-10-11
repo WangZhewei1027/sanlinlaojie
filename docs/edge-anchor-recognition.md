@@ -1,5 +1,7 @@
 # 小程序直连 Supabase 图像识别
 
+> 状态（2026-10-01）：本文的 Supabase Edge Function `recognize-anchor` 方案已停用。小程序现直接调用阿里云自托管 Web 平台的 `POST /api/miniapp/anchors/recognize`（`miniprogram/utils/backend.ts` 的 `RECOGNIZE_API`）；当前协议、限流（每设备 90 次/分、每工作空间 3000 次/分）与诊断字段以 `docs/anchor-matching.md` 和 `docs/miniapp-api.md` 为准。`supabase/functions/recognize-anchor`、`supabase/config.toml` 与 `supabase/migrations/` 仅作存档，待旧版小程序流量归零后删除。以下内容为历史记录。
+
 识别主链路为：小程序上传 JPEG + WGS84 GPS → Supabase Edge Function `recognize-anchor` → 数据库候选/参考向量 → 阿里云 SAGE → 数据库复检/关联素材 → 小程序。
 
 参考图生成与管理仍沿用管理端；旧 Vercel `/api/miniapp/anchors/recognize` 路由保留兼容。新的识别请求不经过 Vercel。Edge Function 不存储上传的现场图，不加载或重新生成参考图，不缓存候选集合，不自动重试模型请求。

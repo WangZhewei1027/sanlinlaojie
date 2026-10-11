@@ -12,9 +12,9 @@
 
 ### 第二步：Web 管理端
 
-#### 1. 类型（`app/super-admin/organizations/types.ts`）
+#### 1. 类型（`components/org-settings/types.ts`）
 
-在 `OrgConfig` 接口中加字段：
+在 `OrgConfig` 接口中加字段（`app/super-admin/organizations/types.ts` 只是从这里 re-export）：
 
 ```ts
 export interface OrgConfig {
@@ -23,31 +23,27 @@ export interface OrgConfig {
 }
 ```
 
-#### 2. API 路由（`app/api/admin/organizations/route.ts`）
+#### 2. API 路由
 
-确保 select 列表包含 `config`：
+读取：`app/api/admin/organizations/route.ts` 的 Kysely 查询已选出 `organization.config`；写入：`app/super-admin/organizations/actions.ts`（`updateOrganization`）与 `app/api/organizations/[id]/route.ts`（PUT）都接受整个 `config` 对象并以 `JSON.stringify` 写入 jsonb 列。新增 key 通常无需改这些文件。
 
-```ts
-.select(`id, name, ..., config, organization_member (...)`)
-```
-
-#### 3. Hook（`app/super-admin/organizations/hooks/useOrgDetailForm.ts`）
+#### 3. Hook（`components/org-settings/useOrgSettingsForm.ts`，super-admin 与 `/admin/settings` 共用）
 
 - 初始化 state：`useState(org.config?.your_new_field ?? defaultValue)`
 - 加入 `hasChanged` 比较
 - `handleSave` 时写入 `config: { ...existingFields, your_new_field: value }`
 
-#### 4. UI 组件（`app/super-admin/organizations/components/sections/`）
+#### 4. UI 组件（`components/org-settings/`）
 
 新建 section 组件，参考 `MiniappConfigSection.tsx`：
 
 - 使用已有 UI 组件（`Checkbox`、`Select` 等，注意 `Switch` 未安装）
 - 引入 `SectionHeader` + i18n
 
-#### 5. 串联（`OrgFormSections.tsx` → `OrgDetailPanel.tsx`）
+#### 5. 串联（`OrgFormSections.tsx` → `OrgSettingsForm.tsx`）
 
 - `OrgFormSections` 加 props、渲染新 section
-- `OrgDetailPanel` 从 hook 取新值并透传
+- `OrgSettingsForm` 从 hook 取新值并透传（`app/super-admin/organizations/components/OrgDetailPanel.tsx` 与 `app/admin/settings/page.tsx` 都渲染它）
 
 #### 6. i18n（用 Python 更新，避免加载大 JSON 到上下文）
 
@@ -69,19 +65,23 @@ EOF
 
 ---
 
-### 第三步：小程序消费
+### 第三步：公开接口白名单（`app/api/miniapp/organizations/route.ts`）
 
-小程序通过 `fetchOrgStyle`（`miniprogram/components/xr-start/index.js`）拉取组织配置：
+小程序只能通过匿名接口 `GET /api/miniapp/organizations?ids=` 读组织配置，该路由用 `PUBLIC_CONFIG_KEYS` 数组过滤 `config`，**新 key 必须加进这个白名单**，否则小程序永远读不到（同步更新 `docs/miniapp-api.md` 里的键列表）。
+
+### 第四步：小程序消费
+
+小程序通过 `fetchOrgStyle`（`miniprogram/components/xr-start/index.js`）调用 `fetchOrganizations([orgId])`（`miniprogram/utils/backend.ts`）拉取组织配置：
 
 ```js
-// select 中加上 config 字段（已包含）
-`id=eq.${orgId}&select=text_asset_miniapp_style,config`;
-
+const { statusCode, data } = await fetchOrganizations([orgId]);
+const row = data[0];
+const cfg = row.config && typeof row.config === "object" ? row.config : {};
 // 结果存入 this._orgConfig
-this._orgConfig = cfg && typeof cfg === "object" ? cfg : {};
+this._orgConfig = cfg;
 ```
 
-在需要读取配置的地方直接使用：
+首页 `miniprogram/pages/index/index.ts` 也通过 `fetchOrganizations` 读同一份 `config`。在需要读取配置的地方直接使用：
 
 ```js
 if (this._orgConfig && this._orgConfig.your_new_field) {
@@ -96,5 +96,5 @@ if (this._orgConfig && this._orgConfig.your_new_field) {
 ### 注意事项
 
 - `config` 字段更新时应合并写入，不要覆盖整个对象：`config: { ...existingConfig, new_key: value }`
-- 小程序使用 anon key 直连 Supabase REST，`organization` 表无 RLS，字段直接可读
+- 小程序不直连数据库：只能读到 `PUBLIC_CONFIG_KEYS` 白名单内的键，`config` 里的其他内容对外不可见
 - 新配置项默认值应为"关闭/保守"状态（如 `false`、`null`），避免意外开启功能

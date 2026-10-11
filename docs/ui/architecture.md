@@ -22,7 +22,7 @@ Do not import Radix directly outside `components/ui/`. Follow the typography and
 
 Storybook is a display and UI documentation surface. It records component variants, theme impact, typography, responsive boundaries and representative product states. It is not a test runner and does not reproduce application workflows.
 
-Stories must be driven by props and local display state. They must not initialize Supabase, call real services, execute OAuth, or contain credentials.
+Stories must be driven by props and local display state. They must not initialize the database, auth or storage clients (`lib/db`, `lib/auth/*`, `lib/storage/*`), call real services, execute OAuth, or contain credentials.
 
 ## Provider boundary
 

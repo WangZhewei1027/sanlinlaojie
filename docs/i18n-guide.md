@@ -2,7 +2,9 @@
 
 ## 配置文件
 
-- **配置文件**: `lib/i18n/config.ts`
+- **配置文件**: `lib/i18n/config.ts`（初始化 i18next，加载下面的 JSON）
+- **语言设置**: `lib/i18n/settings.ts`（支持语言 `zh | en`、默认 `zh`、cookie 名 `language`）
+- **翻译文件**: `locales/zh.json` / `locales/en.json`
 - **语言切换组件**: `components/language-switcher.tsx`
 - **Provider**: `components/i18n-provider.tsx`
 
@@ -29,29 +31,27 @@ export function MyComponent() {
 
 ### 2. 添加新的翻译
 
-在 `lib/i18n/config.ts` 中添加新的翻译键值对：
+在 `locales/zh.json` 和 `locales/en.json` 中添加新的翻译键值对（`lib/i18n/config.ts` 只负责加载这两个文件，不包含文案）：
 
-```typescript
-const zhTranslations = {
-  translation: {
-    // 添加你的翻译
-    mySection: {
-      title: '我的标题',
-      description: '我的描述',
-    },
-  },
-};
+```json
+// locales/zh.json
+{
+  "mySection": {
+    "title": "我的标题",
+    "description": "我的描述"
+  }
+}
 
-const enTranslations = {
-  translation: {
-    // 添加对应的英文翻译
-    mySection: {
-      title: 'My Title',
-      description: 'My Description',
-    },
-  },
-};
+// locales/en.json
+{
+  "mySection": {
+    "title": "My Title",
+    "description": "My Description"
+  }
+}
 ```
+
+两个文件的键必须成对出现；`scripts/clean-i18n.py` 可清理代码中已不再引用的键。
 
 ### 3. 使用翻译
 
@@ -65,56 +65,16 @@ const { t } = useTranslation();
 
 ## 现有翻译键
 
-### 导航栏 (nav)
-- `nav.home` - 首页
-- `nav.admin` - 管理后台
-- `nav.workspace` - 工作空间
-- `nav.upload` - 上传
-- `nav.manage` - 管理
-- `nav.display` - 展示
+键按功能划分为顶层命名空间，当前 `locales/zh.json` 包含：
+`account`、`admin`、`assetEditor`、`assetFields`、`assetManager`、`auth`、`common`、`errors`、`fileTypes`、`home`、`invite`、`linkAsset`、`manage`、`matching`、`nav`、`onsite`、`organization`、`settings`、`superAdmin`、`upload`、`workspace`。
 
-### 通用 (common)
-- `common.welcome` - 欢迎
-- `common.loading` - 加载中...
-- `common.save` - 保存
-- `common.cancel` - 取消
-- `common.delete` - 删除
-- `common.edit` - 编辑
-- `common.create` - 创建
-- `common.search` - 搜索
-- `common.filter` - 筛选
-- `common.logout` - 退出登录
-- `common.login` - 登录
-- `common.signup` - 注册
-
-### 工作空间 (workspace)
-- `workspace.title` - 工作空间管理
-- `workspace.create` - 创建工作空间
-- `workspace.select` - 选择工作空间
-- `workspace.manage` - 管理工作空间
-
-### 上传 (upload)
-- `upload.title` - 上传资源
-- `upload.selectFile` - 选择文件
-- `upload.uploading` - 上传中...
-- `upload.success` - 上传成功
-- `upload.failed` - 上传失败
-
-### 资源管理 (assets)
-- `assets.title` - 资源管理
-- `assets.list` - 资源列表
-- `assets.edit` - 编辑资源
-- `assets.delete` - 删除资源
+具体键名以 JSON 文件为准（例如 `common.save`、`upload.title`、`nav.admin`），新增前先在文件中搜索是否已有可复用的键。
 
 ## 语言切换
 
-语言切换按钮已添加到：
-1. 主页导航栏
-2. 主页页脚
-3. Protected 布局的导航栏
-4. Protected 布局的页脚
+语言切换按钮位于全局导航栏 `components/navbar.tsx`（由 `app/layout.tsx` 渲染，所有页面共用）。
 
-用户选择的语言会保存在 localStorage 中，刷新页面后会自动恢复。
+用户选择的语言通过 `applyLanguage()`（`components/i18n-provider.tsx`）写入 cookie `language`，`app/layout.tsx` 在服务端渲染首帧时读取该 cookie，保证两端首帧语言一致；同时写入 localStorage 以兼容旧版本。刷新页面后会自动恢复。
 
 ## 示例：更新现有组件
 

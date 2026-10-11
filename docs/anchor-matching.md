@@ -1,6 +1,6 @@
 # 匹配点与小程序混合识别
 
-> 识别新增小程序直连 Supabase Edge Function 方案，包含两次数据库 RPC、请求 ID 和模型细分耗时；见 [小程序直连识别](./edge-anchor-recognition.md)。本文原 Vercel 接口继续保留兼容，参考特征生成仍由管理端处理。
+> 2026-10-01 起小程序直接调用本文的 `POST /api/miniapp/anchors/recognize`（Web 平台已自托管于阿里云，见 `docs/aliyun-migration-plan.md`；小程序侧见 `miniprogram/utils/backend.ts` 与 `components/xr-start/matching/`）。此前的 Supabase Edge Function 方案（[小程序直连识别](./edge-anchor-recognition.md)）已停用，仅作历史记录。参考特征生成仍由管理端处理。
 
 
 `asset.file_type = 'anchor'` 保持兼容，管理端展示为「匹配点」。每个匹配点先存一张参考图片，使用现有 `asset.file_url`、`content_hash`；子素材通过现有 `anchor_id` 关联。匹配只代表识别到附近地点，不提供相机 6DoF 或厘米级 AR 重定位。
@@ -22,11 +22,11 @@
 - `GET /api/assets/<anchor_id>/matching`：参考特征状态。
 - `POST /api/assets/<anchor_id>/matching`：生成 / 重建已存参考图的特征。
 
-路由代理只对这三个接口对应的精确路径跳过网页登录跳转，其他资产管理接口维持原有权限。公开生成接口仍只处理数据库中已存在的匹配点，图片 URL 必须来自项目 assets 桶。识别参数、定位时效、图片大小、模型版本、阈值和现有工作空间限流仍会校验。公开识别意味着知道 workspace_id 的调用方可获取命中点的挂载素材，生成接口可触发模型计算。
+`proxy.ts` 对 `/api/miniapp` 前缀和 `/api/assets/<id>/matching` 精确路径跳过登录跳转，其他资产管理接口维持原有权限。公开生成接口仍只处理数据库中已存在的匹配点，图片 URL 必须来自本项目媒体域名（`NEXT_PUBLIC_MEDIA_BASE_URL`）下的 `assets/` 对象。识别参数、定位时效、图片大小、模型版本、阈值和现有工作空间限流仍会校验。公开识别意味着知道 workspace_id 的调用方可获取命中点的挂载素材，生成接口可触发模型计算。
 
 ## 数据库与环境变量
 
-`supabase/migrations/20260908000000_anchor_matching.sql` 增加私有特征表、工作空间请求限流表、服务端 RPC 和引用校验触发器；asset 字段、类型值、旧 RPC 保持兼容。整个迁移在事务中执行，失败回滚，不自动生成参考特征。
+私有特征表（`anchor_embedding`）、工作空间请求限流表（`anchor_match_rate_limit`）、服务端函数和引用校验触发器现已并入 `db/schema.sql` 基线（原为 `supabase/migrations/20260908000000_anchor_matching.sql`）；asset 字段、类型值、旧 RPC 保持兼容。整个迁移在事务中执行，失败回滚，不自动生成参考特征。
 
 2026-09-09 修复线上 503 时，确认该迁移从未执行，但管理端已录入新匹配点，因此从尚未应用的迁移中移除了早期的批量删除 anchor 和解除挂载语句。已通过 CLI 单独执行此迁移，并将 `20260908000000` 登记为已应用。执行前后均为 15 个匹配点、52 个挂载素材，未清理现有数据。其他环境执行前仍需检查迁移历史，不要重复建表。
 
@@ -44,11 +44,11 @@ SAGE_MATCH_THRESHOLD=填写校准后的余弦相似度阈值
 SAGE_MATCH_MARGIN=0.03
 ```
 
-同时需要项目现有的 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 和有效 `SUPABASE_SERVICE_ROLE_KEY`。EAS 需使用 ai-location 项目当前的 `POST /embed` 服务，返回 `sage_vitb` 的 8448 维向量及 `embedding_version`。EAS Token 以原值置入 Authorization，不加 Bearer。
+同时需要 `DATABASE_URL` 与 `NEXT_PUBLIC_MEDIA_BASE_URL`（参考图必须位于该媒体域名下，见 `lib/anchor/reference.server.ts`）。EAS 需使用 ai-location 项目当前的 `POST /embed` 服务，返回 `sage_vitb` 的 8448 维向量及 `embedding_version`。EAS Token 以原值置入 Authorization，不加 Bearer。
 
 模型连接（`lib/anchor/model-client.server.ts`）：独立的 undici keep-alive 连接池，空闲连接保持 150 秒（Node 默认 4 秒；EAS 网关约 180 秒断开空闲连接，2026-10-08 实测 186 秒），识别停顿后的第一轮不再重建连接；连接被对端刚关闭时自动重试一次（/embed 幂等）。生产环境走 VPC 地址（内网、无 TLS），实测稳态与公网相同，都要经过 EAS 共享网关，约 55–75 ms 的固定开销；要去掉这部分需开通 EAS「VPC 高速直连」。
 
-新增表仍只允许 service_role 直接访问。公开接口在服务端通过 service_role 读取/生成特征；小程序不连接该私有表，也不会收到特征向量。EAS Token 继续仅用于管理端到模型服务的内部调用。`ANCHOR_PUBLIC_WORKSPACE_IDS` 已不参与识别鉴权，无需配置。
+特征表只由服务端通过唯一的数据库连接读取/生成（无 RLS，权限在应用层判定）；小程序不连接数据库，也不会收到特征向量。EAS Token 继续仅用于管理端到模型服务的内部调用。`ANCHOR_PUBLIC_WORKSPACE_IDS` 已不参与识别鉴权，无需配置。
 
 ## 新 API
 
@@ -117,6 +117,7 @@ HTTP 429 增加可区分的 `code`、`retry_after_ms` 和对应的 `Retry-After`
 
 | code | 原因 | retry_after_ms | Retry-After |
 |---|---|---:|---:|
+| `client_rate_limited` | 单设备（`X-Client-Id`，缺失时按 IP）每分钟 90 次耗尽 | 窗口剩余毫秒 | 向上取整秒 |
 | `workspace_rate_limited` | 当前工作空间的共享分钟预算耗尽 | 60000 | 60 |
 | `model_busy` | EAS 模型接口返回 429 | 2000 | 2 |
 
@@ -131,7 +132,7 @@ HTTP 429 增加可区分的 `code`、`retry_after_ms` 和对应的 `Retry-After`
 - `GET /api/assets/<anchor_id>/matching`：公开访问，返回状态，不返回向量。
 - `POST /api/assets/<anchor_id>/matching`：公开访问，生成/重建该匹配点已保存参考图的特征。
 
-图片新增/替换仍走原创建与 PATCH API。新建匹配点必须包含 name/file_url/metadata.latitude/metadata.longitude；存储 URL 仅接受本项目公开 assets 桶，禁止任意远程 URL。底层迁移会在图片替换时使旧特征失效，并阻止匹配点嵌套、自引用与跨工作空间挂载。
+图片新增/替换仍走原创建与 PATCH API。新建匹配点必须包含 name/file_url/metadata.latitude/metadata.longitude；存储 URL 仅接受本项目媒体域名下的 `assets/` 对象，禁止任意远程 URL。底层迁移会在图片替换时使旧特征失效，并阻止匹配点嵌套、自引用与跨工作空间挂载。
 
 ## 小程序调用示例
 

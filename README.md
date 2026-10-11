@@ -1,6 +1,6 @@
 # 三林老街 AR 记忆 · 全栈项目
 
-> 以增强现实为核心的三林老街文化遗产互动体验平台，由 **Web 管理端**（Next.js）和 **微信小程序 AR 端**（xr-frame）共同构成。Web 端自 2026-10 起部署在阿里云（自建 PostgreSQL + PostGIS、Better Auth、OSS）；小程序端仍连接原 Supabase 项目，待迁移到 Web 端的 `/api/miniapp/*` 接口。
+> 以增强现实为核心的三林老街文化遗产互动体验平台，由 **Web 管理端**（Next.js）和 **微信小程序 AR 端**（VisionKit v2 + Three.js）共同构成。Web 端自 2026-10 起部署在阿里云（自建 PostgreSQL + PostGIS、Better Auth、OSS）；小程序端自 2026-10-01 起通过 Web 端的匿名 `/api/miniapp/*` 接口访问同一后端（见 `docs/miniapp-api.md`）。
 
 ---
 
@@ -11,7 +11,7 @@
 | **sanlinlaojie** | `sanlinlaojie/` | Web 管理平台 |
 | **xr-frame-plant-trees** | `xr-frame-plant-trees/` | 微信小程序 GPS AR 体验 |
 
-两者共享同一套数据模型（素材库、组织、工作区、弹幕等）；迁移完成前小程序读到的是 Supabase 上冻结的旧数据，见 `docs/aliyun-migration-plan.md`。
+两者共享同一套数据模型（素材库、组织、工作区、弹幕等）；自建后端的迁移过程见 `docs/aliyun-migration-plan.md`。
 
 ---
 
@@ -35,17 +35,23 @@
 #### 用户端
 - `/` — 首页
 - `/manage` — 地图工作区主界面：在交互式地图上查看/管理 AR 素材点位
+- `/auth/*` — 登录 / 注册 / 找回与修改密码
+- `/invite/[token]` — 接受组织邀请链接
+- `/settings` — 个人设置
+- `/instructions/{zh,en}` — 使用说明（MDX）；`/403` — 无权限提示页
 
 #### 管理端（`/admin`）
 - Overview — 组织数据概览
 - Members — 成员管理
 - Workspaces — 工作区管理（含 QR 码生成）
 - Settings — 组织设置
-- Cleanup — 废弃素材清理
 
 #### 超级管理员（`/super-admin`）
 - User Management — 全局用户管理
 - Organizations — 组织管理
+- Error Logs — 错误日志（`/super-admin/error-logs`）
+- Cleanup — 死链行 / 孤儿文件清扫（`/super-admin/clean`）
+- Settings — 系统设置：新建组织默认允许的素材类型（`/super-admin/settings`）
 
 #### 文件上传模块（`/upload-onsite` & `lib/upload/`）
 
@@ -53,19 +59,20 @@
 
 | 类型 | 说明 |
 |---|---|
-| image | 自动压缩为 WebP，提取 EXIF GPS 信息 |
+| image | 自动压缩为 JPEG，提取 EXIF GPS 信息 |
 | video | 视频上传 |
-| audio | 音频上传（含压缩） |
+| audio | 音频上传（提取时长等元数据；压缩暂未启用） |
 | document | PDF、Word 等文档 |
 | link | 外部链接 |
 | text | 纯文本 |
+| anchor | 匹配点：一张参考图 + 位置，供小程序图像识别（`docs/anchor-matching.md`） |
+| shop | 店铺：主图 + 可选打卡凭证照片 |
+| model | 3D 模型（.gltf/.glb） |
 
 #### 权限体系（`lib/permissions.ts`）
-- 超级管理员（super_admin）
-- 组织管理员（org_admin）
-- 普通成员（member）
-- 访客
-- 侧边栏菜单按角色动态过滤
+- 全局角色（`users.role`）：超级管理员 super_admin / 普通用户 user
+- 组织角色（`organization_member.role`）：owner / admin / member / viewer
+- 侧边栏菜单按角色动态过滤；矩阵见 `docs/permissions.md`
 
 ### 目录结构
 
@@ -92,7 +99,7 @@ sanlinlaojie/
 ├─ db/                # schema.sql（基线）+ migrations/
 ├─ deploy/            # docker-compose、Caddyfile、服务器 env 模板
 ├─ scripts/           # 部署、数据库迁移、一次性数据迁移脚本
-└─ supabase/          # 旧 Supabase 迁移与 Edge Function（仅小程序仍在使用）
+└─ supabase/          # 旧 Supabase 迁移与 Edge Function 存档（已停用，待旧版小程序流量归零后删除）
 ```
 
 ### 开发命令
@@ -122,9 +129,9 @@ npm run deploy      # 构建镜像并部署到阿里云服务器（scripts/deplo
 ### 技术栈
 
 - **平台**：微信小程序（TypeScript）
-- **AR 渲染**：微信 xr-frame 系统
-- **后端**：Supabase（与 Web 端共用）
-- **定位**：微信 GPS 接口（`wx.startLocationUpdateBackground`）
+- **AR 渲染**：微信 VisionKit v2 + Three.js（`miniprogram/lib/three-runtime/`，2026-10-09 起替代原 xr-frame 方案）
+- **后端**：Web 端匿名接口 `/api/miniapp/*`（`miniprogram/utils/backend.ts`，与 Web 端共用同一数据库）
+- **定位**：微信 GPS 接口（`wx.startLocationUpdate` + `onLocationChange`，失败时退化为轮询）
 
 ### 核心体验
 
@@ -142,25 +149,28 @@ npm run deploy      # 构建镜像并部署到阿里云服务器（scripts/deplo
 AR 主组件，负责：
 - GPS 持续监听与坐标转换（GPS → XR 世界坐标）
 - 按距离阈值分批拉取附近素材（防抖 + 冷却机制）
-- 节点队列管理（新队列 / 旧队列 / 弹幕队列，各自上限）
-- 空间音频、广告牌头像气泡、导航粒子线
+- 容量桶管理（heavy / light / audio / transient 各自上限，不跨桶驱逐）
+- 空间音频、朝向相机的程序化文字气泡、匹配点识别（`matching/`）
 - 巨型远景模型管理
 
 #### `miniprogram/components/shop-checkin/`
 店铺打卡组件：导航覆层 + 打卡弹窗 + 附近店铺列表
 
-#### `miniprogram/utils/supabase.ts`
-配置优先级：扫码参数 > Storage 上次扫码 > 默认兜底值，通过 QR 码动态切换组织/工作区
+#### `miniprogram/utils/backend.ts`
+后端访问层（封装 `/api/miniapp/*`）与扫码配置。配置优先级：扫码参数 > Storage 上次扫码 > 默认兜底值，通过 QR 码动态切换组织/工作区
 
-### 节点队列策略
+### 节点容量策略
+
+所有已放置节点在同一个 `nodeList` 中，按素材类型归入独立容量桶（`components/xr-start/config.js` 的 `buckets`），桶与桶之间互不驱逐：
 
 ```
-newQueue     ─── 本轮新拉取节点（超限 FIFO 驱逐）
-oldQueue     ─── 历史遗留节点（超限按距离驱逐最远的）
-danmakuQueue ─── 用户实时弹幕（超限 FIFO 驱逐最旧的）
+heavy      ─── model / video（上限 6，超限按距离驱逐最远的）
+light      ─── text / image（上限 20，超限按距离驱逐最远的）
+audio      ─── 空间音频（上限 6，超限按距离驱逐最远的）
+transient  ─── 用户实时弹幕（上限 8，超限 FIFO 驱逐最旧的）
 ```
 
-默认上限：新队列 10 / 旧队列 25 / 弹幕 8，拉取半径 50 m，位移触发阈值 5 m。
+拉取半径 20 m，位移触发阈值 5 m，冷却 3 s；每轮最多揭示 10 个新素材（首轮 20）。详见 `xr-frame-plant-trees/docs/node-list-queue-strategy.md`。
 
 ### 目录结构
 
@@ -175,13 +185,15 @@ xr-frame-plant-trees/
    │  ├─ xr-start/     # AR 核心组件
    │  │  ├─ assets/    # 素材加载逻辑
    │  │  ├─ effects/   # 弹幕/粒子/彩带特效
-   │  │  ├─ config.js  # 全局 XR 配置
+   │  │  ├─ matching/  # 匹配点识别（调用 /api/miniapp/anchors/recognize）
+   │  │  ├─ config.js  # 全局 AR 配置
    │  │  ├─ gps.js     # GPS 工具
-   │  │  ├─ navigation.js  # 导航逻辑
-   │  │  └─ preload.js # 资源预加载
+   │  │  └─ navigation.js  # 导航逻辑
    │  └─ shop-checkin/ # 店铺打卡组件
+   ├─ lib/
+   │  └─ three-runtime/ # VisionKit v2 会话 + Three.js 渲染运行时
    └─ utils/
-      └─ supabase.ts   # Supabase 配置与扫码参数管理
+      └─ backend.ts    # /api/miniapp/* 访问层与扫码参数管理
 ```
 
 ---
@@ -216,7 +228,7 @@ npm run dev
 ### 微信小程序端
 
 1. 使用微信开发者工具（Nightly 版）打开 `xr-frame-plant-trees/`
-2. 在 `miniprogram/utils/supabase.ts` 中确认 `DEFAULT_CONFIG` 指向正确的组织/工作区
+2. 在 `miniprogram/utils/backend.ts` 中确认 `DEFAULT_CONFIG` 指向正确的组织/工作区
 3. 编译预览或真机调试（需要 GPS 权限）
 
 ---
@@ -234,4 +246,6 @@ npm run dev
 | [docs/asset-storage-lifecycle.md](docs/asset-storage-lifecycle.md) | 内容 hash 去重与文件删除机制 |
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
 | [docs/data-layer.md](docs/data-layer.md) | 数据库 / 认证 / 存储模块约定 |
+| [docs/miniapp-api.md](docs/miniapp-api.md) | 小程序匿名接口（`/api/miniapp/*`） |
+| [docs/permissions.md](docs/permissions.md) | 两层权限模型与矩阵 |
 | [docs/aliyun-migration-plan.md](docs/aliyun-migration-plan.md) | 阿里云迁移方案与执行记录 |

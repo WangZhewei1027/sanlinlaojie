@@ -1,14 +1,14 @@
 ---
 title: 地图与素材列表双向联动
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-10-09
 ---
 
 # 地图与素材列表双向联动
 
 ## 功能概述
 
-管理页面（`/manage`）的地图（Cesium 查看器）与左侧素材列表（AssetList）之间支持双向交互：
+管理页面（`/manage`）的地图（Cesium 查看器）与左侧素材列表（`AssetManager`）之间支持双向交互：
 
 | 操作 | 效果 |
 |---|---|
@@ -69,6 +69,8 @@ updated: 2026-05-10
 | `SET_ORIGIN` | `{ lat, lng }` | 切换组织时 |
 | `SET_ASSETS` | `Asset[]` | 素材列表变化（含过滤）时 |
 | `FOCUS_ASSET` | `{ id, longitude, latitude, height }` | 点击定位按钮时 |
+| `SET_SELECTION` | `{ assetIds }` | 父窗口同步多选集到地图（viewer 侧静默套用，不回传） |
+| `CLEAR_SELECTION` | `{}` | 父级操作条"取消"后清除地图高亮 |
 
 ### 子 → 父
 
@@ -76,6 +78,8 @@ updated: 2026-05-10
 |---|---|---|
 | `LOCATION_CLICKED` | `{ longitude, latitude, height }` | 点击地图空地时 |
 | `ASSET_CLICKED` | `{ assetId }` | 点击素材图标时 |
+| `ASSETS_MOVED` | `{ moves: [{ assetId, longitude, latitude, height }] }` | 拖动素材松手时；父窗口一次 `POST /api/assets/move` 批量落库并更新 store |
+| `ASSETS_SELECTED` | `{ assetIds }` | 地图框选多选时；写入 store 的 `selectedAssetIds` |
 
 所有消息格式：
 

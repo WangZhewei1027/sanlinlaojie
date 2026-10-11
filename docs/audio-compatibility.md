@@ -1,7 +1,7 @@
 ---
 title: 音频格式兼容性方案（浏览器录音 → 小程序播放）
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-10-09
 ---
 
 # 音频格式兼容性方案
@@ -82,19 +82,19 @@ updated: 2026-05-18
       │
       ▼
 [lib/audio-compression.ts]
-  WebM/Opus 压缩（减少上传体积）
+  WebM/Opus 压缩（减少上传体积；目前在 lib/upload/config.ts 中暂时停用）
       │
       ▼
-上传到 Supabase Storage（.webm 文件）
+经 POST /api/upload 上传到 OSS（.webm 文件）
       │
       ▼
 [scripts/transcode-webm-to-m4a.ts]
-  Cloudinary 转码：WebM → M4A (AAC)
-  回传 Supabase Storage（.m4a 文件）
+  本机 ffmpeg 转码：WebM → M4A (AAC)
+  回传 OSS（同一 key，仅扩展名改为 .m4a）
   更新 asset 表 file_url
       │
       ▼
-小程序直接读取 .m4a 正常播放
+小程序把 .webm URL 同路径替换为 .m4a 后直接播放
 ```
 
 ### 为什么不在上传前直接转码到 M4A？
@@ -109,22 +109,17 @@ updated: 2026-05-18
 
 `lib/audio-compression.ts` 中的 `compressToOpusWebM` 函数在上传前将录音压缩到 64kbps（语音质量足够），目的是：
 
-- 减少上传流量，节省 Supabase Storage 配额。
+> 注意：`lib/upload/config.ts` 中 audio 类型的 `process: compressToOpusWebM` 目前被注释掉（待压缩模块稳定后恢复），当前上传的是浏览器录制的原始 WebM。
+
+- 减少上传流量，节省 OSS 存储与流量。
 - 加快上传速度，改善用户体验（特别是移动端弱网）。
 - 即使最终文件会被转码替换，上传阶段用更小的文件依然有价值。
 
-### 为什么选择 Cloudinary 转码？
+### 转码后端：本机 ffmpeg
 
-转码脚本 `scripts/transcode-webm-to-m4a.ts` 使用 Cloudinary 作为转码后端，原因如下：
+转码脚本 `scripts/transcode-webm-to-m4a.ts` 直接调用运行脚本那台机器上的 `ffmpeg`（`-c:a aac -b:a 128k -movflags +faststart`），不依赖任何第三方转码服务。
 
-| 方案 | 优点 | 缺点 |
-|---|---|---|
-| 浏览器端 ffmpeg.wasm | 无需外部服务 | 包体积大、延迟高、消耗客户端资源 |
-| Supabase Edge Function | 无需第三方 | 不适合 CPU 密集型转码，有执行时间限制 |
-| 自建转码服务 | 完全控制 | 需要额外运维成本 |
-| **Cloudinary** | **API 简单、支持多格式、免费额度充足** | **依赖第三方服务** |
-
-对于当前阶段的用户规模，Cloudinary 免费套餐的转码额度完全满足需求，且无需自建基础设施。
+> 历史：Supabase / Vercel 时期该脚本使用 Cloudinary 作为转码后端；2026-10-01 迁移到阿里云自托管后改为本机 ffmpeg。
 
 ---
 
@@ -147,26 +142,28 @@ updated: 2026-05-18
 批量转码脚本，在数据库中存在 `.webm` 文件时手动执行（一次性迁移或补录场景）。
 
 **执行步骤：**
-1. 扫描 Supabase Storage `assets` bucket 中所有 `.webm` 文件。
-2. 逐个上传到 Cloudinary，指定 `format: "m4a"` 触发服务端转码。
-3. 下载转码后的 `.m4a` 文件，回传到 Supabase Storage（同路径，替换扩展名）。
+1. 查询 `asset` 表中 `file_type = 'audio'` 且 `file_url` 以 `.webm` 结尾的记录（按 URL 去重，只处理位于本站 OSS 的对象）。
+2. 下载原文件，用本机 ffmpeg 转码为 M4A（AAC 128k）。
+3. 上传到 OSS 的同一 key（仅扩展名换成 `.m4a`）；该 `.m4a` 已存在时跳过下载/转码/上传，只补做数据库更新，脚本可安全重跑。
 4. 更新 `asset` 表中对应记录的 `file_url` 字段。
-5. 默认保留原 `.webm` 文件；仅在显式传入 `--delete-webm` 时删除。
-6. 清理 Cloudinary 上的临时文件。
+5. 默认保留原 `.webm` 文件；仅在显式传入 `--delete-webm` 时从 OSS 删除。
+6. 清理本地临时目录。
+
+**前置条件：** 本机 PATH 中有 `ffmpeg`；`.env.local` 中配置 `DATABASE_URL`、`OSS_BUCKET`、`OSS_REGION`、`ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET`、`NEXT_PUBLIC_MEDIA_BASE_URL`。脚本引用了带 `server-only` 守卫的 `lib/db` 与 `lib/storage/oss`，必须带 `--conditions react-server` 运行。
 
 **用法：**
 ```bash
 # 转码所有 .webm
-npx tsx scripts/transcode-webm-to-m4a.ts
+npx tsx --conditions react-server scripts/transcode-webm-to-m4a.ts
 
 # 预览（不实际执行）
-npx tsx scripts/transcode-webm-to-m4a.ts --dry-run
+npx tsx --conditions react-server scripts/transcode-webm-to-m4a.ts --dry-run
 
 # 限制数量（测试用）
-npx tsx scripts/transcode-webm-to-m4a.ts --limit 5
+npx tsx --conditions react-server scripts/transcode-webm-to-m4a.ts --limit 5
 
 # 转码成功后删除原始 .webm 文件（默认保留）
-npx tsx scripts/transcode-webm-to-m4a.ts --delete-webm
+npx tsx --conditions react-server scripts/transcode-webm-to-m4a.ts --delete-webm
 ```
 
 ---
@@ -175,7 +172,7 @@ npx tsx scripts/transcode-webm-to-m4a.ts --delete-webm
 
 对于新录制的音频，推荐在上传后触发异步转码，而非依赖手动脚本。可选方案：
 
-- **Supabase Database Webhook**：监听 `asset` 表新增记录，触发 Edge Function 调用 Cloudinary 转码。
+- **服务端异步任务**：监听 `asset` 表新增的音频记录，由服务器端任务调用 ffmpeg 转码。
 - **上传后立即调用 API**：在上传完成的回调中，调用一个 Next.js API Route 发起后台转码任务。
 
 目前脚本方案适用于批量历史数据迁移；新增实时转码逻辑时可基于此文档扩展。

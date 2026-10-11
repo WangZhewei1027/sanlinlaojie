@@ -21,7 +21,7 @@ components/ui/popover.tsx            # shadcn Popover 组件
 locales/en.json / zh.json            # i18n 文案（workspace.qr* 键）
 ```
 
-`lib/wechat-qr.ts` 是客户端安全的共享模块，定义 bucket 名、`env_version` 和存储路径格式。**服务端上传和客户端拼 URL 都必须经过它**——路径格式就是缓存键，两侧不一致会导致缓存永远无法命中。
+`lib/wechat-qr.ts` 是客户端安全的共享模块，定义 `env_version`、对象 key 格式（前缀 `wechat-qrcodes/` 来自 `lib/storage/public-url.ts` 的 `WECHAT_QR_PREFIX`）和公开 URL 构造。**服务端上传和客户端拼 URL 都必须经过它**——路径格式就是缓存键，两侧不一致会导致缓存永远无法命中。
 
 ---
 
@@ -32,18 +32,18 @@ locales/en.json / zh.json            # i18n 文案（workspace.qr* 键）
 1. 用户点击按钮，`WorkspaceQrButton` 先查**模块级内存 Map**（键为 `orgId__workspaceId`，存本页会话内已确认加载成功的 URL）。
 2. Map 未命中则**本地拼接确定性公开 URL**（`buildQrPublicUrl`，纯字符串运算，无网络请求）。公开 bucket 的 URL 格式固定：
    ```
-   {NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/wechat-qrcodes/release/{orgId}__{wsId|none}.png
+   {NEXT_PUBLIC_MEDIA_BASE_URL}/wechat-qrcodes/release/{orgId}__{wsId|none}.png
    ```
-3. `<Image loading="eager">` 直接加载该 URL。浏览器 HTTP 缓存（`cache-control: public, max-age=31536000`，一年）命中则 0 网络请求；否则打到 Supabase 的 Cloudflare CDN，通常边缘节点直接返回。
+3. `<Image loading="eager">` 直接加载该 URL。浏览器 HTTP 缓存（`cache-control: public, max-age=31536000`，一年）命中则 0 网络请求；否则打到 OSS 媒体域名（`NEXT_PUBLIC_MEDIA_BASE_URL`）。
 4. `onLoad` 触发后把 URL 写回 Map 并显示图片。
 
 ### 回退路径（仅全新组合走一次）
 
-5. 文件不存在时 Supabase 返回 **400**（不是 404），触发 `onError`，调用 Server Action `getOrCreateWorkspaceQRCode`。每个 (org, workspace) 上下文最多回退一次（`attemptedGenerate` ref 守卫），防止 `onError → 生成 → onError` 死循环。
-6. 服务端用 `storage.exists()`（仅 HEAD 请求，不传文件体）做二次确认——防止并发重复生成；检查本身抛错按未命中处理（上传步骤对重复文件容错，见"竞态安全"）。
-7. 未命中则获取微信 `access_token`（模块级内存缓存，有效 7200 秒、预留 60 秒余量；serverless 冷启动丢失后重取一次）。
-8. 调 `getwxacode` 生成 PNG，上传到公开 bucket，带 `cacheControl: "31536000"`。
-9. 返回公开 URL，客户端附加 `?v=时间戳` 绕过浏览器可能缓存的 400 响应，回到第 3 步重新加载。
+5. 文件不存在时 OSS 返回 404（`NoSuchKey`），触发 `onError`，调用 Server Action `getOrCreateWorkspaceQRCode`（仅登录用户可调用，生成会消耗微信接口配额）。每个 (org, workspace) 上下文最多回退一次（`attemptedGenerate` ref 守卫），防止 `onError → 生成 → onError` 死循环。
+6. 服务端用 `headObject()`（`lib/storage/oss.ts`，仅 HEAD 请求，不传文件体）做二次确认——防止并发重复生成；检查本身抛错按未命中处理（重复上传同一内容无害，见"竞态安全"）。
+7. 未命中则获取微信 `access_token`（模块级内存缓存，有效 7200 秒、预留 60 秒余量；进程重启丢失后重取一次）。
+8. 调 `getwxacode` 生成 PNG，用 `putObject()` 上传到 OSS，带 `Cache-Control: public, max-age=31536000`。
+9. 返回公开 URL，客户端附加 `?v=时间戳` 绕过浏览器可能缓存的 404 响应，回到第 3 步重新加载。
 
 ### 各层缓存一览
 
@@ -51,25 +51,23 @@ locales/en.json / zh.json            # i18n 文案（workspace.qr* 键）
 |---|---|---|---|
 | 内存 Map | 客户端模块作用域 | 本页会话（刷新即清） | 无需失效 |
 | HTTP 缓存 | 浏览器 | 一年 | 无需失效 |
-| CDN 边缘 | Cloudflare | 长期（随 cache-control） | 重新上传同路径可触发刷新 |
-| PNG 文件 | Supabase Storage | 永久 | 手动删除文件 |
+| PNG 对象 | Aliyun OSS（`wechat-qrcodes/` 前缀） | 永久 | 手动删除对象 |
 | 微信 token | 服务端进程内存 | 2 小时 | 自动过期 |
 
-延迟预期：老用户重开约 0ms；新会话首开一次 CDN 请求（几十到几百毫秒）；全新组合首次生成约 1–2 秒（微信 API + 上传）。
+延迟预期：老用户重开约 0ms；新会话首开一次 OSS 请求（几十到几百毫秒）；全新组合首次生成约 1–2 秒（微信 API + 上传）。
 
-**强制重新生成某个二维码**：在 Supabase Dashboard → Storage → `wechat-qrcodes` 删除对应 PNG，下次打开自动走回退路径重建。
+**强制重新生成某个二维码**：在 OSS 控制台（bucket `sanlinlaojie-media`）删除 `wechat-qrcodes/release/…png` 对应对象，下次打开自动走回退路径重建。
 
 ---
 
 ## 存储机制
 
-### Supabase Storage bucket
+### OSS 存储
 
-- **Bucket 名称**：`wechat-qrcodes`（`lib/wechat-qr.ts` 的 `WECHAT_QR_BUCKET`）
-- **访问策略**：Public（直接通过公开 URL 访问，无需鉴权）
-- **允许类型**：`image/png`
-- **文件大小上限**：1 MB
-- **缓存头**：上传时设置 `cacheControl: "31536000"`（一年）。2026-07 之前的存量文件默认是 `no-cache`，已通过脚本批量重传刷新。
+- **位置**：媒体 bucket（`OSS_BUCKET`，当前为 `sanlinlaojie-media`）下的 `wechat-qrcodes/` 前缀（`lib/storage/public-url.ts` 的 `WECHAT_QR_PREFIX`）
+- **访问策略**：bucket 为 public-read（直接通过公开 URL 访问，无需鉴权）
+- **类型**：上传时指定 `contentType: "image/png"`
+- **缓存头**：上传时设置 `Cache-Control: public, max-age=31536000`（一年）。历史：Supabase 时期 2026-07 之前的存量文件默认是 `no-cache`，已通过脚本批量重传刷新。
 
 ### 文件命名规则
 
@@ -105,17 +103,20 @@ export async function getOrCreateWorkspaceQRCode(input: {
 调用方（客户端 onError 回退）
    │
    ▼
+getSessionUser() 未登录 → 返回 { error: "未授权" }
+   │
+   ▼
 校验 organizationId 非空
    │
    ▼
-storagePath = buildQrStoragePath(orgId, wsId)
+key = buildQrObjectKey(orgId, wsId)
    │
    ▼
-storage.exists(storagePath)          ← HEAD 请求，零文件传输
-   ├─ true ──▶ getPublicUrl → 返回 { url }
-   ├─ 抛错 ──▶ 视为未命中（继续向下，上传步骤兜底）
+headObject(key)                      ← HEAD 请求，零文件传输
+   ├─ 非 null ─▶ mediaUrl(key) → 返回 { url }
+   ├─ 抛错 ──▶ 视为未命中（继续向下，重复上传无害）
    │
-   └─ false
+   └─ null
          │
          ▼
       getAccessToken()               ← 模块级内存缓存，60s 安全边界
@@ -129,10 +130,10 @@ storage.exists(storagePath)          ← HEAD 请求，零文件传输
          └─ content-type: image/png
                │
                ▼
-            storage.upload(storagePath, buffer,
-              { cacheControl: "31536000", upsert: false })
-               ├─ 成功 ─────────────────────────────▶ getPublicUrl → 返回 { url }
-               └─ Duplicate / Already Exists 视为成功 ▶ getPublicUrl → 返回 { url }
+            putObject(key, buffer,
+              { contentType: "image/png",
+                cacheControl: "public, max-age=31536000" })
+               └─ 返回 { url }（OSS 直接覆盖写，无"已存在"分支）
 ```
 
 ### 微信小程序路径
@@ -145,7 +146,7 @@ pages/index/index?organizationId=<orgId>[&workspaceId=<wsId>]
 
 ### access_token 缓存
 
-模块级变量 `tokenCache: { token, expiresAt }`，过期前 60 秒视为无效并重新获取。同一 Node.js 进程内共享，serverless 冷启动会重新获取，但不超过微信每日限额。
+模块级变量 `tokenCache: { token, expiresAt }`，过期前 60 秒视为无效并重新获取。同一 Node.js 进程内共享，进程重启会重新获取，但不超过微信每日限额（单实例部署；横向扩容前需改为共享缓存，如 Redis）。
 
 ---
 
@@ -186,9 +187,9 @@ pages/index/index?organizationId=<orgId>[&workspaceId=<wsId>]
 
 同一 (org, workspace) 组合同时从两个 Tab 首次请求时：
 
-1. 两个客户端的公开 URL 均 400 → 各自触发 onError 回退。
-2. 两个 Server Action 的 `exists()` 均返回 false，均调用 `getwxacode` 生成。
-3. 先上传的成功；后上传的收到 "Duplicate / Already Exists" 错误 → 视为成功，返回相同 URL。
+1. 两个客户端的公开 URL 均 404 → 各自触发 onError 回退。
+2. 两个 Server Action 的 `headObject()` 均返回 null，均调用 `getwxacode` 生成。
+3. 两次 `putObject()` 都成功（OSS 直接覆盖写，内容相同），返回相同 URL。
 4. 用户无感知，两个 Tab 均正常显示图片。
 
 代价是极端并发下多调一次微信生成接口，可接受。
@@ -214,14 +215,15 @@ pages/index/index?organizationId=<orgId>[&workspaceId=<wsId>]
 |------|------|
 | `WECHAT_APPID` | 微信小程序 AppID |
 | `WECHAT_APPSECRET` | 微信小程序 AppSecret |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL（客户端拼公开 URL 也依赖它） |
-| `SUPABASE_SERVICE_ROLE_KEY` | 服务端存储操作（绕过 RLS） |
+| `NEXT_PUBLIC_MEDIA_BASE_URL` | 媒体公开域名（客户端拼公开 URL 依赖它） |
+| `OSS_BUCKET` / `OSS_REGION` | 服务端上传目标 bucket |
+| `ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` | 服务端 OSS 写入凭证（RAM 用户 `sanlin-app`） |
 
 ---
 
 ## 排查备忘
 
-- **HEAD 与 GET 的响应头不同**：对公开对象发 HEAD 请求，Supabase 返回 `cache-control: no-cache`；GET 才返回真实的 `public, max-age=31536000`。用 `curl -I` 验证缓存头会被误导，应使用 GET（浏览器加载图片走 GET，不受影响）。
-- **缺失文件返回 400 而非 404**：storage-js 的 `exists()` 对 400/404 都按"不存在"处理；客户端 `<img>` 的 onError 同样能被 400 触发。
+- **缺失对象返回 404**：OSS 对不存在的 key 返回 404（`NoSuchKey`），`headObject()` 对 404 / `NoSuchKey` 返回 `null`，其余错误抛出；客户端 `<img>` 的 onError 由 404 触发。
+- **历史（Supabase 时期）**：对公开对象发 HEAD 请求返回 `cache-control: no-cache`、GET 才返回真实缓存头；缺失文件返回 400 而非 404。迁移到 OSS 后不再适用。
 - 若需按环境隔离更严格，可将 `WECHAT_QR_ENV_VERSION` 改为读环境变量。
-- 若将来需要"手动刷新二维码"，可在 Server Action 增加 `force?: boolean`，跳过 `exists()` 并以 `upsert: true` 覆盖上传（记得同样带 `cacheControl`，并在返回 URL 上加 `?v=` 让客户端绕过旧缓存）。
+- 若将来需要"手动刷新二维码"，可在 Server Action 增加 `force?: boolean`，跳过 `headObject()` 直接 `putObject()` 覆盖上传（记得同样带 `cacheControl`，并在返回 URL 上加 `?v=` 让客户端绕过旧缓存）。

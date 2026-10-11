@@ -31,7 +31,7 @@ users.role  user_role  DEFAULT 'user'
 |---|---|---|
 | `owner` | 拥有者，组织内最高权限 | — |
 | `admin` | 管理员，可管理成员和工作区，但不能操作拥有者 | — |
-| `member` | 普通成员，只读访问 | ✅ |
+| `member` | 普通成员，可读写资产，仅见被分配的工作区 | ✅ |
 | `viewer` | 访客，仅可查看工作区 | — |
 
 ```sql
@@ -50,7 +50,7 @@ organization_member.role  text  DEFAULT 'member'
 - `owner` / `admin`：可见本 org **全部** workspace（无需 assignment 行）；
 - `member` / `viewer`：仅可见有 `workspace_assignment` 行的 workspace。
 
-来源 RPC `get_user_workspaces`。表上有唯一约束 `unique(workspace_id, user_id)`。
+来源：Postgres 函数 `get_user_workspaces`（`db/schema.sql`）。表上有唯一约束 `unique(workspace_id, user_id)`。
 
 ```sql
 workspace_assignment.role  text  DEFAULT 'member'   -- 惰性字段
@@ -77,7 +77,6 @@ workspace_assignment.role  text  DEFAULT 'member'   -- 惰性字段
 | `org.workspaces.edit` | 编辑工作区 / 给成员分配 workspace | ✅ | ✅ | ❌ | ❌ |
 | `org.workspaces.delete` | 删除工作区 | ✅ | ✅ | ❌ | ❌ |
 | `org.assets.write` | 创建 / 编辑 / 删除资产（asset） | ✅ | ✅ | ✅ | ❌ |
-| `org.cleanup` | 废弃素材清理 | ✅ | ✅ | ❌ | ❌ |
 
 > **workspace 管理权已对齐矩阵**：工作区的增删改由 `org.workspaces.*` 判定（owner/admin），
 > 给成员分配 workspace 归入 `org.workspaces.edit`；资产写入由 `org.assets.write` 判定
@@ -112,7 +111,6 @@ workspace_assignment.role  text  DEFAULT 'member'   -- 惰性字段
 | `/admin/settings` | `org.settings` | owner |
 | `/admin/members` | `org.members.view` | owner / admin / member |
 | `/admin/workspaces` | `org.workspaces.view` | owner / admin / member / viewer |
-| `/admin/clean` | `org.cleanup` | owner / admin |
 
 `super_admin` 始终可见所有菜单项。
 
@@ -145,7 +143,7 @@ super_admin (users.role)
 
 organization_member.role
   ├── owner        → 全部权限，唯一可管理其他 owner；见本 org 全部 workspace
-  ├── admin        → 成员管理 + 工作区增删改/分配 + 资产读写 + 清理；见本 org 全部 workspace
+  ├── admin        → 成员管理 + 工作区增删改/分配 + 资产读写；见本 org 全部 workspace
   ├── member       → 查看成员 + 资产读写；仅见被分配的 workspace
   └── viewer       → 纯只读（可看被分配 workspace 的内容，但不可写任何资产）
 ```
@@ -183,6 +181,6 @@ organization_member.role
 | [app/api/organizations/\[id\]/members/route.ts](../app/api/organizations/%5Bid%5D/members/route.ts) | 成员 CRUD API，含 owner 保护逻辑 |
 | [app/api/organizations/\[id\]/invitations/route.ts](../app/api/organizations/%5Bid%5D/invitations/route.ts) | 邀请链接 CRUD |
 | [app/api/invitations/\[token\]/route.ts](../app/api/invitations/%5Btoken%5D/route.ts) | 邀请预览 / 接受（自动同意） |
-| [supabase/migrations/](../supabase/migrations/) | A 自动建 org+默认 workspace / B 邀请表 / C 唯一约束 / D admin 可见性 / E error_log |
+| [db/schema.sql](../db/schema.sql) | 基线结构：`handle_new_user` 自动建 org+默认 workspace / `organization_invitation` / 唯一约束 / `get_user_workspaces` admin 可见性 / `error_log`（原 `supabase/migrations/` 增量已并入） |
 | [app/admin/layout.tsx](../app/admin/layout.tsx) | 侧边栏按角色动态过滤 |
 | [app/super-admin/layout.tsx](../app/super-admin/layout.tsx) | 超级管理员入口，启动时校验 `users.role` |

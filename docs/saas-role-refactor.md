@@ -1,5 +1,7 @@
 # SaaS 化角色/账号体系改造说明（2026-07）
 
+> 状态（2026-10-01 阿里云迁移后）：本文描述的角色矩阵、邀请机制、资产写入服务端化、错误处理与观测仍然有效。涉及 Supabase 的实现细节已被替换：数据层改为 Kysely（`lib/db`），认证改为 Better Auth（`lib/auth`），`getUserContext` / `logError` 不再接收 client 参数，`lib/supabase/proxy.ts` 变为根目录 `proxy.ts`，文末迁移文件已并入 `db/schema.sql` 基线。数据库不再有匿名入口，权限统一在应用层判定（无 RLS），见 `docs/data-layer.md`。
+
 本次把账号权限体系向常规 SaaS（如 Supabase）靠拢，并补齐了一套错误处理与观测基建。本文档说明**所有新机制**及其入口。权限矩阵的角色对照见 [permissions.md](./permissions.md)，本文侧重「新增了什么、怎么工作」。
 
 ---
@@ -63,7 +65,7 @@ created_at, expires_at?(可空=永不过期), revoked(bool), use_count
 - **admin 可见本 org 全部 workspace**：`get_user_workspaces` 的「见全部」条件从 `role='owner'` 扩到 `role IN ('owner','admin')`；member/viewer 仍只见被分配的（`workspace_assignment` 行决定可见性，`role` 列惰性不参与鉴权）。
 - **viewer 纯只读**：不能创建/编辑/删除**资产**。
 
-服务端鉴权统一走共享 helper `lib/permissions.server.ts` 的 `getUserContext(supabase,userId,orgId)`、`getWorkspaceOrgId(s)`。
+服务端鉴权统一走共享 helper `lib/permissions.server.ts` 的 `getUserContext(userId, orgId)`（原带 supabase client 参数，迁移后已去掉）、`getWorkspaceOrgId(s)`。
 
 - 迁移：`*_admin_workspace_visibility.sql`
 
@@ -92,7 +94,7 @@ created_at, expires_at?(可空=永不过期), revoked(bool), use_count
 - 说明：**不** hook `console.error`（抛出的错误已被 `window.error` 抓到，重复 hook 会双报+噪声）。
 
 ### 服务端：`lib/log-error.ts` + `public.error_log`
-- `logError(supabase, entry)` / `logErrorSafe(entry)`（后者自建 client，可在 catch 里直接用）。**fire-and-forget，永不抛错**。
+- `logError(entry)`（`logErrorSafe` 现为同一函数的别名；原带 supabase client 参数）。**fire-and-forget，永不抛错**。
 - 所有 API 路由的 catch(500) 与权限拒绝(403) 前调用，写 `error_log`（`scope='api'`）。
 - `POST /api/errors`：客户端错误 sink，写 `scope='client'`。**不强制登录**（登录记 `user_id`，否则 null），以覆盖公开页崩溃；字段白名单+截断。
 
@@ -136,7 +138,7 @@ id, created_at, user_id?, scope('api'|'client'), method, path, status, message, 
 
 ---
 
-## 迁移清单（`supabase/migrations/`，均已 apply 到远端）
+## 迁移清单（原 `supabase/migrations/`，均已 apply；2026-10 起并入 `db/schema.sql` 基线，该目录仅作存档）
 
 | 文件 | 作用 |
 |---|---|
@@ -152,8 +154,8 @@ id, created_at, user_id?, scope('api'|'client'), method, path, status, message, 
 
 **新增**：`lib/permissions.server.ts`、`lib/fetch-json.ts`、`lib/log-error.ts`、`lib/safe-next.ts`、`components/ui/sonner.tsx`、`components/error-reporter.tsx`、`app/global-error.tsx`、`app/invite/[token]/*`、`app/admin/members/components/InviteLinkDialog.tsx`、`app/api/organizations/[id]/invitations/route.ts`、`app/api/invitations/[token]/route.ts`、`app/api/users/search/route.ts`、`app/api/errors/route.ts`。
 
-**改动**：`lib/permissions.ts`（+`org.assets.write`）、`lib/supabase/proxy.ts`（放行 `/invite`、`/api/errors`）、`lib/upload/service.ts`（改走服务端创建资产）、各 org/workspace/asset 相关 API 路由（矩阵鉴权 + `logError`）、各写操作组件（改走 `fetchJson`）、`app/layout.tsx`（Toaster + ErrorReporter + Suspense）。
+**改动**：`lib/permissions.ts`（+`org.assets.write`）、`lib/supabase/proxy.ts`（现为根目录 `proxy.ts`；放行 `/invite`、`/api/errors`）、`lib/upload/service.ts`（改走服务端创建资产）、各 org/workspace/asset 相关 API 路由（矩阵鉴权 + `logError`）、各写操作组件（改走 `fetchJson`）、`app/layout.tsx`（Toaster + ErrorReporter + Suspense）。
 
 ## 本阶段未做（后续）
-- **RLS 仍关闭**：所有鉴权在 app 层，匿名直连 DB 可绕过——最需要后续用 RLS 收口。
+- **RLS 仍关闭**：所有鉴权在 app 层，匿名直连 DB 可绕过——最需要后续用 RLS 收口。（2026-10 迁移后已无匿名直连入口：数据库只有应用一个连接，不再使用 RLS，见 `docs/data-layer.md`。）
 - 存量用户不回填个人 org；super-admin「查看所有组织」将随用户数线性膨胀（后续加分页/搜索）。

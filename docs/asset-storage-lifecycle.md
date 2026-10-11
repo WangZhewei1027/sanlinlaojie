@@ -1,6 +1,6 @@
 # Asset 存储生命周期：内容 hash 去重与删除机制
 
-本文档描述 assets 存储桶中文件的完整生命周期：内容 hash 去重（组织级；历史数据曾为全局）如何让多个资产共享同一个存储对象，以及在这种共享关系下，各删除路径如何保证"不误删仍被引用的文件、不留下指向已删文件的死链"。
+本文档描述 OSS `assets/` 前缀下文件的完整生命周期：内容 hash 去重（组织级；历史数据曾为全局）如何让多个资产共享同一个存储对象，以及在这种共享关系下，各删除路径如何保证"不误删仍被引用的文件、不留下指向已删文件的死链"。
 
 上传链路的类型配置与处理流程见 [asset-pipeline.md](./asset-pipeline.md)。
 
@@ -10,24 +10,24 @@
 
 ### 1.1 原理
 
-**文件：** `lib/upload/service.ts`、`app/api/assets/by-hash/route.ts`
+**文件：** `lib/upload/service.ts`、`app/api/upload/route.ts`（`app/api/assets/by-hash/route.ts` 是旧的客户端查询接口，上传链路已不再调用）
 
-上传文件时，客户端对**处理/压缩后的最终字节**计算 SHA-256（十六进制串），存入 `asset.content_hash` 列（迁移 `20260712000000_asset_content_hash.sql`，带索引；link/text/anchor 等无文件类型为 NULL）。
+上传文件时，`POST /api/upload` 对**处理/压缩后的最终字节**计算 SHA-256（十六进制串），存入 `asset.content_hash` 列（`db/schema.sql`，索引 `asset_content_hash_idx`；link/text 等无文件类型为 NULL）。
 
 上传流程：
 
 ```
 processFile（压缩/提元数据）
-  → computeContentHash（SHA-256）
-  → GET /api/assets/by-hash?hash=…      ← 查全表是否已有相同内容
-      命中 → 直接复用已有 file_url，跳过存储上传
-      未命中 → 上传到 assets/{userId}/{时间戳-随机串}.{ext}，记录新 URL
-  → 创建 asset 行（file_url + content_hash）
+  → POST /api/upload { file, type, workspace_id }
+      服务端计算 SHA-256，在目标 workspace 所属组织内查 content_hash
+      命中 → 返回已有 file_url（storagePath 为 null），不写入新对象
+      未命中 → 写入 OSS assets/{userId}/{时间戳-随机串}.{ext}，返回新 URL
+  → POST /api/workspaces/[id]/assets 创建 asset 行（file_url + content_hash）
 ```
 
 ### 1.2 去重以组织为边界（历史数据可能跨组织共享）
 
-`by-hash` 查询**限定在目标工作区所属的组织内**：调用方必须传 `workspace_id`，服务端解析其组织并校验成员身份，只匹配同组织资产的 `content_hash`。没有工作区上下文时（如 AssetEditor 的图片替换）直接跳过去重、上传新对象——宁可多存一份，不做错误匹配。
+去重查询**限定在目标工作区所属的组织内**：调用方必须传 `workspace_id`，`/api/upload` 解析其组织并校验成员身份，只匹配同组织资产的 `content_hash`。没有工作区上下文时（如 AssetEditor 的图片替换）直接跳过去重、上传新对象——宁可多存一份，不做错误匹配。
 
 历史上去重曾是全局的（跨组织无边界），因此存量数据中仍存在跨组织共享同一存储对象的资产行。删除路径的引用计数**必须保持全局**（见 §1.3、§3），不得随去重一起收窄，否则会误删历史共享文件。
 
@@ -43,10 +43,10 @@ processFile（压缩/提元数据）
 
 删除存储文件前的唯一判据是引用计数：
 
-- `countFileReferences(url)`：对 `file_url` 与 `metadata->>checkin_url` 各做一次 `count: "exact", head: true` 计数并求和。count 模式不受 PostgREST 1000 行截断影响。
-- `removeStorageFileIfUnreferenced(url, ctx)`：计数为 0 才调 `storage.remove`；失败不抛错，记入 `error_log` 后返回 `"failed"`，残留文件交给全局清扫兜底（见 §3）。
+- `countFileReferences(url)`：一条 `count(*)` 查询统计 `file_url = url OR metadata->>'checkin_url' = url` 的行数。只取数量，不拉行。
+- `removeStorageFileIfUnreferenced(url, ctx)`：计数为 0 才调 `deleteObjects`（OSS）；失败不抛错，记入 `error_log` 后返回 `"failed"`，残留文件交给全局清扫兜底（见 §3）。
 
-批量场景（整组织清除）不逐个 count，而是用 `fetchAllRows` 分页拉全量的批量 `in` 查询（`findStillReferencedUrls`），语义等价。**任何新的删除代码都不得绕过这套引用计数直接删文件。**
+批量场景（整组织清除）不逐个 count，而是用批量 `in` 查询（`findStillReferencedUrls`，`lib/user-deletion.server.ts`）一次拉出仍被引用的 URL，语义等价。**任何新的删除代码都不得绕过这套引用计数直接删文件。**
 
 ---
 
@@ -91,9 +91,9 @@ processFile（压缩/提元数据）
 
 ```
 1. 收集候选文件 URL：完全包含资产的 file_url + checkin_url
-   （fetchAllRows 分页拉全量——行删掉后就查不到了，必须先收集）
-2. RPC purge_organizations：单事务原子删除 包含资产行 / workspace / 组织，
-   剥离跨组织资产的 workspace id（SQL 见 20260714000000_user_deletion_fns.sql）
+   （先拉全量——行删掉后就查不到了，必须先收集）
+2. 函数 purge_organizations：单事务原子删除 包含资产行 / workspace / 组织，
+   剥离跨组织资产的 workspace id（SQL 见 db/schema.sql）
 3. 行删完后，对候选 URL 做 findStillReferencedUrls：
    仍被任何剩余行引用（= 外部组织在用）的 URL 保留，其余批量删除存储文件
 ```
@@ -104,7 +104,7 @@ processFile（压缩/提元数据）
 
 以下问题已在 2026-07 修复，列出以防同类代码再次出现：
 
-1. **引用查询无分页**：旧 `collectDeletableFilePaths` 用 `.in("file_url", batch)` 不分页，命中行数超 1000 时 PostgREST 静默截断，外部引用落在截断尾部会被漏判 → 误删其他组织仍在用的共享文件。**教训：任何拉行做集合判断的查询必须 `fetchAllRows` 分页；只需要数量就用 count 模式。**
+1. **引用查询无分页**：旧 `collectDeletableFilePaths` 用 `.in("file_url", batch)` 不分页，命中行数超 1000 时 PostgREST 静默截断，外部引用落在截断尾部会被漏判 → 误删其他组织仍在用的共享文件。**教训：任何拉行做集合判断的查询必须拉全量（当时靠 `fetchAllRows` 分页；现在直连 Postgres 没有 1000 行截断）；只需要数量就用 count 模式。**
 2. **先删文件后删行**：反向失败会留死链。
 3. **只按 `file_url` 计数**：漏掉 `metadata.checkin_url` 的引用，可能误删仍被 shop 素材使用的打卡图。
 4. **换文件不回收旧文件**：编辑器重传图片只改 `file_url`，旧文件永久泄漏。
@@ -120,12 +120,12 @@ processFile（压缩/提元数据）
 
 ### clean-rows（死链行清理，按 workspace）
 
-分页拉取所选 workspace 下所有带 `file_url` 的资产，逐个确认存储文件是否存在；文件确实不存在的行删除。注意：**列目录失败 ≠ 文件不存在**——storage 瞬时故障时跳过该资产并记入 errors，绝不能把查询失败当成文件缺失而误删行。
+拉取所选 workspace 下所有带 `file_url` 的资产，逐个用 `headObject` 确认存储对象是否存在；文件确实不存在的行删除。注意：**headObject 出错 ≠ 文件不存在**——OSS 瞬时故障时跳过该资产并记入 errors，绝不能把查询失败当成文件缺失而误删行。
 
 ### clean-files（孤儿文件清理，全桶）
 
 ```
-递归列出 assets 桶全部文件（分页 + 子目录下钻）
+列出 OSS 桶 assets/ 前缀下全部对象（listObjects）
   − 全表引用集合（所有行的 file_url + metadata.checkin_url 解析出的桶内路径）
   − 24 小时内的新文件（上传先于行落库，可能是进行中的上传）
   = 孤儿文件 → 删除
@@ -135,9 +135,9 @@ processFile（压缩/提元数据）
 
 ### 孤儿文件的正常来源
 
-- 各删除路径中 `storage.remove` 失败（已记 `error_log`）；
+- 各删除路径中 `deleteObjects` 失败（已记 `error_log`）；
 - 行删除成功后进程中断，文件清理未执行；
-- `cleanup_orphan_orgs` 这类纯 SQL 清理（SQL 删不了 Storage）；
+- `cleanup_orphan_orgs` 这类纯 SQL 清理（SQL 删不了 OSS 对象）；
 - 客户端上传成功但创建 asset 行失败/放弃。
 
 孤儿文件不可见、无害，定期跑一次 clean-files 即可回收。
@@ -146,6 +146,6 @@ processFile（压缩/提元数据）
 
 ## 4. 已知边界
 
-- **TOCTOU 竞态**：引用计数与 `storage.remove` 之间没有事务保护。极端情况下，删除进行中恰有用户 by-hash 命中同一文件（跳过实际上传），新行会指向刚被删除的文件。窗口为毫秒级，实际风险低；彻底解决需要 DB 级锁或独立去重表，目前评估复杂度收益不成比例，接受此风险。clean-files 的 24 小时保护窗已挡住清扫一侧的同类竞态。
-- **去重已收敛到组织级**（2026-08）：by-hash 按 `workspace_id` 解析组织并校验成员身份后才匹配,不再是跨租户探测通道。若未来做私有桶,此前提已满足;但存量的跨组织共享对象仍需全局引用计数保护（见 §1.2）。
+- **TOCTOU 竞态**：引用计数与 `deleteObjects` 之间没有事务保护。极端情况下，删除进行中恰有用户 by-hash 命中同一文件（跳过实际上传），新行会指向刚被删除的文件。窗口为毫秒级，实际风险低；彻底解决需要 DB 级锁或独立去重表，目前评估复杂度收益不成比例，接受此风险。clean-files 的 24 小时保护窗已挡住清扫一侧的同类竞态。
+- **去重已收敛到组织级**（2026-08）：去重（`/api/upload`）按 `workspace_id` 解析组织并校验成员身份后才匹配,不再是跨租户探测通道。若未来做私有桶,此前提已满足;但存量的跨组织共享对象仍需全局引用计数保护（见 §1.2）。
 - **计费归属模糊**：文件存放在首个上传者目录下，后来者零成本引用。若未来按存储量计费，需要另行设计归属模型。

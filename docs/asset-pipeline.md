@@ -27,7 +27,7 @@ type UploadType =
 | 字段 | 说明 |
 |------|------|
 | `file_type: string` | 对应 `UploadType` 值 |
-| `file_url: string \| null` | Supabase Storage URL（非文件类型为 null） |
+| `file_url: string \| null` | OSS 公开 URL（`NEXT_PUBLIC_MEDIA_BASE_URL` + `assets/…`；非文件类型为 null） |
 | `text_content` | 文本/链接/锚点描述等 |
 | `name` | 资源名称（anchor、model、shop 等） |
 | `anchor_id` | 关联锚点 ID |
@@ -60,17 +60,17 @@ interface FileTypeConfig {
 
 | 类型 | accept | maxSize | process | extractMetadata |
 |------|--------|---------|---------|----------------|
-| `image` | `image/*` | 5 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
+| `image` | `image/*` | 5 MB | 压缩至 ≤0.2 MB（JPEG） | GPS + 尺寸 |
 | `video` | mp4/mov/webm/avi/mkv/3gp | 3 MB | 无 | 无 |
-| `audio` | `audio/*` | 3 MB | 转码为 Opus/WebM | 时长、采样率等 |
+| `audio` | `audio/*` | 3 MB | 无（Opus/WebM 压缩暂停用，见 `config.ts` TODO） | 时长、采样率等 |
 | `document` | pdf/doc/docx/txt/md | 5 MB | 无 | 无 |
 | `link` | — | — | — | — |
 | `text` | — | — | — | — |
-| `anchor` | — | — | — | — |
-| `shop` | `image/*` | 5 MB | 压缩至 0.2 质量 | GPS + 尺寸 |
+| `anchor` | jpeg/png/webp | 4 MB | 压缩至 ≤1 MB（JPEG） | GPS |
+| `shop` | `image/*` | 5 MB | 压缩至 ≤0.2 MB（JPEG） | GPS + 尺寸 |
 | `model` | .gltf/.glb | 3 MB | 无 | 无 |
 
-所有 maxSize 均不得超过 assets 存储桶的 `file_size_limit`（5 MiB）；统一入口为 `getEffectiveMaxSizeMB()`（`lib/upload/config.ts`），校验在选择文件时一次性完成。
+所有 maxSize 均不得超过 `STORAGE_MAX_FILE_SIZE_MB`（5 MB，与 `POST /api/upload` 的硬上限 `MAX_UPLOAD_BYTES` 一致）；统一入口为 `getEffectiveMaxSizeMB()`（`lib/upload/config.ts`），校验在选择文件时一次性完成。
 
 辅助函数：
 - `inferUploadType(mimeType)` — 根据 MIME 类型推断 `UploadType`
@@ -87,13 +87,13 @@ interface FileTypeConfig {
 ```
 Organization.allowed_file_types（数据库）
   ↓ 有值 → 使用该数组作为 effectiveTypes
-  ↓ 无值 → 使用 defaultTypes:
+  ↓ 无值 → 使用 DEFAULT_UPLOAD_TYPES（lib/upload/types.ts）:
            [image, video, audio, link, text, anchor, shop]
 
 effectiveTypes → FileTypeSelector（Tab 切换）
 ```
 
-> `model` 不在默认列表中，需组织显式开启。
+> `document` 与 `model` 不在兜底列表中，需组织显式开启；新建组织写入的默认集合来自 `app_config.default_allowed_file_types`（`/super-admin/settings`）。
 
 ### 3.2 上传流程
 
@@ -116,9 +116,10 @@ handleUpload()
   ├── 校验 workspaceId、user
   ├── getFinalLocation() → { location, source }
   ├── 各类型特殊校验（大小、必填字段等）
-  ├── uploadService.uploadToStorage(file, userId)   → Supabase Storage
+  ├── uploadService.uploadToStorage(file, userId, { type, workspaceId })
+  │     → POST /api/upload（服务端按内容 hash 在组织内去重后写入 OSS）
   └── uploadService.saveToDatabase(workspaceId, userId, result)
-        → assets 表插入记录
+        → POST /api/workspaces/[id]/assets 写入 asset 表
 ```
 
 ### 3.3 各类型特殊处理
@@ -232,8 +233,8 @@ FileDropzone / 文本输入
 FILE_TYPE_CONFIGS[type].process?.(file)     ← 压缩/转码
 FILE_TYPE_CONFIGS[type].extractMetadata?.(file)  ← GPS/尺寸/时长
   ↓
-uploadService.uploadToStorage()  →  Supabase Storage
-uploadService.saveToDatabase()   →  assets 表
+uploadService.uploadToStorage()  →  POST /api/upload → OSS
+uploadService.saveToDatabase()   →  POST /api/workspaces/[id]/assets → asset 表
   ↓
 AssetManager（资源列表）
   ↓ 用户点击资源
@@ -250,9 +251,9 @@ getAssetConfig(file_type)
 
 需要新增一种 `file_type` 时，依次检查以下位置：
 
-- [ ] `lib/upload/types.ts` — 加入 `UploadType` 联合类型
+- [ ] `lib/upload/types.ts` — 加入 `UploadType` 联合类型与 `ALL_UPLOAD_TYPES`；按需加入 `DEFAULT_UPLOAD_TYPES`
 - [ ] `lib/upload/config.ts` — 在 `FILE_TYPE_CONFIGS` 添加配置项
 - [ ] `app/manage/config/assetFieldConfig.ts` — 添加 `assetFieldConfig` 条目；如需新 `previewType`，同步扩展联合类型
-- [ ] `app/manage/components/upload/upload-asset-panel.tsx` — 按需加入 `defaultTypes`；如有特殊上传逻辑，在 `handleUpload` 添加分支
+- [ ] `app/manage/components/upload/upload-asset-panel.tsx` — 如有特殊上传逻辑，在 `handleUpload` 添加分支
 - [ ] `app/manage/components/AssetEditor/` — 如需新预览，创建 `Asset{Type}Preview.tsx` 并在 `index.tsx` 中注册
 - [ ] `locales/en.json` + `locales/zh.json` — 添加相关 i18n key

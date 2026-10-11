@@ -57,7 +57,7 @@ Read `lib/permissions.ts` before touching any access-control code.
 - `lib/permissions.server.ts` does the **DB lookups** (`getUserContext(userId, orgId?)`, `getWorkspaceOrgId(s)`). Server-only.
 - Standard API-route pattern: `getSessionUser()` → 401 if none → `getUserContext()` → gate with `isSuperAdmin` / `hasOrgPermission`. See `app/api/assets/move/route.ts` for the canonical example (also shows batching writes into one SQL function call to avoid N requests).
 
-UI gating (sidebar, buttons) uses the pure matrix; **it is not a security boundary** — every mutating API route must re-check server-side. `proxy.ts` (the Next.js middleware — the file is named `proxy.ts`, not `middleware.ts`) only checks for a session cookie and redirects logged-out visitors to `/auth/login`; public prefixes: `/`, `/auth`, `/login`, `/invite`, `/instructions`, `/api/auth`, `/api/errors`, plus the two public matching endpoints.
+UI gating (sidebar, buttons) uses the pure matrix; **it is not a security boundary** — every mutating API route must re-check server-side. `proxy.ts` (the Next.js middleware — the file is named `proxy.ts`, not `middleware.ts`) only checks for a session cookie and redirects logged-out visitors to `/auth/login`; public prefixes: `/`, `/auth`, `/login`, `/invite`, `/instructions`, `/api/auth`, `/api/errors`, `/api/miniapp`, plus the public `/api/assets/[id]/matching` endpoint.
 
 ### The /manage map workspace (core, non-obvious)
 
@@ -71,7 +71,7 @@ UI gating (sidebar, buttons) uses the pure matrix; **it is not a security bounda
 
 ### Upload module (`lib/upload/`)
 
-Config-driven, extensible. `FILE_TYPE_CONFIGS` (`config.ts`) maps each `UploadType` (image/video/audio/document/link/text/anchor/shop/model) to accept rules, max size, and optional `process` / `extractMetadata` hooks. `FileUploadService` (`service.ts`) processes in the browser (images → WebP + EXIF GPS via `lib/exif-reader.ts`, audio via `lib/audio-compression.ts`), posts the file to `/api/upload` (server writes to OSS under `assets/{userId}/…`, reusing an existing object when the content hash already exists in the organization), then creates the asset row through `/api/workspaces/[id]/assets`. Location priority: EXIF GPS > user map-click. To add a file type, extend `types.ts` + `config.ts` (see `lib/upload/README.md`).
+Config-driven, extensible. `FILE_TYPE_CONFIGS` (`config.ts`) maps each `UploadType` (image/video/audio/document/link/text/anchor/shop/model) to accept rules, max size, and optional `process` / `extractMetadata` hooks. `FileUploadService` (`service.ts`) processes in the browser (images → JPEG via `lib/image-compression.ts` + EXIF GPS via `lib/exif-reader.ts`; audio metadata via `lib/audio-compression.ts` — its Opus/WebM compression is currently disabled in `config.ts`), posts the file to `/api/upload` (server writes to OSS under `assets/{userId}/…`, reusing an existing object when the content hash already exists in the organization), then creates the asset row through `/api/workspaces/[id]/assets`. Location priority: EXIF GPS > user map-click. To add a file type, extend `types.ts` + `config.ts` (see `lib/upload/README.md`).
 
 ### Other subsystems
 
@@ -102,7 +102,7 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app (assets carry 
 
 ## Route map
 
-`/` home · `/manage` map workspace (main app) · `/admin/*` org console (members / workspaces / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile. API under `app/api/` (`/api/auth/*` is Better Auth).
+`/` home · `/manage` map workspace (main app) · `/admin/*` org console (members / workspaces / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
 
 ## Reference docs
 
