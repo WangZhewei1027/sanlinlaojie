@@ -9,6 +9,7 @@ import {
   Anchor,
   ShoppingBag,
   Box,
+  Layers,
 } from "lucide-react";
 import { compressImage } from "@/lib/image-compression";
 import { extractGPSFromImage } from "@/lib/exif-reader";
@@ -99,6 +100,13 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
         dimensions: await getImageDimensions(file),
       };
     },
+  },
+  scene: {
+    type: "scene",
+    label: "fileTypes.scene",
+    icon: Layers,
+    accept: ".json",
+    maxSize: 0.25,
   },
   model: {
     type: "model",

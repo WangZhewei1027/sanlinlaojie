@@ -165,6 +165,9 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
           text,
           finalLocation || undefined,
         );
+      } else if (uploadType === "scene") {
+        if (!name.trim()) throw new Error(t("sceneEditor.titleRequired"));
+        created = await uploadService.saveScene(workspaceId, user.id, name, file, finalLocation || undefined);
       } else if (uploadType === "model") {
         if (!file) throw new Error(t("upload.selectFile"));
         if (!validateFileSize(file, getEffectiveMaxSizeMB("model")))
@@ -290,7 +293,7 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
 
     // 处理文件并提取元数据；结果缓存供上传时复用，避免二次压缩/解析
     try {
-      const processedFile = await uploadService.processFile(selectedFile, uploadType === "anchor" ? "anchor" : undefined);
+      const processedFile = await uploadService.processFile(selectedFile, ["anchor", "scene"].includes(uploadType) ? uploadType : undefined);
       setProcessedCache({ source: selectedFile, result: processedFile });
       if (processedFile.gpsSource) {
         locationSelection.setExifLocation(processedFile.gpsSource.location);
@@ -359,13 +362,20 @@ export function UploadAssetPanel({ onUpload }: UploadAssetPanelProps) {
               />
 
               {/* 文件上传 */}
+              {uploadType === "scene" && (
+                <div className="space-y-2">
+                  <Label htmlFor="scene-title">{t("sceneEditor.title")}</Label>
+                  <Input id="scene-title" value={name} onChange={(event) => setName(event.target.value)} placeholder={t("sceneEditor.titlePlaceholder")} disabled={uploading} required />
+                  <Text as="p" variant="bodySm" tone="subdued">{t("sceneEditor.createHint")}</Text>
+                </div>
+              )}
               {isFileType && (
                 <FileDropzone
                   file={file}
                   onFileSelect={processSelectedFile}
                   onFileRemove={handleFileRemove}
                   accept={FILE_TYPE_CONFIGS[uploadType].accept}
-                  label={uploadType === "anchor" ? t("matching.referenceImage") : t("upload.fields.select", {
+                  label={uploadType === "scene" ? t("sceneEditor.importOptional") : uploadType === "anchor" ? t("matching.referenceImage") : t("upload.fields.select", {
                     type: t(FILE_TYPE_CONFIGS[uploadType].label),
                   })}
                   disabled={uploading}

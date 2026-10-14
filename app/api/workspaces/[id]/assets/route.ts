@@ -1,3 +1,6 @@
+import { resolveSceneAsset } from "@/lib/scene/asset.server";
+import { createBlankScene } from "@/lib/scene/protocol";
+import { SceneAssetError } from "@/lib/scene/validate";
 import { trySyncAnchor, referenceUrl } from "@/lib/anchor/embedding.server";
 import { validateAnchorLink } from "@/lib/anchor/access.server";
 import { MatchingError, finiteNumber } from "@/lib/anchor-matching";
@@ -117,6 +120,11 @@ export async function POST(
       finiteNumber(metadata?.latitude, -90, 90, "latitude");
       finiteNumber(metadata?.longitude, -180, 180, "longitude");
     }
+    if (file_type === "scene") {
+      if (typeof name !== "string" || !name.trim()) throw new SceneAssetError("场景必须输入标题");
+      if (file_url || is_huge) throw new SceneAssetError("场景使用 JSON 内容，不支持文件地址或大型模型标记");
+      await resolveSceneAsset(text_content ?? JSON.stringify(createBlankScene()), [workspaceId]);
+    }
     // 白名单字段；workspace_id / created_by 由服务端定，不信任 body
     const insertPayload: Insertable<DB["asset"]> = {
       workspace_id: [workspaceId],
@@ -126,6 +134,7 @@ export async function POST(
     if (name !== undefined) insertPayload.name = name;
     if (file_url !== undefined) insertPayload.file_url = file_url;
     if (text_content !== undefined) insertPayload.text_content = text_content;
+    if (file_type === "scene") insertPayload.text_content = text_content ?? JSON.stringify(createBlankScene());
     // location 为 WKT（如 "POINT(lng lat)"），原样写入，由 Postgres 转成 geometry
     if (location !== undefined) insertPayload.location = location;
     if (tag_ids !== undefined) insertPayload.tag_ids = tag_ids;
@@ -146,6 +155,7 @@ export async function POST(
     await trySyncAnchor(data);
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
+    if (error instanceof SceneAssetError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("创建资产失败:", error);
     await logError({

@@ -13,6 +13,8 @@ import {
   inferUploadType,
   validateFileSize,
 } from "./config";
+import { parseSceneText } from "@/lib/scene/validate";
+import { createBlankScene } from "@/lib/scene/protocol";
 import type { LinkAssetData } from "@/lib/link-asset";
 
 /**
@@ -225,6 +227,20 @@ export class FileUploadService {
         ...(result.checkinUrl ? { checkin_url: result.checkinUrl } : {}),
         ...result.metadata,
       },
+    });
+  }
+
+  /** Import composition JSON through the normal asset create endpoint. */
+  async saveScene(workspaceId: string, userId: string, name: string, file: File | null, location?: LocationData): Promise<UploadedAsset> {
+    if (!name.trim()) throw new Error("场景必须输入标题");
+    if (file && file.size > getEffectiveMaxSizeMB("scene") * 1024 * 1024)
+      throw new Error("场景 JSON 不能超过 256 KiB");
+    const definition = file ? parseSceneText(await file.text()) : createBlankScene();
+    return this.saveToDatabase(workspaceId, userId, {
+      fileType: "scene",
+      name: name.trim(),
+      textContent: JSON.stringify(definition, null, 2),
+      location,
     });
   }
 

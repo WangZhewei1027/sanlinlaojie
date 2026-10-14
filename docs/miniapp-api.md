@@ -22,3 +22,7 @@
 ## 媒体
 
 数据库里的 `file_url` 已经是 OSS 地址；音频素材仍遵循「同目录同名、扩展名换成 `.m4a`」的约定（`assets/audio.js`），新上传的 `.webm` 需运行 `scripts/transcode-webm-to-m4a.ts`。
+
+## Scene 素材
+
+`file_type = "scene"` 使用现有附近/匹配点素材列表。小程序放置时调用 `POST /api/miniapp/assets/scene`，传入 `asset_id` 与 `p_workspace_id` / `p_organization_id`（至少一个），返回当前 composition JSON 和解析后的模型资源。详见 [Scene 素材](./scene-asset.md)。普通素材无需转换，工作空间没有展示模式开关。

@@ -1,14 +1,17 @@
+import { resolveSceneAsset, sceneRevision } from "@/lib/scene/asset.server";
+import { SceneAssetError } from "@/lib/scene/validate";
 import { trySyncAnchor, referenceUrl } from "@/lib/anchor/embedding.server";
 import { validateAnchorLink } from "@/lib/anchor/access.server";
 import { MatchingError, finiteNumber } from "@/lib/anchor-matching";
 import { NextResponse } from "next/server";
 import type { Updateable } from "kysely";
-import { db, type DB } from "@/lib/db";
+import { db, sql, type DB } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import { getWorkspaceOrgIds } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
 import { removeStorageFileIfUnreferenced } from "@/lib/storage-cleanup.server";
+import { UUID_RE } from "@/lib/scene/validate-utils";
 
 interface AssetRow {
   id: string;
@@ -117,6 +120,28 @@ async function authorizeAssetWrite(
   return { ok: true, asset };
 }
 
+/** Dedicated editor data; requires the same permissions as saving the asset. */
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "未授权" }, { status: 401 });
+  if (!UUID_RE.test(id)) return NextResponse.json({ error: "素材 ID 无效" }, { status: 400 });
+  try {
+    const auth = await authorizeAssetWrite(id, user.id, "GET");
+    if (!auth.ok) return auth.response;
+    if (auth.asset.file_type !== "scene") return NextResponse.json({ error: "不是场景素材" }, { status: 400 });
+    const data = await db.selectFrom("asset").select(PATCH_RETURN_COLUMNS).select(sceneRevision.as("scene_revision")).where("id", "=", id).executeTakeFirstOrThrow();
+    const workspaceIds = auth.asset.workspace_id ?? [];
+    const models = workspaceIds.length ? await db.selectFrom("asset")
+      .select(["id", "name", "file_url"]).where("file_type", "=", "model")
+      .where("file_url", "is not", null).where(sql<boolean>`workspace_id @> ${workspaceIds}::uuid[]`).orderBy("name").execute() : [];
+    return NextResponse.json({ data, models }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    await logError({ userId: user.id, method: "GET", path: `/api/assets/${id}`, status: 500, message: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ error: "场景加载失败" }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -155,6 +180,13 @@ export async function PATCH(
         finiteNumber(metadata.latitude ?? auth.asset.metadata?.latitude, -90, 90, "latitude");
         finiteNumber(metadata.longitude ?? auth.asset.metadata?.longitude, -180, 180, "longitude");
       }
+    }
+
+    if (auth.asset.file_type === "scene") {
+      if (name !== undefined && (typeof name !== "string" || !name.trim())) throw new SceneAssetError("场景必须输入标题");
+      if (body.scene_revision !== undefined && (typeof body.scene_revision !== "string" || !/^[a-f0-9]{32}$/.test(body.scene_revision))) throw new SceneAssetError("场景版本无效");
+      if (file_url || is_huge) throw new SceneAssetError("场景使用 JSON 内容，不支持文件地址或大型模型标记");
+      if (text_content !== undefined) await resolveSceneAsset(text_content, auth.asset.workspace_id ?? []);
     }
 
     // 构建更新对象
@@ -233,13 +265,17 @@ export async function PATCH(
             .updateTable("asset")
             .set(updates)
             .where("id", "=", assetId)
+            .$if(auth.asset.file_type === "scene" && body.scene_revision !== undefined, (query) => query.where(sceneRevision, "=", body.scene_revision))
             .returning(PATCH_RETURN_COLUMNS)
-            .executeTakeFirstOrThrow()
+            .returning(sceneRevision.as("scene_revision"))
+            .executeTakeFirst()
         : await db
             .selectFrom("asset")
             .select(PATCH_RETURN_COLUMNS)
             .where("id", "=", assetId)
             .executeTakeFirstOrThrow();
+
+    if (!updatedAsset) return NextResponse.json({ error: "场景已在其他标签页更新，请保留当前内容并重新打开场景。" }, { status: 409 });
 
     // 换文件（编辑器重传图片/打卡图）后回收旧文件：行已指向新 URL，旧 URL 若再无
     // 任何行引用则删除存储对象，避免旧文件永久残留。
@@ -269,6 +305,7 @@ export async function PATCH(
     if (file_url !== undefined && file_url !== auth.asset.file_url) await trySyncAnchor(updatedAsset);
     return NextResponse.json({ data: updatedAsset });
   } catch (error) {
+    if (error instanceof SceneAssetError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("更新资源失败:", error);
     await logError({

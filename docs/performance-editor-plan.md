@@ -1,3 +1,7 @@
+> 当前实现：scene asset 支持标题创建、独立 Theatre.js 编辑页、3D 模型关键帧和 GLB 动画预览；详见 [scene-asset.md](./scene-asset.md)。以下独立 scene/revision 方案为历史草案，不作为本轮实现要求。
+
+> 历史方案：当前实现已收敛为 [Scene 素材](./scene-asset.md)，本文的独立演出/编辑器路线不再是实施要求。
+
 # 自有轻量演出运行时方案：独立 Asset＋演出 JSON
 
 更新日期：2026-10-11

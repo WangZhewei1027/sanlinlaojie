@@ -71,7 +71,7 @@ export function AssetEditor({
   }
 
   const fileName =
-    selectedAsset.file_type === "anchor" && selectedAsset.name
+    ["anchor", "scene"].includes(selectedAsset.file_type) && selectedAsset.name
       ? selectedAsset.name
       : selectedAsset.file_url?.split("/").pop() || t("assetEditor.unnamed");
 
@@ -104,6 +104,7 @@ export function AssetEditor({
             variant="ghost"
             size="sm"
             onClick={handleClose}
+            aria-label={t("common.close")}
             className="ml-2 shrink-0"
           >
             <X className="h-4 w-4" />
@@ -118,11 +119,14 @@ export function AssetEditor({
               isSaving={isSaving}
               canDelete={!!onDeleteAsset}
               onEditStart={() => setIsEditing(true)}
+              editHref={selectedAsset.file_type === "scene" ? `/manage/scenes/${selectedAsset.id}` : undefined}
               onSave={handleSave}
               onCancel={handleCancel}
               onDeleteRequest={() => setShowDeleteDialog(true)}
             />
           )}
+
+          {!readOnly && selectedAsset.file_type === "scene" && !isEditing && <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>{t("sceneEditor.properties")}</Button>}
 
           {/* 基本信息：名称、描述、标签 */}
           {!readOnly && (

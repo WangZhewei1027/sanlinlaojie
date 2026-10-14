@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/server";
-import { db } from "@/lib/db";
+import { db, sql } from "@/lib/db";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
@@ -51,7 +51,8 @@ async function findExistingByHash(
     .select("file_url")
     .where("content_hash", "=", hash)
     .where("file_url", "is not", null)
-    .where("workspace_id", "&&", orgWorkspaceIds)
+    // Bind one PostgreSQL array; a bare JS list becomes ($1, $2, ...) in Kysely.
+    .where(sql<boolean>`workspace_id && ${orgWorkspaceIds}::uuid[]`)
     .limit(1)
     .executeTakeFirst();
   return row?.file_url ?? null;

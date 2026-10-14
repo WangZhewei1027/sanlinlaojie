@@ -9,6 +9,7 @@ interface AssetEditorActionsProps {
   isSaving: boolean;
   canDelete: boolean;
   onEditStart: () => void;
+  editHref?: string;
   onSave: () => void;
   onCancel: () => void;
   onDeleteRequest: () => void;
@@ -19,6 +20,7 @@ export function AssetEditorActions({
   isSaving,
   canDelete,
   onEditStart,
+  editHref,
   onSave,
   onCancel,
   onDeleteRequest,
@@ -39,7 +41,7 @@ export function AssetEditorActions({
       )}
       <div className="flex gap-2 ml-auto">
         {!isEditing ? (
-          <Button size="sm" onClick={onEditStart}>
+          editHref ? <Button size="sm" asChild><a href={editHref} target="_blank" rel="noopener noreferrer"><Edit2 className="h-4 w-4 mr-1" />{t("common.edit")}</a></Button> : <Button size="sm" onClick={onEditStart}>
             <Edit2 className="h-4 w-4 mr-1" />
             {t("common.edit")}
           </Button>

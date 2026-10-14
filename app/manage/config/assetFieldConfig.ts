@@ -172,6 +172,11 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     },
   },
 
+  scene: {
+    editableFields: ["name", "anchor_id", "tag_ids", "location"],
+    previewType: "none",
+  },
+
   // 默认/其他类型
   default: defaultConfig,
 };

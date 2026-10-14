@@ -67,7 +67,7 @@ which is now checked in the route).
 | `.ilike("a", "%x%")` | `.where("a", "ilike", \`%${x}%\`)` |
 | `.or("a.ilike.%x%,b.ilike.%x%")` | `.where((eb) => eb.or([eb("a","ilike",p), eb("b","ilike",p)]))` |
 | `.contains("workspace_id", [id])` (uuid[] ⊇) | `.where(sql<boolean>\`workspace_id @> array[${id}::uuid]\`)` |
-| `.overlaps("workspace_id", ids)` | `.where("workspace_id", "&&", ids)` |
+| `.overlaps("workspace_id", ids)` | `.where(sql<boolean>\`workspace_id && ${ids}::uuid[]\`)` |
 | `.containedBy("workspace_id", ids)` | `.where(sql<boolean>\`workspace_id <@ ${ids}::uuid[]\`)` |
 | `.order("a", { ascending: false })` | `.orderBy("a", "desc")` |
 | `.limit(n)` / `.range(a, b)` | `.limit(n)` / `.limit(b-a+1).offset(a)` |
@@ -94,6 +94,9 @@ Notes
   so timestamps inside nested objects are strings (same as PostgREST).
 - `jsonb` columns: pass objects for inserts/updates as `JSON.stringify(obj)`;
   reads come back parsed. Casting a JS array is enough for `uuid[]`/`text[]`.
+- For PostgreSQL array comparisons (`&&`, `@>`, `<@`), bind arrays through a
+  `sql` template with `::uuid[]`. A bare JS array passed to the three-argument
+  `.where()` becomes a SQL value list, not an array (including one-item lists).
 - `geometry` columns: keep writing the same `POINT(lng lat)` WKT string the
   old code used (`.values({ location: wkt })` — Postgres casts it; existing
   rows have no SRID and the functions apply 4326 themselves) and read with

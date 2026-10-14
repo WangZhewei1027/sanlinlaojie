@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-11T15:44:26.342Z",
+  "title": "Design System: 三林老街 — Scene workbench",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Control Ink",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "Reverse Paper",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Canvas Paper",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Reading Ink",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Quiet Surface — Secondary",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "secondary-foreground": {
+        "role": "neutral",
+        "displayName": "Surface Ink — Secondary",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Quiet Surface — Muted",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Supporting Gray",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "accent": {
+        "role": "neutral",
+        "displayName": "Quiet Surface — Hover",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "accent-foreground": {
+        "role": "neutral",
+        "displayName": "Surface Ink — Hover",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline Gray — Divider",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Hairline Gray — Field",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "ring": {
+        "role": "neutral",
+        "displayName": "Focus Ink",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "success": {
+        "displayName": "Saved Green",
+        "tonalRamp": [
+          "oklch(15% 0.1359 149.93)",
+          "oklch(26% 0.1359 149.93)",
+          "oklch(38% 0.1359 149.93)",
+          "oklch(49% 0.1359 149.93)",
+          "oklch(61% 0.1359 149.93)",
+          "oklch(72% 0.1359 149.93)",
+          "oklch(84% 0.1359 149.93)",
+          "oklch(95% 0.1359 149.93)"
+        ]
+      },
+      "warning": {
+        "displayName": "Unsaved Amber",
+        "tonalRamp": [
+          "oklch(15% 0.1447 49.16)",
+          "oklch(26% 0.1447 49.16)",
+          "oklch(38% 0.1447 49.16)",
+          "oklch(49% 0.1447 49.16)",
+          "oklch(61% 0.1447 49.16)",
+          "oklch(72% 0.1447 49.16)",
+          "oklch(84% 0.1447 49.16)",
+          "oklch(95% 0.1447 49.16)"
+        ]
+      },
+      "destructive": {
+        "displayName": "Critical Red",
+        "tonalRamp": [
+          "oklch(15% 0.2078 25.33)",
+          "oklch(26% 0.2078 25.33)",
+          "oklch(38% 0.2078 25.33)",
+          "oklch(49% 0.2078 25.33)",
+          "oklch(61% 0.2078 25.33)",
+          "oklch(72% 0.2078 25.33)",
+          "oklch(84% 0.2078 25.33)",
+          "oklch(95% 0.2078 25.33)"
+        ]
+      },
+      "destructive-foreground": {
+        "displayName": "Critical Reverse Paper",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Small heading",
+        "purpose": "Stage empty states and loading headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Substantial stage guidance and loading or error text."
+      },
+      "helper": {
+        "displayName": "Supporting UI",
+        "purpose": "Object names and short supporting interface copy."
+      },
+      "label": {
+        "displayName": "Compact label",
+        "purpose": "Dock headings, axes, time and status; headings use semibold."
+      },
+      "control": {
+        "displayName": "Small control",
+        "purpose": "Compact action labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shared-primary",
+        "value": "0 1px 3px rgb(0 0 0 / 0.1), 0 1px 2px rgb(0 0 0 / 0.1)",
+        "purpose": "Existing shared primary button shadow."
+      },
+      {
+        "name": "shared-small",
+        "value": "0 1px 2px rgb(0 0 0 / 0.05)",
+        "purpose": "Existing shared secondary, outline and destructive button shadow."
+      },
+      {
+        "name": "selected-task-marker",
+        "value": "inset 0 -2px hsl(var(--primary))",
+        "purpose": "Selected narrow-screen task marker, not surface elevation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "shared-control-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Shared color transitions; workspace removes transitions under reduced motion."
+      },
+      {
+        "name": "workspace-reduced-motion",
+        "value": "transition: none; animation-duration: .01ms",
+        "purpose": "Reduced-motion CSS override; explicit user-driven 3D playback is separate."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "toolbar-status-placement",
+        "value": "640px"
+      },
+      {
+        "name": "shared-input-type",
+        "value": "768px"
+      },
+      {
+        "name": "task-panel-layout-max",
+        "value": "800px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Save action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "保存",
+      "html": "<button class=\"ds-button-primary\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\"/><path d=\"M17 21v-8H7v8M7 3v5h8\"/></svg>保存</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;padding:0 12px;border:0;border-radius:calc(var(--radius, .5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;line-height:1rem;font-weight:500;color:hsl(var(--primary-foreground, 0 0% 98%));background:hsl(var(--primary, 0 0% 9%));box-shadow:0 1px 3px rgb(0 0 0 / .1), 0 1px 2px rgb(0 0 0 / .1);transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1)}.ds-button-primary:hover{background:hsl(var(--primary, 0 0% 9%) / .9)}.ds-button-primary:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-button-primary:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none}}"
+    },
+    {
+      "name": "Active preview control",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "预览",
+      "html": "<button class=\"ds-button-secondary\" aria-pressed=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>预览</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;padding:0 12px;border:0;border-radius:calc(var(--radius, .5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;line-height:1rem;font-weight:500;color:hsl(var(--foreground, 0 0% 3.9%));background:hsl(var(--secondary, 0 0% 96.1%));box-shadow:0 1px 2px rgb(0 0 0 / .05);transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1)}.ds-button-secondary:hover{background:hsl(var(--secondary, 0 0% 96.1%) / .8)}.ds-button-secondary:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-button-secondary:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){.ds-button-secondary{transition:none}}"
+    },
+    {
+      "name": "Quiet icon action",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "撤销",
+      "html": "<button class=\"ds-button-ghost\" aria-label=\"撤销\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7v6h6\"/><path d=\"M21 17a9 9 0 0 0-9-9H3\"/></svg></button>",
+      "css": ".ds-button-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;width:32px;padding:0;border:0;border-radius:calc(var(--radius, .5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;line-height:1rem;font-weight:500;color:hsl(var(--foreground, 0 0% 3.9%));background:transparent;box-shadow:none;transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1)}.ds-button-ghost:hover{background:hsl(var(--accent, 0 0% 96.1%))}.ds-button-ghost:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-button-ghost:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){.ds-button-ghost{transition:none}}"
+    },
+    {
+      "name": "Empty-stage action",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "添加模型",
+      "html": "<button class=\"ds-button-outline\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg>添加模型</button>",
+      "css": ".ds-button-outline{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:8px 16px;border:1px solid hsl(var(--input, 0 0% 89.8%));border-radius:calc(var(--radius, .5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.875rem;line-height:1.25rem;font-weight:500;color:hsl(var(--foreground, 0 0% 3.9%));background:hsl(var(--background, 0 0% 100%));box-shadow:0 1px 2px rgb(0 0 0 / .05);transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1)}.ds-button-outline:hover{background:hsl(var(--accent, 0 0% 96.1%))}.ds-button-outline:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-button-outline:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){.ds-button-outline{transition:none}}"
+    },
+    {
+      "name": "Active recording",
+      "kind": "button",
+      "refersTo": "button-record-active",
+      "description": "录制关键帧",
+      "html": "<button class=\"ds-button-record-active\" aria-label=\"录制关键帧\" aria-pressed=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\"/></svg></button>",
+      "css": ".ds-button-record-active{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;width:32px;padding:0;border:0;border-radius:calc(var(--radius, .5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;line-height:1rem;font-weight:500;color:hsl(var(--destructive-foreground, 0 0% 98%));background:hsl(var(--destructive, 0 84.2% 60.2%));box-shadow:0 1px 2px rgb(0 0 0 / .05);transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1)}.ds-button-record-active:hover{background:hsl(var(--destructive, 0 84.2% 60.2%) / .9)}.ds-button-record-active:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-button-record-active:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){.ds-button-record-active{transition:none}}"
+    },
+    {
+      "name": "Numeric transform field",
+      "kind": "input",
+      "refersTo": "input-number",
+      "description": "Named, shadowless numeric control with tabular values; application commits complete edits on blur or Enter.",
+      "html": "<label class=\"ds-number-label\">X<input class=\"ds-number\" type=\"number\" aria-label=\"位置 X\" value=\"1.25\" step=\"0.1\" min=\"-100\" max=\"100\" /></label>",
+      "css": ".ds-number-label{display:flex;align-items:center;gap:4px;width:128px;color:hsl(var(--muted-foreground, 0 0% 45.1%));font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem}.ds-number{width:88px;min-width:0;height:32px;padding:4px 8px;border:1px solid hsl(var(--input, 0 0% 89.8%));border-radius:calc(var(--radius,.5rem) - 2px);font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:1rem;line-height:1.5rem;font-variant-numeric:tabular-nums;color:hsl(var(--foreground, 0 0% 3.9%));background:transparent;box-shadow:none;appearance:textfield}.ds-number::-webkit-inner-spin-button{appearance:none}.ds-number:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-number:disabled{opacity:.5;cursor:not-allowed}@media(min-width:768px){.ds-number{font-size:.875rem;line-height:1.25rem}}"
+    },
+    {
+      "name": "Narrow-screen task navigation",
+      "kind": "nav",
+      "refersTo": "task-navigation",
+      "description": "Four equal-width task buttons replace simultaneous docks on narrow screens.",
+      "html": "<nav class=\"ds-task-nav\" aria-label=\"编辑面板\"><button class=\"ds-task\" aria-pressed=\"true\">场景</button><button class=\"ds-task\" aria-pressed=\"false\">对象</button><button class=\"ds-task\" aria-pressed=\"false\">检查器</button><button class=\"ds-task\" aria-pressed=\"false\">时间轴</button></nav>",
+      "css": ".ds-task-nav{display:flex;height:40px;border-bottom:1px solid hsl(var(--border, 0 0% 89.8%));background:hsl(var(--background, 0 0% 100%));color:hsl(var(--foreground, 0 0% 3.9%))}.ds-task{flex:1;border:0;border-radius:0;padding:0 12px;font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;font-weight:500;color:inherit;background:transparent}.ds-task:hover{background:hsl(var(--accent, 0 0% 96.1%))}.ds-task[aria-pressed=true]{background:hsl(var(--primary, 0 0% 9%) / .08);box-shadow:inset 0 -2px hsl(var(--primary, 0 0% 9%))}.ds-task:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}"
+    },
+    {
+      "name": "Hierarchy dock",
+      "kind": "custom",
+      "refersTo": "dock-panel",
+      "description": "Hierarchy and draggable library row with an 8px accessible resize edge. The app uses react-grid-layout, adaptive bounds, and camera-ground placement for known library models; this is a static control sample.",
+      "html": "<section class=\"ds-dock\" aria-label=\"层级\"><h2 class=\"ds-dock-heading\">层级</h2><div role=\"listbox\" aria-label=\"对象\"><button class=\"ds-object\" role=\"option\" aria-selected=\"true\">舞者</button><button class=\"ds-object\" role=\"option\" aria-selected=\"false\">舞台</button></div><div class=\"ds-library-row\" draggable=\"true\" title=\"拖入场景放置\">舞者模型<button class=\"ds-library-add\" aria-label=\"添加舞者模型\" draggable=\"false\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></div><div class=\"ds-dock-resizer\" role=\"separator\" tabindex=\"0\" aria-label=\"调整层级面板宽度\" aria-orientation=\"vertical\" aria-valuemin=\"180\" aria-valuemax=\"420\" aria-valuenow=\"232\"></div></section>",
+      "css": ".ds-dock{position:relative;width:232px;border-right:1px solid hsl(var(--border, 0 0% 89.8%));color:hsl(var(--foreground, 0 0% 3.9%));background:hsl(var(--background, 0 0% 100%));font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif}.ds-dock-heading{display:flex;align-items:center;height:36px;margin:0;padding:0 12px;border-bottom:1px solid hsl(var(--border, 0 0% 89.8%));background:hsl(var(--muted, 0 0% 96.1%));font-size:.75rem;line-height:1.5;font-weight:600}.ds-object{display:flex;align-items:center;width:100%;height:34px;padding:0 12px 0 30px;text-align:left;border:1px solid transparent;background:transparent;color:inherit;font-family:inherit;font-size:.875rem;line-height:1.5}.ds-object:hover{background:hsl(var(--muted, 0 0% 96.1%))}.ds-object[aria-selected=true]{background:hsl(var(--primary, 0 0% 9%) / .09);border-color:hsl(var(--primary, 0 0% 9%) / .18)}.ds-object:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-dock-resizer{position:absolute;z-index:10;top:0;bottom:0;right:-4px;width:8px;height:100%;padding:0;touch-action:none;cursor:col-resize}.ds-dock-resizer:hover,.ds-dock-resizer:focus-visible{background-color:hsl(var(--primary, 0 0% 9%) / .15)}.ds-dock-resizer:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-dock-resizer::after{content:\"\";position:absolute;top:50%;left:50%;width:3px;height:28px;border:0;border-radius:2px;background:hsl(var(--muted-foreground, 0 0% 45.1%) / .5);transform:translate(-50%,-50%)}.ds-library-row{display:flex;align-items:center;gap:8px;min-height:38px;padding-left:6px;border-top:1px solid hsl(var(--border, 0 0% 89.8%));font-size:.875rem;cursor:grab;user-select:none}.ds-library-row:hover{background:hsl(var(--muted, 0 0% 96.1%))}.ds-library-row:active{cursor:grabbing}.ds-library-add{display:grid;place-items:center;width:32px;height:32px;margin-left:auto;border:0;border-radius:6px;color:inherit;background:transparent;cursor:pointer}.ds-library-add:hover{background:hsl(var(--accent, 0 0% 96.1%))}.ds-library-add:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}"
+    },
+    {
+      "name": "Grouped transform key",
+      "kind": "custom",
+      "refersTo": "timeline-key",
+      "description": "Diamond marker for one transform group at a shared playhead time; static preview of the control.",
+      "html": "<div class=\"ds-key-lane\"><button class=\"ds-key\" aria-label=\"舞者 · 位置 · 2.00 s\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3 21 12 12 21 3 12Z\" fill=\"currentColor\"/></svg></button><span class=\"ds-key-playhead\"></span></div>",
+      "css": ".ds-key-lane{position:relative;height:30px;border-bottom:1px solid hsl(var(--border, 0 0% 89.8%) / .6);background:hsl(var(--background, 0 0% 100%))}.ds-key{position:absolute;left:50%;top:0;width:26px;height:29px;display:grid;place-items:center;transform:translateX(-50%);z-index:3;border:0;padding:0;background:transparent;color:hsl(var(--primary, 0 0% 9%));cursor:ew-resize;touch-action:none}.ds-key svg{width:12px;height:12px}.ds-key:hover{background:hsl(var(--primary, 0 0% 9%) / .12)}.ds-key:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px;border-radius:3px}.ds-key-playhead{position:absolute;left:50%;inset-block:0;width:1px;background:hsl(var(--primary, 0 0% 9%) / .65);pointer-events:none}"
+    },
+    {
+      "name": "GLB animation clip",
+      "kind": "custom",
+      "refersTo": "animation-clip",
+      "description": "Clip shown during a drag draft. The app preserves grab offset, uses zoom-aware 30fps snapping, commits once on release, cancels on Escape or pointer cancellation, and supports one-frame arrows or ten frames with Shift.",
+      "html": "<div class=\"ds-clip-lane\"><button class=\"ds-clip\" data-dragging=\"true\" aria-label=\"Walk · 1.00 s\">Walk<span class=\"ds-clip-time\">1.00 s</span></button></div>",
+      "css": ".ds-clip-lane{position:relative;height:30px;border-bottom:1px solid hsl(var(--border, 0 0% 89.8%) / .6);background:hsl(var(--background, 0 0% 100%))}.ds-clip{position:absolute;left:10%;top:3px;display:flex;align-items:center;gap:6px;width:60%;height:24px;min-width:8px;overflow:visible;padding:0 6px;touch-action:none;cursor:grab;user-select:none;text-align:left;background:hsl(var(--primary, 0 0% 9%) / .1);color:hsl(var(--foreground, 0 0% 3.9%));border:1px solid hsl(var(--primary, 0 0% 9%) / .3);border-radius:3px;font-family:var(--font-geist-sans, Geist), \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans SC\", ui-sans-serif, system-ui, sans-serif;font-size:.75rem;line-height:1.5}.ds-clip:focus-visible{outline:2px solid hsl(var(--ring, 0 0% 3.9%));outline-offset:-2px}.ds-clip[data-dragging=true]{cursor:grabbing;z-index:5;outline:1px solid hsl(var(--primary, 0 0% 9%))}.ds-clip-time{position:absolute;left:0;bottom:calc(100% + 4px);padding:2px 6px;border-radius:3px;background:hsl(var(--foreground, 0 0% 3.9%));color:hsl(var(--background, 0 0% 100%));font-size:.75rem;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Unity/Timeline workbench",
+    "overview": "This is the scoped design record for `app/manage/scenes`, covering the scene asset editor at `/manage/scenes/[id]`. It inherits the management console's neutral semantic colors, Geist and Chinese system-font stack, and shared controls. It adds a compact authoring composition: persistent docks, explicit tools, and a timeline connected to the same selected object and current time.\n\nThe visual character is quiet, precise, and dense. Tonal panels and hairline boundaries keep the real 3D subject prominent. Desktop supports simultaneous authoring; narrow screens expose one task panel at a time for preview and basic editing. Selection, playback, and save state remain legible as the layout changes.\n\nThis local record does not replace [the global design system](../../../docs/design-system.md) or [PRODUCT.md](../../../PRODUCT.md). The confirmed Unity/Timeline direction and narrow-scope workflow exemption remain in [the surface brief](../../../.impeccable/surfaces/app-manage-scenes-components-sceneeditor-tsx.md). The implemented sources, especially [scene-editor.css](components/scene-editor.css), govern actual geometry. Frontmatter records the inherited default light-theme values; production continues to resolve shared CSS variables from [globals.css](../../globals.css). Dark-theme readiness is not claimed by this documentation. The sidecar’s synthesized tonal ramps are display metadata, not additional runtime palette tokens.",
+    "keyCharacteristics": [
+      "Neutral semantic surfaces with restrained selection tints.",
+      "One selected instance and one current time across the authoring panes.",
+      "Flat, resizable desktop docks and task-based narrow-screen navigation.",
+      "Compact named controls, precise numeric inputs, and visible save status."
+    ],
+    "rules": [
+      {
+        "name": "The Shared Palette Rule",
+        "body": "Scene chrome resolves the existing semantic color variables. Do not establish a parallel scene brand palette from viewport helper colors or model materials.",
+        "section": "colors"
+      },
+      {
+        "name": "The Microtext Rule",
+        "body": "Compact labels describe controls and values; they are not a template for long prose. Preserve the shared Text component's role and tone APIs when adding explanatory content.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Selection, One Time Rule",
+        "body": "Hierarchy, viewport, inspector, and timeline reflect the same instance selection and playhead. Changing panels must not create an independent editing context.",
+        "section": "layout"
+      },
+      {
+        "name": "The Visible Save Rule",
+        "body": "Saved, unsaved, and saving feedback stays in the header at every supported width, including preview and task-panel views.",
+        "section": "layout"
+      },
+      {
+        "name": "The Docked Surface Rule",
+        "body": "Keep core authoring controls within their panes. The native Theatre floating editor is hidden for this workbench; avoid stacking another inspector or timeline over the scene.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do inherit global semantic tokens, shared controls, and the existing bilingual font stack.",
+      "Do keep selection and current time consistent across every pane and task tab.",
+      "Do keep save state visible as text and a status marker at narrow widths.",
+      "Do preserve named controls, visible focus, numeric editing, and keyboard timeline operations.",
+      "Do document new component states in props-driven Storybook stories alongside the implementation."
+    ],
+    "donts": [
+      "Don't replace the global management design system with this scoped workbench composition.",
+      "Don't reintroduce a floating Theatre editor stack over the docked workbench.",
+      "Don't treat model materials or hardcoded 3D helper colors as reusable interface palette tokens.",
+      "Don't hide authoring state to fit a narrow screen; use the existing task panels and timeline scrolling.",
+      "Don't infer mesh editing, audio/video sequencing, Unity file interoperability, or a standalone curve editor from the Unity/Timeline reference."
+    ]
+  }
+}

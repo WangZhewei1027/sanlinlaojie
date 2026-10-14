@@ -75,6 +75,23 @@ export function useAssetEditor({
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
 
+  useEffect(() => {
+    if (selectedAsset?.file_type !== "scene" || isEditing) return;
+    const controller = new AbortController();
+    const channel = new BroadcastChannel("scene-assets");
+    channel.onmessage = async (event) => {
+      if (event.data?.id !== selectedAssetId) return;
+      try {
+        const response = await fetch(`/api/assets/${selectedAssetId}`, { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) return;
+        const { data } = await response.json();
+        useManageStore.getState().updateAsset(data.id, data);
+      } catch { /* The normal refresh action remains available if the tab closed. */ }
+    };
+    return () => { controller.abort(); channel.close(); };
+  }, [selectedAssetId, selectedAsset?.file_type, isEditing]);
+
+
   const assetConfig = useMemo(() => {
     return selectedAsset ? getAssetConfig(selectedAsset.file_type) : null;
   }, [selectedAsset]);

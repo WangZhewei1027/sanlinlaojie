@@ -45,7 +45,7 @@ export function AssetEditorBasicsSection({
 
   const isAnchorLike = assetConfig?.previewType === "anchor";
   const showName = isFieldEditable(asset.file_type, "name");
-  const showText = isFieldEditable(asset.file_type, "text_content");
+  const showText = asset.file_type !== "scene" && isFieldEditable(asset.file_type, "text_content");
   const showLink = isFieldEditable(asset.file_type, "link_url");
   const canShowTags = isFieldEditable(asset.file_type, "tag_ids");
 
@@ -78,6 +78,7 @@ export function AssetEditorBasicsSection({
         />
       )}
 
+      {asset.file_type === "scene" && <Text as="p" variant="bodySm" tone="subdued">{t("sceneEditor.openHint")}</Text>}
       {showText && (
         <AssetTextEditor
           textContent={asset.text_content}

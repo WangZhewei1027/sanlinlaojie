@@ -23,7 +23,8 @@ export type UploadType =
   | "text"
   | "anchor"
   | "shop"
-  | "model";
+  | "model"
+  | "scene";
 
 /** 全部上传类型（服务端校验用；本模块无浏览器依赖，路由可安全导入） */
 export const ALL_UPLOAD_TYPES: UploadType[] = [
@@ -36,11 +37,12 @@ export const ALL_UPLOAD_TYPES: UploadType[] = [
   "anchor",
   "shop",
   "model",
+  "scene",
 ];
 
 /**
  * organization.allowed_file_types 为 null 时生效的兜底集合。
- * 注意：不含 document / model —— 这两类需要组织显式开启。
+ * 注意：不含 document / model / scene —— 这些类型需要组织显式开启。
  * 新组织的默认集合以 app_config.default_allowed_file_types 为准
  * （super-admin 系统设置可改），此常量仅兜历史 null 数据和配置缺失。
  */
