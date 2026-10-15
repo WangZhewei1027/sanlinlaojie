@@ -113,6 +113,19 @@ npm run db:codegen  # 重新生成 lib/db/types.ts
 npm run deploy      # 构建镜像并部署到阿里云服务器（scripts/deploy.sh）
 ```
 
+### 独立 CLI
+
+`sanlin-web-cli` 单独分发，不包含在 Web 项目内。收到安装包后可直接连接线上服务，无需下载本仓库；需要 Node.js 22+。
+
+```bash
+npm install --global ./sanlin-web-cli-0.1.0.tgz
+export SANLIN_BASE_URL=https://your-web.example
+sanlin auth login --account you@example.com
+sanlin --help
+```
+
+支持组织、工作区、素材、上传、场景、用户、标签、日志及通用 API 操作，完整使用说明随独立安装包提供。
+
 ### 组件拆分规范
 
 | 场景 | 放置位置 |

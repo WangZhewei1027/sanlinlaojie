@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sql } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
 
@@ -40,7 +40,7 @@ export async function GET(
     let query = db
       .selectFrom("asset")
       .selectAll()
-      .where("workspace_id", "&&", workspaceIds);
+      .where(sql<boolean>`workspace_id && ${workspaceIds}::uuid[]`);
 
     if (type) {
       query = query.where("file_type", "=", type);

@@ -55,6 +55,7 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       SITE_DOMAIN: ${SITE_DOMAIN:-}
+      SAGE_GATEWAY_UPSTREAM: ${SAGE_GATEWAY_UPSTREAM:-172.18.0.1:18080}
     ports:
       - "80:80"
       - "443:443"
