@@ -1157,12 +1157,17 @@
       },
       "sceneRoute": {
         "notFound": "场景不存在或你没有访问权限。",
-        "back": "返回工作台"
+        "back": "返回场景"
+      },
+      "nav": {
+        "label": "团队导航",
+        "assets": "基础素材",
+        "scenes": "场景",
+        "collections": "地图合集",
+        "settings": "团队设置"
       }
     },
     "workbench": {
-      "title": "工作台",
-      "subtitle": "{{team}} 的全部素材和场景，团队所有成员都能查看；成员及以上角色可以上传和编辑。",
       "upload": "上传素材",
       "createScene": "新建场景",
       "moreCreate": "更多创建方式",
@@ -1198,23 +1203,19 @@
       "readOnlyOther": "你在这个团队中只能查看。",
       "copied": "已复制为“{{name}}”",
       "empty": {
-        "teamTitle": "团队还没有内容",
-        "teamBody": "上传图片、3D 模型、音频等素材，或新建场景开始编排。添加的内容整个团队都能看到。",
-        "viewerBody": "团队成员上传素材或新建场景后，会显示在这里。",
         "sceneTitle": "还没有场景",
         "sceneBody": "新建场景后，在编辑器中添加模型、编排动画并发布。发布后就能放进任意地图合集。",
         "typeTitle": "还没有{{type}}",
         "assetBody": "上传后会出现在这里，可以直接用于场景和地图合集。",
         "archivedTitle": "没有已归档的内容",
-        "archivedBody": "归档的素材和场景会显示在这里，可以随时恢复。",
         "filteredTitle": "没有符合条件的内容",
         "filteredBody": "换个名称试试，或清除筛选。"
       },
       "shown": "显示 {{shown}} 项，共 {{total}} 项"
     },
     "collections": {
-      "title": "合集",
-      "subtitle": "地图合集决定哪些已发布的场景和素材出现在地图和小程序里。同一个场景可以放进多个合集。",
+      "title": "地图合集",
+      "subtitle": "将素材和已发布场景放到地图上，按合集管理。",
       "kind": {
         "map": "地图合集"
       },
@@ -1255,6 +1256,23 @@
       "save": "保存修改",
       "liveReferences": "素材修改会同步更新地图和场景中的引用。",
       "openAsset": "打开素材详情"
+    },
+    "library": {
+      "team": "团队内容",
+      "browse": "浏览内容",
+      "asset": {
+        "title": "基础素材",
+        "subtitle": "{{team}} 的图片、模型、视频等可复用素材。",
+        "emptyTitle": "还没有基础素材",
+        "viewerBody": "团队成员上传素材后，会显示在这里。",
+        "archivedBody": "已归档的基础素材会显示在这里，可在详情页恢复。"
+      },
+      "scene": {
+        "title": "场景",
+        "subtitle": "{{team}} 的场景作品，可编排、预览并发布到地图合集。",
+        "viewerBody": "团队成员创建场景后，会显示在这里。",
+        "archivedBody": "已归档的场景会显示在这里，可以随时恢复。"
+      }
     }
   }
 }

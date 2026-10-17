@@ -9,7 +9,7 @@ import type { SceneItemActions } from "./WorkbenchItemParts";
 import { WORKBENCH_ROW_GRID, WorkbenchRow } from "./WorkbenchRow";
 import type { ContentLoadStatus, WorkbenchItem, WorkbenchView } from "./types";
 
-export const WORKBENCH_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+export const WORKBENCH_GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
 
 export interface WorkbenchItemsProps {
   view: WorkbenchView;

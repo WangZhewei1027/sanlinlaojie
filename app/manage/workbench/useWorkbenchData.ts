@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AssetFileType, SceneSummaryDto } from "@/lib/content-model/contracts";
-import type { WorkbenchFilters, WorkbenchItem } from "@/app/manage/content/types";
+import type { ContentLibraryKind, WorkbenchFilters, WorkbenchItem } from "@/app/manage/content/types";
 import { organizationApi } from "@/app/manage/lib/content-api";
 import { isLibraryAsset, toWorkbenchAsset, toWorkbenchScene } from "@/app/manage/lib/content-mappers";
 import { useTeamAssets } from "./useTeamAssets";
@@ -32,18 +32,14 @@ function useTeamScenes(organizationId: string | null, state: WorkbenchFilters["s
   };
 }
 
-/**
- * Assets (paged, server-filtered) and scenes (client-filtered) merged into
- * one newest-first list. While older assets are still unloaded, scenes older
- * than the last loaded asset wait, so "load more" never reorders the grid.
- */
-export function useWorkbenchData(organizationId: string | null, filters: WorkbenchFilters, enabled: boolean) {
-  const wantsScenes = filters.type === "all" || filters.type === "scene";
-  const wantsAssets = filters.type !== "scene";
+/** Each library loads only its own content; assets keep server-side pagination. */
+export function useWorkbenchData(organizationId: string | null, kind: ContentLibraryKind, filters: WorkbenchFilters, enabled: boolean) {
+  const wantsScenes = kind === "scene";
+  const wantsAssets = kind === "asset";
   const assets = useTeamAssets({
     organizationId,
     query: filters.query,
-    fileType: filters.type === "all" || filters.type === "scene" ? null : (filters.type as AssetFileType),
+    fileType: filters.type === "all" ? null : (filters.type as AssetFileType),
     state: filters.state,
     enabled: enabled && wantsAssets,
   });
@@ -56,11 +52,8 @@ export function useWorkbenchData(organizationId: string | null, filters: Workben
     const sceneItems = scenes.scenes
       .filter((scene) => scene.state === filters.state && (!query || scene.name.toLowerCase().includes(query)))
       .map((scene) => toWorkbenchScene(scene, NO_PEOPLE));
-    if (!wantsAssets) return sceneItems;
-    const cutoff = assets.hasMore && assetItems.length ? assetItems[assetItems.length - 1].updatedAt : null;
-    return [...assetItems, ...sceneItems.filter((scene) => !cutoff || scene.updatedAt >= cutoff)]
-      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
-  }, [assets.rows, assets.hasMore, scenes.scenes, wantsAssets, wantsScenes, filters.query, filters.state]);
+    return sceneItems;
+  }, [assets.rows, scenes.scenes, wantsAssets, wantsScenes, filters.query, filters.state]);
 
   const sceneCount = useMemo(() => {
     const query = filters.query.trim().toLowerCase();

@@ -30,9 +30,11 @@ export interface TeamSummary {
 
 // ───────────────────────── workbench ─────────────────────────
 
-/** Every kind of team content shown in the one workbench. */
+export type ContentLibraryKind = "asset" | "scene";
+
+/** Content tile shared by the separate asset and scene libraries. */
 export type WorkbenchType = "scene" | ContentAssetType;
-export type WorkbenchTypeFilter = "all" | WorkbenchType;
+export type WorkbenchTypeFilter = "all" | ContentAssetType;
 export type WorkbenchView = "grid" | "list";
 
 export interface WorkbenchItem {

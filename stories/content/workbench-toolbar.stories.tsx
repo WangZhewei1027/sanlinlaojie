@@ -7,12 +7,13 @@ const meta = {
   title: "Manage/Content/Workbench Toolbar",
   component: WorkbenchToolbar,
   parameters: { layout: "padded" },
-  args: { filters: DEFAULT_WORKBENCH_FILTERS, onFiltersChange: noop, view: "grid", onViewChange: noop },
+  args: { kind: "asset", filters: DEFAULT_WORKBENCH_FILTERS, onFiltersChange: noop, view: "grid", onViewChange: noop },
 } satisfies Meta<typeof WorkbenchToolbar>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+export const Scenes: Story = { args: { kind: "scene" } };
 export const SearchingModels: Story = { args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, query: "灯", type: "model" } } };
 export const ArchivedList: Story = { args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, state: "archived" }, view: "list" } };
 export const Narrow: Story = { parameters: { viewport: { defaultViewport: "mobile1" } } };

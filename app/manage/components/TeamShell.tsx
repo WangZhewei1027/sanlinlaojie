@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { isSidebarItemVisible } from "@/lib/permissions";
 import { useManageStore } from "../store";
 import { ContentListSkeleton } from "../content/ContentFeedback";
-import { ContentNav } from "./ContentNav";
+import { TeamFrame } from "./TeamFrame";
 
 /** Whether the current user sees anything under 团队设置 (members or settings). */
 export function useCanSeeTeamSettings() {
@@ -16,14 +16,11 @@ export function useCanSeeTeamSettings() {
 /** Console frame of the team pages: primary navigation, then the page. */
 export function TeamShell({ organizationId, aside, children }: { organizationId: string | null; aside?: ReactNode; children: ReactNode }) {
   const showSettings = useCanSeeTeamSettings();
+  const teamName = useManageStore((state) => state.organizations.find((team) => team.id === organizationId)?.name);
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-        <ContentNav organizationId={organizationId} showSettings={showSettings} />
-        {aside && <div className="flex flex-wrap items-center gap-2">{aside}</div>}
-      </div>
+    <TeamFrame organizationId={organizationId} teamName={teamName} showSettings={showSettings} aside={aside}>
       {children}
-    </main>
+    </TeamFrame>
   );
 }
 

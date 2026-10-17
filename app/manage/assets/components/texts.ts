@@ -32,7 +32,7 @@ export const ASSET_TEXTS: IntegrationTexts = {
   "contentModel.integration.assets.create.uploading": ["正在上传…", "Uploading…"],
   "contentModel.integration.assets.create.creating": ["正在创建素材…", "Creating asset…"],
   // Detail
-  "contentModel.integration.assetDetail.back": ["工作台", "Workbench"],
+  "contentModel.integration.assetDetail.back": ["返回基础素材", "Back to assets"],
   "contentModel.integration.assetDetail.rename": ["重命名", "Rename"],
   "contentModel.integration.assetDetail.renameTitle": ["重命名素材", "Rename asset"],
   "contentModel.integration.assetDetail.renameBody": ["新名称在整个团队同步显示，已有引用不受影响。", "The new name shows across the team; existing references are unaffected."],

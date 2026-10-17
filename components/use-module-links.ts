@@ -12,7 +12,8 @@ import {
 } from "@/lib/permissions";
 import {
   Camera,
-  LayoutGrid,
+  Boxes,
+  Clapperboard,
   MapPinned,
   Settings2,
   Shield,
@@ -23,8 +24,9 @@ import { useTranslation } from "react-i18next";
 
 // Same keys and fallbacks as app/manage/components/ContentNav.tsx.
 const NAV_TEXTS: IntegrationTexts = {
-  "contentModel.integration.nav.workbench": ["工作台", "Workbench"],
-  "contentModel.integration.nav.collections": ["合集", "Collections"],
+  "contentModel.integration.nav.assets": ["基础素材", "Assets"],
+  "contentModel.integration.nav.scenes": ["场景", "Scenes"],
+  "contentModel.integration.nav.collections": ["地图合集", "Map collections"],
   "contentModel.integration.nav.settings": ["团队设置", "Team settings"],
 };
 
@@ -36,8 +38,9 @@ export interface ModuleLink {
 
 /**
  * 登录后导航里的模块入口，按两级权限矩阵门控（仅 UI 显隐，非安全边界）：
- * - /manage                 工作台：团队全部素材与场景（v2/readonly）；旧模型团队仍是旧版素材地图
- * - /manage/collections     合集：团队的地图合集（v2/readonly）
+ * - /manage/collections     地图合集
+ * - /manage/scenes          场景
+ * - /manage/assets          基础素材
  * - /upload-onsite          现场上传：当前团队具备 org.assets.write（member 及以上）
  * - /admin                  团队设置：能看到成员或设置页时显示
  * - /super-admin            仅 super_admin
@@ -75,7 +78,7 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
   if (!enabled) return [];
 
   const superAdmin = isSuperAdmin(globalRole);
-  const links: ModuleLink[] = [{ href: "/manage", label: tx("contentModel.integration.nav.workbench"), Icon: LayoutGrid }];
+  const links: ModuleLink[] = [];
   if (organizationId) {
     links.push({
       href: "/manage/collections",
@@ -83,6 +86,10 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
       Icon: MapPinned,
     });
   }
+  links.push(
+    { href: "/manage/scenes", label: tx("contentModel.integration.nav.scenes"), Icon: Clapperboard },
+    { href: "/manage/assets", label: tx("contentModel.integration.nav.assets"), Icon: Boxes },
+  );
   if (superAdmin || hasOrgPermission(orgRole, "org.assets.write")) {
     links.push({
       href: "/upload-onsite",

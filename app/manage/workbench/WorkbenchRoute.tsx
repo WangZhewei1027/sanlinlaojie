@@ -9,6 +9,7 @@ import {
   ContentWorkbench,
   DEFAULT_WORKBENCH_FILTERS,
   WORKBENCH_TYPE_FILTERS,
+  type ContentLibraryKind,
   type TeamRole,
   type WorkbenchFilters,
   type WorkbenchItem,
@@ -49,21 +50,17 @@ function useWorkbenchView() {
   return [view, change] as const;
 }
 
-/**
- * /manage for a team on content model (or frozen as readonly): every
- * asset and scene of the team. The URL carries the team and the type filter
- * (`?type=scene`), never a workspace.
- */
-export function WorkbenchRoute({ team }: { team: TeamContext }) {
+/** Separate asset and scene libraries; the URL carries only team and asset type. */
+export function WorkbenchRoute({ team, kind }: { team: TeamContext; kind: ContentLibraryKind }) {
   const { t } = useTranslation();
   const tx = useIntegrationText(ASSET_TEXTS);
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const organizationId = team.organizationId as string;
-  // The type filter lives in the URL (nav links, editor back link, back/forward);
+  // The type filter lives in the URL (direct links and back/forward);
   // search text and lifecycle are page-local.
-  const type = readType(params.get("type"));
+  const type = kind === "asset" ? readType(params.get("type")) : "all";
   const [local, setLocal] = useState<Pick<WorkbenchFilters, "query" | "state">>({ query: DEFAULT_WORKBENCH_FILTERS.query, state: DEFAULT_WORKBENCH_FILTERS.state });
   const filters = useMemo<WorkbenchFilters>(() => ({ ...local, type }), [local, type]);
   const [view, setView] = useWorkbenchView();
@@ -71,7 +68,7 @@ export function WorkbenchRoute({ team }: { team: TeamContext }) {
   const [importOpen, setImportOpen] = useState(false);
   const createKey = useRef<string | null>(null);
 
-  const data = useWorkbenchData(organizationId, filters, true);
+  const data = useWorkbenchData(organizationId, kind, filters, true);
   const role = team.organization?.role && TEAM_ROLES.includes(team.organization.role) ? (team.organization.role as TeamRole) : null;
   const canWrite = teamCanWrite({ archivedAt: team.organization?.archived_at, orgRole: team.organization?.role, globalRole: team.currentUserRole });
   const teamName = team.organization?.name ?? tx("contentModel.integration.assets.unknownOrganization");
@@ -106,6 +103,7 @@ export function WorkbenchRoute({ team }: { team: TeamContext }) {
   return (
     <TeamShell organizationId={organizationId}>
       <ContentWorkbench
+        kind={kind}
         team={{ name: teamName, role }}
         filters={filters}
         onFiltersChange={changeFilters}

@@ -9,7 +9,7 @@ export interface BreadcrumbCrumb {
 // segment (e.g. "settings") can resolve differently per console, and
 // dynamic segments (UUIDs, tokens) simply never match.
 const PATH_LABELS: Record<string, string> = {
-  "/manage": "contentModel.integration.nav.workbench",
+  "/manage": "contentModel.integration.nav.assets",
   "/manage/assets": "contentModel.integration.nav.assets",
   "/manage/scenes": "contentModel.integration.nav.scenes",
   "/manage/collections": "contentModel.integration.nav.collections",
@@ -29,10 +29,9 @@ const PATH_LABELS: Record<string, string> = {
 // zh/en fallbacks for label keys the locale files may not carry yet.
 // Same keys and wording as app/manage/components/ContentNav.tsx.
 const LABEL_FALLBACKS: Record<string, readonly [zh: string, en: string]> = {
-  "contentModel.integration.nav.workbench": ["工作台", "Workbench"],
-  "contentModel.integration.nav.assets": ["素材", "Assets"],
+  "contentModel.integration.nav.assets": ["基础素材", "Assets"],
   "contentModel.integration.nav.scenes": ["场景", "Scenes"],
-  "contentModel.integration.nav.collections": ["合集", "Collections"],
+  "contentModel.integration.nav.collections": ["地图合集", "Map collections"],
   "contentModel.integration.nav.settings": ["团队设置", "Team settings"],
 };
 
@@ -53,6 +52,7 @@ export function buildBreadcrumbItems(
   let currentPath = "";
   for (const segment of pathname.split("/").filter(Boolean)) {
     currentPath += `/${segment}`;
+    if (currentPath === "/manage" && pathname !== "/manage") continue;
     const labelKey = PATH_LABELS[currentPath];
     if (labelKey) {
       const fallback = LABEL_FALLBACKS[labelKey];

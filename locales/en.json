@@ -1170,12 +1170,17 @@
       },
       "sceneRoute": {
         "notFound": "Scene not found or you do not have access.",
-        "back": "Back to workbench"
+        "back": "Back to scenes"
+      },
+      "nav": {
+        "label": "Team navigation",
+        "assets": "Assets",
+        "scenes": "Scenes",
+        "collections": "Map collections",
+        "settings": "Team settings"
       }
     },
     "workbench": {
-      "title": "Workbench",
-      "subtitle": "Every asset and scene of {{team}}. Everyone on the team can view them; members and above can upload and edit.",
       "upload": "Upload",
       "createScene": "New scene",
       "moreCreate": "More ways to create",
@@ -1211,23 +1216,19 @@
       "readOnlyOther": "You can only view this team's content.",
       "copied": "Copied as “{{name}}”",
       "empty": {
-        "teamTitle": "Nothing here yet",
-        "teamBody": "Upload images, 3D models, audio and more, or start a scene. Everything you add is visible to the whole team.",
-        "viewerBody": "Assets and scenes appear here once team members add them.",
         "sceneTitle": "No scenes yet",
         "sceneBody": "Create a scene, then add models, animate them and publish. Published scenes can go into any map collection.",
         "typeTitle": "No {{type}} yet",
         "assetBody": "Uploads appear here and can be used right away in scenes and map collections.",
         "archivedTitle": "Nothing archived",
-        "archivedBody": "Archived assets and scenes show up here and can be restored at any time.",
         "filteredTitle": "Nothing matches",
         "filteredBody": "Try another name, or clear the filters."
       },
       "shown": "Showing {{shown}} of {{total}}"
     },
     "collections": {
-      "title": "Collections",
-      "subtitle": "A map collection decides which published scenes and assets appear on the map and in the mini-program. One scene can sit in several collections.",
+      "title": "Map collections",
+      "subtitle": "Organize assets and published scenes on maps.",
       "kind": {
         "map": "Map collection"
       },
@@ -1269,6 +1270,23 @@
       "save": "Save changes",
       "liveReferences": "Asset edits update their references in maps and scenes.",
       "openAsset": "Open asset details"
+    },
+    "library": {
+      "team": "Team content",
+      "browse": "Browse content",
+      "asset": {
+        "title": "Assets",
+        "subtitle": "Reusable images, models, videos and more from {{team}}.",
+        "emptyTitle": "No assets yet",
+        "viewerBody": "Assets appear here once team members upload them.",
+        "archivedBody": "Archived assets appear here. Open an asset to restore it."
+      },
+      "scene": {
+        "title": "Scenes",
+        "subtitle": "Compose, preview and publish scenes from {{team}} to map collections.",
+        "viewerBody": "Scenes appear here once team members create them.",
+        "archivedBody": "Archived scenes appear here and can be restored at any time."
+      }
     }
   }
 }

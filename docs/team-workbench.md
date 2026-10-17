@@ -6,7 +6,7 @@
 
 用户对照登录后的 Kivicube 后确认：
 
-1. 素材与场景共用一个工作台，按类型筛选。
+1. 侧边栏分为地图合集、场景、基础素材三个入口；场景与素材独立浏览。
 2. 团队成员共享全部内容和合集，不再细分项目权限。
 
 由此得到的界面规则：
@@ -20,13 +20,15 @@
 
 ## 2 信息架构
 
-主导航（`app/manage/components/ContentNav.tsx`）：**工作台 / 合集 / 团队设置**。团队切换只在页头面包屑；只有一个团队时也只显示团队名称。
+侧边栏导航（`app/manage/components/ContentNav.tsx`）：**地图合集 / 场景 / 基础素材**，团队设置作为辅助入口。团队切换只在页头面包屑；只有一个团队时也只显示团队名称。
 
 | 路由 | 内容 |
 | --- | --- |
-| `/manage` | 工作台：团队全部素材与场景。缩略图网格（可切换列表），搜索、全部/场景/模型/图片/视频/音频/文字/链接/文档筛选、未归档/已归档、上传素材、新建场景、导入场景 JSON。`?type=scene` 保留筛选。 |
+| `/manage` | 默认进入基础素材，保留 URL 中的团队。 |
+| `/manage/assets` | 基础素材：缩略图网格（可切换列表）、搜索、素材类型下拉筛选、未归档/已归档、上传素材。 |
+| `/manage/scenes` | 场景：独立网格或列表、搜索、未归档/已归档、新建场景、导入场景 JSON。 |
 | `/manage/assets/[id]` | 素材详情：预览、直接编辑内容、使用记录（场景与各合集中的投放）、重命名、另存副本、归档/恢复。 |
-| `/manage/scenes/[id]` | 场景编辑器：团队模型选择器（本场景 / 团队模型）、保存、发布（可同时更新任意合集中的投放）。返回工作台的场景筛选。 |
+| `/manage/scenes/[id]` | 场景编辑器：团队模型选择器（本场景 / 团队模型）、保存、发布（可同时更新任意合集中的投放）。返回场景列表。 |
 | `/manage/collections` | 合集列表：新建、编辑、归档/恢复地图合集；页头提供团队级小程序二维码（原“全部项目”二维码）。 |
 | `/manage/collections/[id]` | 合集地图：原 PlacementMapView/Cesium 布局，顶部细栏显示返回、合集名、归档状态和该合集的小程序二维码。选择与多选只在本页有效。 |
 | `/upload-onsite` | 现场上传：在页面内选择团队和一个地图合集（本页局部状态），确认位置后一步上传并投放。链接指定的合集（`collectionId`/`workspaceId`）不会被替换：已归档或不存在时提示原因并要求重新选择；只有未指定目标时才自动选中团队唯一的合集。 |
@@ -50,7 +52,7 @@
 | 合集地图 | `/api/collections/[collectionId]/placements` 与 `/api/placements/**`；来源选择器读取团队全部素材和已发布场景 |
 | 现场上传 | 回执带 `organization_id` + 合集 `workspace_id`，再 `POST /api/collections/[collectionId]/placements` |
 
-工作台把分页素材与场景合并为“最近更新在前”的一个列表：素材尚未加载完时，比已加载最后一个素材更旧的场景先不显示，保证“加载更多”不会打乱已显示的顺序。
+基础素材页只加载分页素材，场景页只加载场景；两者均按最近更新排序。桌面侧边栏常驻，窄屏通过“浏览内容”展开抽屉；详情返回各自列表，地图与场景编辑器保留完整编辑空间。
 
 ## 4 权限在前端的表达
 
@@ -61,9 +63,9 @@
 
 ## 5 团队上下文与资源归属
 
-- 工作台的类型筛选以 URL `?type=` 为准；导航“工作台”链接、编辑器返回链接和浏览器前进/后退都会同步筛选。
+- 基础素材类型筛选以 URL `?type=` 为准；场景通过独立路由区分，不属于素材类型筛选。
 - 切换团队时，页头同步只改写 `organizationId`，并删除 `workspaceId`，绝不把新团队默认的第一个合集写进 URL。工作台、合集列表因此留在原页面。
-- 合集详情、素材详情、场景编辑器由资源自身的团队决定上下文（`useResourceTeam()`）：首次加载时若 URL 缺少或指向别的团队，先把 URL 改为资源所属团队，由页头同步切换团队；两者一致前只显示加载状态，不渲染可操作内容。之后用户在页头切换团队，视为离开该资源：合集详情回到新团队的合集列表，素材与场景回到新团队的工作台。super_admin 查看不在自己团队列表中的资源时，页头无法显示该团队，团队列表加载完成后直接显示内容。
+- 合集详情、素材详情、场景编辑器由资源自身的团队决定上下文（`useResourceTeam()`）：首次加载时若 URL 缺少或指向别的团队，先把 URL 改为资源所属团队，由页头同步切换团队；两者一致前只显示加载状态，不渲染可操作内容。之后用户在页头切换团队，视为离开该资源：合集详情回到新团队的合集列表，素材与场景分别回到新团队的基础素材和场景列表。super_admin 查看不在自己团队列表中的资源时，页头无法显示该团队，团队列表加载完成后直接显示内容。
 - 合集恢复或归档后，地图会重新挂载并重新读取投放能力，无需手动刷新。
 
 ## 6 单一模型
@@ -76,7 +78,7 @@
 
 展示层位于 `app/manage/content/`，只接收 props 与 `ContentAction` 回调：`ContentWorkbench`、`WorkbenchToolbar`、`WorkbenchItems`、`WorkbenchCard`、`WorkbenchRow`、`WorkbenchEmpty`、`CollectionList`、`CollectionRow`、`CollectionFormDialog`、`CollectionArchiveDialog`、`CollectionHeaderBar`。数据、权限与跳转在 `app/manage/workbench/`、`app/manage/collections/components/` 等路由组件中。
 
-Storybook：`stories/content/content-workbench.stories.tsx`（网格、列表、类型筛选、归档、查看者只读、团队归档、加载、错误、空团队、无匹配、手机）、`workbench-card`、`workbench-row`、`workbench-toolbar`、`collection-list`、`collection-form-dialog`、`collection-archive-dialog`、`collection-header-bar`，以及 `stories/manage/content-integration/content-nav.stories.tsx`。
+Storybook：`stories/content/content-workbench.stories.tsx`（网格、列表、类型筛选、归档、查看者只读、团队归档、加载、错误、空团队、无匹配、手机）、`workbench-card`、`workbench-row`、`workbench-toolbar`、`collection-list`、`collection-form-dialog`、`collection-archive-dialog`、`collection-header-bar`，以及 `stories/manage/content-integration/content-nav.stories.tsx` 和 `team-frame.stories.tsx`（三类页面、空态、只读、英文、窄屏）。
 
 已删除的展示组件：素材库行与工具栏、场景列表、项目上下文行、素材共享/授权面板、维护者转交对话框、项目角色选择器，以及管理后台的项目成员对话框。
 

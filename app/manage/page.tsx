@@ -1,19 +1,13 @@
-"use client";
 import { Suspense } from "react";
-import { useTranslation } from "react-i18next";
-import { ContentFeatureState } from "./components/ContentFeatureState";
-import { TeamPageLoading, TeamShell } from "./components/TeamShell";
-import { useTeamContext } from "./lib/content-context";
-import { WorkbenchRoute } from "./workbench/WorkbenchRoute";
+import { redirect } from "next/navigation";
 
-export default function ManagePage() {
-  return <Suspense><ManagePageContent /></Suspense>;
+export default function ManagePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  return <Suspense><ManageEntry searchParams={searchParams} /></Suspense>;
 }
-function ManagePageContent() {
-  const team = useTeamContext();
-  const { t } = useTranslation();
-  if (!team.organizationId) return <TeamShell organizationId={null}>{team.loading
-    ? <TeamPageLoading label={t("contentModel.state.loading")} />
-    : <ContentFeatureState state="no-organization" />}</TeamShell>;
-  return <WorkbenchRoute key={team.organizationId} team={team} />;
+
+async function ManageEntry({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams;
+  const query = new URLSearchParams();
+  if (typeof params.organizationId === "string") query.set("organizationId", params.organizationId);
+  return redirect(`/manage/assets${query.size ? `?${query}` : ""}`);
 }

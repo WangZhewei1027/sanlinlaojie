@@ -10,13 +10,14 @@ const meta = {
   parameters: { layout: "padded", nextjs: { navigation: { pathname: "/manage" } } },
   decorators: [(Story) => <div className="mx-auto max-w-6xl"><Story /></div>],
   args: {
+    kind: "asset",
     team,
     filters: DEFAULT_WORKBENCH_FILTERS,
     onFiltersChange: noop,
     view: "grid",
     onViewChange: noop,
     status: "ready",
-    items: workbenchItems,
+    items: workbenchItems.filter((item) => item.kind === "asset"),
     totalCount: 26,
     hasMore: true,
     onLoadMore: noop,
@@ -34,15 +35,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const AllContentGrid: Story = {};
+export const AssetsGrid: Story = {};
 export const ListView: Story = { args: { view: "list" } };
-export const ScenesFilter: Story = {
-  args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, type: "scene" }, items: workbenchItems.filter((item) => item.kind === "scene"), totalCount: 3, hasMore: false },
+export const ScenesLibrary: Story = {
+  args: { kind: "scene", filters: DEFAULT_WORKBENCH_FILTERS, items: workbenchItems.filter((item) => item.kind === "scene"), totalCount: 3, hasMore: false },
 };
 export const ImagesFilter: Story = {
   args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, type: "image" }, items: workbenchItems.filter((item) => item.type === "image"), totalCount: 2, hasMore: false },
 };
-export const Archived: Story = { args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, state: "archived" }, items: archivedItems, totalCount: 2, hasMore: false } };
+export const Archived: Story = { args: { filters: { ...DEFAULT_WORKBENCH_FILTERS, state: "archived" }, items: archivedItems.filter((item) => item.kind === "asset"), totalCount: 2, hasMore: false } };
 export const ViewerReadOnly: Story = {
   args: { team: viewerTeam, canWrite: false, readOnlyReason: "你是团队查看者：可以浏览和预览，不能上传或编辑。", hasMore: false },
 };
@@ -56,14 +57,15 @@ export const MigrationArchivedTeam: Story = {
 export const Loading: Story = { args: { status: "loading", items: [] } };
 export const LoadingList: Story = { args: { status: "loading", items: [], view: "list" } };
 export const LoadError: Story = { args: { status: "error", items: [], errorMessage: "示例：网络错误，请稍后重试。", onRetry: noop } };
-export const EmptyTeam: Story = { args: { items: [], totalCount: 0, hasMore: false } };
-export const EmptyTeamViewer: Story = { args: { items: [], totalCount: 0, hasMore: false, team: viewerTeam, canWrite: false, readOnlyReason: "你是团队查看者：可以浏览和预览，不能上传或编辑。" } };
-export const NoScenesYet: Story = { args: { items: [], hasMore: false, filters: { ...DEFAULT_WORKBENCH_FILTERS, type: "scene" } } };
+export const EmptyAssets: Story = { args: { items: [], totalCount: 0, hasMore: false } };
+export const EmptyAssetsViewer: Story = { args: { items: [], totalCount: 0, hasMore: false, team: viewerTeam, canWrite: false, readOnlyReason: "你是团队查看者：可以浏览和预览，不能上传或编辑。" } };
+export const NoScenesYet: Story = { args: { items: [], hasMore: false, kind: "scene", filters: DEFAULT_WORKBENCH_FILTERS } };
 export const NoMatches: Story = { args: { items: [], hasMore: false, filters: { ...DEFAULT_WORKBENCH_FILTERS, query: "不存在的名字" } } };
 export const RestoreFailed: Story = {
   args: {
+    kind: "scene",
     filters: { ...DEFAULT_WORKBENCH_FILTERS, state: "archived" },
-    items: archivedItems,
+    items: archivedItems.filter((item) => item.kind === "scene"),
     hasMore: false,
     onRestoreScene: async () => ({ ok: false, kind: "conflict", message: "示例：场景已被他人修改，请刷新后再试。" }),
   },

@@ -15,7 +15,7 @@ const SceneEditor = dynamic(() => import("./SceneEditor"), { ssr: false });
 const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
   "contentModel.integration.sceneRoute.notFound": ["场景不存在，或你无权访问。", "The scene does not exist or you cannot access it."],
-  "contentModel.integration.sceneRoute.back": ["返回工作台", "Back to workbench"],
+  "contentModel.integration.sceneRoute.back": ["返回场景", "Back to scenes"],
 };
 
 type Probe = { mode: "loaded"; detail: SceneDetailDto } | { mode: "missing" } | { mode: "error"; error: unknown };
@@ -43,8 +43,8 @@ export function SceneEditorRoute({ params }: { params: Promise<{ id: string }> }
   const resolved = probe;
   // A scene's team drives the URL and header before the editor mounts; once
   // settled the editor is never unmounted by this guard (its local draft stays).
-  const { settled } = useResourceTeam(resolved?.mode === "loaded" ? resolved.detail.organization_id : null, "/manage");
-  const scenesHref = contextHref("/manage", { organizationId: resolved?.mode === "loaded" ? resolved.detail.organization_id : context.organizationId }, { type: "scene" });
+  const { settled } = useResourceTeam(resolved?.mode === "loaded" ? resolved.detail.organization_id : null, "/manage/scenes");
+  const scenesHref = contextHref("/manage/scenes", { organizationId: resolved?.mode === "loaded" ? resolved.detail.organization_id : context.organizationId });
 
   if (!resolved || resolved.mode === "error" || resolved.mode === "missing" || (resolved.mode === "loaded" && !settled)) {
     return <main className="scene-editor-status fixed inset-0 z-50 flex items-center justify-center bg-background"><div className="max-w-lg space-y-4 p-6">

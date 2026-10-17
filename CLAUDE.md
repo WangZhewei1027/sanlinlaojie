@@ -63,14 +63,14 @@ UI gating (sidebar, buttons) uses the pure matrix and DTO capabilities; **it is 
 
 ### Team workbench and map collections
 
-Front-end model: `docs/team-workbench.md`. Primary navigation is 工作台 / 合集 / 团队设置 (`app/manage/components/ContentNav.tsx`); there is no global workspace selector .
+Front-end model: `docs/team-workbench.md`. Sidebar navigation is 地图合集 / 场景 / 基础素材, with 团队设置 as a secondary entry (`app/manage/components/ContentNav.tsx`); there is no global workspace selector .
 
-- `/manage` — **workbench**: every asset and scene of the team in one thumbnail grid (or list), filtered by type (`?type=scene`). Upload, create/import/copy scene never ask for a collection.
+- `/manage` opens `/manage/assets`. **Assets** and **scenes** use separate thumbnail libraries at `/manage/assets` and `/manage/scenes`; only assets have a type filter. Upload, create/import/copy scene never ask for a collection.
 - Presentational components live in `app/manage/content/` (props + `ContentAction` callbacks, stories in `stories/content/`); data and permissions live in the route components (`app/manage/workbench/`, `app/manage/collections/components/`, `app/manage/assets/components/`).
 
 ### The collection map
 
-`/manage` is the team workbench. `/manage/collections/[id]` opens a collection map.
+`/manage/assets` and `/manage/scenes` are the team content libraries. `/manage/collections/[id]` opens a collection map.
 `useTeamContext` provides the selected team; collections are explicit URL/page context.
 `app/manage/store.ts` persists only the selected team. Map selection, placements and
 resolved playable content live in `placement-store.ts`.
@@ -120,7 +120,7 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app. Geo coordinat
 
 ## Route map
 
-`/` home · `/manage` team workbench · `/manage/assets/[id]` asset detail · `/manage/scenes/[id]` editor · `/manage/collections` map collections · `/manage/collections/[id]` collection map · `/admin/*` team settings (members / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
+`/` home · `/manage` default entry · `/manage/assets` basic assets · `/manage/scenes` scenes · `/manage/assets/[id]` asset detail · `/manage/scenes/[id]` editor · `/manage/collections` map collections · `/manage/collections/[id]` collection map · `/admin/*` team settings (members / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
 
 ## Reference docs
 

@@ -5,6 +5,7 @@ import { Toaster } from "../components/ui/sonner";
 import { geistSans } from "../lib/fonts";
 import type { Language } from "../lib/i18n/settings";
 import "../app/globals.css";
+import "./preview.css";
 
 const preview: Preview = {
   initialGlobals: {

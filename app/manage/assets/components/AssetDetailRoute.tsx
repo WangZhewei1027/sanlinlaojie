@@ -46,12 +46,12 @@ function AssetDetailView({ id }: { id: string }) {
   const asset = detail.asset;
   const organizationId = asset?.organization_id ?? team.organizationId;
   const writes = useAssetWrites(detail, tx);
-  // The asset's team drives the URL and header; a later header switch leaves for that team's workbench.
-  const { settled } = useResourceTeam(asset?.organization_id, "/manage");
+  // The asset's team drives the URL and header; a later header switch leaves for that team's assets.
+  const { settled } = useResourceTeam(asset?.organization_id, "/manage/assets");
   const [renameOpen, setRenameOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
 
-  const workbenchHref = teamHref("/manage", organizationId);
+  const workbenchHref = teamHref("/manage/assets", organizationId);
   const backLink = (
     <Button variant="ghost" size="sm" asChild>
       <Link href={workbenchHref}><ArrowLeft aria-hidden />{tx("contentModel.integration.assetDetail.back")}</Link>
