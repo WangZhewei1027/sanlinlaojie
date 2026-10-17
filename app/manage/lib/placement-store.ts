@@ -1,13 +1,6 @@
-/**
- * Map state for the v2 placement workspace (content model `v2`).
- *
- * Deliberately separate from app/manage/store.ts: the legacy store keeps the
- * asset list for legacy/preparing/readonly organizations, this one holds the
- * placement list, the map selection and the resolved pinned versions. Nothing
- * here is persisted — the explicit URL/selector context decides the scope.
- */
-import { create } from "zustand";
+/** Map state scoped to one team and collection, including pinned playable content. */
 import type { AssetDetailDto, PlacementContentDto, PlacementDto, PlacementStatus } from "@/lib/content-model/contracts";
+import { create } from "zustand";
 import { contentMatchesPlacement, placementContentKey } from "./placement-to-viewer";
 
 export interface MapPoint {

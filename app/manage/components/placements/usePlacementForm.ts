@@ -47,7 +47,7 @@ function sameValues(a: PlacementFormValues, b: PlacementFormValues) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Legacy semantics: scale and text style live in render_config.config (as migrated). */
+/** Scale and text style live in render_config.config. */
 function renderConfigOf(base: PlacementDto, values: PlacementFormValues): PlacementRenderConfig {
   const type = placementFileType(base);
   const config: Record<string, PayloadScalar> = scalarEntries(base.render_config.config);

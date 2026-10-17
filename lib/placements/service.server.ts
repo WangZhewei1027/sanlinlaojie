@@ -1,15 +1,5 @@
-import "server-only";
-import { db, sql } from "@/lib/db";
-import type {
-  AssetVersionPayload,
-  CreatePlacementResult,
-  GeoPointInput,
-  PlacementContentDto,
-  PlacementDto,
-  PlacementStatus,
-  SceneDocumentV3Json,
-} from "@/lib/content-model/contracts";
-import { resolvePlacementContent, type StaticPlacementTarget } from "./content.server";
+import { asFileType } from "@/lib/assets/dto.server";
+import { createAssetForCollection } from "@/lib/assets/service.server";
 import {
   loadWorkspaceAccess,
   lockWorkspaceForWrite,
@@ -19,6 +9,15 @@ import {
   type Actor,
   type WorkspaceAccess,
 } from "@/lib/content-model/access.server";
+import type {
+  AssetVersionPayload,
+  CreatePlacementResult,
+  GeoPointInput,
+  PlacementContentDto,
+  PlacementDto,
+  PlacementStatus,
+  SceneDocumentV3Json,
+} from "@/lib/content-model/contracts";
 import { checkLockVersion, invalid, notFound } from "@/lib/content-model/errors";
 import {
   isRecord,
@@ -39,8 +38,9 @@ import {
   type Executor,
   type Trx,
 } from "@/lib/content-model/tx.server";
-import { createAssetInWorkspace } from "@/lib/assets/service.server";
-import { asFileType } from "@/lib/assets/dto.server";
+import { db, sql } from "@/lib/db";
+import "server-only";
+import { resolvePlacementContent, type StaticPlacementTarget } from "./content.server";
 import {
   assertAnchorUsable,
   assertDiscoverable,
@@ -64,34 +64,17 @@ import {
 
 // ───────────────────────── queries ─────────────────────────
 
-/** Own placements plus read-only placements another collection shares through a legacy scope. */
+/** Placements owned by this collection. */
 export async function listWorkspacePlacements(
   actor: Actor,
   workspaceId: string,
-  opts: { status?: PlacementStatus; includeShared?: boolean } = {},
+  opts: { status?: PlacementStatus } = {},
 ): Promise<PlacementDto[]> {
   await requireWorkspaceRead(db, actor, workspaceId);
-  let query = placementQuery(db).where((eb) =>
-    eb.or([
-      eb("p.workspace_id", "=", workspaceId),
-      ...(opts.includeShared === false
-        ? []
-        : [
-            eb.exists(
-              eb
-                .selectFrom("legacy_runtime_binding as b")
-                .innerJoin("legacy_content_map as m", "m.binding_id", "b.id")
-                .select("b.id")
-                .whereRef("b.placement_id", "=", "p.id")
-                .where("m.workspace_id", "=", workspaceId)
-                .where("m.active", "=", true),
-            ),
-          ]),
-    ]),
-  );
+  let query = placementQuery(db).where("p.workspace_id", "=", workspaceId);
   if (opts.status) query = query.where("p.status", "=", opts.status);
   const rows = await query.orderBy("p.updated_at", "desc").execute();
-  return buildPlacementDtos(db, actor, rows, { viewerWorkspaceId: workspaceId });
+  return buildPlacementDtos(db, actor, rows);
 }
 
 /** Team map: placements of every collection of the organization (each listed once). */
@@ -103,41 +86,20 @@ export async function listOrganizationPlacements(actor: Actor, organizationId: s
   return buildPlacementDtos(db, actor, rows);
 }
 
-/** True when `placementId` is visible in `workspaceId` through an active legacy scope. */
-async function hasActiveScope(exec: Executor, placementId: string, workspaceId: string): Promise<boolean> {
-  const row = await exec
-    .selectFrom("legacy_runtime_binding as b")
-    .innerJoin("legacy_content_map as m", "m.binding_id", "b.id")
-    .select("b.id")
-    .where("b.placement_id", "=", placementId)
-    .where("m.workspace_id", "=", workspaceId)
-    .where("m.active", "=", true)
-    .executeTakeFirst();
-  return !!row;
-}
-
-/**
- * Read authorization of one placement: team membership of its organization
- * (the owning collection is readable). `viewerWorkspaceId` is a view
- * context: when it is another collection holding an active legacy scope for
- * the placement, the placement is shown read-only shared from there; an
- * unrelated or foreign context is rejected. Everything else is 404.
- */
-async function requirePlacementRead(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<{ row: PlacementRow; viewer: string | undefined }> {
+async function requirePlacementRead(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<PlacementRow> {
   const [row] = await loadPlacementRows(db, [placementId]);
   if (!row) throw notFound("投放不存在");
   const own = await loadWorkspaceAccess(db, actor, row.workspace_id);
   if (!own?.canRead) throw notFound("投放不存在");
   if (viewerWorkspaceId && viewerWorkspaceId !== row.workspace_id) {
-    if (!(await hasActiveScope(db, row.id, viewerWorkspaceId))) throw notFound("投放不存在");
-    return { row, viewer: viewerWorkspaceId };
+    throw notFound("投放不存在");
   }
-  return { row, viewer: undefined };
+  return row;
 }
 
 export async function getPlacement(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<PlacementDto> {
-  const { row, viewer } = await requirePlacementRead(actor, placementId, viewerWorkspaceId);
-  return (await buildPlacementDtos(db, actor, [row], { viewerWorkspaceId: viewer }))[0];
+  const row = await requirePlacementRead(actor, placementId, viewerWorkspaceId);
+  return (await buildPlacementDtos(db, actor, [row]))[0];
 }
 
 /**
@@ -146,16 +108,15 @@ export async function getPlacement(actor: Actor, placementId: string, viewerWork
  * no grant and no catalog access are derived from it.
  */
 export async function getPlacementContent(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<PlacementContentDto> {
-  const { row } = await requirePlacementRead(actor, placementId, viewerWorkspaceId);
-  const binding = await db.selectFrom("legacy_runtime_binding").select("public_id").where("placement_id", "=", row.id).executeTakeFirst();
-  const publicId = binding?.public_id ?? row.id;
+  const row = await requirePlacementRead(actor, placementId, viewerWorkspaceId);
+  const publicId = row.id;
   const target: StaticPlacementTarget = row.asset_version_id
     ? { kind: "asset_version", assetVersionId: row.asset_version_id }
     : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" };
   const content = await resolvePlacementContent(db, target);
   if (!content) throw notFound("投放内容不存在");
   if (content.kind === "asset_version") {
-    const { migration_legacy: _legacy, ...payload } = content.version.payload;
+    const payload = content.version.payload;
     return {
       kind: "asset_version",
       placement_id: row.id,
@@ -203,7 +164,7 @@ async function dto(actor: Actor, id: string): Promise<PlacementDto> {
 }
 
 /**
- * POST /api/workspaces/[id]/placements. Either a fixed target (any same-team
+ * POST /api/collections/[id]/placements. Either a fixed target (any same-team
  * AssetVersion or SceneRevision), or the upload-and-place form (`asset` +
  * `idempotencyKey`) that creates the team Asset, v1 and the placement in one
  * transaction.
@@ -213,7 +174,7 @@ export async function createPlacement(actor: Actor, workspaceId: string, body: J
     rejectUnknown(body, ["asset", "idempotencyKey", "name", "location", "anchorId", "renderConfig", "status", "tagIds"]);
     if (!isRecord(body.asset)) throw invalid("asset 必须是对象");
     const { asset, idempotencyKey, ...placement } = body;
-    const result = await createAssetInWorkspace(actor, workspaceId, { ...asset, idempotencyKey, placement });
+    const result = await createAssetForCollection(actor, workspaceId, { ...asset, idempotencyKey, placement });
     if (!result.placement) throw invalid("投放未创建");
     return { placement: result.placement, asset: result.asset, version: result.version, created: result.created };
   }
@@ -440,8 +401,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
   const key = optionalIdempotencyKey(body.idempotencyKey);
   const target = await requireWorkspaceEdit(db, actor, targetId);
   const sourceAccess = await loadWorkspaceAccess(db, actor, source.workspace_id);
-  const viaLegacyScope = targetId !== source.workspace_id && (await hasActiveScope(db, source.id, targetId));
-  if (!sourceAccess?.canRead && !viaLegacyScope) throw notFound("投放不存在");
+  if (!sourceAccess?.canRead) throw notFound("投放不存在");
   if (target.workspace.organization_id !== source.organization_id) throw invalid("只能复制到同一组织的合集");
   const outcome = await contentTransaction(async (trx) => {
     await lockWorkspaceForWrite(trx, target);
@@ -483,7 +443,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
       objectType: "placement",
       objectId: id,
       workspaceId: target.workspace.id,
-      details: { source_placement_id: row.id, via_legacy_scope: viaLegacyScope },
+      details: { source_placement_id: row.id },
     });
     return { id, created: true };
   });

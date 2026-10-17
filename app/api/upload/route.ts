@@ -1,15 +1,15 @@
-import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
-import { db, sql } from "@/lib/db";
-import { loadActor, type Actor } from "@/lib/content-model/access.server";
+import { publicObjectUrl } from "@/lib/assets/urls";
+import { loadActor } from "@/lib/content-model/access.server";
 import type { UploadPurpose, UploadResponse } from "@/lib/content-model/contracts";
 import { ContentError } from "@/lib/content-model/errors";
 import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
+import { db, sql } from "@/lib/db";
 import { ASSETS_PREFIX, headObject, putObject } from "@/lib/storage/oss";
 import { lockObjectKeys, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
-import { publicObjectUrl } from "@/lib/assets/urls";
 import { findReusableKey, issueReceipt, receiptDto, resolveUploadScope, type ReceiptRow } from "@/lib/upload/receipts.server";
 import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
+import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 
 // Media upload relay: the browser posts the (already compressed) file here and
 // the server writes it to OSS.
@@ -25,8 +25,7 @@ import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 //   organization_id and workspace_id only select the team: the caller must be
 //   a team writer (read from the database); a workspace_id must be an open
 //   collection of that organization. No collection is needed for team
-//   content. Callers that send neither (legacy editor re-uploads) get the old
-//   behaviour without dedup/receipt, only if they write in some organization.
+//   content. Every upload must name its team or collection.
 // DELETE ?key=assets/<userId>/<name>
 //   → compensation after a failed follow-up write: ends the caller's own
 //     unconsumed leases on the key and hands it to the retention protocol
@@ -35,7 +34,7 @@ import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 // Hard cap, same as the old storage bucket; per-type limits are enforced
 // client-side in lib/upload/config.ts.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const PURPOSES: readonly UploadPurpose[] = ["asset_version", "anchor_reference", "legacy_asset"];
+const PURPOSES: readonly UploadPurpose[] = ["asset_version"];
 
 function newObjectKey(userId: string, fileName: string): string {
   const ext = fileName.includes(".")
@@ -43,20 +42,6 @@ function newObjectKey(userId: string, fileName: string): string {
     : "";
   const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return `${ASSETS_PREFIX}${userId}/${name}${ext ? `.${ext}` : ""}`;
-}
-
-async function canWriteAnyOrganization(actor: Actor): Promise<boolean> {
-  if (actor.superAdmin) return true;
-  const row = await db
-    .selectFrom("organization_member as m")
-    .innerJoin("organization as o", "o.id", "m.organization_id")
-    .select("m.id")
-    .where("m.user_id", "=", actor.userId)
-    .where("o.archived_at", "is", null)
-    .where("m.role", "in", ["owner", "admin", "member"])
-    .limit(1)
-    .executeTakeFirst();
-  return !!row;
 }
 
 function formText(form: FormData | null, name: string): string | null {
@@ -95,18 +80,12 @@ export async function POST(request: Request) {
     const contentHash = createHash("sha256").update(buffer).digest("hex");
     const mimeType = file.type || "application/octet-stream";
 
-    if (!organizationId && !workspaceId) {
-      if (!(await canWriteAnyOrganization(actor))) throw new ContentError("FORBIDDEN", "需要团队编辑权限才能上传");
-      const key = newObjectKey(actor.userId, file.name);
-      const url = await putObject(key, buffer, { contentType: mimeType });
-      const body: UploadResponse = { url, contentHash, storagePath: key };
-      return NextResponse.json(body);
-    }
+    if (!organizationId && !workspaceId) throw new ContentError("VALIDATION_FAILED", "需要指定团队或地图合集");
 
     const scope = await resolveUploadScope(db, actor, { organizationId, workspaceId });
     const purpose: UploadPurpose =
       (requestedPurpose as UploadPurpose | null) ??
-      (type === "anchor" ? "anchor_reference" : scope.org.org.content_model_state === "v2" ? "asset_version" : "legacy_asset");
+      "asset_version";
     const receiptInput = {
       organizationId: scope.org.org.id,
       workspaceId: scope.workspaceId,
@@ -165,7 +144,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
     // End only this caller's own unconsumed leases; anyone else's lease,
-    // version resource or legacy row still protects the object.
+    // version resource or retention hold still protects the object.
     await db
       .updateTable("upload_receipt")
       .set({ expires_at: sql<Date>`now()` })

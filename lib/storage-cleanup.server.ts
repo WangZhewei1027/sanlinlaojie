@@ -1,15 +1,13 @@
 import "server-only";
-import { db } from "@/lib/db";
 import { assetKeyFromUrl } from "@/lib/storage/oss";
-import { isKeyProtected, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
+import { releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
 
 /**
  * 上传文件（assets/ 前缀）的单文件回收入口，统一走 lib/storage/retention.server.ts
  * 的对象 key 锁协议：
  *
- * - 保留集合覆盖全部 asset_version_resource、旧 asset 的 file_url /
- *   metadata.checkin_url / JSON 内嵌地址、匹配点参考图、未过期上传回执（在途
- *   上传），以及同名派生文件（.webm ↔ .m4a）。
+ * - 保留集合覆盖版本资源、匹配特征、未过期上传回执、归档文件保留记录，
+ *   以及同名音频转码文件（.webm ↔ .m4a）。
  * - 删除方持 `object-key:<key>` 锁完成最后检查与实际删除；复用方持同一把锁
  *   写入租约/资源行。
  * - 迁移期间实际删除默认关闭（app_config.managed_object_deletion），只产生
@@ -22,17 +20,6 @@ import { isKeyProtected, releaseObjectsIfUnreferenced } from "@/lib/storage/rete
 /** 从公开 URL 解析出 OSS 对象 key（assets/…）；非本站上传文件返回 null。 */
 export function storagePathFromUrl(url: string): string | null {
   return assetKeyFromUrl(url);
-}
-
-/** 该 URL 对应的对象是否仍受保护（任一引用来源、派生文件或有效回执）。 */
-export async function isFileReferenced(url: string): Promise<boolean> {
-  const key = storagePathFromUrl(url);
-  return key ? isKeyProtected(db, key) : false;
-}
-
-/** 兼容旧调用方：> 0 表示仍受保护。 */
-export async function countFileReferences(url: string): Promise<number> {
-  return (await isFileReferenced(url)) ? 1 : 0;
 }
 
 export type RemoveFileResult = "removed" | "kept" | "failed" | "skipped" | "deferred";

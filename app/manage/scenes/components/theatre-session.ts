@@ -1,7 +1,7 @@
 import { getProject, types, type ISheetObject } from "@theatre/core";
 import studio from "@theatre/studio";
 import { type TransformValues } from "@/lib/scene/theatre-state";
-import { type CompositionInstance, type SceneDefinition } from "@/lib/scene/protocol";
+import { type CompositionInstance, type SceneDocumentLike } from "@/lib/scene/protocol";
 import { replaceTheatreSheet } from "@/lib/scene/theatre-authoring";
 import { isOwner, release, runExclusive } from "./theatre-ownership";
 
@@ -30,7 +30,7 @@ export function theatreProjectId(sceneId: string) {
   return `Scene ${sceneId.replaceAll("-", "").slice(0, 24)}`;
 }
 
-export async function createTheatreSession(sceneId: string, definition: SceneDefinition) {
+export async function createTheatreSession(sceneId: string, definition: SceneDocumentLike) {
   const projectId = theatreProjectId(sceneId);
   try {
     return await runExclusive(projectId, async (owner) => {
@@ -61,7 +61,7 @@ export async function createTheatreSession(sceneId: string, definition: SceneDef
         project, sheet, objects, studio, add,
         /** False once a newer session of the same scene took over; a stale session must not write. */
         get live() { return isOwner(projectId, owner); },
-        sync(next: SceneDefinition) {
+        sync(next: SceneDocumentLike) {
           if (!isOwner(projectId, owner)) return;
           sheet.sequence.pause();
           replaceTheatreSheet(project.address.projectId, next);

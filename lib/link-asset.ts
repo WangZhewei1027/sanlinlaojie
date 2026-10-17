@@ -152,53 +152,6 @@ export function parseLinkAssetInput(input: string): LinkAssetData {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isLinkAssetType(value: unknown): value is LinkAssetType {
-  return value === "figma" || value === "iframe" || value === "url";
-}
-
-function readStoredLinkData(config: unknown): LinkAssetData | null {
-  if (!isRecord(config) || !isRecord(config.link)) return null;
-
-  const { originalUrl, previewUrl, linkType } = config.link;
-  if (
-    typeof originalUrl !== "string" ||
-    typeof previewUrl !== "string" ||
-    !isLinkAssetType(linkType)
-  ) {
-    return null;
-  }
-
-  try {
-    return {
-      originalUrl: parseHttpUrl(originalUrl).href,
-      previewUrl: parseHttpUrl(previewUrl).href,
-      linkType,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** Resolves new config data first, then falls back to legacy file_url rows. */
-export function resolveLinkAssetData(
-  fileUrl: string | null | undefined,
-  config: unknown,
-): LinkAssetData | null {
-  const storedData = readStoredLinkData(config);
-  if (storedData) return storedData;
-  if (!fileUrl) return null;
-
-  try {
-    return parseLinkAssetInput(fileUrl);
-  } catch {
-    return null;
-  }
-}
-
 export function getLinkAssetErrorKey(error: unknown): string {
   if (!(error instanceof LinkAssetParseError)) {
     return "linkAsset.errors.invalidUrl";

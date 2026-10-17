@@ -1,15 +1,15 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import Link from "next/link";
-import { useTranslation } from "react-i18next";
-import { MapPinned, Users, Settings, Menu } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useManageStore } from "@/app/manage/store";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState } from "react";
-import { useManageStore } from "@/app/manage/store";
 import { isSidebarItemVisible } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
+import { Menu, Settings, Users } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface SidebarItem {
   label: string;
@@ -35,12 +35,6 @@ function useSidebarItems(): SidebarItem[] {
       label: t("admin.sidebar.members", "Members"),
       href: "/admin/members",
       icon: Users,
-    },
-    {
-      // v2 teams land on /manage/collections; legacy teams keep the workspace page.
-      label: t("admin.sidebar.workspaces", "Collections"),
-      href: "/admin/workspaces",
-      icon: MapPinned,
     },
   ];
 

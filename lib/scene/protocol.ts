@@ -1,8 +1,6 @@
 /**
- * Composition JSON. Schema 1/2 is the mini-program playback protocol (and the
- * legacy scene asset's text_content); schema 3 is the internal document of an
- * independent Scene whose aliases pin explicit asset versions. Schema 3 is
- * compiled to 2 for playback (lib/scene/compile.ts).
+ * Schema 3 stores pinned scene documents. Schema 2 is the mini-program
+ * playback manifest, with resource URLs resolved from those pinned versions.
  */
 export const SCENE_SCHEMA_VERSION = 2 as const;
 export const SCENE_DOCUMENT_VERSION = 3 as const;
@@ -59,7 +57,7 @@ export interface CompositionContent<Ref = CompositionAssetRef> {
 }
 
 export interface SceneDefinition {
-  schemaVersion: 1 | 2;
+  schemaVersion: typeof SCENE_SCHEMA_VERSION;
   content: CompositionContent;
 }
 
@@ -103,9 +101,8 @@ export interface ValidationResult {
 }
 
 /**
- * Playback manifest returned to the mini-program. Legacy organizations resolve
- * it from current model rows; cut-over organizations compile it from a fixed
- * SceneRevision. `assetId` always echoes the requested discovery id.
+ * Playback manifest compiled from a fixed SceneRevision.
+ * `assetId` is the discovered placement ID.
  */
 export interface SceneAssetManifest extends SceneDefinition {
   assetId: string;

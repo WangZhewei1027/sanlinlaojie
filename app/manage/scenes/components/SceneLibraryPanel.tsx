@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Box, LoaderCircle, Plus, Search, Upload } from "lucide-react";
+import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
-import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
-import { MODEL_DRAG_TYPE } from "@/lib/scene/editor-interactions";
 import type { AssetDto } from "@/lib/content-model/contracts";
+import { MODEL_DRAG_TYPE } from "@/lib/scene/editor-interactions";
+import { Box, LoaderCircle, Plus, Search, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { newIdempotencyKey, organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { primaryResource } from "../../lib/content-mappers";
@@ -48,7 +48,7 @@ function candidateOf(asset: AssetDto): SceneResource | null {
 }
 
 /**
- * v2 model picker over the whole team. "In scene" lists the pinned references
+ * model picker over the whole team. "In scene" lists the pinned references
  * independently of the catalog requests, so paging, filtering or archiving in
  * the team view can never make a referenced model disappear from the viewport.
  */

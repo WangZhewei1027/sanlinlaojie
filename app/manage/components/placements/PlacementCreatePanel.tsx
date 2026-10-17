@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Text } from "@/components/ui/typography";
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import { PlaceExistingForm } from "./PlaceExistingForm";
 import { usePlacementMap } from "./PlacementMapContext";
 import { ShopPlaceForm } from "./ShopPlaceForm";
@@ -13,7 +13,7 @@ import { UploadAndPlaceForm } from "./UploadAndPlaceForm";
 type CreateMode = "existing" | "upload" | "shop";
 
 /**
- * v2 replacement of the legacy upload panel. Shown only for a real project
+ * Upload and place panel. Shown only for a real project
  * whose capabilities allow editing. Every new placement needs an explicit
  * map location, except directory-only shops.
  */

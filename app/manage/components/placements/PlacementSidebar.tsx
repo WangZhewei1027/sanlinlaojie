@@ -1,10 +1,10 @@
 "use client";
 
-import { MousePointerClick, X } from "lucide-react";
+import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/typography";
-import { ContentNotice } from "@/app/manage/content/ContentFeedback";
+import { MousePointerClick, X } from "lucide-react";
 import { usePlacementStore } from "../../lib/placement-store";
 import { AnchorPanel } from "./AnchorPanel";
 import { PlacementClickedLocation } from "./PlacementClickedLocation";
@@ -12,7 +12,7 @@ import { PlacementCreatePanel } from "./PlacementCreatePanel";
 import { PlacementEditor } from "./PlacementEditor";
 import { usePlacementMap } from "./PlacementMapContext";
 
-/** Right column of the v2 map: scope notices, clicked location, editor, create. */
+/** Right column of the map: scope notices, clicked location, editor, create. */
 export function PlacementSidebar() {
   const { tx, isAll, workspaceId, workspaceCanEdit, workspaceInfoLoading } = usePlacementMap();
   const selectedId = usePlacementStore((state) => state.selectedPlacementId);

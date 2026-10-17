@@ -1,4 +1,3 @@
-import { db, sql } from "@/lib/db";
 import { logError } from "@/lib/log-error";
 import { allowRequest } from "@/lib/miniapp/rate-limit";
 import {
@@ -11,18 +10,10 @@ import {
   readJson,
   requireUuid,
 } from "@/lib/miniapp/request";
-import { RuntimeNotFound, RuntimeUnavailable, scopeState, submitAnonymousText } from "@/lib/placements/runtime.server";
+import { RuntimeNotFound, RuntimeUnavailable, submitAnonymousText } from "@/lib/placements/runtime.server";
 
-// Public: anonymous text asset / 弹幕 from the mini-program. Same parameters
-// and response as before; field validation and the per-IP / per-workspace
-// limits apply to both models.
-//   POST { content, p_workspace_id, p_organization_id?, user_lat?, user_lng? }
-//   → { id, file_type, text_content, metadata, create_at }
-//
-// Legacy organizations: the `upload_text_asset` SQL function (row attributed
-// to the fixed mini-program user). Cut-over organizations: a restricted
-// command creating a public_submission text asset, v1 and a placement — no
-// catalog or editing rights for the anonymous caller.
+// Anonymous submissions create a team text asset, its first version and a
+// placement in the requested collection. The caller gains no editing rights.
 const MAX_CONTENT_CHARS = 500;
 const WINDOW_MS = 60_000;
 const PER_IP_PER_MINUTE = 20;
@@ -50,28 +41,10 @@ export async function POST(request: Request) {
       return json({ error: "发送过于频繁，请稍后再试" }, 429);
     }
 
-    const scope = await scopeState({ workspaceId, organizationId });
-    if (!scope) return json({ error: "工作空间不存在" }, 404);
-    if (scope.state === "readonly") return json({ error: "服务维护中，请稍后再试" }, 503);
-    if (scope.state === "v2") {
-      return json(await submitAnonymousText({ content, workspaceId, organizationId, lat, lng }));
-    }
-
-    const { rows } = await sql<{ v: unknown }>`
-      select public.upload_text_asset(
-        ${content}, ${workspaceId}::uuid, ${organizationId}::uuid,
-        ${lng}::double precision, ${lat}::double precision, null::jsonb
-      ) as v
-    `.execute(db);
-    return json(rows[0]?.v ?? null);
+    return json(await submitAnonymousText({ content, workspaceId, organizationId, lat, lng }));
   } catch (error) {
-    // The SQL function / runtime command reject a missing or closed workspace.
-    if (
-      error instanceof RuntimeNotFound ||
-      (error instanceof Error &&
-        /Workspace not found|No user found|not accepting legacy text/.test(error.message))
-    ) {
-      return json({ error: "工作空间不存在" }, 404);
+    if (error instanceof RuntimeNotFound) {
+      return json({ error: "地图合集不存在" }, 404);
     }
     if (error instanceof RuntimeUnavailable) {
       return json({ error: "服务维护中，请稍后再试" }, 503);

@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { db, jsonObjectFrom } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
-import { getUserContext } from "@/lib/permissions.server";
+import { db, jsonObjectFrom } from "@/lib/db";
 import { logErrorSafe } from "@/lib/log-error";
+import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
+import { getUserContext } from "@/lib/permissions.server";
+import { NextResponse } from "next/server";
 
 // 获取 organization 的成员列表
 export async function GET(
@@ -320,7 +320,7 @@ export async function DELETE(
       }
     }
 
-    // 离开组织只影响身份与维护责任：项目授权随成员关系失效，维护的素材交由
+    // 离开组织只影响身份与维护责任：团队内容权限随成员关系失效，维护的素材交由
     // owner/admin 接管（maintained_by 置空），素材与版本保持不变。
     await db.transaction().execute(async (trx) => {
       await trx
@@ -329,11 +329,6 @@ export async function DELETE(
         .where("organization_id", "=", id)
         .execute();
       if (targetMember?.user_id) {
-        await trx
-          .deleteFrom("workspace_assignment")
-          .where("user_id", "=", targetMember.user_id)
-          .where("workspace_id", "in", trx.selectFrom("workspace").select("id").where("organization_id", "=", id))
-          .execute();
         await trx
           .updateTable("asset")
           .set({ maintained_by: null })
@@ -346,7 +341,7 @@ export async function DELETE(
             organization_id: id,
             actor_id: user.id,
             action: "organization.member.remove",
-            object_type: "workspace_member",
+            object_type: "organization_member",
             object_id: targetMember.user_id,
             details: JSON.stringify({ maintained_assets_released: true }),
           })

@@ -45,7 +45,7 @@ Next.js 16 App Router + React 19 + TypeScript. UI is ShadcnUI/Radix + Tailwind (
 
 There is one database connection with full access. **Every permission decision is made in application code**; there is no RLS. Modules ending in `.server.ts` (and `lib/db`) start with `import "server-only"` and must never be imported from Client Components.
 
-User ids are the same UUIDs as before the migration (`public.users.user_id` → `auth.users.id`). Creating a row in `auth.users` fires `handle_new_user()` (public.users row, personal v2 organization, owner membership, zero collections), so every sign-up path gets the same bootstrap. New teams created through the admin API also start in v2 with no collections. Existing organizations keep their content-model state; the database column default remains legacy for migration compatibility.
+User ids are the same UUIDs as before the migration (`public.users.user_id` → `auth.users.id`). Creating a row in `auth.users` fires `handle_new_user()` (public.users row, personal organization, owner membership, zero collections), so every sign-up path gets the same bootstrap. New teams created through the admin API also start with no collections.
 
 ### Team (organization), collection and asset permissions
 
@@ -54,52 +54,55 @@ Read `lib/permissions.ts` and `docs/team-workbench-backend-contract.md` before t
 - The UI calls an organization a **团队 (team)**. The team is the only ownership and permission boundary: every member reads every asset, scene, collection and placement of the team. Workspace rows survive only as **map collections** that own placements (same UUIDs and QR parameters).
 - **Tier 1 — global role** (`users.role`): `super_admin` | `user`. super_admin bypasses org checks everywhere.
 - **Tier 2 — team role** (`organization_member.role`): `owner` | `admin` | `member` | `viewer`. owner/admin/member write team content; viewer is read-only; owner/admin keep team administration (members, roles, maintainer transfer).
-- `lib/permissions.ts` is a **pure, client-safe** permission matrix (`hasOrgPermission`, `hasGlobalPermission`, `isSuperAdmin`, `isSidebarItemVisible`, `effectiveProjectRole`/`teamProjectRole` derived from the team role). No DB access — safe to import in Client Components for UI gating.
+- `lib/permissions.ts` is a **pure, client-safe** permission matrix (`hasOrgPermission`, `hasGlobalPermission`, `isSuperAdmin`, `isSidebarItemVisible`, `orgRoleCanWrite`). No DB access — safe to import in Client Components for UI gating.
 - `lib/permissions.server.ts` does the **DB lookups** (`getUserContext(userId, orgId?)`, `getWorkspaceOrgId(s)`). Server-only.
-- `workspace_assignment`, `asset_workspace_grant` and asset `visibility` are history/metadata, not permission inputs; grant, project-member and assignment mutations answer 410 `DEPRECATED`. `maintained_by` is informational. Never infer ownership from upload paths, `created_by`, or `origin_workspace_id`.
+- Collection assignments and asset grants have been removed, together with their endpoints. Asset `visibility` is metadata, not a permission input. `maintained_by` is informational. Never infer ownership from upload paths, `created_by`, or `origin_workspace_id`.
 - Content authorization lives in `lib/content-model/access.server.ts`; capability flags in DTOs come from the same server rules and are what the UI renders. The frontend's team-level "can write" helper is `teamCanWrite()` in `app/manage/lib/content-context.ts` (team role / declared capability, never an assignment).
 
 UI gating (sidebar, buttons) uses the pure matrix and DTO capabilities; **it is not a security boundary** — every mutating API route must re-check server-side. `proxy.ts` (the Next.js middleware — the file is named `proxy.ts`, not `middleware.ts`) only checks for a session cookie and redirects logged-out visitors to `/auth/login`; public prefixes: `/`, `/auth`, `/login`, `/invite`, `/instructions`, `/api/auth`, `/api/errors`, `/api/miniapp`, plus the public `/api/assets/[id]/matching` endpoint.
 
 ### Team workbench and map collections
 
-Front-end model: `docs/team-workbench.md`. Primary navigation is 工作台 / 合集 / 团队设置 (`app/manage/components/ContentNav.tsx`); there is no global workspace selector for v2 teams.
+Front-end model: `docs/team-workbench.md`. Primary navigation is 工作台 / 合集 / 团队设置 (`app/manage/components/ContentNav.tsx`); there is no global workspace selector .
 
-- `/manage` — **workbench** for v2/readonly teams: every asset and scene of the team in one thumbnail grid (or list), filtered by type (`?type=scene`). Upload, create/import/copy scene never ask for a collection. Legacy/preparing teams still get the old asset map here.
-- `/manage/collections` and `/manage/collections/[id]` — map collections; the detail hosts the placement map below. Old `/manage?organizationId=&workspaceId=` links redirect to the collection detail; `/manage/assets` and `/manage/scenes` redirect to the workbench.
-- v2 pages read the team through `useTeamContext()` (`app/manage/lib/content-context.ts`), which never exposes the persisted workspace; only legacy surfaces use `useContentContext()`.
+- `/manage` — **workbench**: every asset and scene of the team in one thumbnail grid (or list), filtered by type (`?type=scene`). Upload, create/import/copy scene never ask for a collection.
 - Presentational components live in `app/manage/content/` (props + `ContentAction` callbacks, stories in `stories/content/`); data and permissions live in the route components (`app/manage/workbench/`, `app/manage/collections/components/`, `app/manage/assets/components/`).
 
-### The collection map (core, non-obvious)
+### The collection map
 
-`/manage/collections/[id]` (and the legacy `/manage` map) is an interactive 3D map for placing/managing geo-located AR content. Its architecture is split:
+`/manage` is the team workbench. `/manage/collections/[id]` opens a collection map.
+`useTeamContext` provides the selected team; collections are explicit URL/page context.
+`app/manage/store.ts` persists only the selected team. Map selection, placements and
+pinned playable content live in `placement-store.ts`.
 
-- **React side** owns state and chrome. `app/manage/store.ts` is a persisted Zustand store holding the selected organization (and, for legacy teams, workspace), asset list, filtered assets, clicked location, and multi-select set. The v2 placement map takes its collection explicitly (`PlacementMapView`'s `scope`), not from the store.
-- **The 3D map itself is NOT React.** It's a standalone vanilla-JS app under `public/js/viewer/` (served statically) loaded in an `<iframe>` via `app/manage/components/ViewerFrame.tsx`. The iframe URL carries `?media=` (object-storage base) and optionally `?tdt=` (天地图 key); `src/utils/config.js` reads them. The Cesium build lives on OSS at `static/cesium/<version>/`, the 2.6 GB tileset at `tiles/terra_b3dms/` (the copy under `public/js/viewer/terra_b3dms` is only a local-dev fallback and is excluded from the Docker image).
-- React ↔ iframe communicate over **`postMessage`**. Legacy mode uses `useViewerMessaging.ts` and Asset IDs. V2 uses `usePlacementViewer.ts`, `placement-store.ts`, and `placement-to-viewer.ts`; legacy message names remain, but every map `id` / returned `assetId` is a **Placement ID**. V2 drags call the placement service with lock versions. Never send these IDs to legacy Asset move/delete handlers.
-
-`ALL_WORKSPACES_ID = "__all__"` (`app/manage/constants.ts`) is a legacy-map sentinel distinguishing "user cleared the workspace filter (operate at org scope)" from `null` ("no choice yet — auto-pick first"). Use `isSpecificWorkspaceId()` to test for a real workspace UUID. v2 surfaces never auto-pick a workspace.
+The map is a standalone Cesium iframe under `public/js/viewer/`. React communicates
+through `usePlacementViewer.ts` and `placement-to-viewer.ts`. Map IDs are Placement
+IDs; drag updates use placement optimistic locks. Source versions stay immutable.
 
 ### Upload module (`lib/upload/`)
 
-Config-driven, extensible. `FILE_TYPE_CONFIGS` (`config.ts`) maps each `UploadType` (image/video/audio/document/link/text/anchor/shop/model) to accept rules, max size, and optional `process` / `extractMetadata` hooks. `FileUploadService` (`service.ts`) processes in the browser (images → JPEG via `lib/image-compression.ts` + EXIF GPS via `lib/exif-reader.ts`; audio metadata via `lib/audio-compression.ts` — its Opus/WebM compression is currently disabled in `config.ts`), posts the file to `/api/upload` (server writes to OSS under `assets/{userId}/…`, reusing an existing object when the content hash already exists in the organization), then creates the asset row through `/api/workspaces/[id]/assets`. Location priority: EXIF GPS > user map-click. To add a file type, extend `types.ts` + `config.ts` (see `lib/upload/README.md`).
+`FILE_TYPE_CONFIGS` and `FileUploadService.processFile` handle browser preprocessing.
+`/api/upload` requires explicit team/collection context and returns an actor/team-bound
+receipt. Team asset creation uses `/api/organizations/[id]/assets`; upload-and-place
+uses `/api/collections/[id]/placements`. Anchors are versioned assets with reference
+resources, and recognition features belong to the pinned version.
 
-That direct Asset-write flow is the legacy adapter. V2 team uploads send `organization_id` (no workspace) to `/api/upload` and create the Asset identity, immutable AssetVersion and file-resource rows through `POST /api/organizations/[id]/assets`; upload-and-place (map, onsite) additionally names the collection. Files are committed using actor/org-bound upload receipts or authorized source-version resources, never arbitrary managed URLs. See `lib/assets/`, `lib/upload/receipts.server.ts`, and `docs/asset-pipeline.md`. All collection paths must use `lib/storage/retention.server.ts`; physical deletion is disabled unless `app_config.managed_object_deletion.enabled` is explicitly true.
+All cleanup uses `lib/storage/retention.server.ts`. Physical deletion remains disabled
+unless `app_config.managed_object_deletion.enabled` is explicitly true.
 
 ### Other subsystems
 
 - **i18n**: `react-i18next`, initialized in `lib/i18n/config.ts`. Default `zh`, fallback `en`; language persisted in `localStorage`. Strings live in `locales/zh.json` / `locales/en.json`. Long-form instruction pages use MDX under `app/instructions/{zh,en}` (`@next/mdx`, `mdx-components.tsx`).
 - **Error logging**: `lib/log-error.ts` — `logError`/`logErrorSafe` are **fire-and-forget, never throw**; they insert into the `error_log` table. API catch-blocks call these. Surfaced at `/super-admin/error-logs`.
 - **SMS / phone auth**: `lib/auth/sms.ts` uses Alibaba Cloud Dypnsapi (号码认证服务) for phone register/login/reset. Phone users are email/password accounts under a virtual email (`lib/phone-email.ts`). Credentials come from the RAM user `sanlin-app` (`ALIBABA_CLOUD_ACCESS_KEY_*`, shared with OSS).
-- **Scenes**: v2 scenes belong to the team (`workspace_id` is nullable origin metadata) and use `scene` for schema-3 drafts with pinned AssetVersion references; `scene_revision` freezes published documents and dependency rows. `lib/scene/service.server.ts` owns saving/publishing, and `compile.ts` produces playback schema 1/2 with the public discovery ID. Legacy organizations still use `asset.file_type="scene"` and `text_content`; see `docs/scene-asset.md`. Do not resolve a v2 revision from an Asset's current URL.
-- **Content cutover**: `organization.content_model_state` is `legacy | preparing | readonly | v2` (per team). Legacy/preparing keep the old write source, readonly freezes writes, and v2 uses domain services. `contentTransaction` declares the writer; database guards reject stale legacy writers after cutover. Administrative legacy paths require `X-Content-Model: 2` for v2 contracts. Do not bypass this gate, dual-write models, or set v2 merely because a migration file ran. The content-model PUT only initializes an organization with no legacy Asset rows from legacy to v2; other transitions and rollback use `scripts/migrate/content-model/`. The approved plan is `docs/team-assets-scenes-refactor-plan.md`; its project-grant and project-role parts are superseded by the team workbench model.
+- **Scenes**: team-owned schema-3 drafts pin AssetVersion references. Publishing freezes SceneRevision and dependencies; public playback compiles the pinned revision. Old asset-backed scenes are converted by the database migration.
 - **Activity extension**: static placement content resolves AssetVersion or SceneRevision. Activity/topic/reply/reward storage and a generic rule engine are not implemented; keep future business content outside Asset and Scene documents.
 - **Anchor matching**: `lib/anchor/*` + PAI-EAS (`SAGE_EAS_*`); reference images must live on our media host (`lib/anchor/reference.server.ts`).
-- **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`. v2 teams get the collection QR on `/manage/collections/[id]` and the team QR on `/manage/collections`; legacy teams keep the header button.
+- **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`. Teams get the collection QR on `/manage/collections/[id]` and the team QR on `/manage/collections`.
 
 ### Database
 
-PostgreSQL 17 + **PostGIS** in a Docker container next to the app. V2 geo coordinates belong to Placement; legacy Asset coordinates remain for compatibility. `db/schema.sql` is the baseline and the single source of truth for tables, functions and triggers; incremental changes go in `db/migrations/<timestamp>_<name>.sql` and are applied by `npm run db:migrate` (recorded in `schema_migrations`). After a schema change run `npm run db:codegen`. Table names are **singular** (`asset`, `workspace`, `organization_member`) except `users`. V2 commands use Kysely transactions in domain services; legacy batch functions must not bypass writer guards, reference checks or retention.
+PostgreSQL 17 + **PostGIS** in a Docker container next to the app. Geo coordinates belong to Placement. `db/schema.sql` is the baseline and the single source of truth for tables, functions and triggers; incremental changes go in `db/migrations/<timestamp>_<name>.sql` and are applied by `npm run db:migrate` (recorded in `schema_migrations`). After a schema change run `npm run db:codegen`. Table names are **singular** (`asset`, `workspace`, `organization_member`) except `users`. Commands use Kysely transactions in domain services and validate references and retention.
 
 ### Deployment
 
@@ -118,10 +121,13 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app. V2 geo coordi
 
 ## Route map
 
-`/` home · `/manage` team workbench (legacy teams: old asset map) · `/manage/assets/[id]` asset detail (`/manage/assets` → workbench) · `/manage/scenes/[id]` editor (`/manage/scenes` → workbench `?type=scene`) · `/manage/collections` map collections · `/manage/collections/[id]` collection map · `/admin/*` team settings (members / settings; `/admin/workspaces` → collections for v2 teams) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
+`/` home · `/manage` team workbench · `/manage/assets/[id]` asset detail · `/manage/scenes/[id]` editor · `/manage/collections` map collections · `/manage/collections/[id]` collection map · `/admin/*` team settings (members / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
 
 ## Reference docs
 
 **Before writing or changing any UI code, read `docs/design-system.md`** — it defines the design tokens, the six-level type scale, the `<Text>` component rules, and the three-zone boundary for who styles what. Visual examples live in Storybook under `stories/`. Exceptions require amending the rules first, never silently deviating.
 
 Deeper design notes live in `docs/` — notably `docs/team-workbench.md` (team workbench, collections, compatibility URLs), `docs/team-workbench-backend-contract.md` (team permission model and routes), `docs/data-layer.md` (SQL / auth / storage conventions), `docs/permissions.md`, `docs/map-asset-interaction.md`, `docs/asset-pipeline.md`, `docs/i18n-guide.md`, `docs/wechat-qr-code.md`, `docs/3d-model-preview.md`, `docs/audio-compatibility.md`, `docs/asset-storage-lifecycle.md` (content-hash dedup and deletion safety), `docs/saas-role-refactor.md`, and `docs/aliyun-migration-plan.md` (why the stack looks the way it does).
+
+
+The content model is single-path: no state switch, compatibility header, legacy routes or project grants. See `docs/team-workbench-backend-contract.md` and `docs/content-model-migration-runbook.md`.

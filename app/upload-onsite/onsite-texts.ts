@@ -1,7 +1,7 @@
 import type { IntegrationTexts } from "@/app/manage/lib/integration-text";
 
 /**
- * zh/en fallbacks for the v2 onsite upload path. Locale files own the final
+ * zh/en fallbacks for the onsite upload path. Locale files own the final
  * wording; until they carry these keys, `useIntegrationText` uses this table.
  */
 export const ONSITE_TEXTS: IntegrationTexts = {
@@ -12,8 +12,8 @@ export const ONSITE_TEXTS: IntegrationTexts = {
 
   "contentModel.integration.onsite.checkingState": ["正在确认团队的内容模式", "Checking the team's content mode"],
   "contentModel.integration.onsite.stateError": ["没能确认团队的内容模式", "Could not check the team's content mode"],
-  "contentModel.integration.onsite.readonlyTitle": ["团队正在迁移，暂时不能上传", "The team is migrating; uploads are paused"],
-  "contentModel.integration.onsite.readonlyBody": ["迁移完成后即可继续现场上传。已有投放不受影响。", "Onsite uploads resume once the migration finishes. Existing placements are not affected."],
+  "contentModel.integration.onsite.readonlyTitle": ["团队已归档，不能上传", "The team is archived"],
+  "contentModel.integration.onsite.readonlyBody": ["恢复团队后可以继续现场上传。", "Restore the team to resume onsite uploads."],
   "contentModel.integration.onsite.checkingAccess": ["正在确认合集权限…", "Checking access to this collection…"],
   "contentModel.integration.onsite.accessError": ["没能确认合集权限", "Could not check access to this collection"],
   "contentModel.integration.onsite.noEditTitle": ["你不能在这个团队上传", "You cannot upload in this team"],

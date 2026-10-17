@@ -13,7 +13,7 @@ import {
   requireObject,
 } from "./validate-utils";
 
-// Pure structure validation. Asset references are checked by asset.server.ts;
+// Pure structure validation. Asset references are checked by service.server.ts;
 // clip existence is checked by the player against the loaded model.
 
 const INSTANCE_KEYS = ["id", "asset", "position", "quaternion", "scale", "animation"];

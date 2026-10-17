@@ -1,16 +1,13 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
 import { ContentNotice } from "@/app/manage/content";
-import { ContentFeatureState } from "@/app/manage/components/ContentFeatureState";
 import { errorMessage } from "@/app/manage/lib/content-errors";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
+import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 /** Page-level banners above the detail: frozen organization, failed refresh, archive outcome. */
-export function AssetDetailNotices({ readonly, mapHref, refreshError, onRetry, archiveImpact, onDismissArchive, tx }: {
-  readonly: boolean;
-  mapHref: string;
+export function AssetDetailNotices({ refreshError, onRetry, archiveImpact, onDismissArchive, tx }: {
   refreshError: unknown;
   onRetry: () => void;
   /** Localized dependency lines returned by the archive command; null when not just archived. */
@@ -21,7 +18,6 @@ export function AssetDetailNotices({ readonly, mapHref, refreshError, onRetry, a
   const { t } = useTranslation();
   return (
     <>
-      {readonly && <ContentFeatureState state="readonly" mapHref={mapHref} />}
       {!!refreshError && (
         <ContentNotice
           tone="warning"

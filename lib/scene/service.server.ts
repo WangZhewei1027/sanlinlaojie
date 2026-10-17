@@ -1,5 +1,17 @@
-import "server-only";
-import { db, sql } from "@/lib/db";
+import { asFileType, loadVersionDtos, primaryResource } from "@/lib/assets/dto.server";
+import {
+  assertOrgWritable,
+  ensureAssetUse,
+  loadOrgAccess,
+  loadWorkspaceAccess,
+  lockOrgForWrite,
+  lockWorkspaceForWrite,
+  requireOrgRead,
+  requireOrgWrite,
+  requireWorkspaceEdit,
+  type Actor,
+  type OrgAccess
+} from "@/lib/content-model/access.server";
 import type {
   ModelAnimationInfo,
   PlacementDto,
@@ -11,20 +23,6 @@ import type {
   SceneRevisionSummaryDto,
   SceneSummaryDto,
 } from "@/lib/content-model/contracts";
-import {
-  assertOrgWritable,
-  ensureAssetUse,
-  loadOrgAccess,
-  loadWorkspaceAccess,
-  lockOrgForWrite,
-  lockWorkspaceForWrite,
-  requireOrgRead,
-  requireOrgWrite,
-  requireWorkspaceEdit,
-  requireWorkspaceRead,
-  type Actor,
-  type OrgAccess,
-} from "@/lib/content-model/access.server";
 import { ContentError, archived, checkLockVersion, invalid, notFound } from "@/lib/content-model/errors";
 import {
   isRecord,
@@ -47,8 +45,9 @@ import {
   type Executor,
   type Trx,
 } from "@/lib/content-model/tx.server";
-import { asFileType, loadVersionDtos, primaryResource } from "@/lib/assets/dto.server";
+import { db, sql } from "@/lib/db";
 import { assertPlacementWritable, buildPlacementDtos, loadPlacementRows, lockPlacement } from "@/lib/placements/core.server";
+import "server-only";
 import { clipIssues } from "./compile";
 import { createBlankSceneDocument, type SceneDocumentV3 } from "./protocol";
 import { validateSceneDocumentV3 } from "./validate";
@@ -353,12 +352,6 @@ export async function listOrganizationScenes(actor: Actor, organizationId: strin
   return listTeamScenes(actor, organizationId, opts.state ?? "all");
 }
 
-/** GET /api/workspaces/[id]/scenes (compatibility): the same team list, scenes are not inside collections. */
-export async function listScenes(actor: Actor, workspaceId: string, opts: { state?: SceneListState } = {}): Promise<SceneSummaryDto[]> {
-  const access = await requireWorkspaceRead(db, actor, workspaceId);
-  return listTeamScenes(actor, access.workspace.organization_id, opts.state ?? "all");
-}
-
 export async function getScene(actor: Actor, sceneId: string): Promise<SceneDetailDto> {
   const { scene } = await requireSceneRead(db, actor, sceneId);
   return buildSceneDetail(db, actor, scene);
@@ -443,24 +436,6 @@ export async function createOrganizationScene(actor: Actor, organizationId: stri
   return getScene(actor, sceneId);
 }
 
-/** POST /api/workspaces/[id]/scenes (compatibility): a team scene recording this collection as its origin. */
-export async function createScene(actor: Actor, workspaceId: string, body: JsonRecord): Promise<SceneDetailDto> {
-  const { name, document, key } = parseCreateScene(body);
-  const workspace = await requireWorkspaceEdit(db, actor, workspaceId);
-  const sceneId = await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, workspace);
-    const scope = key ? { actorId: actor.userId, command: "scene.create", key, hash: requestHash({ workspaceId, name, document }) } : null;
-    if (scope) {
-      const previous = await claimIdempotency(trx, scope);
-      if (previous) return previous;
-    }
-    const id = await insertSceneTx(trx, actor, workspace, { name, document, workspaceId });
-    if (scope) await recordIdempotency(trx, scope, workspace.workspace.organization_id, "scene", id);
-    await audit(trx, { organizationId: workspace.workspace.organization_id, actorId: actor.userId, action: "scene.create", objectType: "scene", objectId: id, workspaceId });
-    return id;
-  });
-  return getScene(actor, sceneId);
-}
 
 /**
  * PATCH /api/scenes/[id]: save draft / rename / archive / restore. One
@@ -519,12 +494,9 @@ export async function saveScene(actor: Actor, sceneId: string, body: JsonRecord)
  * (scene_id, source_lock_version)), so retries never double-publish.
  */
 export async function publishScene(actor: Actor, sceneId: string, body: JsonRecord): Promise<PublishSceneResult> {
-  rejectUnknown(body, ["expectedLockVersion", "updatePlacements", "updatePlacementIds"]);
+  rejectUnknown(body, ["expectedLockVersion", "updatePlacements"]);
   const expected = body.expectedLockVersion === undefined ? undefined : requireInt(body.expectedLockVersion, "expectedLockVersion", 0);
   if (expected === undefined) throw new ContentError("LOCK_VERSION_REQUIRED", "发布需要提供 expectedLockVersion");
-  // Every switched placement carries its own optimistic lock; bare ids are refused before any write.
-  if (body.updatePlacementIds !== undefined)
-    throw new ContentError("LOCK_VERSION_REQUIRED", "同时更新投放需要为每个投放提供 expectedLockVersion（updatePlacements）");
   const updates = parsePlacementUpdates(body.updatePlacements);
   const { scene: pre } = await requireSceneWrite(db, actor, sceneId);
   const outcome = await contentTransaction(async (trx) => {

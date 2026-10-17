@@ -4,7 +4,7 @@ import "../../app/manage/scenes/components/scene-editor.css";
 const meta = {
   title:"Manage/Scene Editor/Model Drop Zone", component:SceneModelDropZone,
   decorators:[(Story)=><div className="flex h-72"><Story /></div>],
-  args:{models:[],enabled:true,placementRef:{current:()=>[0,0,0]},onAdd:()=>{},children:<div className="h-full bg-muted p-4">场景地面放置区域</div>},
+  args:{canDrop:()=>true,enabled:true,placementRef:{current:()=>[0,0,0]},onAdd:()=>{},children:<div className="h-full bg-muted p-4">场景地面放置区域</div>},
 } satisfies Meta<typeof SceneModelDropZone>;
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -1,9 +1,9 @@
 "use client";
 
+import type { CaptureMetadata, CreatePlacementRequest, GeoPointInput, PlacementDto } from "@/lib/content-model/contracts";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { CaptureMetadata, CreatePlacementRequest, GeoPointInput, PlacementDto } from "@/lib/content-model/contracts";
-import { newIdempotencyKey, workspaceApi } from "../../lib/content-api";
+import { collectionApi, newIdempotencyKey } from "../../lib/content-api";
 import { errorMessage } from "../../lib/content-errors";
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
@@ -67,7 +67,7 @@ export function useCreatePlacement() {
         const json = JSON.stringify(body);
         if (lastBody.current !== null && lastBody.current !== json) key.current = newIdempotencyKey();
         lastBody.current = json;
-        const result = await workspaceApi.createPlacement(workspaceId, { ...body, idempotencyKey: key.current } as CreatePlacementRequest);
+        const result = await collectionApi.createPlacement(workspaceId, { ...body, idempotencyKey: key.current } as CreatePlacementRequest);
         const placement = result.placement;
         usePlacementStore.getState().upsertPlacements([placement]);
         focusPlacement(placement);

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { QrCode } from "lucide-react";
 import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
+import { getOrCreateWorkspaceQRCode } from "@/app/manage/actions/wechat-qr";
+import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -12,9 +14,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useManageStore } from "@/app/manage/store";
-import { isSpecificWorkspaceId } from "@/app/manage/constants";
-import { getOrCreateWorkspaceQRCode } from "@/app/manage/actions/wechat-qr";
 import { buildQrPublicUrl } from "@/lib/wechat-qr";
 
 // URLs confirmed to load, keyed by `${orgId}__${workspaceId}`. Module-level so
@@ -22,28 +21,12 @@ import { buildQrPublicUrl } from "@/lib/wechat-qr";
 const confirmedQrUrls = new Map<string, string>();
 
 interface WorkspaceQrButtonProps {
-  /**
-   * Explicit target, e.g. the open map collection (its workspace UUID). When
-   * omitted the persisted selection is used (legacy map header).
-   */
-  organizationId?: string | null;
-  workspaceId?: string | null;
+  organizationId: string;
+  workspaceId: string | null;
 }
 
-export function WorkspaceQrButton(props: WorkspaceQrButtonProps = {}) {
+export function WorkspaceQrButton({ organizationId: selectedOrganizationId, workspaceId: selectedWorkspaceId }: WorkspaceQrButtonProps) {
   const { t } = useTranslation();
-  const storeOrganizationId = useManageStore(
-    (state) => state.selectedOrganizationId,
-  );
-  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
-  const explicit = props.organizationId !== undefined;
-  const selectedOrganizationId = explicit
-    ? (props.organizationId ?? null)
-    : storeOrganizationId;
-  const selectedWorkspaceId = explicit
-    ? (props.workspaceId ?? null)
-    : storeWorkspaceId;
-
   const workspaceId = isSpecificWorkspaceId(selectedWorkspaceId)
     ? selectedWorkspaceId
     : null;

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { ContentWorkbench } from "../../app/manage/content/ContentWorkbench";
 import { ContentNotice } from "../../app/manage/content/ContentFeedback";
+import { ContentWorkbench } from "../../app/manage/content/ContentWorkbench";
 import { DEFAULT_WORKBENCH_FILTERS } from "../../app/manage/content/types";
 import { archivedItems, noop, ok, team, viewerTeam, workbenchItems } from "./fixtures";
 
@@ -46,11 +46,11 @@ export const Archived: Story = { args: { filters: { ...DEFAULT_WORKBENCH_FILTERS
 export const ViewerReadOnly: Story = {
   args: { team: viewerTeam, canWrite: false, readOnlyReason: "你是团队查看者：可以浏览和预览，不能上传或编辑。", hasMore: false },
 };
-export const MigrationFrozen: Story = {
+export const MigrationArchivedTeam: Story = {
   args: {
     canWrite: false,
-    readOnlyReason: "团队正在迁移，内容暂时只读。",
-    notice: <ContentNotice tone="warning" title="团队迁移中，内容暂时只读" description="切换窗口结束后即可继续编辑。" />,
+    readOnlyReason: "团队已归档，内容只读。",
+    notice: <ContentNotice tone="warning" title="团队已归档" description="恢复团队后即可继续编辑。" />,
   },
 };
 export const Loading: Story = { args: { status: "loading", items: [] } };

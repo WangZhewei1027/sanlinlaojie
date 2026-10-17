@@ -6,10 +6,10 @@
  * workspace assignments seeded below are history only.
  * (scripts/test-team-workbench-routes.ts covers the same routes in-process.)
  */
+import bcrypt from "bcryptjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import bcrypt from "bcryptjs";
 import { Client } from "pg";
 import type { AssetDetailDto, CreateAssetResult, CreatePlacementResult, PlacementContentDto, PlacementDto, PublishSceneResult, SceneDetailDto } from "../lib/content-model/contracts";
 
@@ -23,12 +23,11 @@ const ids = { org: randomUUID(), foreignOrg: randomUUID(), projectA: randomUUID(
 const users = Object.fromEntries(["owner", "maintainer", "reuser", "viewer", "outsider"].map((role) => [role, { id: randomUUID(), email: `${marker}-${role}@example.test`, cookie: "" }]));
 type TestUser = typeof users[string];
 
-async function request<T>(user: TestUser | null, path: string, method = "GET", body?: unknown, expected: number[] = [200, 201], v2 = true): Promise<T> {
+async function request<T>(user: TestUser | null, path: string, method = "GET", body?: unknown, expected: number[] = [200, 201]): Promise<T> {
   const response = await fetch(`${origin}${path}`, {
     method, redirect: "manual", headers: {
       Origin: origin, ...(user ? { Cookie: user.cookie } : {}),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(v2 ? { "X-Content-Model": "2" } : {}),
     }, body: body === undefined ? undefined : JSON.stringify(body),
   });
   const raw = await response.text();
@@ -48,7 +47,7 @@ async function seed(db: Client) {
       await db.query("insert into auth.account(user_id,account_id,provider_id,password) values($1::uuid,$1::text,'credential',$2)", [user.id, hashed]);
     }
     for (const [id, name] of [[ids.org, "共同创作团队"], [ids.foreignOrg, "隔离团队"]]) {
-      await db.query("insert into organization(id,name,content_model_state) values($1,$2,'v2')", [id, `${marker} ${name}`]);
+      await db.query("insert into organization(id,name) values($1,$2)", [id, `${marker} ${name}`]);
     }
     for (const [id, org, name] of [[ids.projectA, ids.org, "三林老街"], [ids.projectB, ids.org, "社区记忆"], [ids.foreignProject, ids.foreignOrg, "外部项目"]]) {
       await db.query("insert into workspace(id,organization_id,name) values($1,$2,$3)", [id, org, name]);
@@ -57,17 +56,14 @@ async function seed(db: Client) {
       await db.query("insert into organization_member(organization_id,user_id,role) values($1,$2,$3)", [ids.org, users[name].id, role]);
     }
     await db.query("insert into organization_member(organization_id,user_id,role) values($1,$2,'owner')", [ids.foreignOrg, users.outsider.id]);
-    for (const [user, project, role] of [[users.maintainer.id, ids.projectA, "editor"], [users.reuser.id, ids.projectB, "editor"], [users.viewer.id, ids.projectA, "manager"]]) {
-      await db.query("insert into workspace_assignment(user_id,workspace_id,role) values($1,$2,$3)", [user, project, role]);
-    }
     await db.query("commit");
   } catch (error) { await db.query("rollback"); throw error; }
   // Sign-up bootstrap: each personal team is v2 with zero collections, before any test collection exists.
-  const personal = await db.query<{ state: string; collections: number }>(
-    "select o.content_model_state state, (select count(*) from workspace w where w.organization_id=o.id)::int collections from organization o where o.created_by=any($1::uuid[])",
+  const personal = await db.query<{ collections: number }>(
+    "select (select count(*) from workspace w where w.organization_id=o.id)::int collections from organization o where o.created_by=any($1::uuid[])",
     [Object.values(users).map((user) => user.id)]);
   assert.equal(personal.rows.length, Object.keys(users).length);
-  assert.ok(personal.rows.every((row) => row.state === "v2" && row.collections === 0), "personal teams start as v2 without a default workspace");
+  assert.ok(personal.rows.every((row) => row.collections === 0), "personal teams start as v2 without a default workspace");
   for (const user of Object.values(users)) {
     const signIn = () => fetch(`${origin}/api/auth/sign-in/email`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, password }) });
     let response = await signIn();
@@ -88,35 +84,34 @@ async function seed(db: Client) {
 async function checks() {
   const { maintainer: a, reuser: b, viewer, outsider, owner } = users;
   const body = { name: "榕树模型", fileType: "model", visibility: "organization", payload: { kind: "model", animations: [{ index: 0, name: "sway" }] }, resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v1.glb" }], idempotencyKey: `${marker}-create` };
-  const created = await data(request<{ data: CreateAssetResult }>(a, `/api/workspaces/${ids.projectA}/assets`, "POST", body));
+  const created = await data(request<{ data: CreateAssetResult }>(a, `/api/organizations/${ids.org}/assets`, "POST", body));
   assert.equal(created.asset.maintained_by, a.id);
-  const replay = await data(request<{ data: CreateAssetResult }>(a, `/api/workspaces/${ids.projectA}/assets`, "POST", body));
+  const replay = await data(request<{ data: CreateAssetResult }>(a, `/api/organizations/${ids.org}/assets`, "POST", body));
   assert.equal(replay.asset.id, created.asset.id);
   assert.equal(replay.created, false);
-  await request(a, `/api/workspaces/${ids.projectA}/assets`, "POST", { ...body, name: "changed" }, [409]);
-  await request(viewer, `/api/workspaces/${ids.projectA}/assets`, "POST", { ...body, idempotencyKey: `${marker}-viewer` }, [403]);
+  await request(a, `/api/organizations/${ids.org}/assets`, "POST", { ...body, name: "changed" }, [409]);
+  await request(viewer, `/api/organizations/${ids.org}/assets`, "POST", { ...body, idempotencyKey: `${marker}-viewer` }, [403]);
   await request(outsider, `/api/assets/${created.asset.id}`, "GET", undefined, [403, 404]);
   const teammate = await data(request<{ data: { lock_version: number; maintained_by: string | null } }>(b, `/api/assets/${created.asset.id}`, "PATCH", { name: "榕树模型（共同维护）", expectedLockVersion: created.asset.lock_version }));
   assert.equal(teammate.maintained_by, a.id, "a teammate edits without becoming the maintainer");
   await request(viewer, `/api/assets/${created.asset.id}`, "PATCH", { name: "viewer edit", expectedLockVersion: teammate.lock_version }, [403]);
-  await request(a, `/api/assets/${created.asset.id}`, "PATCH", { name: "stale client" }, [409], false);
-  console.log("PASS HTTP create retry, viewer read-only cap, team editing and old-client fence");
+  await request(a, `/api/assets/${created.asset.id}`, "PATCH", { name: "stale client" }, [428]);
+  console.log("PASS HTTP create retry, viewer read-only cap, team editing and optimistic locks");
 
   const document = { schemaVersion: 3, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
     assets: { tree: { assetId: created.asset.id, assetVersionId: created.version.id } },
     instances: [{ id: "tree-one", asset: "tree", position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: { clipName: "sway", startSeconds: 0, loop: true } }] } };
-  const scene = await data(request<{ data: SceneDetailDto }>(b, `/api/workspaces/${ids.projectB}/scenes`, "POST", { name: "社区入口", document, idempotencyKey: `${marker}-scene` }));
+  const scene = await data(request<{ data: SceneDetailDto }>(b, `/api/organizations/${ids.org}/scenes`, "POST", { name: "社区入口", document, idempotencyKey: `${marker}-scene` }));
   assert.equal(scene.referenced_resources[0].asset_version_id, created.version.id);
   await request(a, `/api/scenes/${scene.id}`, "GET");
   await request(outsider, `/api/scenes/${scene.id}`, "GET", undefined, [404]);
   const usage = await request<{ data: { impact: { restricted_count: number; items: unknown[] } } }>(a, `/api/assets/${created.asset.id}/usage`);
   assert.equal(usage.data.impact.restricted_count, 0);
   assert.equal(JSON.stringify(usage).includes("社区入口"), true, "every team member sees every same-team dependency");
-  await request(a, `/api/assets/${created.asset.id}/workspace-grants?workspace_id=${ids.projectB}`, "DELETE", undefined, [410]);
   const publication = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
   const publishRetry = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
   assert.equal(publication.revision.id, publishRetry.revision.id);
-  const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/workspaces/${ids.projectB}/placements`, "POST", { target: { kind: "scene_revision", sceneRevisionId: publication.revision.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
+  const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/collections/${ids.projectB}/placements`, "POST", { target: { kind: "scene_revision", sceneRevisionId: publication.revision.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
   const next = await data(request<{ data: { version: { id: string } } }>(b, `/api/assets/${created.asset.id}/versions`, "POST", {
     expectedLockVersion: teammate.lock_version, payload: body.payload,
     resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v2.glb" }], idempotencyKey: `${marker}-version`,
@@ -140,7 +135,7 @@ async function checks() {
   }
   await request(outsider, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`, "GET", undefined, [404]);
   await request(owner, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.foreignProject}`, "GET", undefined, [404]);
-  console.log("PASS HTTP cross-collection reuse, team-wide dependency names, retired grants and immutable publication");
+  console.log("PASS HTTP cross-collection reuse, team-wide dependency names, immutable publication");
 
   const saved = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`, "PATCH", { name: "社区入口 · 草稿", expectedLockVersion: fixed.lock_version }));
   await request(b, `/api/scenes/${scene.id}`, "PATCH", { name: "lost edit", expectedLockVersion: fixed.lock_version }, [409]);
@@ -162,7 +157,6 @@ async function checks() {
   await request(a, `/api/assets/${created.asset.id}?expectedLockVersion=${detail.lock_version}`, "DELETE");
   const retained = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`));
   assert.equal(retained.referenced_resources[0].url, "https://fixture.invalid/tree-v1.glb");
-  await request(owner, `/api/workspaces/${ids.projectB}`, "DELETE", undefined, [409]);
   console.log("PASS HTTP optimistic conflicts, independent placements and archived-source retention");
 
   const teamAsset = await data(request<{ data: CreateAssetResult }>(b, `/api/organizations/${ids.org}/assets`, "POST", { ...body, name: "团队素材", idempotencyKey: `${marker}-team-asset` }));
@@ -173,8 +167,7 @@ async function checks() {
   await request(viewer, `/api/organizations/${ids.org}/collections`, "POST", { name: "viewer" }, [403]);
   await request(b, `/api/collections/${collection.id}/archive`, "POST");
   await request(b, `/api/collections/${collection.id}/archive`, "DELETE");
-  await request(owner, `/api/workspaces/${ids.projectA}/members`, "PUT", { userId: b.id, role: "editor" }, [410]);
-  console.log("PASS HTTP team asset/scene/collection routes without any workspace; retired project membership");
+  console.log("PASS HTTP team asset/scene/collection routes without any workspace");
   return { assetId: created.asset.id, sceneId: scene.id, placementId: copy.placement.id };
 }
 

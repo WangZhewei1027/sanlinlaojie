@@ -1,5 +1,18 @@
-import "server-only";
-import { db, sql } from "@/lib/db";
+import {
+  ensureAssetUse,
+  loadWorkspaceAccess,
+  lockOrgForWrite,
+  lockWorkspaceForWrite,
+  requireAssetMaintain,
+  requireAssetRead,
+  requireOrgRead,
+  requireOrgWrite,
+  requireWorkspaceEdit,
+  requireWorkspaceRead,
+  type Actor,
+  type OrgAccess,
+  type WorkspaceAccess
+} from "@/lib/content-model/access.server";
 import {
   ASSET_FILE_TYPES,
   SPECIAL_ASSET_FILE_TYPES,
@@ -16,23 +29,7 @@ import {
   type PlacementDto,
   type ResourceRole,
 } from "@/lib/content-model/contracts";
-import {
-  ensureAssetUse,
-  loadWorkspaceAccess,
-  lockOrgForWrite,
-  lockWorkspaceForWrite,
-  readableWorkspaceIds,
-  requireAssetMaintain,
-  requireAssetRead,
-  requireOrgRead,
-  requireOrgWrite,
-  requireWorkspaceEdit,
-  requireWorkspaceRead,
-  type Actor,
-  type OrgAccess,
-  type WorkspaceAccess,
-} from "@/lib/content-model/access.server";
-import { archived, checkLockVersion, deprecated, forbidden, invalid, notFound } from "@/lib/content-model/errors";
+import { archived, checkLockVersion, forbidden, invalid, notFound } from "@/lib/content-model/errors";
 import {
   isRecord,
   optionalEnum,
@@ -53,16 +50,18 @@ import {
   requestHash,
   type Trx,
 } from "@/lib/content-model/tx.server";
+import { db, sql } from "@/lib/db";
 import {
+  buildPlacementDtos,
   insertPlacementTx,
+  loadPlacementRows,
   parsePlacementFields,
   resolveTargetForWrite,
-  buildPlacementDtos,
-  loadPlacementRows,
   type PlacementFields,
 } from "@/lib/placements/core.server";
-import { ASSET_FULL_COLUMNS, buildAssetDtos, loadAssetDto, loadAssetRows, loadVersionDtos } from "./dto.server";
-import { computeImpact, listGrants } from "./usage.server";
+import "server-only";
+import { ASSET_FULL_COLUMNS, buildAssetDtos, loadAssetDto, loadVersionDtos } from "./dto.server";
+import { computeImpact } from "./usage.server";
 import { appendVersion } from "./versions.server";
 
 const VISIBILITIES: readonly AssetVisibility[] = ["restricted", "organization"];
@@ -116,7 +115,7 @@ async function queryCatalog(actor: Actor, org: OrgAccess, query: AssetListQuery,
   return { data, page: { limit, offset, total: Number(total) } };
 }
 
-/** Legacy collection path: the whole team catalog, with use flags for that collection (no grants). */
+/** Collection catalog: the whole team catalog, with use flags for that collection (no grants). */
 export async function listWorkspaceAssets(actor: Actor, workspaceId: string, query: AssetListQuery): Promise<ApiPage<AssetDto>> {
   const access = await requireWorkspaceRead(db, actor, workspaceId);
   return queryCatalog(actor, access, query, access);
@@ -138,8 +137,8 @@ export async function getAssetDetail(actor: Actor, assetId: string): Promise<Ass
   const asset = await loadAssetDto(db, actor, assetId);
   if (!asset) throw notFound("素材不存在");
   const versionRows = await db.selectFrom("asset_version").select("id").where("asset_id", "=", assetId).orderBy("version_no", "desc").execute();
-  const [versions, grants] = await Promise.all([loadVersionDtos(db, versionRows.map((v) => v.id)), listGrants(db, actor, assetId)]);
-  return { ...asset, versions: versionRows.flatMap((v) => (versions.has(v.id) ? [versions.get(v.id)!] : [])), grants };
+  const versions = await loadVersionDtos(db, versionRows.map((v) => v.id));
+  return { ...asset, versions: versionRows.flatMap((v) => (versions.has(v.id) ? [versions.get(v.id)!] : [])) };
 }
 
 // ───────────────────────── create ─────────────────────────
@@ -157,7 +156,6 @@ export interface ParsedCreateAsset {
 export function parseCreateAsset(body: JsonRecord, opts: { requireKey: boolean; allowPlacement: boolean }): ParsedCreateAsset {
   rejectUnknown(body, ["name", "fileType", "payload", "resources", "visibility", ...(opts.requireKey ? ["idempotencyKey"] : []), ...(opts.allowPlacement ? ["placement"] : [])]);
   const fileType = parseFileType(body.fileType);
-  if (fileType === "anchor") throw invalid("匹配点使用专用接口维护，不能作为普通素材创建");
   const placement = body.placement === undefined ? undefined : parsePlacementFields(isRecord(body.placement) ? body.placement : (() => { throw invalid("placement 必须是对象"); })());
   return {
     name: requireString(body.name, "name", { max: 200 }),
@@ -247,10 +245,10 @@ async function replayCreate(trx: Trx, assetId: string, withPlacement: boolean) {
 }
 
 /**
- * POST /api/workspaces/[id]/assets (v2): a team asset whose origin is this
+ * POST /api/collections/[id]/assets: a team asset whose origin is this
  * collection, optionally placed there. Replays with the same key return the first result.
  */
-export async function createAssetInWorkspace(actor: Actor, workspaceId: string, body: JsonRecord): Promise<CreateAssetResult> {
+export async function createAssetForCollection(actor: Actor, workspaceId: string, body: JsonRecord): Promise<CreateAssetResult> {
   const input = parseCreateAsset(body, { requireKey: true, allowPlacement: true });
   const workspace = await requireWorkspaceEdit(db, actor, workspaceId);
   const scope = { actorId: actor.userId, command: "asset.create", key: input.idempotencyKey!, hash: requestHash({ workspaceId, ...body }) };
@@ -319,7 +317,7 @@ export async function createAssetVersion(actor: Actor, assetId: string, body: Js
 
 // ───────────────────────── identity maintenance ─────────────────────────
 
-/** PATCH /api/assets/[id] (v2): name / visibility / restore by any team writer; maintainer by owner/admin. */
+/** PATCH /api/assets/[id]: name / visibility / restore by any team writer; maintainer by owner/admin. */
 export async function updateAssetIdentity(actor: Actor, assetId: string, body: JsonRecord): Promise<AssetDto> {
   rejectUnknown(body, ["expectedLockVersion", "name", "visibility", "state", "maintainedBy"]);
   const expected = body.expectedLockVersion === undefined ? undefined : optionalInt(body.expectedLockVersion, "expectedLockVersion", 0);
@@ -375,7 +373,7 @@ export async function updateAssetIdentity(actor: Actor, assetId: string, body: J
   return dto;
 }
 
-/** DELETE /api/assets/[id] (v2) = archive; existing references keep working (plan §5.2). */
+/** DELETE /api/assets/[id] = archive; existing references keep working (plan §5.2). */
 export async function archiveAsset(actor: Actor, assetId: string, expectedLockVersion: number | undefined): Promise<ArchiveAssetResult> {
   const pre = await requireAssetMaintain(db, actor, assetId);
   await contentTransaction(async (trx) => {
@@ -465,27 +463,6 @@ export async function duplicateAsset(actor: Actor, assetId: string, body: JsonRe
 
 export async function getAssetUsage(actor: Actor, assetId: string): Promise<AssetUsageDto> {
   const access = await requireAssetRead(db, actor, assetId);
-  const [impact, grants] = await Promise.all([computeImpact(db, actor, assetId), listGrants(db, actor, assetId)]);
-  return { asset_id: assetId, current_version_id: access.asset.current_version_id, impact, grants };
+  const impact = await computeImpact(db, actor, assetId);
+  return { asset_id: assetId, current_version_id: access.asset.current_version_id, impact };
 }
-
-const GRANTS_RETIRED = "素材授权已停用：团队成员可以直接在任意合集中使用团队素材";
-
-/** POST /api/assets/[id]/workspace-grants: retired (410). Team assets need no grant. */
-export function createAssetGrant(): never {
-  throw deprecated(GRANTS_RETIRED);
-}
-
-/** DELETE /api/assets/[id]/workspace-grants: retired (410). Historical grants stay as read-only rows. */
-export function revokeAssetGrant(): never {
-  throw deprecated(GRANTS_RETIRED);
-}
-
-/** For legacy-path readers: is this id a v2 identity row? */
-export async function isV2Asset(assetId: string): Promise<boolean> {
-  const rows = await loadAssetRows(db, [assetId]);
-  return rows.length > 0;
-}
-
-/** Collection ids the caller can read in an organization (null = all). */
-export { readableWorkspaceIds };

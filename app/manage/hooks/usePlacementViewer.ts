@@ -1,13 +1,13 @@
 "use client";
 
+import type { PlacementDto } from "@/lib/content-model/contracts";
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { toast } from "sonner";
-import type { PlacementDto } from "@/lib/content-model/contracts";
 import { isLockConflict, placementApi } from "../lib/content-api";
 import { errorMessage } from "../lib/content-errors";
 import type { IntegrationT } from "../lib/integration-text";
-import { focusPayload, type ViewerPlacementItem } from "../lib/placement-to-viewer";
 import { usePlacementStore, type MapPoint } from "../lib/placement-store";
+import { focusPayload, type ViewerPlacementItem } from "../lib/placement-to-viewer";
 
 /** Drag result from the viewer; `assetId` is the id we sent = a Placement id. */
 interface ViewerMove {
@@ -32,7 +32,7 @@ function post(iframe: HTMLIFrameElement | null, type: string, payload: unknown) 
 }
 
 /**
- * v2 bridge to the map iframe. Same protocol as hooks/useViewerMessaging.ts,
+ * bridge to the map iframe. Same protocol as hooks/useViewerMessaging.ts,
  * but every id is a Placement id and drags persist through
  * `POST /api/placements/move` (all-or-nothing, per-item lock versions).
  * Refused or failed moves re-send SET_ASSETS so the map snaps back.

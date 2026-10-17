@@ -1,18 +1,18 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { MoreHorizontal, UserCog, User, Layers, Trash2 } from "lucide-react";
-import type { UserData } from "../types";
-import { displayAccount } from "@/lib/phone-email";
 import { Text } from "@/components/ui/typography";
+import { displayAccount } from "@/lib/phone-email";
+import { MoreHorizontal, Trash2, User, UserCog } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { UserData } from "../types";
 
 interface UserListProps {
   users: UserData[];
@@ -81,9 +81,6 @@ export function UserList({
               <th className="text-left font-medium px-3 py-2.5">
                 {t("admin.users.columns.role", "角色")}
               </th>
-              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">
-                {t("admin.users.columns.workspaces", "工作空间")}
-              </th>
               <th className="text-left font-medium px-3 py-2.5 hidden lg:table-cell">
                 {t("admin.users.columns.lastSignIn", "最近登录")}
               </th>
@@ -96,9 +93,6 @@ export function UserList({
           <tbody>
             {users.map((user) => {
               const isCurrentUser = user.user_id === currentUserId;
-              const workspaces = (user.workspace_assignment ?? [])
-                .map((a) => a.workspace?.name)
-                .filter(Boolean) as string[];
 
               return (
                 <tr
@@ -145,28 +139,6 @@ export function UserList({
                     </Badge>
                   </td>
 
-                  {/* Workspaces */}
-                  <td className="px-3 py-2.5 hidden md:table-cell">
-                    {workspaces.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <div
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                        title={workspaces.join("、")}
-                      >
-                        <Layers className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate max-w-[200px]">
-                          {workspaces.length <= 2
-                            ? workspaces.join("、")
-                            : t(
-                                "admin.users.workspaceCount",
-                                "{{count}} 个工作空间",
-                                { count: workspaces.length },
-                              )}
-                        </span>
-                      </div>
-                    )}
-                  </td>
 
                   {/* Last sign-in */}
                   <td className="px-3 py-2.5 hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">

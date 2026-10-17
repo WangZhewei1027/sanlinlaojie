@@ -4,8 +4,8 @@ import { createCollection, listCollections, parseCollectionState } from "@/lib/c
 
 type Context = { params: Promise<{ id: string }> };
 
-// GET  /api/organizations/[id]/collections?state=active|archived|all (default active) → { data: WorkspaceDto[] }
-// POST /api/organizations/[id]/collections { name, description? } → 201 { data: WorkspaceDto }
+// GET  /api/organizations/[id]/collections?state=active|archived|all (default active) → { data: CollectionDto[] }
+// POST /api/organizations/[id]/collections { name, description? } → 201 { data: CollectionDto }
 // Map collections are stored as workspace rows; every team writer manages them.
 export async function GET(request: Request, { params }: Context) {
   const { id } = await params;

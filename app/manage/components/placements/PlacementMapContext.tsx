@@ -22,7 +22,7 @@ export interface PlacementMapContextValue {
   anchorsStatus: "idle" | "loading" | "ready" | "error";
   anchorsError: string | null;
   reloadAnchors: () => void;
-  /** Upload types the organization allows (legacy organization setting). */
+  /** Upload types the organization allows (team setting). */
   allowedUploadTypes: UploadType[];
   canWrite: (placement: PlacementDto) => boolean;
   canCopy: (placement: PlacementDto) => boolean;

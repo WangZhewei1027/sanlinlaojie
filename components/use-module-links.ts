@@ -1,27 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import {
-  Map,
-  MapPinned,
-  LayoutGrid,
-  Camera,
-  Settings2,
-  Shield,
-  type LucideIcon,
-} from "lucide-react";
-import { useManageStore } from "@/app/manage/store";
-import { useContentModel } from "@/app/manage/lib/content-context";
 import {
   useIntegrationText,
   type IntegrationTexts,
 } from "@/app/manage/lib/integration-text";
+import { useManageStore } from "@/app/manage/store";
 import {
   hasOrgPermission,
   isSidebarItemVisible,
   isSuperAdmin,
 } from "@/lib/permissions";
+import {
+  Camera,
+  LayoutGrid,
+  MapPinned,
+  Settings2,
+  Shield,
+  type LucideIcon
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // Same keys and fallbacks as app/manage/components/ContentNav.tsx.
 const NAV_TEXTS: IntegrationTexts = {
@@ -56,7 +54,6 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
     (state) => state.selectedOrganization?.id ?? null,
   );
   // Cached per organization; null while signed out issues no request.
-  const contentModel = useContentModel(enabled ? organizationId : null);
 
   useEffect(() => {
     if (!enabled) {
@@ -78,19 +75,8 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
   if (!enabled) return [];
 
   const superAdmin = isSuperAdmin(globalRole);
-  const teamModel =
-    contentModel.state === "v2" || contentModel.state === "readonly";
-  const links: ModuleLink[] = [];
-  links.push(
-    teamModel
-      ? {
-          href: "/manage",
-          label: tx("contentModel.integration.nav.workbench"),
-          Icon: LayoutGrid,
-        }
-      : { href: "/manage", label: t("home.quickLinks.manage.title"), Icon: Map },
-  );
-  if (organizationId && teamModel) {
+  const links: ModuleLink[] = [{ href: "/manage", label: tx("contentModel.integration.nav.workbench"), Icon: LayoutGrid }];
+  if (organizationId) {
     links.push({
       href: "/manage/collections",
       label: tx("contentModel.integration.nav.collections"),

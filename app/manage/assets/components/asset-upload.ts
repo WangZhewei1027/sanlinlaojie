@@ -1,14 +1,14 @@
 /**
- * Turns a user's file / text / link into a v2 version body, and keeps one
+ * Turns a user's file / text / link into a version body, and keeps one
  * idempotency key (plus the already-uploaded receipt) per submission intent so
  * a retry after a network failure replays the same command instead of
  * creating a second asset or version.
  */
-import type { MutableRefObject } from "react";
-import type { AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
-import { getLinkAssetErrorKey, parseLinkAssetInput } from "@/lib/link-asset";
 import { isContentApiError, newIdempotencyKey } from "@/app/manage/lib/content-api";
 import { linkPayload, prepareFile, textPayload, uploadFileVersion, type LibraryUploadType } from "@/app/manage/lib/content-upload";
+import type { AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
+import { getLinkAssetErrorKey, parseLinkAssetInput } from "@/lib/link-asset";
+import type { MutableRefObject } from "react";
 
 export type VersionContent =
   | { kind: "file"; type: LibraryUploadType; file: File }

@@ -1,13 +1,12 @@
-import "server-only";
-import { sql } from "@/lib/db";
+import { publicObjectUrl } from "@/lib/assets/urls";
+import { requireOrgWrite, requireWorkspaceEdit, type Actor, type OrgAccess } from "@/lib/content-model/access.server";
 import type { UploadPurpose, UploadReceiptDto } from "@/lib/content-model/contracts";
 import { ContentError, notFound } from "@/lib/content-model/errors";
 import { isUuid } from "@/lib/content-model/input";
 import { toIsoRequired, type Executor, type Trx } from "@/lib/content-model/tx.server";
-import { requireOrgWrite, requireWorkspaceEdit, type Actor, type OrgAccess } from "@/lib/content-model/access.server";
-import { publicObjectUrl } from "@/lib/assets/urls";
+import { sql } from "@/lib/db";
 import { UPLOAD_RECEIPT_TTL_MS } from "@/lib/storage/retention.server";
-import { assetKeyFromUrl } from "@/lib/storage/oss";
+import "server-only";
 
 /**
  * Upload receipts (plan §7): the proof that this actor put these bytes under
@@ -66,8 +65,6 @@ export async function resolveUploadScope(
   } else {
     throw new ContentError("VALIDATION_FAILED", "缺少 organization_id 或 workspace_id");
   }
-  if (scope.org.org.content_model_state === "readonly")
-    throw new ContentError("CONTENT_MODEL_READONLY", "组织正在切换内容模型，暂时只读", { content_model_state: "readonly" });
   return scope;
 }
 
@@ -81,7 +78,7 @@ export function receiptDto(row: ReceiptRow): UploadReceiptDto {
     content_hash: row.content_hash,
     mime_type: row.mime_type,
     size_bytes: row.size_bytes,
-    purpose: row.purpose === "anchor_reference" || row.purpose === "legacy_asset" ? row.purpose : "asset_version",
+    purpose: "asset_version",
     reused: row.reused,
     expires_at: toIsoRequired(row.expires_at),
   };
@@ -136,16 +133,6 @@ export async function findReusableKey(exec: Executor, organizationId: string, co
     .limit(1)
     .executeTakeFirst();
   if (version?.storage_key) return version.storage_key;
-  const legacy = await exec
-    .selectFrom("asset")
-    .select("file_url")
-    .where("content_hash", "=", contentHash)
-    .where("file_url", "is not", null)
-    .where(sql<boolean>`workspace_id && (select coalesce(array_agg(id), '{}'::uuid[]) from workspace where organization_id = ${organizationId}::uuid)`)
-    .limit(1)
-    .executeTakeFirst();
-  const legacyKey = legacy?.file_url ? assetKeyFromUrl(legacy.file_url) : null;
-  if (legacyKey) return legacyKey;
   const receipt = await exec
     .selectFrom("upload_receipt")
     .select("storage_key")
@@ -162,7 +149,7 @@ export async function findReusableKey(exec: Executor, organizationId: string, co
  * Hash-only probe (`GET /api/assets/by-hash`). Knowing a hash is not proof of
  * possessing the bytes, so — unlike findReusableKey, which runs only after the
  * bytes were actually uploaded — this resolves only to files the caller can
- * already reach as a member of `org`: versions of active team assets, legacy
+ * already reach as a member of `org`: versions of active team assets,
  * rows in the team's collections, or the caller's own unexpired receipts.
  * Never another tenant's file or another user's uncommitted upload.
  */
@@ -182,16 +169,6 @@ export async function findProbeKey(exec: Executor, actor: Actor, org: OrgAccess,
     .executeTakeFirst();
   if (version?.storage_key) return version.storage_key;
 
-  const legacy = await exec
-    .selectFrom("asset")
-    .select("file_url")
-    .where("content_hash", "=", contentHash)
-    .where("file_url", "is not", null)
-    .where(sql<boolean>`workspace_id && (select coalesce(array_agg(id), '{}'::uuid[]) from workspace where organization_id = ${organizationId}::uuid)`)
-    .limit(1)
-    .executeTakeFirst();
-  const legacyKey = legacy?.file_url ? assetKeyFromUrl(legacy.file_url) : null;
-  if (legacyKey) return legacyKey;
 
   const receipt = await exec
     .selectFrom("upload_receipt")

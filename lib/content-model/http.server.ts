@@ -1,10 +1,10 @@
-import "server-only";
-import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/server";
-import { logError } from "@/lib/log-error";
-import { CONTENT_MODEL_HEADER, CONTENT_MODEL_VERSION, type ApiErrorBody } from "./contracts";
 import { db } from "@/lib/db";
+import { logError } from "@/lib/log-error";
+import { NextResponse } from "next/server";
+import "server-only";
 import { loadActor, type Actor } from "./access.server";
+import { type ApiErrorBody } from "./contracts";
 import { ContentError } from "./errors";
 import { isRecord, type JsonRecord } from "./input";
 
@@ -19,10 +19,6 @@ export function errorJson(error: ContentError): NextResponse {
   return NextResponse.json(body, { status: error.status, headers: NO_STORE });
 }
 
-/** True when the caller speaks the v2 administrative contract. */
-export function hasContentModelHeader(request: Request): boolean {
-  return request.headers.get(CONTENT_MODEL_HEADER) === CONTENT_MODEL_VERSION;
-}
 
 export async function readJsonBody(request: Request): Promise<JsonRecord> {
   const body: unknown = await request.json().catch(() => undefined);
@@ -47,8 +43,6 @@ export function mapDatabaseError(error: unknown): ContentError | null {
   if (!error || typeof error !== "object") return null;
   const pg = error as PgError;
   const message = typeof pg.message === "string" ? pg.message : "";
-  if (pg.code === "55000" && message.startsWith("CONTENT_MODEL_UPGRADE_REQUIRED"))
-    return new ContentError("CONTENT_MODEL_UPGRADE_REQUIRED", "该组织已切换到新内容模型，请刷新页面或升级客户端");
   if (pg.code === "55000" && message.includes("immutable")) return new ContentError("VALIDATION_FAILED", "已发布版本不可修改");
   if (pg.code === "23503") return new ContentError("DEPENDENCY_CONFLICT", "仍有内容依赖该对象，操作被拒绝");
   if (pg.code === "23505") return new ContentError("LOCK_VERSION_CONFLICT", "内容已被并发修改，请重新载入后重试");
@@ -83,7 +77,7 @@ export async function failure(error: unknown, ctx: RouteContext): Promise<NextRe
 }
 
 /**
- * Standard v2 route body: session → handler → `{ data }`, errors mapped.
+ * Standard route body: session → handler → `{ data }`, errors mapped.
  * The handler returns either data (wrapped with `status`) or a NextResponse.
  */
 export async function handleRoute<T>(

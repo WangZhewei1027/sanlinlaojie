@@ -1,15 +1,15 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bounds, Grid, OrbitControls, TransformControls, useHelper, useGLTF, Html, useBounds } from "@react-three/drei";
-import { AnimationMixer, AnimationAction, Box3, BoxHelper, Group, LoopOnce } from "three";
-import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { useTranslation } from "react-i18next";
+import { groundPlacement, type PlacementReader } from "@/lib/scene/editor-interactions";
 import type { CompositionInstance } from "@/lib/scene/protocol";
+import type { TransformValues } from "@/lib/scene/theatre-state";
+import { Bounds, Grid, Html, OrbitControls, TransformControls, useBounds, useGLTF, useHelper } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { AnimationAction, AnimationMixer, Box3, BoxHelper, Group, LoopOnce } from "three";
+import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { TheatreSession, TransformObject } from "./theatre-session";
 import type { ClipInfo } from "./types";
-import type { TransformValues } from "@/lib/scene/theatre-state";
-import { groundPlacement, type PlacementReader } from "@/lib/scene/editor-interactions";
 const decoder = process.env.NEXT_PUBLIC_MEDIA_BASE_URL ? `${process.env.NEXT_PUBLIC_MEDIA_BASE_URL.replace(/\/+$/, "")}/static/draco/gltf/` : undefined;
 
 type ModelProps = { url: string; instance: CompositionInstance; object: TransformObject; session: TheatreSession; onClips: (id: string, clips: ClipInfo[]) => void; onSelect: () => void; selected: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void; roots: Map<string, Group>; onReady: () => void };
@@ -83,7 +83,7 @@ function PlacementController({ placementRef }: { placementRef: React.RefObject<P
   return null;
 }
 
-export function SceneViewport({ session, instances, resolveUrl, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; /** URL per instance: resolved by pinned version (v2) or asset (legacy); a preview may override one instance. */ resolveUrl: (instance: CompositionInstance) => string | null | undefined; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
+export function SceneViewport({ session, instances, resolveUrl, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; /** URL per instance: resolved by pinned version; a preview may override one instance. */ resolveUrl: (instance: CompositionInstance) => string | null | undefined; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
   const { t } = useTranslation();
   const roots = useMemo(() => new Map<string, Group>(), []);
   const onReady = useMemo(() => () => { requestAnimationFrame(() => fitRef.current?.()); }, [fitRef]);

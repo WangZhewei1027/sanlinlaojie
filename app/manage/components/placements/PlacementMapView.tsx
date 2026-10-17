@@ -1,21 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import type { PlacementDto } from "@/lib/content-model/contracts";
 import { DEFAULT_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
-import { ViewerFrame } from "../ViewerFrame";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePlacementViewer } from "../../hooks/usePlacementViewer";
-import type { Organization, Workspace } from "../../types";
-import { placementScopeKey, toViewerItems } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
+import { placementScopeKey, toViewerItems } from "../../lib/placement-to-viewer";
+import type { Organization, Workspace } from "../../types";
+import { ViewerFrame } from "../ViewerFrame";
 import { ManageGridLayout } from "./ManageGridLayout";
-import { PlacementMapProvider, type PlacementMapContextValue } from "./PlacementMapContext";
 import { PlacementList } from "./PlacementList";
+import { PlacementMapProvider, type PlacementMapContextValue } from "./PlacementMapContext";
 import { PlacementSelectionBar } from "./PlacementSelectionBar";
 import { PlacementSidebar } from "./PlacementSidebar";
-import { listTabOf, matchesFilters } from "./placement-utils";
 import { usePlacementText } from "./placement-texts";
+import { listTabOf, matchesFilters } from "./placement-utils";
 import { usePlacementData } from "./usePlacementData";
 
 /** One map collection as the placement map sees it (the collection id is its workspace UUID). */
@@ -24,7 +24,7 @@ export interface PlacementMapScope {
   organization: Organization | null;
   /** The open collection. */
   workspaceId: string;
-  /** The team's collections, for names of legacy shared placements and copy targets. */
+  /** The team's collections, for collection names and copy targets. */
   workspaces: Workspace[];
   /** Server capability of the collection (`capabilities.can_edit`, not archived). */
   canEdit: boolean;
@@ -34,7 +34,7 @@ export interface PlacementMapScope {
 }
 
 /**
- * v2 placement map of one collection: Placement list | map iframe | sidebar.
+ * placement map of one collection: Placement list | map iframe | sidebar.
  * Rights come only from server capabilities (`placement.capabilities` and the
  * collection's `capabilities.can_edit`).
  */
@@ -61,7 +61,7 @@ export function PlacementMapView({ scope }: { scope: PlacementMapScope }) {
 
   const canWrite = useCallback(
     (placement: PlacementDto) =>
-      placement.capabilities.can_edit && !placement.capabilities.read_only_shared,
+      placement.capabilities.can_edit,
     [],
   );
   const canCopy = useCallback(

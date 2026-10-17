@@ -4,8 +4,8 @@ import { getCollection, updateCollection } from "@/lib/content-model/projects.se
 
 type Context = { params: Promise<{ id: string }> };
 
-// GET   /api/collections/[id] → { data: WorkspaceDto }
-// PATCH /api/collections/[id] { name?, description? } → { data: WorkspaceDto } (open collection, team writer)
+// GET   /api/collections/[id] → { data: CollectionDto }
+// PATCH /api/collections/[id] { name?, description? } → { data: CollectionDto } (open collection, team writer)
 export async function GET(request: Request, { params }: Context) {
   const { id } = await params;
   return handleActorRoute(request, `/api/collections/${id}`, (actor) => getCollection(actor, requireUuid(id, "collection id")));

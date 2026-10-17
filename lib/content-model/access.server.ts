@@ -1,18 +1,14 @@
-import "server-only";
 import {
   isSuperAdmin,
   orgRoleCanWrite,
-  teamProjectRole,
   type OrgRole,
-  type ProjectRole,
 } from "@/lib/permissions";
+import "server-only";
 import type {
   AssetCapabilities,
-  ContentModelState,
-  OrganizationCapabilities,
-  WorkspaceCapabilities,
+  CollectionCapabilities,
 } from "./contracts";
-import { ContentError, archived, forbidden, notFound } from "./errors";
+import { archived, forbidden, notFound } from "./errors";
 import type { Executor, Trx } from "./tx.server";
 
 /**
@@ -21,8 +17,7 @@ import type { Executor, Trx } from "./tx.server";
  * reads all of its assets, scenes, collections and placements; owner, admin
  * and member write them; a viewer is read-only; ownership and team
  * administration stay with owner/admin. Workspace rows are map collections
- * that own placements. workspace_assignment, asset_workspace_grant, asset
- * visibility and maintained_by are not permission inputs. Every route
+ * that own placements. Asset visibility and maintained_by are metadata. Every route
  * resolves access through these helpers; UI capability flags are produced
  * from the same objects, never re-derived on the client.
  */
@@ -44,8 +39,6 @@ export async function loadActor(exec: Executor, userId: string): Promise<Actor> 
 export interface OrgInfo {
   id: string;
   name: string;
-  content_model_state: ContentModelState;
-  content_model_changed_at: Date | null;
   archived_at: Date | null;
 }
 
@@ -64,9 +57,6 @@ function asOrgRole(value: string | null | undefined): OrgRole | null {
   return value === "owner" || value === "admin" || value === "member" || value === "viewer" ? value : null;
 }
 
-function asState(value: string): ContentModelState {
-  return value === "preparing" || value === "readonly" || value === "v2" ? value : "legacy";
-}
 
 function orgAccessFrom(actor: Actor, org: OrgInfo, role: string | null | undefined): OrgAccess {
   const orgRole = asOrgRole(role);
@@ -83,15 +73,13 @@ export async function loadOrgAccess(exec: Executor, actor: Actor, orgId: string)
   const row = await exec
     .selectFrom("organization as o")
     .leftJoin("organization_member as m", (join) => join.onRef("m.organization_id", "=", "o.id").on("m.user_id", "=", actor.userId))
-    .select(["o.id", "o.name", "o.content_model_state", "o.content_model_changed_at", "o.archived_at", "m.role"])
+    .select(["o.id", "o.name", "o.archived_at", "m.role"])
     .where("o.id", "=", orgId)
     .executeTakeFirst();
   if (!row) return null;
   return orgAccessFrom(actor, {
     id: row.id,
     name: row.name,
-    content_model_state: asState(row.content_model_state),
-    content_model_changed_at: row.content_model_changed_at,
     archived_at: row.archived_at,
   }, row.role);
 }
@@ -115,48 +103,17 @@ export async function requireOrgWrite(exec: Executor, actor: Actor, orgId: strin
   return access;
 }
 
-export function orgCapabilities(access: OrgAccess, actor: Actor): OrganizationCapabilities {
-  return { can_read: access.canRead, can_administer: access.canAdminister, can_manage_content_model: actor.superAdmin };
-}
-
-/** Writers of the v2 model: the organization must be cut over and open. */
-export function assertV2Writable(org: OrgInfo): void {
-  if (org.archived_at) throw archived("组织已归档，内容只读");
-  if (org.content_model_state === "readonly")
-    throw new ContentError("CONTENT_MODEL_READONLY", "组织正在切换内容模型，暂时只读", { content_model_state: org.content_model_state });
-  if (org.content_model_state !== "v2")
-    throw new ContentError("CONTENT_MODEL_NOT_ENABLED", "该组织尚未启用新内容模型", { content_model_state: org.content_model_state });
-}
-
-/**
- * Legacy administrative write paths. Returns which model the request must be
- * served by: unchanged legacy behaviour, or the v2 adapter (only with the
- * explicit X-Content-Model: 2 contract). Mixed scopes are never guessed.
- */
-export function legacyPathMode(orgs: OrgInfo[], hasV2Header: boolean): "legacy" | "v2" {
-  if (orgs.some((org) => org.archived_at)) throw archived("组织已归档，内容只读");
-  if (orgs.some((org) => org.content_model_state === "readonly"))
-    throw new ContentError("CONTENT_MODEL_READONLY", "组织正在切换内容模型，暂时只读", { content_model_state: "readonly" });
-  const v2 = orgs.filter((org) => org.content_model_state === "v2").length;
-  if (v2 === 0) return "legacy";
-  if (!hasV2Header)
-    throw new ContentError("CONTENT_MODEL_UPGRADE_REQUIRED", "该组织已切换到新内容模型，请刷新页面或升级客户端", { content_model_state: "v2" });
-  if (v2 !== orgs.length) throw new ContentError("LEGACY_AMBIGUOUS", "旧记录同时属于已切换与未切换的组织，无法自动处理");
-  return "v2";
-}
-
 /** Short-lived share lock so a concurrent cutover/archive cannot interleave with a write. */
 export async function lockOrgForWrite(trx: Trx, orgId: string): Promise<OrgInfo> {
   const row = await trx
     .selectFrom("organization")
-    .select(["id", "name", "content_model_state", "content_model_changed_at", "archived_at"])
+    .select(["id", "name", "archived_at"])
     .where("id", "=", orgId)
     .forShare()
     .executeTakeFirst();
   if (!row) throw notFound("组织不存在");
-  const org: OrgInfo = { ...row, content_model_state: asState(row.content_model_state) };
-  assertV2Writable(org);
-  return org;
+  if (row.archived_at) throw archived("组织已归档，内容只读");
+  return row;
 }
 
 // ───────────────────────── map collections (workspace rows) ─────────────────────────
@@ -172,13 +129,11 @@ export interface WorkspaceInfo {
 
 export interface WorkspaceAccess extends OrgAccess {
   workspace: WorkspaceInfo;
-  /** Derived from the team role (owner/admin → manager, member → editor, viewer → viewer). */
-  projectRole: ProjectRole | null;
   /** Team writer, collection and organization open: placements, tags, uploads into it, rename. */
   canEdit: boolean;
   /** Team writer in an open organization: archive and restore. */
   canManage: boolean;
-  capabilities: WorkspaceCapabilities;
+  capabilities: CollectionCapabilities;
 }
 
 interface WorkspaceRow {
@@ -189,8 +144,6 @@ interface WorkspaceRow {
   create_date: Date | null;
   archived_at: Date | null;
   org_name: string;
-  content_model_state: string;
-  content_model_changed_at: Date | null;
   org_archived_at: Date | null;
   org_role: string | null;
 }
@@ -199,11 +152,8 @@ function workspaceAccessFrom(actor: Actor, row: WorkspaceRow): WorkspaceAccess {
   const base = orgAccessFrom(actor, {
     id: row.organization_id,
     name: row.org_name,
-    content_model_state: asState(row.content_model_state),
-    content_model_changed_at: row.content_model_changed_at,
     archived_at: row.org_archived_at,
   }, row.org_role);
-  const projectRole: ProjectRole | null = actor.superAdmin ? "manager" : teamProjectRole(base.orgRole);
   const canManage = base.canWrite && !row.org_archived_at;
   const canEdit = canManage && !row.archived_at;
   return {
@@ -216,14 +166,11 @@ function workspaceAccessFrom(actor: Actor, row: WorkspaceRow): WorkspaceAccess {
       create_date: row.create_date,
       archived_at: row.archived_at,
     },
-    projectRole,
     canEdit,
     canManage,
     capabilities: {
       can_read: base.canRead,
       can_edit: canEdit,
-      can_manage_members: false,
-      can_assign_manager: false,
       can_archive: canManage,
     },
   };
@@ -242,8 +189,6 @@ function workspaceQuery(exec: Executor, actor: Actor) {
       "w.create_date",
       "w.archived_at",
       "o.name as org_name",
-      "o.content_model_state",
-      "o.content_model_changed_at",
       "o.archived_at as org_archived_at",
       "m.role as org_role",
     ]);
@@ -301,21 +246,12 @@ export async function requireWorkspaceManage(exec: Executor, actor: Actor, works
   return access;
 }
 
-/** Inside a write transaction: block concurrent archive of the collection and cutover of its org. */
+/** Inside a write transaction: block concurrent archival of the collection or its team. */
 export async function lockWorkspaceForWrite(trx: Trx, access: WorkspaceAccess): Promise<void> {
   await lockOrgForWrite(trx, access.workspace.organization_id);
   const row = await trx.selectFrom("workspace").select(["archived_at"]).where("id", "=", access.workspace.id).forShare().executeTakeFirst();
   if (!row) throw notFound("合集不存在");
   if (row.archived_at) throw archived("合集已归档，投放只读");
-}
-
-/**
- * Collection ids of an organization the caller may read: null = every
- * collection (any member or super_admin), [] for outsiders. Kept for legacy
- * list queries that filter `asset.workspace_id` arrays.
- */
-export async function readableWorkspaceIds(_exec: Executor, _actor: Actor, orgAccess: OrgAccess): Promise<string[] | null> {
-  return orgAccess.canRead ? null : [];
 }
 
 // ───────────────────────── assets ─────────────────────────
@@ -358,9 +294,9 @@ const ASSET_COLUMNS = [
   "created_by",
 ] as const;
 
-/** v2 identity row; legacy rows without an organization are not addressable here. */
+/** Team-owned asset identity. */
 export async function loadAssetIdentity(exec: Executor, assetId: string, opts: { forUpdate?: boolean; forShare?: boolean } = {}): Promise<AssetIdentity | null> {
-  let query = exec.selectFrom("asset").select(ASSET_COLUMNS).where("id", "=", assetId).where("organization_id", "is not", null);
+  let query = exec.selectFrom("asset").select(ASSET_COLUMNS).where("id", "=", assetId);
   if (opts.forUpdate) query = query.forUpdate();
   else if (opts.forShare) query = query.forShare();
   const row = await query.executeTakeFirst();

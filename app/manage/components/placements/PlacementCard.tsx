@@ -1,18 +1,18 @@
 "use client";
 
-import type { MouseEvent } from "react";
-import { useTranslation } from "react-i18next";
-import { Focus, MapPin, MapPinOff } from "lucide-react";
+import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 import type { PlacementDto } from "@/lib/content-model/contracts";
-import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
-import { AssetThumbnail } from "../AssetManager/AssetThumbnail";
-import { isMappable, placementDisplayName, placementFileType, placementScopeKey, resolvedContentOf } from "../../lib/placement-to-viewer";
+import { cn } from "@/lib/utils";
+import { Focus, MapPin, MapPinOff } from "lucide-react";
+import type { MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { usePlacementStore } from "../../lib/placement-store";
+import { isMappable, placementDisplayName, placementFileType, placementScopeKey, resolvedContentOf } from "../../lib/placement-to-viewer";
 import type { Tag } from "../../types";
+import { AssetThumbnail } from "../AssetManager/AssetThumbnail";
 import { usePlacementMap } from "./PlacementMapContext";
 
 interface PlacementCardProps {
@@ -27,7 +27,7 @@ interface PlacementCardProps {
 /** One placement row: identity, pinned version, status and discovery facts. */
 export function PlacementCard({ placement, tags, selected, selectMode, checked, onSelect }: PlacementCardProps) {
   const { t } = useTranslation();
-  const { tx, focusPlacement, workspaceName, organizationId, workspaceId } = usePlacementMap();
+  const { tx, focusPlacement, organizationId, workspaceId } = usePlacementMap();
   const contents = usePlacementStore((state) => state.placementContents);
   const content = resolvedContentOf(placement, contents, placementScopeKey(organizationId, workspaceId));
   const name = placementDisplayName(placement);
@@ -70,11 +70,6 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
             <Badge variant="outline" className="px-1.5 py-0 text-xs">{t(`contentModel.placement.status.${placement.status}`)}</Badge>
           )}
           {target.upgrade_available && <ContentStatusBadge kind="outdated" />}
-          {placement.capabilities.read_only_shared && (
-            <Badge variant="outline" className="max-w-full truncate px-1.5 py-0 text-xs">
-              {tx("contentModel.integration.map.card.sharedFrom", { project: placement.workspace_name ?? workspaceName(placement.workspace_id) })}
-            </Badge>
-          )}
           {placement.directory_only && <Badge variant="outline" className="px-1.5 py-0 text-xs">{tx("contentModel.integration.map.card.directoryOnly")}</Badge>}
         </div>
         {placement.tag_ids.length > 0 && (

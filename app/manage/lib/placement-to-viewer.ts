@@ -1,8 +1,8 @@
 /**
- * Single translation point between v2 placements and the map iframe
- * (public/js/viewer — unchanged legacy runtime).
+ * Single translation point between placements and the map iframe
+ * (public/js/viewer).
  *
- * The viewer still speaks the legacy message names (SET_ASSETS, ASSET_CLICKED,
+ * The viewer still speaks the message names (SET_ASSETS, ASSET_CLICKED,
  * ASSETS_MOVED …) and reads `id, file_type, file_url, text_content, name,
  * anchor_id, metadata.{longitude,latitude,height}`. Every `id` sent is a
  * Placement id, so every id the viewer sends back is a Placement id — never a

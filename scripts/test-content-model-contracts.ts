@@ -1,23 +1,12 @@
 /** Pure regressions for team permissions, contracts and pinned scene playback. No DB or storage access. */
 import assert from "node:assert/strict";
-import { effectiveProjectRole, hasOrgPermission, orgRoleCanWrite, projectRoleAtLeast, teamProjectRole } from "../lib/permissions";
-import { CONTENT_ERROR_STATUS } from "../lib/content-model/contracts";
+import { parseAssetPayload, parseRenderConfig, parseResourceInputs } from "../lib/content-model/payload";
+import { hasOrgPermission, orgRoleCanWrite } from "../lib/permissions";
+import { clipIssues, compileSceneManifest } from "../lib/scene/compile";
 import { createBlankSceneDocument, type CompositionInstance } from "../lib/scene/protocol";
 import { validateSceneDefinition, validateSceneDocumentV3 } from "../lib/scene/validate";
-import { clipIssues, compileSceneManifest } from "../lib/scene/compile";
-import { parseAssetPayload, parseRenderConfig, parseResourceInputs } from "../lib/content-model/payload";
 
 const uuid = (n: number) => `10150000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-// Team model: the organization role alone decides collection access; assignments are history.
-const teamRoles = { owner: "manager", admin: "manager", member: "editor", viewer: "viewer" } as const;
-for (const [org, expected] of Object.entries(teamRoles)) {
-  assert.equal(teamProjectRole(org), expected);
-  for (const assignment of [null, undefined, "manager", "editor", "viewer", "unexpected"])
-    assert.equal(effectiveProjectRole(org, assignment), expected, `${org} with assignment ${assignment} is ${expected}`);
-}
-for (const org of [null, undefined, "unexpected"]) assert.equal(effectiveProjectRole(org, "manager"), null, "non-members get nothing from an assignment");
-assert.equal(projectRoleAtLeast("editor", "manager"), false);
-assert.equal(projectRoleAtLeast(null, "viewer"), false);
 assert.equal(orgRoleCanWrite("viewer"), false);
 for (const role of ["owner", "admin", "member"]) {
   assert.equal(orgRoleCanWrite(role), true);
@@ -25,7 +14,7 @@ for (const role of ["owner", "admin", "member"]) {
 }
 assert.equal(hasOrgPermission("viewer", "org.collections.manage"), false);
 assert.equal(hasOrgPermission("member", "org.members.changeRole"), false, "team administration stays owner/admin");
-assert.equal(CONTENT_ERROR_STATUS.DEPRECATED, 410);
+
 console.log("PASS team roles drive collection access; assignments are ignored; viewers stay read-only");
 
 const doc = createBlankSceneDocument();
@@ -50,7 +39,8 @@ const manifest = compileSceneManifest(uuid(7), doc, resources);
 assert.equal(manifest.assetId, uuid(7), "manifest echoes the discovered placement/public ID");
 assert.equal(manifest.resources.first.url, resources.first.url);
 assert.equal(manifest.resources.second.url, resources.second.url, "same identity can play two immutable versions");
-assert.equal(manifest.schemaVersion, 1);
+assert.equal(manifest.schemaVersion, 2);
+assert.equal(validateSceneDefinition({ schemaVersion: 1, content: manifest.content }).ok, false);
 assert.equal(validateSceneDefinition({ schemaVersion: manifest.schemaVersion, content: manifest.content }).ok, true);
 assert.equal(JSON.stringify(doc), before, "compilation does not rewrite the authoring document");
 assert.throws(() => compileSceneManifest(uuid(7), doc, { first: resources.first }), /not resolved/);

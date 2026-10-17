@@ -1,13 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ContentFeatureState } from "../../../app/manage/components/ContentFeatureState";
-const meta = {
-  title: "Manage/Content Integration/Feature State", component: ContentFeatureState, parameters: { layout: "padded" },
-  args: { state: "legacy", mapHref: "/manage" },
-} satisfies Meta<typeof ContentFeatureState>;
+const meta = { title: "Manage/Content Integration/Feature State", component: ContentFeatureState, parameters: { layout: "padded" }, args: { state: "no-organization" } } satisfies Meta<typeof ContentFeatureState>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const LegacyTeam: Story = {};
-export const Preparing: Story = { args: { state: "preparing" } };
-export const ReadOnlyCutover: Story = { args: { state: "readonly" } };
-export const NoTeam: Story = { args: { state: "no-organization" } };
-export const StateUnavailable: Story = { args: { state: "error", error: "HTTP 500", onRetry: () => {} } };
+export const NoTeam: Story = {};
+export const LoadFailed: Story = { args: { state: "error", error: "HTTP 500", onRetry: () => {} } };

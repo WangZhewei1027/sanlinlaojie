@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment } from "react";
-import { usePathname } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import Link from "next/link";
+import { TEAM_ROUTES, isPathWithinRoutes } from "@/app/manage/constants";
+import { useManageStore } from "@/app/manage/store";
+import { buildBreadcrumbItems } from "@/components/breadcrumb-routes";
+import { OrgSwitcher } from "@/components/org-switcher";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,47 +12,26 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { OrgSwitcher } from "@/components/org-switcher";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
-import { WorkspaceQrButton } from "@/components/workspace-qr-button";
-import { buildBreadcrumbItems } from "@/components/breadcrumb-routes";
-import { useManageStore } from "@/app/manage/store";
-import { WORKSPACE_ROUTES, isPathWithinRoutes } from "@/app/manage/constants";
-import { useContentModel } from "@/app/manage/lib/content-context";
 import { cn } from "@/lib/utils";
-
-// Legacy teams only: the old asset map and onsite upload still pick a workspace
-// in the header. Teams on content model v2 (or frozen as readonly) have no
-// global workspace; collections are chosen on their own pages.
-const LEGACY_WORKSPACE_SWITCHER_PATHS = ["/manage", "/upload-onsite"];
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Fragment } from "react";
+import { useTranslation } from "react-i18next";
 
 export function BreadcrumbNav() {
   const { t, i18n } = useTranslation();
   const pathname = usePathname();
 
   const organizations = useManageStore((state) => state.organizations);
-  const selectedOrganizationId = useManageStore(
-    (state) => state.selectedOrganizationId,
-  );
   const organizationLoading = useManageStore(
     (state) => state.organizationLoading,
   );
 
-  const isOrgContextRoute = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
+  const isOrgContextRoute = isPathWithinRoutes(pathname, TEAM_ROUTES);
   // Hide the whole switcher block (incl. its separator) when OrgSwitcher
   // itself would render nothing — otherwise two separators sit side by side.
   const showOrgSwitcher =
     isOrgContextRoute && (organizationLoading || organizations.length > 0);
-  const contentModel = useContentModel(
-    isOrgContextRoute ? selectedOrganizationId : null,
-  );
-  const legacyTeam =
-    contentModel.status === "ready" &&
-    contentModel.state !== "v2" &&
-    contentModel.state !== "readonly";
-  const showWorkspace =
-    legacyTeam && LEGACY_WORKSPACE_SWITCHER_PATHS.includes(pathname);
-
   const breadcrumbItems = buildBreadcrumbItems(pathname, t, i18n.language);
 
   return (
@@ -114,20 +93,9 @@ export function BreadcrumbNav() {
             );
           })}
 
-          {/* Workspace switcher for the legacy map and onsite upload */}
-          {showWorkspace && (
-            <>
-              <BreadcrumbSeparator className="text-muted-foreground/60" />
-              <BreadcrumbItem className="min-w-0">
-                <WorkspaceSwitcher />
-              </BreadcrumbItem>
-            </>
-          )}
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Legacy teams: workspace QR in the header. v2 teams show it on each collection. */}
-      {isOrgContextRoute && legacyTeam && <WorkspaceQrButton />}
     </div>
   );
 }

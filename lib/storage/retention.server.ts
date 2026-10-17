@@ -1,8 +1,8 @@
-import "server-only";
-import { db, sql } from "@/lib/db";
 import { lockKeys, objectLockKey, type Executor, type Trx } from "@/lib/content-model/tx.server";
+import { db, sql } from "@/lib/db";
 import { logError } from "@/lib/log-error";
-import { ASSETS_PREFIX, deleteObjects, mediaKeyFromUrl } from "./oss";
+import "server-only";
+import { ASSETS_PREFIX, deleteObjects } from "./oss";
 import { MEDIA_BASE_URL, mediaKeysInText } from "./public-url";
 
 /**
@@ -17,8 +17,7 @@ import { MEDIA_BASE_URL, mediaKeysInText } from "./public-url";
  *
  * A key is protected while anything references it or a sibling derived file
  * (`x.webm` ↔ `x.m4a`, the mini-program's audio convention): immutable version
- * resources, legacy asset file_url / checkin_url / URLs inside legacy JSON,
- * anchor reference images, and unexpired upload receipts (in-flight uploads).
+ * resources, archive storage holds, anchor features and unexpired upload receipts.
  *
  * Actual object deletion is disabled unless app_config
  * `managed_object_deletion` = {"enabled": true}; until then every path only
@@ -41,7 +40,7 @@ export function relatedKeys(key: string): string[] {
   return [key];
 }
 
-/** URL spellings under which legacy rows may store a key. */
+/** URL spellings used by stored feature metadata. */
 function urlForms(key: string): string[] {
   if (!MEDIA_BASE_URL) return [];
   const encoded = `${MEDIA_BASE_URL}/${key.split("/").map(encodeURIComponent).join("/")}`;
@@ -89,26 +88,8 @@ export async function isKeyProtected(exec: Executor, key: string): Promise<boole
     if (anchor) return true;
   }
 
-  // Legacy rows: direct columns plus any mention inside JSON/text (link
-  // previews, shop check-in images, hand-edited metadata).
-  const patterns = keys.map((k) => `%${escapeLike(k)}%`);
-  const legacy = await exec
-    .selectFrom("asset")
-    .select("id")
-    .where((eb) =>
-      eb.or([
-        ...(urls.length ? [eb("file_url", "in", urls), eb(sql<string>`metadata->>'checkin_url'`, "in", urls)] : []),
-        ...patterns.flatMap((p) => [
-          eb(sql<string>`coalesce(file_url, '')`, "like", p),
-          eb(sql<string>`coalesce(metadata::text, '')`, "like", p),
-          eb(sql<string>`coalesce(config::text, '')`, "like", p),
-          eb(sql<string>`coalesce(text_content, '')`, "like", p),
-        ]),
-      ]),
-    )
-    .limit(1)
-    .executeTakeFirst();
-  return !!legacy;
+  const hold = await exec.selectFrom("storage_hold").select("storage_key").where("storage_key", "in", keys).executeTakeFirst();
+  return !!hold;
 }
 
 /**
@@ -193,18 +174,8 @@ export async function collectProtectedKeys(): Promise<Set<string>> {
   for (const row of anchors) keysInText(row.image_url, keys);
   const payloads = await db.selectFrom("asset_version").select(sql<string>`payload::text`.as("payload_text")).execute();
   for (const row of payloads) keysInText(row.payload_text, keys);
-  const legacy = await db
-    .selectFrom("asset")
-    .select(["file_url", sql<string | null>`metadata::text`.as("metadata_text"), sql<string | null>`config::text`.as("config_text"), "text_content"])
-    .execute();
-  for (const row of legacy) {
-    const direct = row.file_url ? mediaKeyFromUrl(row.file_url) : null;
-    if (direct) keys.add(direct);
-    keysInText(row.file_url, keys);
-    keysInText(row.metadata_text, keys);
-    keysInText(row.config_text, keys);
-    keysInText(row.text_content, keys);
-  }
+  const holds = await db.selectFrom("storage_hold").select("storage_key").execute();
+  for (const row of holds) keys.add(row.storage_key);
   for (const key of [...keys]) for (const related of relatedKeys(key)) keys.add(related);
   return keys;
 }

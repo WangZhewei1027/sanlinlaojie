@@ -11,7 +11,7 @@ export function instanceValues(instance: CompositionInstance) {
 }
 export type TransformValues = ReturnType<typeof instanceValues>;
 
-/** Imports both legacy layouts and version 2 timelines without requiring editor metadata. */
+/** Imports poses and timelines without requiring editor metadata. */
 export function stateFromDefinition(definition: SceneDocumentLike) {
   const byObject: Record<string, unknown> = {};
   const tracksByObject: Record<string, unknown> = {};

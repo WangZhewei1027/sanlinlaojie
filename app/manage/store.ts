@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
-import type { Asset, Workspace, LocationData, Organization } from "./types";
+import type { Organization } from "./types";
 
 interface ManageStore {
   // Current user state
@@ -16,38 +16,6 @@ interface ManageStore {
   setSelectedOrganizationId: (id: string | null) => void;
   setSelectedOrganization: (organization: Organization | null) => void;
   setOrganizationLoading: (loading: boolean) => void;
-
-  // Workspace state
-  workspaces: Workspace[];
-  selectedWorkspaceId: string | null;
-  selectedWorkspace: Workspace | null;
-  workspaceLoading: boolean;
-  setWorkspaces: (workspaces: Workspace[]) => void;
-  setSelectedWorkspaceId: (id: string | null) => void;
-  setSelectedWorkspace: (workspace: Workspace | null) => void;
-  setWorkspaceLoading: (loading: boolean) => void;
-
-  // Assets state
-  assets: Asset[];
-  filteredAssets: Asset[]; // 经过标签过滤后的资产列表
-  assetsLoading: boolean;
-  setAssets: (assets: Asset[]) => void;
-  setFilteredAssets: (assets: Asset[]) => void;
-  setAssetsLoading: (loading: boolean) => void;
-  addAsset: (asset: Asset) => void;
-  updateAsset: (id: string, updates: Partial<Asset>) => void;
-  deleteAsset: (id: string) => void;
-
-  // Viewer state
-  clickedLocation: LocationData | null;
-  focusedAssetId: string | null;
-  selectedAssetId: string | null;
-  selectedAssetIds: string[]; // 地图框选/多选的素材集合
-  setClickedLocation: (location: LocationData | null) => void;
-  setFocusedAssetId: (id: string | null) => void;
-  setSelectedAssetId: (id: string | null) => void;
-  setSelectedAssetIds: (ids: string[]) => void;
-  clearSelectedAssetIds: () => void;
 
   // Reset all state (used on auth change)
   reset: () => void;
@@ -92,98 +60,6 @@ export const useManageStore = create<ManageStore>()(
             "manage/setOrganizationLoading",
           ),
 
-        // Workspace state
-        workspaces: [],
-        selectedWorkspaceId: null,
-        selectedWorkspace: null,
-        workspaceLoading: false,
-        setWorkspaces: (workspaces) =>
-          set({ workspaces }, undefined, "manage/setWorkspaces"),
-        setSelectedWorkspaceId: (id) =>
-          set(
-            { selectedWorkspaceId: id },
-            undefined,
-            "manage/setSelectedWorkspaceId",
-          ),
-        setSelectedWorkspace: (workspace) =>
-          set(
-            { selectedWorkspace: workspace },
-            undefined,
-            "manage/setSelectedWorkspace",
-          ),
-        setWorkspaceLoading: (loading) =>
-          set(
-            { workspaceLoading: loading },
-            undefined,
-            "manage/setWorkspaceLoading",
-          ),
-
-        // Assets state
-        assets: [],
-        filteredAssets: [], // 初始为空数组
-        assetsLoading: false,
-        setAssets: (assets) => set({ assets }, undefined, "manage/setAssets"),
-        setFilteredAssets: (assets) =>
-          set(
-            { filteredAssets: assets },
-            undefined,
-            "manage/setFilteredAssets",
-          ),
-        setAssetsLoading: (loading) =>
-          set({ assetsLoading: loading }, undefined, "manage/setAssetsLoading"),
-        addAsset: (asset) =>
-          set(
-            (state) => ({ assets: [asset, ...state.assets] }),
-            undefined,
-            "manage/addAsset",
-          ),
-        updateAsset: (id, updates) =>
-          set(
-            (state) => ({
-              assets: state.assets.map((asset) =>
-                asset.id === id ? { ...asset, ...updates } : asset,
-              ),
-            }),
-            undefined,
-            "manage/updateAsset",
-          ),
-        deleteAsset: (id) =>
-          set(
-            (state) => ({
-              assets: state.assets.filter((asset) => asset.id !== id),
-            }),
-            undefined,
-            "manage/deleteAsset",
-          ),
-
-        // Viewer state
-        clickedLocation: null,
-        focusedAssetId: null,
-        selectedAssetId: null,
-        selectedAssetIds: [],
-        setClickedLocation: (location) =>
-          set(
-            { clickedLocation: location },
-            undefined,
-            "manage/setClickedLocation",
-          ),
-        setFocusedAssetId: (id) =>
-          set({ focusedAssetId: id }, undefined, "manage/setFocusedAssetId"),
-        setSelectedAssetId: (id) =>
-          set({ selectedAssetId: id }, undefined, "manage/setSelectedAssetId"),
-        setSelectedAssetIds: (ids) =>
-          set(
-            { selectedAssetIds: ids },
-            undefined,
-            "manage/setSelectedAssetIds",
-          ),
-        clearSelectedAssetIds: () =>
-          set(
-            { selectedAssetIds: [] },
-            undefined,
-            "manage/clearSelectedAssetIds",
-          ),
-
         // Reset all state (used on auth change)
         reset: () =>
           set(
@@ -193,34 +69,15 @@ export const useManageStore = create<ManageStore>()(
               selectedOrganizationId: null,
               selectedOrganization: null,
               organizationLoading: false,
-              workspaces: [],
-              selectedWorkspaceId: null,
-              selectedWorkspace: null,
-              workspaceLoading: false,
-              assets: [],
-              filteredAssets: [],
-              assetsLoading: false,
-              clickedLocation: null,
-              focusedAssetId: null,
-              selectedAssetId: null,
-              selectedAssetIds: [],
             },
             undefined,
             "manage/reset",
           ),
       }),
       {
-        name: "manage-store",
-        version: 1,
-        // 旧版本（无 version 字段）的持久化数据直接丢弃选择，回落到默认值，
-        // 避免跨用户/跨 schema 恢复出过期的组织/工作区选择。
-        migrate: () => ({
-          selectedOrganizationId: null,
-          selectedWorkspaceId: null,
-        }),
+        name: "team-selection",
         partialize: (state) => ({
           selectedOrganizationId: state.selectedOrganizationId,
-          selectedWorkspaceId: state.selectedWorkspaceId,
         }),
       },
     ),

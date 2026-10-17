@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server";
-import { db, sql } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { getUserContext } from "@/lib/permissions.server";
-import { isSuperAdmin } from "@/lib/permissions";
+import { db, sql } from "@/lib/db";
 import { logErrorSafe } from "@/lib/log-error";
-import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
+import { isSuperAdmin } from "@/lib/permissions";
+import { getUserContext } from "@/lib/permissions.server";
 import { ASSETS_PREFIX, headObject, listObjects } from "@/lib/storage/oss";
 import { collectProtectedKeys, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
+import { NextResponse } from "next/server";
 
 /**
  * 存储/数据库一致性清扫（仅 super_admin）：
@@ -40,24 +39,16 @@ interface CleanResult {
 }
 
 /**
- * Managed objects a collection depends on: legacy rows, the versions its
+ * Managed objects a collection depends on: the versions its
  * placements pin (directly or through their scene revisions) and, as
  * history, versions of assets once granted to it.
  */
 async function workspaceObjects(workspaceId: string): Promise<{ id: string; url: string; key: string; reason: string }[]> {
-  const legacy = await db
-    .selectFrom("asset")
-    .select(["id", "file_url"])
-    .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
-    .where("file_url", "is not", null)
-    .orderBy("id", "asc")
-    .execute();
   const versionIds = sql<string>`(
     select p.asset_version_id from placement p where p.workspace_id = ${workspaceId}::uuid and p.asset_version_id is not null
     union
     select ra.asset_version_id from placement p join scene_revision_asset_ref ra on ra.scene_revision_id = p.scene_revision_id where p.workspace_id = ${workspaceId}::uuid
-    union
-    select v.id from asset_workspace_grant g join asset_version v on v.asset_id = g.asset_id where g.workspace_id = ${workspaceId}::uuid
+
   )`;
   const versions = await db
     .selectFrom("asset_version as v")
@@ -68,10 +59,6 @@ async function workspaceObjects(workspaceId: string): Promise<{ id: string; url:
     .orderBy("v.id")
     .execute();
   const out: { id: string; url: string; key: string; reason: string }[] = [];
-  for (const row of legacy) {
-    const key = row.file_url ? storagePathFromUrl(row.file_url) : null;
-    if (key && row.file_url) out.push({ id: row.id, url: row.file_url, key, reason: "Storage 中文件不存在" });
-  }
   for (const row of versions) {
     if (row.storage_key) out.push({ id: row.id, url: row.storage_key, key: row.storage_key, reason: `版本 v${row.version_no} 的 ${row.role} 文件不存在（不可发布，请上传新版本）` });
   }

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { AssetDto, PlacementDto } from "@/lib/content-model/contracts";
-import type { Tag } from "../../types";
-import { assetApi, organizationApi, placementApi, workspaceApi } from "../../lib/content-api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { assetApi, collectionApi, organizationApi, placementApi } from "../../lib/content-api";
 import { errorMessage } from "../../lib/content-errors";
 import type { IntegrationT } from "../../lib/integration-text";
-import { placementContentOf, placementScopeKey } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
+import { placementContentOf, placementScopeKey } from "../../lib/placement-to-viewer";
+import type { Tag } from "../../types";
 
 const RESOLVE_CONCURRENCY = 4;
 
@@ -71,9 +71,9 @@ export function usePlacementData({ organizationId, workspaceId, isAll, tx }: Pla
     const request = isAll || !workspaceId
       ? organizationApi.placements(organizationId, abort.signal)
       : Promise.all([
-          workspaceApi.placements(workspaceId, { include_shared: true }, abort.signal),
+          collectionApi.placements(workspaceId, {  }, abort.signal),
           // The default list may omit archived rows; ask for them explicitly when the filter needs them.
-          wantArchived ? workspaceApi.placements(workspaceId, { status: "archived", include_shared: true }, abort.signal) : Promise.resolve([]),
+          wantArchived ? collectionApi.placements(workspaceId, { status: "archived",  }, abort.signal) : Promise.resolve([]),
         ]).then(mergeById);
     request
       .then((list) => {
@@ -146,14 +146,14 @@ function useTags(organizationId: string, workspaceId: string | null, isAll: bool
   return result && result.key === key ? result.tags : [];
 }
 
-/** v2 anchors are asset rows of type "anchor" in the project; they keep their own panel. */
+/** anchors are asset rows of type "anchor" in the project; they keep their own panel. */
 function useAnchors(workspaceId: string | null, reloadNonce: number) {
   const [result, setResult] = useState<{ key: string; anchors: AssetDto[]; error: string | null } | null>(null);
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
     if (!workspaceId) return;
     const abort = new AbortController();
-    workspaceApi
+    collectionApi
       .assets(workspaceId, { file_type: "anchor", limit: 200 }, abort.signal)
       .then((page) => setResult({ key: workspaceId, anchors: page.data ?? [], error: null }))
       .catch((error) => {

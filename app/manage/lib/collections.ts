@@ -1,12 +1,12 @@
 "use client";
 
+import type { CollectionDto } from "@/lib/content-model/contracts";
 import { useCallback, useEffect, useState } from "react";
-import type { WorkspaceDto } from "@/lib/content-model/contracts";
 import { organizationApi, type CollectionState } from "./content-api";
 
 export interface CollectionListState {
   status: "idle" | "loading" | "ready" | "error";
-  collections: WorkspaceDto[];
+  collections: CollectionDto[];
   error: unknown;
   reload: () => void;
 }
@@ -16,7 +16,7 @@ export interface CollectionListState {
  * the onsite target picker read this list; content authoring never does.
  */
 export function useCollections(organizationId: string | null, state: CollectionState, enabled = true): CollectionListState {
-  const [result, setResult] = useState<{ key: string; collections: WorkspaceDto[]; error: unknown } | null>(null);
+  const [result, setResult] = useState<{ key: string; collections: CollectionDto[]; error: unknown } | null>(null);
   const [nonce, setNonce] = useState(0);
   const key = enabled && organizationId ? `${organizationId}|${state}` : null;
 

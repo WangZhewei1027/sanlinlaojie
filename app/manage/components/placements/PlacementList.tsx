@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ContentEmptyState, ContentErrorState, ContentListSkeleton } from "@/app/manage/content/ContentFeedback";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PlacementDto } from "@/lib/content-model/contracts";
-import { ContentEmptyState, ContentErrorState, ContentListSkeleton } from "@/app/manage/content/ContentFeedback";
-import { placementFileType } from "../../lib/placement-to-viewer";
+import { useEffect, useMemo, useState } from "react";
 import { usePlacementStore, type PlacementListTab } from "../../lib/placement-store";
+import { placementFileType } from "../../lib/placement-to-viewer";
 import { AnchorList } from "./AnchorList";
 import { PlacementCard } from "./PlacementCard";
 import { PlacementListHeader } from "./PlacementListHeader";
@@ -16,7 +16,7 @@ import { listTabOf } from "./placement-utils";
 const TABS: PlacementListTab[] = ["placements", "shops", "anchors"];
 
 /**
- * Left panel of the v2 map: placements (not assets), with shops and
+ * Left panel of the map: placements (not assets), with shops and
  * recognition targets in their own groups. `visible` is already filtered.
  */
 export function PlacementList({ visible }: { visible: PlacementDto[] }) {

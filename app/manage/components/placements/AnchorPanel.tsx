@@ -1,27 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ExternalLink, MapPin, X } from "lucide-react";
+import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/typography";
-import { ContentNotice } from "@/app/manage/content/ContentFeedback";
-import { MatchingPointPanel } from "../AssetEditor/MatchingPointPanel";
-import { useMatchingStatus } from "../AssetEditor/hooks/useMatchingStatus";
+import { ExternalLink, MapPin, X } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { placementApi } from "../../lib/content-api";
 import { teamHref } from "../../lib/content-context";
 import { errorMessage } from "../../lib/content-errors";
 import { primaryResource } from "../../lib/content-mappers";
-import { isMappable, placementDisplayName, placementFileType } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
+import { isMappable, placementContentKey, placementDisplayName, placementFileType } from "../../lib/placement-to-viewer";
+import { MatchingPointPanel } from "../AssetEditor/MatchingPointPanel";
+import { useMatchingStatus } from "../AssetEditor/hooks/useMatchingStatus";
 import { anchorPlacementOf } from "./AnchorList";
 import { usePlacementMap } from "./PlacementMapContext";
 
 const noop = () => {};
 
 /**
- * Recognition target (anchor asset) panel. Reuses the legacy matching-point
+ * Recognition target (anchor asset) panel. Uses the matching-point
  * panel and status hook (`/api/assets/[id]/matching` stays anchor-specific);
  * "attached content" are placements whose `anchor_id` is this anchor.
  * Replacing the reference image is a new asset version (asset library).
@@ -30,12 +30,18 @@ export function AnchorPanel({ anchorId }: { anchorId: string }) {
   const { tx, organizationId, anchors, workspaceCanEdit, canWrite, focusPlacement } = usePlacementMap();
   const placements = usePlacementStore((state) => state.placements);
   const anchor = anchors.find((item) => item.id === anchorId) ?? null;
-  const imageUrl = primaryResource(anchor?.current_version)?.url ?? null;
-  const matching = useMatchingStatus(anchorId, imageUrl, false);
+  const mapPlacement = anchorPlacementOf(anchorId, placements);
+  const contents = usePlacementStore((state) => state.placementContents);
+  const scope = usePlacementStore((state) => state.scopeKey);
+  const pinned = mapPlacement && scope ? contents[placementContentKey(scope, mapPlacement)] : null;
+  const versionId = mapPlacement?.target.kind === "asset_version" ? mapPlacement.target.asset_version_id : anchor?.current_version_id ?? null;
+  const imageUrl = mapPlacement
+    ? (pinned?.kind === "asset_version" ? pinned.resources.find((file) => file.role === "reference" || file.role === "primary")?.url ?? null : null)
+    : primaryResource(anchor?.current_version)?.url ?? null;
+  const matching = useMatchingStatus(anchorId, imageUrl, versionId);
   const [attaching, setAttaching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const mapPlacement = anchorPlacementOf(anchorId, placements);
   const children = useMemo(() => placements.filter((placement) => placement.anchor_id === anchorId && placement.status !== "archived"), [placements, anchorId]);
   const available = useMemo(
     () => placements.filter((placement) => !placement.anchor_id && placement.status !== "archived" && canWrite(placement) && !["anchor", "shop"].includes(placementFileType(placement))),

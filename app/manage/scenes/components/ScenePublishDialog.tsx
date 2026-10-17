@@ -1,14 +1,14 @@
 "use client";
-import { useEffect, useId, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { ContentFailureNotice } from "@/app/manage/content/ContentFeedback";
+import type { ContentActionResult } from "@/app/manage/content/types";
+import { useContentAction } from "@/app/manage/content/useContentAction";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/typography";
-import { ContentFailureNotice } from "@/app/manage/content/ContentFeedback";
-import { useContentAction } from "@/app/manage/content/useContentAction";
-import type { ContentActionResult } from "@/app/manage/content/types";
 import type { PlacementDto } from "@/lib/content-model/contracts";
+import { LoaderCircle } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
@@ -71,7 +71,7 @@ export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId
         const rows = ofScene(list);
         setPlacements(rows);
         // Keep the user's choices that still exist and are still writable after a refresh.
-        setSelected((current) => current.filter((placementId) => rows.some((row) => row.id === placementId && row.capabilities.can_edit && !row.capabilities.read_only_shared)));
+        setSelected((current) => current.filter((placementId) => rows.some((row) => row.id === placementId && row.capabilities.can_edit)));
       })
       .catch((error) => { if (!abort.signal.aborted) { setLoadError(errorMessage(error, tx)); setPlacements([]); } });
     return () => abort.abort();
@@ -100,7 +100,7 @@ export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId
           : <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">{placements.map((placement) => {
             const id = `${idPrefix}-${placement.id}`;
             const revision = placement.target.kind === "scene_revision" ? placement.target.revision_no : 0;
-            const editable = placement.capabilities.can_edit && !placement.capabilities.read_only_shared;
+            const editable = placement.capabilities.can_edit;
             return <li key={placement.id} className="flex items-start gap-3 px-3 py-2">
               <Checkbox id={id} className="mt-0.5" disabled={!editable || action.pending} checked={selected.includes(placement.id)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, placement.id] : current.filter((item) => item !== placement.id))} />
               <label htmlFor={id} className="min-w-0 flex-1 space-y-0.5">

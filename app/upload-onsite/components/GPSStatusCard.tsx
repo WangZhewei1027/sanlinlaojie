@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
-import { MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "react-i18next";
 import { Text } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
+import { AlertCircle, Loader2, MapPin } from "lucide-react";
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 interface GPSPosition {
   latitude: number;
@@ -17,7 +17,7 @@ interface GPSStatusCardProps {
   gpsPosition: GPSPosition | null;
   gpsError: string | null;
   gpsLoading: boolean;
-  /** Optional footer, e.g. the explicit location confirmation of the v2 path. */
+  /** Optional footer, e.g. the explicit location confirmation of the path. */
   children?: ReactNode;
 }
 

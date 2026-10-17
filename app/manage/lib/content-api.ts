@@ -1,17 +1,12 @@
 /**
- * Typed browser client for the content model v2 APIs.
+ * Typed browser client for the content model APIs.
  *
  * Every request/response type comes from lib/content-model/contracts.ts; this
  * module only knows paths, verbs and the error envelope. It never toasts:
  * callers decide how a conflict, permission or feature-state error is shown.
  *
- * All requests carry `X-Content-Model: 2`. New paths ignore it; legacy paths
- * (`/api/workspaces/[id]/assets`, `/api/assets/[id]`, …) require it so an old
- * cached client can never be reinterpreted as a v2 write.
  */
 import {
-  CONTENT_MODEL_HEADER,
-  CONTENT_MODEL_VERSION,
   isApiErrorBody,
   type ApiErrorDetails,
   type ApiPage,
@@ -19,8 +14,9 @@ import {
   type AssetDetailDto,
   type AssetDto,
   type AssetListQuery,
-  type CollectionState,
   type AssetUsageDto,
+  type CollectionDto,
+  type CollectionState,
   type ContentErrorCode,
   type CopyPlacementRequest,
   type CopySceneRequest,
@@ -34,7 +30,6 @@ import {
   type CreateVersionResult,
   type DuplicateAssetRequest,
   type MovePlacementsRequest,
-  type OrganizationContentModelDto,
   type PlacementContentDto,
   type PlacementDto,
   type PlacementStatus,
@@ -49,9 +44,7 @@ import {
   type UpdatePlacementRequest,
   type UploadPurpose,
   type UploadReceiptDto,
-  type UploadResponse,
-  type WorkspaceDto,
-  type WorkspaceMembersDto,
+  type UploadResponse
 } from "@/lib/content-model/contracts";
 
 export class ContentApiError extends Error {
@@ -84,9 +77,7 @@ export function isEndpointMissing(error: unknown) {
 }
 
 /** The organization has not been cut over (or is frozen) — show feature state, not an error. */
-export function isFeatureStateError(error: unknown) {
-  return isContentApiError(error) && (error.code === "CONTENT_MODEL_NOT_ENABLED" || error.code === "CONTENT_MODEL_UPGRADE_REQUIRED");
-}
+
 
 type Query = Record<string, string | number | boolean | null | undefined>;
 
@@ -124,7 +115,7 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 export async function contentRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { [CONTENT_MODEL_HEADER]: CONTENT_MODEL_VERSION };
+  const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   let response: Response;
   try {
@@ -165,9 +156,6 @@ export type { CollectionState, CreateCollectionRequest, UpdateCollectionRequest 
  * creating them never needs a collection.
  */
 export const organizationApi = {
-  /** Assumed GET twin of `PUT /api/organizations/[id]/content-model` (see contract). */
-  contentModel: (organizationId: string, signal?: AbortSignal) =>
-    get<Data<OrganizationContentModelDto>>(`/api/organizations/${id(organizationId)}/content-model`, undefined, signal).then((body) => body.data),
   assets: (organizationId: string, query: AssetListQuery, signal?: AbortSignal) =>
     get<ApiPage<AssetDto>>(`/api/organizations/${id(organizationId)}/assets`, query as Query, signal),
   createAsset: (organizationId: string, request: CreateOrganizationAssetRequest) =>
@@ -178,61 +166,26 @@ export const organizationApi = {
     send<Data<SceneDetailDto>>("POST", `/api/organizations/${id(organizationId)}/scenes`, request).then((body) => body.data),
   placements: (organizationId: string, signal?: AbortSignal) =>
     get<Data<PlacementDto[]>>(`/api/organizations/${id(organizationId)}/placements`, undefined, signal).then((body) => body.data ?? []),
-  /** Map collections; the response keeps the WorkspaceDto compatibility shape. */
+  /** Map collection catalog. */
   collections: (organizationId: string, query?: { state?: CollectionState }, signal?: AbortSignal) =>
-    get<Data<WorkspaceDto[]>>(`/api/organizations/${id(organizationId)}/collections`, query, signal).then((body) => body.data ?? []),
+    get<Data<CollectionDto[]>>(`/api/organizations/${id(organizationId)}/collections`, query, signal).then((body) => body.data ?? []),
   createCollection: (organizationId: string, request: CreateCollectionRequest) =>
-    send<Data<WorkspaceDto>>("POST", `/api/organizations/${id(organizationId)}/collections`, request).then((body) => body.data),
+    send<Data<CollectionDto>>("POST", `/api/organizations/${id(organizationId)}/collections`, request).then((body) => body.data),
 };
 
 export const collectionApi = {
   get: (collectionId: string, signal?: AbortSignal) =>
-    get<Data<WorkspaceDto>>(`/api/collections/${id(collectionId)}`, undefined, signal).then((body) => body.data),
+    get<Data<CollectionDto>>(`/api/collections/${id(collectionId)}`, undefined, signal).then((body) => body.data),
   update: (collectionId: string, request: UpdateCollectionRequest) =>
-    send<Data<WorkspaceDto>>("PATCH", `/api/collections/${id(collectionId)}`, request).then((body) => body.data),
-  archive: (collectionId: string) => send<Data<WorkspaceDto>>("POST", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
-  restore: (collectionId: string) => send<Data<WorkspaceDto>>("DELETE", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
-};
-
-/**
- * Compatibility paths keyed by the collection's workspace UUID. Only the map
- * adapter (placements, anchors, tags) and the legacy admin page use these;
- * content creation never goes through a workspace.
- */
-export const workspaceApi = {
-  /** WorkspaceDto through the legacy detail path with the v2 header. */
-  get: (workspaceId: string, signal?: AbortSignal) =>
-    get<Data<WorkspaceDto>>(`/api/workspaces/${id(workspaceId)}`, undefined, signal).then((body) => body.data),
-  /**
-   * Collection facts plus server capabilities through the legacy detail
-   * route, for deployments without `/api/collections/[id]`. The raw row may
-   * lack capabilities; the members route then supplies them.
-   */
-  info: async (workspaceId: string, signal?: AbortSignal): Promise<WorkspaceDto> => {
-    const row = await get<Data<Partial<WorkspaceDto> & { id: string; name: string }>>(`/api/workspaces/${id(workspaceId)}`, undefined, signal).then((body) => body.data);
-    if (row && "capabilities" in row && row.capabilities) return row as WorkspaceDto;
-    const members = await get<Data<WorkspaceMembersDto>>(`/api/workspaces/${id(workspaceId)}/members`, undefined, signal).then((body) => body.data);
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description ?? null,
-      organization_id: row.organization_id ?? "",
-      create_date: row.create_date ?? null,
-      archived_at: row.archived_at ?? null,
-      project_role: row.project_role ?? null,
-      content_model_state: row.content_model_state ?? "v2",
-      capabilities: members.capabilities,
-    };
-  },
-  archive: (workspaceId: string) => send<Data<WorkspaceDto>>("POST", `/api/workspaces/${id(workspaceId)}/archive`).then((body) => body.data),
-  restore: (workspaceId: string) => send<Data<WorkspaceDto>>("DELETE", `/api/workspaces/${id(workspaceId)}/archive`).then((body) => body.data),
-  /** Anchors keep their workspace-bound identity (dedicated legacy service). */
-  assets: (workspaceId: string, query: AssetListQuery, signal?: AbortSignal) =>
-    get<ApiPage<AssetDto>>(`/api/workspaces/${id(workspaceId)}/assets`, query as Query, signal),
-  placements: (workspaceId: string, query?: { status?: PlacementStatus; include_shared?: boolean }, signal?: AbortSignal) =>
-    get<Data<PlacementDto[]>>(`/api/workspaces/${id(workspaceId)}/placements`, query, signal).then((body) => body.data ?? []),
-  createPlacement: (workspaceId: string, request: CreatePlacementRequest) =>
-    send<Data<CreatePlacementResult>>("POST", `/api/workspaces/${id(workspaceId)}/placements`, request).then((body) => body.data),
+    send<Data<CollectionDto>>("PATCH", `/api/collections/${id(collectionId)}`, request).then((body) => body.data),
+  archive: (collectionId: string) => send<Data<CollectionDto>>("POST", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
+  restore: (collectionId: string) => send<Data<CollectionDto>>("DELETE", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
+  assets: (collectionId: string, query: AssetListQuery, signal?: AbortSignal) =>
+    get<ApiPage<AssetDto>>(`/api/collections/${id(collectionId)}/assets`, query as Query, signal),
+  placements: (collectionId: string, query?: { status?: PlacementStatus }, signal?: AbortSignal) =>
+    get<Data<PlacementDto[]>>(`/api/collections/${id(collectionId)}/placements`, query, signal).then((body) => body.data),
+  createPlacement: (collectionId: string, request: CreatePlacementRequest) =>
+    send<Data<CreatePlacementResult>>("POST", `/api/collections/${id(collectionId)}/placements`, request).then((body) => body.data),
 };
 
 // ───────────────────────── assets ─────────────────────────
@@ -305,7 +258,7 @@ export async function uploadReceipt(
     response = await fetch("/api/upload", {
       method: "POST",
       body: form,
-      headers: { [CONTENT_MODEL_HEADER]: CONTENT_MODEL_VERSION },
+      headers: {},
       signal: options.signal,
     });
   } catch (error) {

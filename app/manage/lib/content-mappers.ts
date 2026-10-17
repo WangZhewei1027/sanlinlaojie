@@ -4,15 +4,6 @@
  * boundary goes through here.
  */
 import type {
-  AssetDetailDto,
-  AssetDto,
-  AssetVersionDto,
-  DependencyImpact,
-  SceneSummaryDto,
-  UserRefDto,
-  WorkspaceDto,
-} from "@/lib/content-model/contracts";
-import type {
   AssetDetailData,
   AssetUsageKind,
   AssetUsageSummary,
@@ -23,6 +14,15 @@ import type {
   SceneStatus,
   WorkbenchItem,
 } from "@/app/manage/content/types";
+import type {
+  AssetDetailDto,
+  AssetDto,
+  AssetVersionDto,
+  CollectionDto,
+  DependencyImpact,
+  SceneSummaryDto,
+  UserRefDto,
+} from "@/lib/content-model/contracts";
 import { collectionHref, teamHref } from "./content-context";
 
 const CONTENT_TYPES: readonly ContentAssetType[] = ["image", "video", "audio", "model", "text", "link", "document"];
@@ -176,7 +176,7 @@ export function toWorkbenchScene(scene: SceneSummaryDto, people: ReadonlyMap<str
   };
 }
 
-export function toCollectionItem(collection: WorkspaceDto): CollectionItem {
+export function toCollectionItem(collection: CollectionDto): CollectionItem {
   return {
     id: collection.id,
     name: collection.name,

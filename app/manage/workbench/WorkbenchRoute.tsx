@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { DEFAULT_UPLOAD_TYPES } from "@/lib/upload/types";
-import type { AssetDto, ContentModelState, OrganizationContentModelDto } from "@/lib/content-model/contracts";
+import { CREATABLE_TYPES } from "@/app/manage/assets/components/AssetContentField";
+import { AssetCreateDialog } from "@/app/manage/assets/components/AssetCreateDialog";
+import { ASSET_TEXTS } from "@/app/manage/assets/components/texts";
+import { TeamShell } from "@/app/manage/components/TeamShell";
 import {
   ContentNotice,
   ContentWorkbench,
@@ -17,16 +15,17 @@ import {
   type WorkbenchTypeFilter,
   type WorkbenchView,
 } from "@/app/manage/content";
-import { ContentFeatureState } from "@/app/manage/components/ContentFeatureState";
-import { TeamShell } from "@/app/manage/components/TeamShell";
-import { AssetCreateDialog } from "@/app/manage/assets/components/AssetCreateDialog";
-import { CREATABLE_TYPES } from "@/app/manage/assets/components/AssetContentField";
-import { ASSET_TEXTS } from "@/app/manage/assets/components/texts";
-import { SceneImportDialog } from "@/app/manage/scenes/components/SceneImportDialog";
 import { isEndpointMissing, newIdempotencyKey, organizationApi, sceneApi } from "@/app/manage/lib/content-api";
 import { teamCanWrite, teamHref, type TeamContext } from "@/app/manage/lib/content-context";
 import { errorMessage, runContentAction } from "@/app/manage/lib/content-errors";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
+import { SceneImportDialog } from "@/app/manage/scenes/components/SceneImportDialog";
+import type { AssetDto } from "@/lib/content-model/contracts";
+import { DEFAULT_UPLOAD_TYPES } from "@/lib/upload/types";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useWorkbenchData } from "./useWorkbenchData";
 
 const VIEW_KEY = "sanlin.workbench.view";
@@ -51,11 +50,11 @@ function useWorkbenchView() {
 }
 
 /**
- * /manage for a team on content model v2 (or frozen as readonly): every
+ * /manage for a team on content model (or frozen as readonly): every
  * asset and scene of the team. The URL carries the team and the type filter
  * (`?type=scene`), never a workspace.
  */
-export function WorkbenchRoute({ team, model }: { team: TeamContext; model: { state: ContentModelState | null; dto: OrganizationContentModelDto | null } }) {
+export function WorkbenchRoute({ team }: { team: TeamContext }) {
   const { t } = useTranslation();
   const tx = useIntegrationText(ASSET_TEXTS);
   const router = useRouter();
@@ -74,7 +73,7 @@ export function WorkbenchRoute({ team, model }: { team: TeamContext; model: { st
 
   const data = useWorkbenchData(organizationId, filters, true);
   const role = team.organization?.role && TEAM_ROLES.includes(team.organization.role) ? (team.organization.role as TeamRole) : null;
-  const canWrite = teamCanWrite({ state: model.state, dto: model.dto, orgRole: team.organization?.role, globalRole: team.currentUserRole });
+  const canWrite = teamCanWrite({ archivedAt: team.organization?.archived_at, orgRole: team.organization?.role, globalRole: team.currentUserRole });
   const teamName = team.organization?.name ?? tx("contentModel.integration.assets.unknownOrganization");
   const types = useMemo(() => {
     const allowed = (team.organization?.allowed_file_types ?? DEFAULT_UPLOAD_TYPES) as readonly string[];
@@ -101,9 +100,7 @@ export function WorkbenchRoute({ team, model }: { team: TeamContext; model: { st
     });
   };
 
-  const readOnlyReason = model.state === "readonly"
-    ? t("contentModel.workbench.readOnlyFrozen")
-    : role === "viewer" ? t("contentModel.workbench.readOnlyViewer") : t("contentModel.workbench.readOnlyOther");
+  const readOnlyReason = role === "viewer" ? t("contentModel.workbench.readOnlyViewer") : t("contentModel.workbench.readOnlyOther");
   const listError = data.error ? (isEndpointMissing(data.error) ? tx("contentModel.integration.assets.endpointMissing") : errorMessage(data.error, tx)) : undefined;
 
   return (
@@ -145,7 +142,6 @@ export function WorkbenchRoute({ team, model }: { team: TeamContext; model: { st
         onRestoreScene={(sceneId) => runContentAction(() => sceneApi.save(sceneId, { expectedLockVersion: data.sceneLock(sceneId), state: "active" }), tx, data.reloadScenes)}
         notice={
           <>
-            {model.state === "readonly" && <ContentFeatureState state="readonly" mapHref={teamHref("/manage/collections", organizationId)} />}
             {!!data.moreError && <ContentNotice tone="critical" title={tx("contentModel.integration.assets.loadMoreFailed")} description={errorMessage(data.moreError, tx)} />}
           </>
         }

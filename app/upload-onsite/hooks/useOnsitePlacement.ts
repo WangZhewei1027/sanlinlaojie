@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import type { AssetFileType, AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
-import { isContentApiError, newIdempotencyKey, workspaceApi } from "@/app/manage/lib/content-api";
+import { collectionApi, isContentApiError, newIdempotencyKey } from "@/app/manage/lib/content-api";
 import { errorMessage } from "@/app/manage/lib/content-errors";
 import { fileTypeOf, prepareFile, textPayload, uploadFileVersion } from "@/app/manage/lib/content-upload";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
+import type { AssetFileType, AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
+import { useCallback, useRef, useState } from "react";
 import type { ConfirmedLocation } from "../components/LocationConfirm";
 import type { OnsiteReceipt } from "../components/UploadReceiptCard";
 
@@ -58,7 +58,7 @@ function captureTime() {
 }
 
 /**
- * v2 "upload and place" in one server command. The idempotency key and the
+ * "upload and place" in one server command. The idempotency key and the
  * upload receipt are kept while the same capture is retried with the same
  * inputs, so a lost response never creates a second asset; any change of
  * capture, collection, location, tags or text starts a new intent.
@@ -115,7 +115,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
       }
       const textName = capture.kind === "text" ? capture.source.trim().split("\n")[0].slice(0, 30).trim() : "";
       const name = title || textName || attempt.defaultName;
-      const result = await workspaceApi.createPlacement(workspaceId, {
+      const result = await collectionApi.createPlacement(workspaceId, {
         asset: { name, fileType, payload, resources },
         name,
         location: point,

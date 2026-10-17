@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client } from "pg";
 import { loadEnvFile, requireEnv } from "../lib/env";
+import { migrateUnversionedContent } from "../migrate/content-model/unify";
 
 /**
  * Apply the database schema.
@@ -63,6 +64,7 @@ async function main() {
       console.log(`applying ${file}`);
       await client.query("begin");
       try {
+        if (file === "20261017180000_single_content_model.sql") await migrateUnversionedContent(client, process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "");
         await client.query(readFileSync(resolve("db/migrations", file), "utf8"));
         await client.query("insert into schema_migrations (name) values ($1)", [file]);
         await client.query("commit");

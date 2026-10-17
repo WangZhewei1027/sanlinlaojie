@@ -10,12 +10,12 @@
  * Uses the dedicated services fixture (random tenants, removed afterwards).
  */
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { Client } from "pg";
+import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedServicesFixture, versionedDocument } from "./test-content-model-services-fixture";
 import { installRouteStubs } from "./test-support/install-route-stubs";
 import type * as AuthStub from "./test-support/stub-auth-server";
 import type * as OssStub from "./test-support/stub-oss";
-import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedServicesFixture, versionedDocument } from "./test-content-model-services-fixture";
 
 type Body = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Handler = (request: Request, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
@@ -26,7 +26,6 @@ interface Call {
   params?: Record<string, string>;
   body?: unknown;
   form?: FormData;
-  v2?: boolean;
 }
 
 const failures: string[] = [];
@@ -60,24 +59,17 @@ async function main(): Promise<void> {
     orgPlacements: await import("../app/api/organizations/[id]/placements/route"),
     collection: await import("../app/api/collections/[id]/route"),
     collectionArchive: await import("../app/api/collections/[id]/archive/route"),
-    workspaces: await import("../app/api/workspaces/route"),
-    workspace: await import("../app/api/workspaces/[id]/route"),
-    workspaceAssets: await import("../app/api/workspaces/[id]/assets/route"),
-    workspaceScenes: await import("../app/api/workspaces/[id]/scenes/route"),
-    workspacePlacements: await import("../app/api/workspaces/[id]/placements/route"),
-    workspaceMembers: await import("../app/api/workspaces/[id]/members/route"),
-    workspaceArchive: await import("../app/api/workspaces/[id]/archive/route"),
+    collectionAssets: await import("../app/api/collections/[id]/assets/route"),
+    collectionPlacements: await import("../app/api/collections/[id]/placements/route"),
     asset: await import("../app/api/assets/[id]/route"),
     assetVersions: await import("../app/api/assets/[id]/versions/route"),
     assetDuplicate: await import("../app/api/assets/[id]/duplicate/route"),
     assetUsage: await import("../app/api/assets/[id]/usage/route"),
-    assetGrants: await import("../app/api/assets/[id]/workspace-grants/route"),
     byHash: await import("../app/api/assets/by-hash/route"),
     scene: await import("../app/api/scenes/[id]/route"),
     scenePublish: await import("../app/api/scenes/[id]/publish/route"),
     sceneCopy: await import("../app/api/scenes/[id]/copy/route"),
     upload: await import("../app/api/upload/route"),
-    userWorkspaces: await import("../app/api/users/[id]/workspaces/route"),
     invitation: await import("../app/api/invitations/[token]/route"),
     adminClean: await import("../app/api/admin/clean/route"),
     organizations: await import("../app/api/organizations/route"),
@@ -93,7 +85,6 @@ async function main(): Promise<void> {
     auth.setStubSessionUser(input.user ? { id: input.user, email: null, name: null, emailVerified: true } : null);
     const headers: Record<string, string> = {};
     if (input.body !== undefined) headers["Content-Type"] = "application/json";
-    if (input.v2) headers["X-Content-Model"] = "2";
     const request = new Request(`http://localhost${input.url}`, {
       method: input.method ?? "GET",
       headers,
@@ -130,12 +121,9 @@ async function main(): Promise<void> {
         [routes.orgCollections.GET, "GET", `/api/organizations/${f.organizations.team}/collections`, { id: f.organizations.team }],
         [routes.collection.GET, "GET", `/api/collections/${f.workspaces.a}`, { id: f.workspaces.a }],
         [routes.collectionArchive.POST, "POST", `/api/collections/${f.workspaces.a}/archive`, { id: f.workspaces.a }],
-        [routes.workspaceMembers.PUT, "PUT", `/api/workspaces/${f.workspaces.a}/members`, { id: f.workspaces.a }],
-        [routes.assetGrants.POST, "POST", `/api/assets/${f.assets.shared}/workspace-grants`, { id: f.assets.shared }],
       ] as const) {
         expect(await call(handler, { user: null, method, url, params, body: method === "GET" ? undefined : {} }), 401, "UNAUTHENTICATED");
       }
-      expect(await call(routes.userWorkspaces.POST, { user: null, method: "POST", url: `/api/users/${u.editor}/workspaces` }), 401);
     });
 
     await check("R02 POST /api/organizations/[id]/assets: team asset without collection, idempotent, writers only", async () => {
@@ -147,7 +135,7 @@ async function main(): Promise<void> {
       assert.equal(created.asset.origin_workspace_id, null);
       assert.equal(created.asset.organization_id, f.organizations.team);
       assert.equal(created.asset.capabilities.can_maintain, true);
-      const replay = expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url, params, body: modelBody("org-asset"), v2: true }), 200).data;
+      const replay = expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url, params, body: modelBody("org-asset") }), 200).data;
       assert.equal(replay.created, false);
       assert.equal(replay.asset.id, created.asset.id);
       expect(await call(routes.orgAssets.POST, { user: u.viewer, method: "POST", url, params, body: modelBody("org-asset-viewer") }), 403, "FORBIDDEN");
@@ -155,18 +143,18 @@ async function main(): Promise<void> {
       expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url, params,
         body: { ...modelBody("org-asset-placement"), placement: { location: { longitude: 121.5, latitude: 31.2 } } } }), 400, "VALIDATION_FAILED");
       expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url: "/api/organizations/not-a-uuid/assets", params: { id: "not-a-uuid" }, body: modelBody("bad-id") }), 400, "VALIDATION_FAILED");
-      const page = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url, params, v2: true }), 200);
+      const page = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url, params }), 200);
       assert.ok(Array.isArray(page.data) && page.page.total >= 4);
       assert.ok(page.data.some((item: Body) => item.id === f.assets.restricted), "view=all is the default and includes formerly restricted assets");
-      const shared = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url: `${url}?view=shared`, params, v2: true }), 200);
+      const shared = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url: `${url}?view=shared`, params }), 200);
       assert.equal(shared.data.some((item: Body) => item.id === f.assets.restricted), false);
-      const legacy = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url, params }), 200);
-      assert.ok(Array.isArray(legacy.data), "without the header the legacy projection is unchanged");
-      const viaCollection = expect(await call(routes.workspaceAssets.GET, { user: u.unassigned, url: `/api/workspaces/${f.workspaces.secret}/assets`, params: { id: f.workspaces.secret }, v2: true }), 200);
+      const catalog = expect(await call(routes.orgAssets.GET, { user: u.unassigned, url, params }), 200);
+      assert.ok(Array.isArray(catalog.data), "the canonical catalog requires no version header");
+      const viaCollection = expect(await call(routes.collectionAssets.GET, { user: u.unassigned, url: `/api/collections/${f.workspaces.secret}/assets`, params: { id: f.workspaces.secret } }), 200);
       assert.ok(viaCollection.data.some((item: Body) => item.id === f.assets.restricted && item.capabilities.can_use_in_workspace === true), "no grant is needed in another collection");
     });
 
-    await check("R03 scenes: organization routes create and list team scenes; legacy collection route shares the list", async () => {
+    await check("R03 scenes: organization routes create and list team scenes", async () => {
       const url = `/api/organizations/${f.organizations.team}/scenes`;
       const params = { id: f.organizations.team };
       const scene = expect(await call(routes.orgScenes.POST, { user: u.unassigned, method: "POST", url, params,
@@ -179,10 +167,6 @@ async function main(): Promise<void> {
       expect(await call(routes.orgScenes.GET, { user: u.unassigned, url: `${url}?state=bogus`, params }), 400, "VALIDATION_FAILED");
       expect(await call(routes.orgScenes.GET, { user: u.foreign, url, params }), 403, "FORBIDDEN");
       expect(await call(routes.orgScenes.POST, { user: u.viewer, method: "POST", url, params, body: { name: "viewer scene" } }), 403, "FORBIDDEN");
-      const legacyList = expect(await call(routes.workspaceScenes.GET, { user: u.unassigned, url: `/api/workspaces/${f.workspaces.b}/scenes`, params: { id: f.workspaces.b } }), 200).data;
-      assert.ok(legacyList.some((item: Body) => item.id === scene.id), "the collection path lists every team scene");
-      const origin = expect(await call(routes.workspaceScenes.POST, { user: u.unassigned, method: "POST", url: `/api/workspaces/${f.workspaces.b}/scenes`, params: { id: f.workspaces.b }, body: { name: "origin scene" } }), 201).data;
-      assert.equal(origin.workspace_id, f.workspaces.b);
       const missingLock = await call(routes.scene.PATCH, { user: u.editor, method: "PATCH", url: `/api/scenes/${scene.id}`, params: { id: scene.id }, body: { name: "no lock" } });
       expect(missingLock, 428, "LOCK_VERSION_REQUIRED");
       expect(await call(routes.scene.PATCH, { user: u.editor, method: "PATCH", url: `/api/scenes/${scene.id}`, params: { id: scene.id }, body: { name: "first", expectedLockVersion: scene.lock_version } }), 200);
@@ -198,7 +182,6 @@ async function main(): Promise<void> {
       const params = { id: f.organizations.team };
       const created = expect(await call(routes.orgCollections.POST, { user: u.unassigned, method: "POST", url: listUrl, params, body: { name: "route map", description: "north" } }), 201).data;
       assert.equal(created.name, "route map");
-      assert.equal(created.capabilities.can_manage_members, false);
       expect(await call(routes.orgCollections.POST, { user: u.viewer, method: "POST", url: listUrl, params, body: { name: "viewer map" } }), 403, "FORBIDDEN");
       expect(await call(routes.orgCollections.POST, { user: u.unassigned, method: "POST", url: listUrl, params, body: { name: "x", role: "manager" } }), 400, "VALIDATION_FAILED");
       const active = expect(await call(routes.orgCollections.GET, { user: u.viewer, url: listUrl, params }), 200).data;
@@ -217,56 +200,9 @@ async function main(): Promise<void> {
       expect(await call(routes.collection.PATCH, { user: u.editor, method: "PATCH", ...one, body: { name: "while archived" } }), 409, "ARCHIVED");
       expect(await call(routes.collectionArchive.DELETE, { user: u.viewer, method: "DELETE", ...archive }), 403, "FORBIDDEN");
       assert.equal(expect(await call(routes.collectionArchive.DELETE, { user: u.unassigned, method: "DELETE", ...archive }), 200).data.archived_at, null);
-      const aliased = expect(await call(routes.workspaceArchive.POST, { user: u.unassigned, method: "POST", url: `/api/workspaces/${created.id}/archive`, params: { id: created.id } }), 200).data;
-      assert.ok(aliased.archived_at, "the legacy archive alias follows the same team rule");
-      expect(await call(routes.workspaceArchive.DELETE, { user: u.unassigned, method: "DELETE", url: `/api/workspaces/${created.id}/archive`, params: { id: created.id } }), 200);
     });
 
-    await check("R05 legacy collection routes: every member lists all collections; writers create and rename", async () => {
-      const listed = expect(await call(routes.workspaces.GET, { user: u.unassigned, url: `/api/workspaces?organization_id=${f.organizations.team}` }), 200).data;
-      for (const id of [f.workspaces.a, f.workspaces.b, f.workspaces.secret, f.workspaces.empty]) {
-        const row = listed.find((item: Body) => item.id === id);
-        assert.ok(row, "assignment-free member sees every collection");
-        assert.equal(row.capabilities.can_edit, true);
-        assert.equal(row.project_role, "editor");
-      }
-      const viewerRows = expect(await call(routes.workspaces.GET, { user: u.viewer, url: `/api/workspaces?organization_id=${f.organizations.team}` }), 200).data;
-      assert.ok(viewerRows.length >= 4 && viewerRows.every((row: Body) => row.capabilities.can_edit === false));
-      assert.deepEqual(expect(await call(routes.workspaces.GET, { user: u.foreign, url: `/api/workspaces?organization_id=${f.organizations.team}` }), 200).data, []);
-      const made = expect(await call(routes.workspaces.POST, { user: u.unassigned, method: "POST", url: "/api/workspaces", body: { name: "legacy-created", organization_id: f.organizations.team } }), 201).data;
-      assert.equal(made.organization_id, f.organizations.team);
-      expect(await call(routes.workspaces.POST, { user: u.viewer, method: "POST", url: "/api/workspaces", body: { name: "viewer", organization_id: f.organizations.team } }), 403, "FORBIDDEN");
-      const renamed = expect(await call(routes.workspace.PUT, { user: u.editor, method: "PUT", url: `/api/workspaces/${made.id}`, params: { id: made.id }, body: { name: "legacy-renamed" } }), 200).data;
-      assert.equal(renamed.name, "legacy-renamed");
-      const detail = expect(await call(routes.workspace.GET, { user: u.unassigned, url: `/api/workspaces/${f.workspaces.secret}`, params: { id: f.workspaces.secret } }), 200).data;
-      assert.equal(detail.capabilities.can_edit, true);
-      expect(await call(routes.workspace.DELETE, { user: u.editor, method: "DELETE", url: `/api/workspaces/${made.id}`, params: { id: made.id } }), 403);
-      expect(await call(routes.workspace.DELETE, { user: u.owner, method: "DELETE", url: `/api/workspaces/${made.id}`, params: { id: made.id } }), 200);
-      const tags = await call(routes.tags.GET, { user: u.unassigned, url: `/api/tags?workspace_id=${f.workspaces.secret}` });
-      assert.equal(tags.status, 200, "collection tags are readable by every member");
-    });
 
-    await check("R06 retired ACL mutations answer 410 DEPRECATED; reads stay as history", async () => {
-      const members = { url: `/api/workspaces/${f.workspaces.b}/members`, params: { id: f.workspaces.b } };
-      expect(await call(routes.workspaceMembers.PUT, { user: u.owner, method: "PUT", ...members, body: { userId: u.unassigned, role: "editor" } }), 410, "DEPRECATED");
-      expect(await call(routes.workspaceMembers.DELETE, { user: u.owner, method: "DELETE", url: `${members.url}?user_id=${u.editor}`, params: members.params }), 410, "DEPRECATED");
-      const read = expect(await call(routes.workspaceMembers.GET, { user: u.unassigned, ...members }), 200).data;
-      assert.deepEqual(read.candidates, []);
-      assert.ok(read.members.every((member: Body) => member.implicit === true));
-      const grants = { url: `/api/assets/${f.assets.restricted}/workspace-grants`, params: { id: f.assets.restricted } };
-      expect(await call(routes.assetGrants.POST, { user: u.owner, method: "POST", ...grants, body: { workspaceId: f.workspaces.empty } }), 410, "DEPRECATED");
-      expect(await call(routes.assetGrants.DELETE, { user: u.owner, method: "DELETE", url: `${grants.url}?workspace_id=${f.workspaces.b}`, params: grants.params }), 410, "DEPRECATED");
-      const assignments = { url: `/api/users/${u.unassigned}/workspaces`, params: { id: u.unassigned } };
-      expect(await call(routes.userWorkspaces.POST, { user: u.owner, method: "POST", ...assignments, body: { workspace_id: f.workspaces.a } }), 410, "DEPRECATED");
-      expect(await call(routes.userWorkspaces.DELETE, { user: u.owner, method: "DELETE", url: `${assignments.url}?assignment_id=${randomUUID()}`, params: assignments.params }), 410, "DEPRECATED");
-      const history = expect(await call(routes.userWorkspaces.GET, { user: u.owner, url: `/api/users/${u.manager}/workspaces`, params: { id: u.manager } }), 200).data;
-      assert.ok(history.some((row: Body) => row.workspace_id === f.workspaces.b && row.role === "manager"), "historical assignment rows remain readable");
-      const usage = expect(await call(routes.assetUsage.GET, { user: u.unassigned, url: `/api/assets/${f.assets.shared}/usage`, params: { id: f.assets.shared } }), 200).data;
-      assert.equal(usage.impact.restricted_count, 0);
-      assert.ok(Array.isArray(usage.grants));
-      const detail = expect(await call(routes.asset.GET, { user: u.unassigned, url: `/api/assets/${f.assets.restricted}`, params: { id: f.assets.restricted }, v2: true }), 200).data;
-      assert.ok(Array.isArray(detail.grants) && detail.capabilities.can_maintain === true);
-    });
 
     await check("R07 POST /api/upload binds receipts to the team (collection optional), never trusting the form's organization", async () => {
       const bytes = `route-upload-${f.run}`;
@@ -290,8 +226,7 @@ async function main(): Promise<void> {
       expect(await call(routes.upload.POST, { user: u.viewer, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-e`, { organization_id: f.organizations.team }) }), 403, "FORBIDDEN");
       expect(await call(routes.upload.POST, { user: u.foreign, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-f`, { organization_id: f.organizations.team }) }), 403, "FORBIDDEN");
       expect(await call(routes.upload.POST, { user: u.foreign, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-g`, { workspace_id: f.workspaces.b }) }), 404, "NOT_FOUND");
-      const legacy = expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-h`, {}) }), 200);
-      assert.equal(legacy.data, undefined, "callers sending neither id keep the receipt-less legacy behaviour");
+      expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-h`, {}) }), 400);
       const created = expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url: `/api/organizations/${f.organizations.solo}/assets`, params: { id: f.organizations.solo },
         body: modelBody("uploaded-solo", [{ role: "primary", receiptId: orgOnly.data.id }]) }), 201).data;
       assert.equal(created.version.resources[0].storage_key, orgOnly.storagePath);
@@ -314,7 +249,7 @@ async function main(): Promise<void> {
       const scene = expect(await call(routes.orgScenes.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/scenes`, params: team,
         body: { name: "route placed scene", document: versionedDocument(asset.asset.id, asset.version.id) } }), 201).data;
       const published = expect(await call(routes.scenePublish.POST, { user: u.unassigned, method: "POST", url: `/api/scenes/${scene.id}/publish`, params: { id: scene.id }, body: { expectedLockVersion: scene.lock_version } }), 201).data;
-      const place = (workspace: string, user: string, longitude: number) => call(routes.workspacePlacements.POST, { user, method: "POST", url: `/api/workspaces/${workspace}/placements`, params: { id: workspace },
+      const place = (workspace: string, user: string, longitude: number) => call(routes.collectionPlacements.POST, { user, method: "POST", url: `/api/collections/${workspace}/placements`, params: { id: workspace },
         body: { target: { kind: "scene_revision", sceneRevisionId: published.revision.id }, location: { longitude, latitude: 31.2 } } });
       const first = expect(await place(f.workspaces.empty, u.unassigned, 121.5), 201).data.placement;
       const second = expect(await place(f.workspaces.secret, u.maintainer, 121.5001), 201).data.placement;
@@ -337,20 +272,19 @@ async function main(): Promise<void> {
       assert.equal(targeted.asset.origin_workspace_id, f.workspaces.b);
       expect(await call(routes.assetDuplicate.POST, { user: u.unassigned, method: "POST", url: `/api/assets/${asset.asset.id}/duplicate`, params: { id: asset.asset.id },
         body: { idempotencyKey: `${f.run}-route-duplicate-foreign`, targetWorkspaceId: f.workspaces.foreign } }), 404, "NOT_FOUND");
-      const patched = expect(await call(routes.asset.PATCH, { user: u.unassigned, method: "PATCH", url: `/api/assets/${asset.asset.id}`, params: { id: asset.asset.id }, v2: true,
+      const patched = expect(await call(routes.asset.PATCH, { user: u.unassigned, method: "PATCH", url: `/api/assets/${asset.asset.id}`, params: { id: asset.asset.id },
         body: { name: "renamed by a teammate", expectedLockVersion: asset.asset.lock_version } }), 200).data;
       assert.equal(patched.name, "renamed by a teammate");
       expect(await call(routes.asset.PATCH, { user: u.unassigned, method: "PATCH", url: `/api/assets/${asset.asset.id}`, params: { id: asset.asset.id },
-        body: { name: "old client", expectedLockVersion: patched.lock_version } }), 409, "CONTENT_MODEL_UPGRADE_REQUIRED");
+        body: { name: "headerless client", expectedLockVersion: patched.lock_version } }), 200);
     });
 
     await check("R10 super-admin clean-rows derives a collection's files from its placements, not from grants", async () => {
-      const placed = expect(await call(routes.workspacePlacements.POST, { user: u.unassigned, method: "POST", url: `/api/workspaces/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
+      const placed = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
         body: { target: { kind: "asset_version", assetVersionId: f.versions.restricted }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
-      const viaRevision = expect(await call(routes.workspacePlacements.POST, { user: u.unassigned, method: "POST", url: `/api/workspaces/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
+      const viaRevision = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
         body: { target: { kind: "scene_revision", sceneRevisionId: f.revisions.a }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
       assert.ok(placed.placement.id && viaRevision.placement.id);
-      assert.equal(await db.selectFrom("asset_workspace_grant").select("asset_id").where("workspace_id", "=", f.workspaces.empty).executeTakeFirst(), undefined);
       expect(await call(routes.adminClean.POST, { user: u.owner, method: "POST", url: "/api/admin/clean", body: { action: "clean-rows", workspaceId: f.workspaces.empty } }), 403);
       await client.query("update users set role='super_admin' where user_id=$1", [u.owner]);
       try {
@@ -361,7 +295,7 @@ async function main(): Promise<void> {
       } finally { await client.query("update users set role='user' where user_id=$1", [u.owner]); }
     });
 
-    await check("R11 super-admin creates v2 teams with zero collections; deletion refuses retained team content", async () => {
+    await check("R11 super-admin creates teams with zero collections; deletion refuses retained team content", async () => {
       const created: string[] = [];
       expect(await call(routes.organizations.POST, { user: u.owner, method: "POST", url: "/api/organizations", body: { name: "not allowed" } }), 403);
       await client.query("update users set role='super_admin' where user_id=$1", [u.owner]);
@@ -372,7 +306,6 @@ async function main(): Promise<void> {
           return org;
         };
         const busy = await make("route team with content");
-        assert.equal(busy.content_model_state, "v2", "a new team needs no activation step");
         const params = { id: busy.id };
         assert.deepEqual(expect(await call(routes.orgCollections.GET, { user: u.owner, url: `/api/organizations/${busy.id}/collections?state=all`, params }), 200).data, []);
         expect(await call(routes.orgAssets.POST, { user: u.owner, method: "POST", url: `/api/organizations/${busy.id}/assets`, params, body: modelBody("new-team-asset") }), 201);
@@ -401,8 +334,7 @@ async function main(): Promise<void> {
       assert.equal(accepted.workspace_id, f.workspaces.a, "the collection is still returned for navigation");
       const membership = await db.selectFrom("organization_member").select("role").where("organization_id", "=", f.organizations.team).where("user_id", "=", u.foreign).executeTakeFirst();
       assert.equal(membership?.role, "member");
-      assert.equal((await db.selectFrom("workspace_assignment").select("id").where("user_id", "=", u.foreign).execute()).length, 0);
-      const detail = expect(await call(routes.asset.GET, { user: u.foreign, url: `/api/assets/${f.assets.restricted}`, params: { id: f.assets.restricted }, v2: true }), 200).data;
+      const detail = expect(await call(routes.asset.GET, { user: u.foreign, url: `/api/assets/${f.assets.restricted}`, params: { id: f.assets.restricted } }), 200).data;
       assert.equal(detail.id, f.assets.restricted, "a new member reads the whole team catalog at once");
     });
   } finally {

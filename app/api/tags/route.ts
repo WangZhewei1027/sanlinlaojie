@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { logErrorSafe } from "@/lib/log-error";
-import { loadActor, readableWorkspaceIds, requireOrgRead, requireWorkspaceEdit, requireWorkspaceRead } from "@/lib/content-model/access.server";
+import { loadActor, requireOrgRead, requireWorkspaceEdit, requireWorkspaceRead } from "@/lib/content-model/access.server";
 import { ContentError } from "@/lib/content-model/errors";
 import { errorJson } from "@/lib/content-model/http.server";
 import { isUuid } from "@/lib/content-model/input";
+import { db } from "@/lib/db";
+import { logErrorSafe } from "@/lib/log-error";
+import { NextResponse } from "next/server";
 
 // GET /api/tags?workspace_id=xxx - 获取工作空间的所有标签
 // GET /api/tags?organization_id=xxx - 获取该组织下所有 workspace 的标签（"All workspaces" 视图）
@@ -39,9 +39,8 @@ export async function GET(request: Request) {
     if (workspaceId) {
       await requireWorkspaceRead(db, actor, workspaceId);
     } else if (organizationId) {
-      const org = await requireOrgRead(db, actor, organizationId);
+      await requireOrgRead(db, actor, organizationId);
       workspaceIds =
-        (await readableWorkspaceIds(db, actor, org)) ??
         (await db.selectFrom("workspace").select("id").where("organization_id", "=", organizationId).execute()).map((w) => w.id);
       if (workspaceIds.length === 0) {
         return NextResponse.json({ tags: [] });

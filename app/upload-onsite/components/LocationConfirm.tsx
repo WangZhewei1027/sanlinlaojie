@@ -1,9 +1,9 @@
 "use client";
 
-import { CheckCircle2, Crosshair } from "lucide-react";
+import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
-import { useIntegrationText } from "@/app/manage/lib/integration-text";
+import { CheckCircle2, Crosshair } from "lucide-react";
 import type { GPSPosition } from "../hooks/useGPS";
 import { ONSITE_TEXTS } from "../onsite-texts";
 
@@ -31,7 +31,7 @@ interface LocationConfirmProps {
 }
 
 /**
- * Explicit "use this location" step of the v2 onsite upload. The placement is
+ * Explicit "use this location" step of the onsite upload. The placement is
  * created only at a confirmed device fix; capture EXIF stays provenance.
  */
 export function LocationConfirm({ current, confirmed, onConfirm, onClear, disabled }: LocationConfirmProps) {

@@ -6,7 +6,7 @@ import { ManageGridLayout } from "./ManageGridLayout";
 
 /**
  * Neutral three-column placeholder shown while the organization's content
- * model state is unknown, so neither the legacy nor the v2 map flashes.
+ * collection data is loading.
  */
 export function ManageLayoutSkeleton({ fill }: { fill?: boolean } = {}) {
   return (

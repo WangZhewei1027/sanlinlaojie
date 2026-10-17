@@ -21,10 +21,10 @@ export function isSpecificWorkspaceId(
 
 /**
  * Routes that need organization/workspace context (data loading in
- * WorkspaceProvider, org switcher in the breadcrumb). Single source of
+ * TeamProvider, org switcher in the breadcrumb). Single source of
  * truth — do not redeclare this list elsewhere.
  */
-export const WORKSPACE_ROUTES = ["/manage", "/upload-onsite", "/admin"];
+export const TEAM_ROUTES = ["/manage", "/upload-onsite", "/admin"];
 
 /**
  * Segment-boundary route matching: `/admin` matches `/admin` and

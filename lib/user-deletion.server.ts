@@ -1,7 +1,6 @@
-import "server-only";
 import { db, sql } from "@/lib/db";
-import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
 import { releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
+import "server-only";
 
 /**
  * 删除用户的服务端编排（仅服务端）。
@@ -151,10 +150,8 @@ export async function computeUserDeletionPlan(
         .map((w) => w.id);
       const item = orgs.find((o) => o.id === orgId)!;
       item.workspaceCount = wsIds.length;
-      const legacyAssets = wsIds.length === 0 ? [] : await fetchContainedAssets(wsIds);
-      const legacyIds = new Set(legacyAssets.map((a) => a.id));
-      const v2Assets = await db.selectFrom("asset").select("id").where("organization_id", "=", orgId).execute();
-      item.assetCount = legacyIds.size + v2Assets.filter((a) => !legacyIds.has(a.id)).length;
+      const assets = await db.selectFrom("asset").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow();
+      item.assetCount = Number(assets.n);
       const [scenes, placements] = await Promise.all([
         db.selectFrom("scene").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
         db.selectFrom("placement").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
@@ -165,38 +162,6 @@ export async function computeUserDeletionPlan(
   }
 
   return { orgs, promoteOrgIds, deleteOrgIds };
-}
-
-/**
- * 完全包含在给定 workspace 集合内的资产（将被删除的那些）。
- * 同时带出 shop 素材的 metadata.checkin_url——打卡图与普通文件共用去重存储。
- */
-async function fetchContainedAssets(
-  wsIds: string[],
-): Promise<{ id: string; file_url: string | null; checkin_url: string | null }[]> {
-  if (wsIds.length === 0) return [];
-
-  const rows = await db
-    .selectFrom("asset")
-    .select([
-      "id",
-      "file_url",
-      "workspace_id",
-      sql<string | null>`metadata->>'checkin_url'`.as("checkin_url"),
-    ])
-    .where("workspace_id", "is not", null)
-    .where(sql<boolean>`workspace_id <@ ${wsIds}::uuid[]`)
-    .orderBy("id", "asc")
-    .execute();
-
-  // 与 purge_organizations 函数的语义保持一致：空数组不算"包含"
-  return rows
-    .filter((a) => Array.isArray(a.workspace_id) && a.workspace_id.length > 0)
-    .map((a) => ({
-      id: a.id,
-      file_url: a.file_url,
-      checkin_url: a.checkin_url,
-    }));
 }
 
 export interface PurgeResult {
@@ -218,25 +183,7 @@ export async function purgeOrganizations(orgIds: string[]): Promise<PurgeResult>
     return { deletedAssets: 0, deletedWorkspaces: 0, deletedOrgs: 0, deletedFiles: 0, deferredFiles: 0 };
   }
 
-  const wsRows = await db
-    .selectFrom("workspace")
-    .select("id")
-    .where("organization_id", "in", orgIds)
-    .execute();
-
-  const wsIds = wsRows.map((w) => w.id);
-
-  // 行删除后就查不到这些对象了，先收集候选 key：旧行 file_url + checkin_url、
-  // 组织自有版本的资源文件、组织的上传回执。
   const candidateKeys = new Set<string>();
-  if (wsIds.length > 0) {
-    for (const asset of await fetchContainedAssets(wsIds)) {
-      for (const url of [asset.file_url, asset.checkin_url]) {
-        const key = url ? storagePathFromUrl(url) : null;
-        if (key) candidateKeys.add(key);
-      }
-    }
-  }
   const [resources, receipts] = await Promise.all([
     db
       .selectFrom("asset_version_resource as r")

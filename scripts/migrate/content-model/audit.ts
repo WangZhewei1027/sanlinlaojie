@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import type { Client } from "pg";
-import { validateSceneDefinition } from "../../../lib/scene/validate";
+import { validateLegacySceneDefinition as validateSceneDefinition } from "./legacy-scene";
 import { connect, fail, fingerprint, options, output, type MigrationOptions } from "./shared";
 
 export interface LegacyAsset {

@@ -4,8 +4,8 @@ import { setWorkspaceArchived } from "@/lib/content-model/projects.server";
 
 type Context = { params: Promise<{ id: string }> };
 
-// POST   /api/collections/[id]/archive → archive → { data: WorkspaceDto }
-// DELETE /api/collections/[id]/archive → restore → { data: WorkspaceDto }
+// POST   /api/collections/[id]/archive → archive → { data: CollectionDto }
+// DELETE /api/collections/[id]/archive → restore → { data: CollectionDto }
 // Archiving freezes the collection's placements and stops their public
 // entries; team assets and scenes are never deleted or changed.
 export async function POST(request: Request, { params }: Context) {

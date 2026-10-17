@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { isSpecificWorkspaceId } from "@/app/manage/constants";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,12 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, Loader2, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
-import { fetchJson } from "@/lib/fetch-json";
-import { isSpecificWorkspaceId } from "@/app/manage/constants";
-import { CleanLog } from "./components/CleanLog";
 import { Text } from "@/components/ui/typography";
+import { fetchJson } from "@/lib/fetch-json";
+import { AlertCircle, Loader2, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { CleanLog } from "./components/CleanLog";
 
 type CleanAction = "clean-rows" | "clean-files" | "both";
 
@@ -107,7 +107,7 @@ export default function CleanPage() {
     setWorkspaces([]);
     setSelectedWorkspaceId(null);
     fetchJson<{ data: WorkspaceOption[] }>(
-      `/api/workspaces?organization_id=${selectedOrganizationId}`,
+      `/api/organizations/${selectedOrganizationId}/collections`,
     )
       .then((res) => {
         if (cancelled) return;

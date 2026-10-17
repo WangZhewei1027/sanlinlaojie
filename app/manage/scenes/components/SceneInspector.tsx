@@ -1,12 +1,12 @@
 "use client";
-import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { Box, Diamond, Film, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { AXES, TRANSFORM_GROUPS, keyTimes, nearTime, type TransformGroup } from "@/lib/scene/editor-document";
 import type { CompositionInstance, TransformChannel } from "@/lib/scene/protocol";
 import type { TransformValues } from "@/lib/scene/theatre-state";
+import { Box, Diamond, Film, SlidersHorizontal, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { SceneNumberField } from "./SceneFields";
 import type { ClipInfo } from "./types";
 
@@ -15,7 +15,7 @@ export interface SceneInspectorProps {
   time: number; duration: number; record: boolean; playing: boolean;
   onTransform: (channel: TransformChannel, value: number) => void;
   onKey: (group: TransformGroup) => void; onAnimation: (animation: CompositionInstance["animation"]) => void; onRemove: () => void;
-  /** Source facts for the selected object, e.g. its pinned asset version and upgrade (v2 scenes). */
+  /** Source facts for the selected object, e.g. its pinned asset version and upgrade (scenes). */
   source?: ReactNode;
 }
 export function SceneInspector({ instance, name, values, clips, time, duration, record, playing, onTransform, onKey, onAnimation, onRemove, source }: SceneInspectorProps) {

@@ -1,5 +1,10 @@
-import "server-only";
-import { sql } from "@/lib/db";
+import { asFileType } from "@/lib/assets/dto.server";
+import {
+  ensureAssetUse,
+  loadWorkspaceAccessMany,
+  type Actor,
+  type WorkspaceAccess,
+} from "@/lib/content-model/access.server";
 import type {
   AssetFileType,
   GeoPointInput,
@@ -10,17 +15,12 @@ import type {
   PlacementTargetInput,
   SceneState,
 } from "@/lib/content-model/contracts";
-import {
-  ensureAssetUse,
-  loadWorkspaceAccessMany,
-  type Actor,
-  type WorkspaceAccess,
-} from "@/lib/content-model/access.server";
 import { ContentError, archived, invalid, notFound } from "@/lib/content-model/errors";
 import { isRecord, isUuid, optionalString, requireNumber, requireUuid } from "@/lib/content-model/input";
 import { parseRenderConfig } from "@/lib/content-model/payload";
 import { toIsoRequired, type Executor, type Trx } from "@/lib/content-model/tx.server";
-import { asFileType } from "@/lib/assets/dto.server";
+import { sql } from "@/lib/db";
+import "server-only";
 
 export const PLACEMENT_STATUSES: readonly PlacementStatus[] = ["draft", "active", "paused", "archived"];
 
@@ -149,23 +149,15 @@ export function assertDiscoverable(status: PlacementStatus, location: GeoPointIn
   if (!location && !anchorId && target.fileType !== "shop") throw invalid("有效投放必须设置 GPS 位置或识别目标");
 }
 
-/**
- * Anchors stay legacy asset rows. Same organization alone is not enough: the
- * anchor must belong to the target collection (its workspace array), because
- * recognition only searches anchors registered in the scanned scope.
- */
+/** A recognition target must have an active placement in this collection. */
 export async function assertAnchorUsable(trx: Executor, anchorId: string, target: WorkspaceAccess): Promise<void> {
-  const workspaceId = target.workspace.id;
-  const anchor = await trx
-    .selectFrom("asset")
-    .select(["id", "file_type", "organization_id", "workspace_id"])
-    .where("id", "=", anchorId)
+  const anchor = await trx.selectFrom("asset as a")
+    .innerJoin("placement as p", "p.asset_id", "a.id")
+    .select("a.id").where("a.id", "=", anchorId).where("a.file_type", "=", "anchor")
+    .where("a.organization_id", "=", target.workspace.organization_id)
+    .where("p.workspace_id", "=", target.workspace.id).where("p.status", "=", "active")
     .executeTakeFirst();
-  if (!anchor || anchor.file_type !== "anchor") throw invalid("识别目标必须是本合集可用的匹配点");
-  if (anchor.organization_id && anchor.organization_id !== target.workspace.organization_id) throw invalid("识别目标必须是本合集可用的匹配点");
-  // Recognition (find_nearby_matching_anchors) only searches anchors whose
-  // collection list contains the scope, so that is the only usable scope.
-  if (!(anchor.workspace_id ?? []).includes(workspaceId)) throw invalid("识别目标必须是本合集可用的匹配点");
+  if (!anchor) throw invalid("识别目标必须是本合集已投放的匹配点");
 }
 
 export async function replaceTags(trx: Trx, placementId: string, workspaceId: string, tagIds: string[]): Promise<void> {
@@ -300,23 +292,17 @@ export function renderConfigOf(value: unknown): PlacementRenderConfig {
   return isRecord(value) ? (value as PlacementRenderConfig) : {};
 }
 
-/**
- * Placement DTOs with targets, tags, public ids, legacy scopes and the
- * caller's capabilities (team members read every collection; writers edit
- * placements of open collections). `viewerWorkspaceId` marks placements shown
- * through a legacy scope of another collection as read-only shared.
- */
+/** Pinned targets, collection tags and team-derived capabilities. */
 export async function buildPlacementDtos(
   exec: Executor,
   actor: Actor,
   rows: PlacementRow[],
-  opts: { viewerWorkspaceId?: string } = {},
 ): Promise<PlacementDto[]> {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
   const versionIds = rows.map((r) => r.asset_version_id).filter((id): id is string => !!id);
   const revisionIds = rows.map((r) => r.scene_revision_id).filter((id): id is string => !!id);
-  const [versions, revisions, tags, bindings, scopes] = await Promise.all([
+  const [versions, revisions, tags] = await Promise.all([
     versionIds.length
       ? exec
           .selectFrom("asset_version as v")
@@ -349,20 +335,11 @@ export async function buildPlacementDtos(
           .execute()
       : Promise.resolve([]),
     exec.selectFrom("placement_tag").select(["placement_id", "tag_id"]).where("placement_id", "in", ids).execute(),
-    exec.selectFrom("legacy_runtime_binding").select(["id", "placement_id", "public_id"]).where("placement_id", "in", ids).execute(),
-    exec
-      .selectFrom("legacy_content_map as m")
-      .innerJoin("legacy_runtime_binding as b", "b.id", "m.binding_id")
-      .select(["b.placement_id", "m.workspace_id", "m.active", "m.tag_ids"])
-      .where("b.placement_id", "in", ids)
-      .execute(),
   ]);
-  const workspaceIds = [...new Set([...rows.map((r) => r.workspace_id), ...(opts.viewerWorkspaceId ? [opts.viewerWorkspaceId] : [])])];
+  const workspaceIds = [...new Set(rows.map((r) => r.workspace_id))];
   const access = await loadWorkspaceAccessMany(exec, actor, workspaceIds);
-  const viewer = opts.viewerWorkspaceId ? access.get(opts.viewerWorkspaceId) : undefined;
   const versionById = new Map(versions.map((v) => [v.id, v]));
   const revisionById = new Map(revisions.map((r) => [r.id, r]));
-  const bindingByPlacement = new Map(bindings.map((b) => [b.placement_id, b]));
 
   return rows.map((row): PlacementDto => {
     let target: PlacementTargetDto;
@@ -394,17 +371,12 @@ export async function buildPlacementDtos(
       };
     }
     const own = access.get(row.workspace_id);
-    const placementScopes = scopes.filter((s) => s.placement_id === row.id);
-    const sharedView = !!opts.viewerWorkspaceId && opts.viewerWorkspaceId !== row.workspace_id;
-    const viaScope = sharedView && placementScopes.some((s) => s.workspace_id === opts.viewerWorkspaceId && s.active);
-    const viewerScopeTags = sharedView ? placementScopes.find((s) => s.workspace_id === opts.viewerWorkspaceId)?.tag_ids ?? [] : null;
-    const binding = bindingByPlacement.get(row.id);
     const isShop = target.kind === "asset_version" && target.file_type === "shop";
     return {
       id: row.id,
       organization_id: row.organization_id,
       workspace_id: row.workspace_id,
-      workspace_name: own?.canRead || viaScope ? own?.workspace.name ?? null : null,
+      workspace_name: own?.canRead ? own?.workspace.name ?? null : null,
       name: row.name,
       target,
       location: row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, altitude: row.altitude } : null,
@@ -412,19 +384,17 @@ export async function buildPlacementDtos(
       render_config: renderConfigOf(row.render_config),
       status: asPlacementStatus(row.status),
       lock_version: row.lock_version,
-      tag_ids: viewerScopeTags ?? tags.filter((t) => t.placement_id === row.id).map((t) => t.tag_id),
-      public_id: binding?.public_id ?? row.id,
-      legacy_scope_workspace_ids: placementScopes.filter((s) => s.active).map((s) => s.workspace_id),
+      tag_ids: tags.filter((t) => t.placement_id === row.id).map((t) => t.tag_id),
+      public_id: row.id,
       directory_only: isShop && row.longitude === null && !row.anchor_id,
       created_by: row.created_by,
       updated_by: row.updated_by,
       created_at: toIsoRequired(row.created_at),
       updated_at: toIsoRequired(row.updated_at),
       capabilities: {
-        can_read: !!own?.canRead || viaScope,
-        can_edit: !sharedView && !!own?.canEdit,
-        can_copy: sharedView ? viaScope && !!viewer?.canEdit : !!own?.canEdit,
-        read_only_shared: sharedView,
+        can_read: !!own?.canRead,
+        can_edit: !!own?.canEdit,
+        can_copy: !!own?.canEdit,
       },
     };
   });

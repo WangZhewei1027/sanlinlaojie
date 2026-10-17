@@ -1,9 +1,9 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
-import type { CompositionInstance, SceneAssetManifest, SceneDocumentV3 } from "./protocol";
+import type { SceneAssetManifest, SceneDocumentV3 } from "./protocol";
 
 /**
  * Compile a fixed schema-3 document into the playback protocol the current
- * mini-program understands (schema 1/2). Instances and tracks are kept; every
+ * mini-program understands (schema 2). Instances and tracks are kept; every
  * alias resolves to the file of its pinned version. Never reads an asset's
  * current version.
  */
@@ -17,15 +17,10 @@ export function compileSceneManifest(
     if (!resources[alias]) throw new Error(`scene resource ${alias} is not resolved`);
     assets[alias] = { assetId: ref.assetId };
   }
-  const hasTracks = document.content.instances.some((instance) => instance.tracks && Object.keys(instance.tracks).length > 0);
-  const instances: CompositionInstance[] = document.content.instances.map((instance) => {
-    const { tracks, ...rest } = instance;
-    return hasTracks && tracks && Object.keys(tracks).length ? { ...rest, tracks } : rest;
-  });
   return {
     assetId: publicId,
-    schemaVersion: hasTracks ? 2 : 1,
-    content: { ...document.content, assets, instances },
+    schemaVersion: 2,
+    content: { ...document.content, assets },
     resources,
   };
 }

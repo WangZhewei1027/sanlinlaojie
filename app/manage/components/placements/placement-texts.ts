@@ -6,7 +6,7 @@ import { useIntegrationText, type IntegrationTexts } from "../../lib/integration
 const P = "contentModel.integration.map";
 
 /**
- * zh/en fallbacks for the v2 placement map. A real locale entry always wins
+ * zh/en fallbacks for the placement map. A real locale entry always wins
  * (see lib/integration-text.ts). ERROR_TEXTS is merged so `errorMessage`
  * resolves its keys through the same `tx`.
  */
@@ -99,8 +99,6 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.sidebar.selectHint`]: ["在列表或地图上选择一个投放来查看和编辑。", "Select a placement in the list or on the map to view and edit it."],
 
   [`${P}.editor.title`]: ["投放详情", "Placement"],
-  [`${P}.editor.sharedTitle`]: ["来自合集 {{project}}（只读）", "From collection {{project}} (read-only)"],
-  [`${P}.editor.sharedBody`]: ["这是旧数据在多个合集间共享的投放，只能在来源合集中修改。需要单独调整时，先复制到当前合集。", "Legacy data shares this placement from another collection; it can only be changed there. Copy it into this collection to adjust it independently."],
   [`${P}.editor.readOnly`]: ["你没有修改这个投放的权限。", "You don't have permission to change this placement."],
   [`${P}.editor.readOnlyAll`]: ["正在浏览全部合集，打开该投放所属的合集后才能修改。", "You're browsing all collections. Open this placement's collection to change it."],
   [`${P}.editor.conflictTitle`]: ["投放已被他人更新，你的修改尚未保存", "Someone else updated this placement; your changes aren't saved"],

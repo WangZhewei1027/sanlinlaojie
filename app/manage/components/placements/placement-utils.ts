@@ -24,7 +24,7 @@ export function matchesFilters(placement: PlacementDto, filters: PlacementFilter
   return true;
 }
 
-/** Scalar-only copy of a legacy config map (the server rejects nested values such as `link`). */
+/** Scalar-only copy of a presentation config map (the server rejects nested values such as `link`). */
 export function scalarEntries(map: PlacementRenderConfig["config"] | Record<string, unknown> | undefined): Record<string, PayloadScalar> {
   const out: Record<string, PayloadScalar> = {};
   for (const [key, value] of Object.entries(map ?? {})) {

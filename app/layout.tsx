@@ -1,17 +1,17 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { TeamProvider } from "@/app/manage/components/TeamProvider";
+import { ErrorReporter } from "@/components/error-reporter";
 import { I18nProvider } from "@/components/i18n-provider";
+import { Navbar } from "@/components/navbar";
+import { Toaster } from "@/components/ui/sonner";
+import { geistSans } from "@/lib/fonts";
 import {
   DEFAULT_LANGUAGE,
   LANGUAGE_COOKIE,
   resolveLanguage,
 } from "@/lib/i18n/settings";
-import { Navbar } from "@/components/navbar";
-import { WorkspaceProvider } from "@/app/manage/components/WorkspaceProvider";
-import { Toaster } from "@/components/ui/sonner";
-import { ErrorReporter } from "@/components/error-reporter";
-import { geistSans } from "@/lib/fonts";
+import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
 import "./globals.css";
 
 const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -53,10 +53,10 @@ export default function RootLayout({
         > */}
         <Suspense fallback={null}>
           <I18nFromCookie>
-            <WorkspaceProvider>
+            <TeamProvider>
               <Navbar />
               {children}
-            </WorkspaceProvider>
+            </TeamProvider>
           </I18nFromCookie>
         </Suspense>
         <Toaster />

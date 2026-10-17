@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { isSidebarItemVisible } from "@/lib/permissions";
 import { useManageStore } from "@/app/manage/store";
+import { isSidebarItemVisible } from "@/lib/permissions";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-// 团队设置入口：落到当前角色能看到的第一页（设置 → 成员 → 合集）。
-// 合集页对 v2 团队会再跳到 /manage/collections。
+// 团队设置入口：落到当前角色能看到的设置页。
 export default function AdminIndex() {
   const router = useRouter();
   const globalRole = useManageStore((state) => state.currentUserRole);
@@ -15,7 +14,7 @@ export default function AdminIndex() {
 
   useEffect(() => {
     if (loading) return;
-    const target = ["/admin/settings", "/admin/members", "/admin/workspaces"].find((href) => isSidebarItemVisible(href, globalRole, orgRole)) ?? "/admin/workspaces";
+    const target = ["/admin/settings", "/admin/members"].find((href) => isSidebarItemVisible(href, globalRole, orgRole)) ?? "/403";
     router.replace(target);
   }, [loading, globalRole, orgRole, router]);
 

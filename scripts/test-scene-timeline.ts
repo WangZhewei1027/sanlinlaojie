@@ -26,7 +26,7 @@ for (const time of [0, 1, 1.01, 1.25, 2, 2.1, 3, 3.99, 4, 7.5, 7.999, 8, 10]) {
 }
 assert.equal(sheet.sequence.__experimental_getKeyframes(object.props.position.x).length, 3);
 for (const mutate of [
-  (d: typeof definition) => { d.schemaVersion = 1; },
+  (d: typeof definition) => { (d as unknown as { schemaVersion: number }).schemaVersion = 1; },
   (d: typeof definition) => { d.content.durationSeconds = null; },
   (d: typeof definition) => { d.content.instances[0].tracks!["position.x"]![1].time = 1; },
   (d: typeof definition) => { d.content.instances[0].tracks!["position.x"]![0].handles[2] = -1; },

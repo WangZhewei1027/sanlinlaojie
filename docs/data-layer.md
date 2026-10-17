@@ -16,64 +16,36 @@ used to move every route off supabase-js.
 | Media | `lib/storage/oss.ts`, `lib/storage/public-url.ts` | `supabase.storage.from()` |
 | Uploads | `POST /api/upload` (relay) | browser direct upload to the bucket |
 
-## Team content model and cutover
+## Team content model
 
-The current code contains a versioned content model alongside the legacy Asset
-model. These notes describe the code contract, not a claim that any production
-organization has migrated. The approved scope and migration order are in
-[team-assets-scenes-refactor-plan.md](team-assets-scenes-refactor-plan.md).
+The application uses one model: teams own assets and scenes; map collections
+(stored as workspace rows) own placements and tags. Every member reads team
+content; owner/admin/member write, and viewer reads only. A new team has zero
+collections. Collections are created when content needs a map.
 
 | Entity | Responsibility |
 | --- | --- |
-| `asset` | One organization-owned identity, maintainer, visibility, current-version pointer and archive state |
-| `asset_version` / `asset_version_resource` | Immutable typed content and every managed file it retains |
-| `asset_workspace_grant` | Historical project-use grants; read-only, not a permission input since the team model (new commands never write it) |
-| `scene` / `scene_asset_ref` | Team-owned schema-3 draft and transactionally derived pinned-version references; nullable workspace records legacy origin only |
-| `scene_revision` / `scene_revision_asset_ref` | Immutable published document and its fixed dependencies |
-| `placement` / `placement_tag` | A geographic/display instance targeting exactly one AssetVersion or SceneRevision |
-| `legacy_runtime_binding` / `legacy_content_map` | Old public IDs and discovery scopes mapped to canonical placements |
-| `upload_receipt` | Actor/organization-bound upload proof and an expiring retention lease |
+| `asset` | Team identity, current-version pointer and archive state |
+| `asset_version` / `asset_version_resource` | Immutable content and its files |
+| `scene` / `scene_asset_ref` | Schema-3 draft with pinned version references |
+| `scene_revision` / `scene_revision_asset_ref` | Immutable publication |
+| `workspace` | Map collection; no independent membership |
+| `placement` / `placement_tag` | Collection-owned presentation of one version/revision |
+| `upload_receipt` | Actor/team-bound upload proof and expiring lease |
+| `anchor_embedding` | Reference features keyed by immutable asset version |
+| `storage_hold` | Explicit protection for archived migration references |
 
-The organization, not the workspace, selects the write model:
+There is no organization model-state switch, legacy write path, project ACL or
+version header. `lib/content-model/access.server.ts` enforces team permissions
+and archival. `contracts.ts` defines DTOs; domain services in `lib/assets/`,
+`lib/scene/service.server.ts` and `lib/placements/` own content writes.
+Transactions declare `content_model.writer`; only the explicit purge writer
+may remove immutable versions. It is not an authorization substitute.
 
-| `organization.content_model_state` | Write source and UI |
-| --- | --- |
-| `legacy` | Legacy Asset writes and legacy map |
-| `preparing` | Legacy remains the write source while migration data is prepared |
-| `readonly` | Cutover window; administrative writes are rejected, UI becomes read-only |
-| `v2` | Asset/Scene/Placement domain services are the only content write source |
-
-Running DDL creates the structure; it does not authorize a cutover. Related
-organizations sharing legacy rows are audited together. Migration tools under
-`scripts/migrate/content-model/` own audit/backfill/verify/cutover; do not replace
-that workflow with an ad hoc state update. After v2 writes exist, rolling back
-the UI does not make an old writer safe.
-
-The content-model PUT is restricted to super-admin initialization of an
-organization with no legacy Asset rows (`legacy` → `v2`). It checks
-`expectedState` and permits a same-state no-op; migration state changes and
-rollback use the migration scripts.
-
-`lib/content-model/access.server.ts` resolves actor, organization, project and
-asset permissions. `assertV2Writable` rejects unopened organizations, readonly
-windows and archived organizations. `legacyPathMode` requires the explicit
-`X-Content-Model: 2` administrative contract on reused legacy paths after cutover
-and refuses ambiguous mixed scopes. The header is not authentication.
-
-`lib/content-model/contracts.ts` defines client-safe DTOs and error codes. Use
-the services in `lib/assets/`, `lib/scene/service.server.ts` and
-`lib/placements/`; do not reproduce their authorization in each route. New
-success envelopes use `{ data }` with optional pagination, failures use
-`{ error, code, details? }`. An unreadable asset is returned as not found to
-avoid disclosing another organization's identities.
-
-Content transactions use `contentTransaction` from
-`lib/content-model/tx.server.ts`, which declares the transaction-local writer
-through `content_model.writer`. The database `guard_legacy_asset_write` rejects
-undeclared legacy Asset writes for readonly/v2 organizations. This declaration
-is an internal write guard, not a substitute for application authorization.
-Do not dual-write old and new models. Legacy fields retained on an Asset are
-compatibility data, not a second editable source.
+The upgrade migrates old data and removes old schema in one transaction.
+Original workspace UUIDs remain collection IDs; shared old content becomes
+independent placements. Migration evidence is stored outside the runtime schema.
+See [content-model-migration-runbook.md](content-model-migration-runbook.md).
 
 Identity/draft/placement updates validate `expectedLockVersion` (missing 428,
 stale 409). Appending an AssetVersion is serialized under the Asset row lock;
@@ -164,7 +136,6 @@ which is now checked in the route).
 | `.rpc("fn", { p_a: a })` returning scalar | ``const { rows } = await sql<{ v: T }>`select public.fn(${a}) as v`.execute(db)`` |
 | `.rpc("fn", …)` returning rows | ``(await sql<Row>`select * from public.fn(${a}, ${b})`.execute(db)).rows`` |
 | nested select `organization(name)` | `jsonObjectFrom(eb.selectFrom("organization").select("name").whereRef("organization.id","=","organization_member.organization_id")).as("organization")` |
-| nested list `workspace_assignment(id, workspace(name))` | `jsonArrayFrom(eb.selectFrom("workspace_assignment").select([...]).whereRef(...)).as("workspace_assignment")` |
 | `fetchAllRows(...)` (1000-row paging) | not needed — just `.execute()` |
 
 Notes
@@ -237,7 +208,7 @@ import { putObject, deleteObjects, headObject, listObjects, mediaUrl, assetKeyFr
   `assetKeyFromUrl(url)` → key or null; `storagePathFromUrl` in
   `lib/storage-cleanup.server.ts` is the same thing.
 - Managed-file retention is centralized in `lib/storage/retention.server.ts`.
-  It protects version resources, legacy references, Anchor images, audio
+  It protects version resources, migration holds, Anchor reference versions, audio
   compatibility siblings and unexpired receipts across all organizations.
   Physical deletion is opt-in via `app_config.managed_object_deletion` and
   performs its final check under the same object lock used by commit/reuse.

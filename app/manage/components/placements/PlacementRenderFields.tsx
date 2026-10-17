@@ -17,7 +17,7 @@ interface PlacementRenderFieldsProps {
 }
 
 /**
- * Per-placement presentation overrides with the legacy meaning
+ * Per-placement presentation overrides
  * (AssetEditorModelConfigFields / AssetEditorTextStyleFields): models get
  * "huge model" + scale multiplier, text gets color + size.
  */

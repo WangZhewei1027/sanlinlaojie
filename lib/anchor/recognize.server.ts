@@ -1,5 +1,3 @@
-import "server-only";
-import { db, sql } from "@/lib/db";
 import {
   chooseMatch,
   cosine,
@@ -7,10 +5,13 @@ import {
   MatchingError,
   parseGps,
 } from "@/lib/anchor-matching";
+import { resourceUrl } from "@/lib/assets/urls";
+import { db, sql } from "@/lib/db";
+import { anchorPlacements } from "@/lib/placements/runtime.server";
+import "server-only";
 import { embedImage } from "./embedding.server";
 import type { ModelTelemetry } from "./model-telemetry";
 import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
-import { anchorPlacements, scopeState } from "@/lib/placements/runtime.server";
 
 // Shared cap for everyone recognizing in one workspace (database counter, so
 // it holds across processes). Set just above what the model service can serve
@@ -22,23 +23,33 @@ const PER_WORKSPACE_PER_MINUTE = 3000;
 
 interface Candidate {
   id: string;
+  asset_id: string;
   name: string;
   file_url: string;
   metadata: Record<string, unknown>;
   distance_meters: number;
 }
 
-async function findNearbyAnchors(
+export async function findNearbyAnchors(
   workspaceId: string,
   gps: { latitude: number; longitude: number; radius: number },
 ): Promise<Candidate[]> {
-  const { rows } = await sql<Candidate>`
-    select id, name, file_url, metadata, distance_meters
-    from public.find_nearby_matching_anchors(
-      ${workspaceId}::uuid, ${gps.latitude}, ${gps.longitude}, ${gps.radius}
-    )
+  const point = sql`ST_SetSRID(ST_MakePoint(${gps.longitude}::float8, ${gps.latitude}::float8),4326)::geography`;
+  const { rows } = await sql<Candidate & { storage_key: string | null; external_url: string | null }>`
+    select * from (
+      select distinct on (p.asset_version_id) p.asset_version_id id,a.id asset_id,coalesce(p.name,a.name,'') name,
+        r.storage_key,r.external_url,v.payload->'attributes' metadata,
+        ST_Distance(p.location::geography,${point}) distance_meters
+      from placement p join asset a on a.id=p.asset_id join asset_version v on v.id=p.asset_version_id
+      join workspace w on w.id=p.workspace_id join organization o on o.id=p.organization_id
+      join lateral (select storage_key,external_url from asset_version_resource where asset_version_id=v.id and role in ('reference','primary') order by case role when 'reference' then 0 else 1 end,ordinal limit 1) r on true
+      where p.workspace_id=${workspaceId}::uuid and a.file_type='anchor' and p.status='active'
+        and w.archived_at is null and o.archived_at is null and p.location is not null
+        and ST_DWithin(p.location::geography,${point},${Math.min(gps.radius,200)}::float8)
+      order by p.asset_version_id,distance_meters
+    ) candidates order by distance_meters,id limit 201
   `.execute(db);
-  return rows;
+  return rows.map((row) => ({ ...row, file_url: resourceUrl(row) }));
 }
 
 export async function recognizeAnchor(
@@ -146,7 +157,7 @@ export async function recognizeAnchor(
     ready = meta.filter(
       (r) =>
         r.status === "ready" &&
-        candidates.some((c) => c.id === r.anchor_id && c.file_url === r.image_url),
+        candidates.some((c) => c.id === r.asset_version_id && c.file_url === r.image_url),
     );
     diagnostics.ready_reference_count = ready.length;
     // Never silently omit an unprepared competitor and accept a different nearby point.
@@ -168,9 +179,9 @@ export async function recognizeAnchor(
   if (ready.some((r) => r.embedding_version !== query.version))
     return empty("model_version_mismatch");
   const ranked = ready.map((row) => ({
-    id: row.anchor_id,
-    score: cosine(query.embedding, references.vectors.get(row.anchor_id)!),
-    distance_meters: candidates.find((c) => c.id === row.anchor_id)!
+    id: row.asset_version_id,
+    score: cosine(query.embedding, references.vectors.get(row.asset_version_id)!),
+    distance_meters: candidates.find((c) => c.id === row.asset_version_id)!
       .distance_meters,
   }));
   const sorted = [...ranked].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
@@ -205,22 +216,7 @@ export async function recognizeAnchor(
     return empty("reference_changed");
   let assets;
   try {
-    // Cut-over organizations attach content through placements (anchor_id),
-    // projected into the same row shape under the public id.
-    const scope = await scopeState({ workspaceId, organizationId: null });
-    assets = scope?.state === "v2"
-      ? await anchorPlacements(workspaceId, candidate.id)
-      : await db
-          .selectFrom("asset")
-          .select([
-            "id", "name", "file_type", "file_url", "text_content", "anchor_id",
-            "tag_ids", "metadata", "is_huge", "config",
-          ])
-          .where("anchor_id", "=", candidate.id)
-          .where("file_type", "<>", "anchor")
-          .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
-          .orderBy("id")
-          .execute();
+    assets = await anchorPlacements(workspaceId, candidate.asset_id);
   } catch {
     throw new MatchingError("无法读取挂载素材", 503);
   }
@@ -229,7 +225,7 @@ export async function recognizeAnchor(
     matched: true,
     reason: "matched",
     anchor: {
-      id: candidate.id,
+      id: candidate.asset_id,
       name: candidate.name,
       distance_meters: result.match.distance_meters,
       cosine_similarity: result.match.score,

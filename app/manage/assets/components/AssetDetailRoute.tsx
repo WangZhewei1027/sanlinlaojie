@@ -1,26 +1,25 @@
 "use client";
 
-import { use, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import { ArrowLeft, Copy, PencilLine } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { AssetVersionDto } from "@/lib/content-model/contracts";
+import { TeamPageLoading, TeamShell } from "@/app/manage/components/TeamShell";
 import { AssetDetail, ContentErrorState } from "@/app/manage/content";
-import { ContentFeatureState } from "@/app/manage/components/ContentFeatureState";
-import { isContentApiError, isEndpointMissing, isFeatureStateError } from "@/app/manage/lib/content-api";
-import { teamCanWrite, teamHref, useContentModel, useResourceTeam, useTeamContext } from "@/app/manage/lib/content-context";
+import { isContentApiError, isEndpointMissing } from "@/app/manage/lib/content-api";
+import { teamCanWrite, teamHref, useResourceTeam, useTeamContext } from "@/app/manage/lib/content-context";
 import { errorMessage } from "@/app/manage/lib/content-errors";
 import { toDetailData, toUsageSummary, toVersions, usageByKind } from "@/app/manage/lib/content-mappers";
 import { useOrganizationPeople } from "@/app/manage/lib/content-people";
 import { acceptFor } from "@/app/manage/lib/content-upload";
 import { useIntegrationText, type IntegrationT } from "@/app/manage/lib/integration-text";
+import { Button } from "@/components/ui/button";
+import type { AssetVersionDto } from "@/lib/content-model/contracts";
+import { ArrowLeft, Copy, PencilLine } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { use, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { isFileType, type CreatableType } from "./AssetContentField";
 import { AssetDetailNotices } from "./AssetDetailNotices";
 import { AssetDuplicateDialog } from "./AssetDuplicateDialog";
 import { AssetNameDialog } from "./AssetNameDialog";
-import { TeamPageLoading, TeamShell } from "@/app/manage/components/TeamShell";
 import { AssetPreview, hasPreview } from "./AssetPreview";
 import { ASSET_TEXTS } from "./texts";
 import { useAssetDetail } from "./useAssetDetail";
@@ -53,7 +52,6 @@ function AssetDetailView({ id }: { id: string }) {
   const detail = useAssetDetail(id);
   const asset = detail.asset;
   const organizationId = asset?.organization_id ?? team.organizationId;
-  const model = useContentModel(organizationId);
   const people = useOrganizationPeople(asset?.organization_id ?? null);
   const writes = useAssetWrites(detail, tx);
   // The asset's team drives the URL and header; a later header switch leaves for that team's workbench.
@@ -75,9 +73,6 @@ function AssetDetailView({ id }: { id: string }) {
   if (!asset) {
     if (detail.assetStatus === "loading") return shell(<TeamPageLoading label={t("contentModel.state.loading")} />);
     const error = detail.assetError;
-    const featureState = isFeatureStateError(error) && isContentApiError(error) ? error.details?.content_model_state ?? "legacy" : null;
-    // UPGRADE_REQUIRED from a v2 organization means this page is stale: show it as an error with retry.
-    if (featureState && featureState !== "v2") return shell(<ContentFeatureState state={featureState} mapHref={workbenchHref} />);
     return shell(
       <div className="overflow-hidden rounded-lg border bg-background">
         <ContentErrorState message={loadErrorText(error, tx)} onRetry={detail.retryAsset} />
@@ -85,17 +80,13 @@ function AssetDetailView({ id }: { id: string }) {
       backLink,
     );
   }
-  if (!settled || model.status === "loading") return shell(<TeamPageLoading label={t("contentModel.state.loading")} />);
-  if (model.status === "ready" && model.state !== "v2" && model.state !== "readonly") {
-    return shell(<ContentFeatureState state={model.state ?? "legacy"} mapHref={workbenchHref} />);
-  }
+  if (!settled) return shell(<TeamPageLoading label={t("contentModel.state.loading")} />);
 
-  const writable = model.state === "v2";
   const archived = asset.state === "archived";
   // Capabilities are computed by the server from the team role; every editing member may maintain.
-  const canMaintain = writable && asset.capabilities.can_maintain;
+  const canMaintain = asset.capabilities.can_maintain;
   const sameTeam = team.organization?.id === asset.organization_id;
-  const canCopy = canMaintain || (sameTeam && teamCanWrite({ state: model.state, dto: model.dto, orgRole: team.organization?.role, globalRole: team.currentUserRole }));
+  const canCopy = canMaintain || (sameTeam && teamCanWrite({ archivedAt: team.organization?.archived_at, orgRole: team.organization?.role, globalRole: team.currentUserRole }));
   const data = toDetailData(asset);
   const sortedVersions = [...asset.versions].sort((a, b) => b.version_no - a.version_no);
   const notes = new Map(sortedVersions.map((version) => [version.id, noteOf(version)]));
@@ -106,8 +97,6 @@ function AssetDetailView({ id }: { id: string }) {
   return shell(
     <>
       <AssetDetailNotices
-        readonly={model.state === "readonly"}
-        mapHref={workbenchHref}
         refreshError={detail.assetError}
         onRetry={detail.retryAsset}
         archiveImpact={writes.archiveImpact}
@@ -157,10 +146,10 @@ function AssetDetailView({ id }: { id: string }) {
     </>,
     <>
       {backLink}
-      {writable && !archived && canMaintain && (
+      {!archived && canMaintain && (
         <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)}><PencilLine aria-hidden />{tx("contentModel.integration.assetDetail.rename")}</Button>
       )}
-      {writable && !archived && canCopy && (
+      {!archived && canCopy && (
         <Button variant="outline" size="sm" onClick={() => setCopyOpen(true)}><Copy aria-hidden />{tx("contentModel.integration.assetDetail.duplicate")}</Button>
       )}
     </>,

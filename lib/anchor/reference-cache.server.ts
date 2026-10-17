@@ -1,6 +1,6 @@
-import "server-only";
-import { db } from "@/lib/db";
 import { validateEmbedding } from "@/lib/anchor-matching";
+import { db } from "@/lib/db";
+import "server-only";
 
 /**
  * In-process cache of normalized anchor reference descriptors.
@@ -21,7 +21,7 @@ import { validateEmbedding } from "@/lib/anchor-matching";
 const MAX_ENTRIES = 256; // ~68 KB per descriptor → ~17 MB worst case
 
 export interface ReferenceMeta {
-  anchor_id: string;
+  asset_version_id: string;
   image_url: string;
   status: string;
   embedding_version: string | null;
@@ -56,13 +56,13 @@ export async function readReferenceMeta(anchorIds: string[]): Promise<ReferenceM
   if (anchorIds.length === 0) return [];
   return db
     .selectFrom("anchor_embedding")
-    .select(["anchor_id", "image_url", "status", "embedding_version", "generation", "updated_at"])
-    .where("anchor_id", "in", anchorIds)
+    .select(["asset_version_id", "image_url", "status", "embedding_version", "generation", "updated_at"])
+    .where("asset_version_id", "in", anchorIds)
     .execute();
 }
 
 export interface LoadedReferences {
-  /** anchor_id → normalized descriptor */
+  /** asset_version_id → normalized descriptor */
   vectors: Map<string, number[]>;
   hits: number;
   misses: number;
@@ -78,10 +78,10 @@ export async function loadReferenceVectors(ready: ReferenceMeta[]): Promise<Load
   const vectors = new Map<string, number[]>();
   const missing: ReferenceMeta[] = [];
   for (const meta of ready) {
-    const entry = cache.get(meta.anchor_id);
+    const entry = cache.get(meta.asset_version_id);
     if (entry && entry.key === keyOf(meta)) {
-      remember(meta.anchor_id, entry); // refresh LRU position
-      vectors.set(meta.anchor_id, entry.embedding);
+      remember(meta.asset_version_id, entry); // refresh LRU position
+      vectors.set(meta.asset_version_id, entry.embedding);
     } else {
       missing.push(meta);
     }
@@ -91,24 +91,24 @@ export async function loadReferenceVectors(ready: ReferenceMeta[]): Promise<Load
 
   const rows = await db
     .selectFrom("anchor_embedding")
-    .select(["anchor_id", "image_url", "status", "embedding_version", "generation", "updated_at", "embedding"])
+    .select(["asset_version_id", "image_url", "status", "embedding_version", "generation", "updated_at", "embedding"])
     .where(
-      "anchor_id",
+      "asset_version_id",
       "in",
-      missing.map((m) => m.anchor_id),
+      missing.map((m) => m.asset_version_id),
     )
     .execute();
-  const byId = new Map(rows.map((r) => [r.anchor_id, r]));
+  const byId = new Map(rows.map((r) => [r.asset_version_id, r]));
   let changed = false;
   for (const meta of missing) {
-    const row = byId.get(meta.anchor_id);
+    const row = byId.get(meta.asset_version_id);
     if (!row || row.status !== "ready" || keyOf(row) !== keyOf(meta)) {
       changed = true;
       continue;
     }
     const embedding = validateEmbedding(row.embedding);
-    remember(meta.anchor_id, { key: keyOf(meta), embedding });
-    vectors.set(meta.anchor_id, embedding);
+    remember(meta.asset_version_id, { key: keyOf(meta), embedding });
+    vectors.set(meta.asset_version_id, embedding);
   }
   return { vectors, hits, misses: missing.length, changed };
 }

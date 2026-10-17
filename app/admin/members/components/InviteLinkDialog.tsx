@@ -1,17 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -19,8 +8,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Copy, Check, Link2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { fetchJson } from "@/lib/fetch-json";
+import { Check, Copy, Link2, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 interface Workspace {
@@ -60,7 +60,7 @@ export function InviteLinkDialog({
     (async () => {
       try {
         const res = await fetch(
-          `/api/workspaces?organization_id=${organizationId}`,
+          `/api/organizations/${organizationId}/collections`,
         );
         const json = await res.json();
         if (res.ok) setWorkspaces(json.data || []);

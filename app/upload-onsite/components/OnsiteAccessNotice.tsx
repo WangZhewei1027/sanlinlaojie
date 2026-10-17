@@ -1,13 +1,13 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/typography";
 import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/typography";
 
 interface OnsiteAccessNoticeProps {
   tx: IntegrationT;
-  frozen: boolean;
+  teamArchived: boolean;
   hasCollection: boolean;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
@@ -17,8 +17,8 @@ interface OnsiteAccessNoticeProps {
 }
 
 /** Why capture is unavailable; capability comes from the server only. */
-export function OnsiteAccessNotice({ tx, frozen, hasCollection, status, error, archived, canEdit, onRetry }: OnsiteAccessNoticeProps) {
-  if (frozen) {
+export function OnsiteAccessNotice({ tx, teamArchived, hasCollection, status, error, archived, canEdit, onRetry }: OnsiteAccessNoticeProps) {
+  if (teamArchived) {
     return (
       <ContentNotice
         tone="warning"

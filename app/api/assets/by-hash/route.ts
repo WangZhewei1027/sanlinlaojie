@@ -1,21 +1,21 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { publicObjectUrl } from "@/lib/assets/urls";
 import { loadActor } from "@/lib/content-model/access.server";
 import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
-import { publicObjectUrl } from "@/lib/assets/urls";
-import { lockObjectKeys } from "@/lib/storage/retention.server";
+import { db } from "@/lib/db";
 import { headObject } from "@/lib/storage/oss";
+import { lockObjectKeys } from "@/lib/storage/retention.server";
 import { findProbeKey, issueReceipt, resolveUploadScope } from "@/lib/upload/receipts.server";
+import { NextResponse } from "next/server";
 
 /**
  * 按内容 hash 查已存在的文件 URL，用于上传前去重。
  * 必须携带 organization_id 或 workspace_id（两者同时给出时合集必须属于该组织），
  * 调用者需是该团队的可编辑成员（团队角色从数据库读取，不信任参数）。只凭 hash 不能
  * 证明持有文件字节，所以只匹配调用者作为团队成员本就能读取的内容（findProbeKey）：
- * 本团队未归档素材的版本文件、本团队合集中的旧行、或调用者自己的有效上传回执；
+ * 本团队未归档素材的版本文件、调用者自己的有效上传回执；
  * 绝不返回其他团队的文件或他人未提交的上传。真实字节上传的去重仍走 /api/upload。
- * 命中时在对象 key 锁内复核仍可达并登记一张 legacy_asset 用途的租约，使后续
- * 旧行写入之前文件不会被回收；该租约不能用于创建 v2 版本。
+ * 命中时在对象 key 锁内复核仍可达并登记一张 asset_version 用途的租约，使后续
+ * 版本写入之前文件不会被回收。
  * 未命中返回 { file_url: null }。
  */
 export async function GET(request: Request) {
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
         mimeType: null,
         sizeBytes: 0,
         uploadType: null,
-        purpose: "legacy_asset",
+        purpose: "asset_version",
         reused: true,
       });
       return true;

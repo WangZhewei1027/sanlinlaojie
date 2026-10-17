@@ -1,7 +1,7 @@
-import "server-only";
-import type { AssetGrantDto, DependencyImpact, DependencyItem, PlacementStatus } from "@/lib/content-model/contracts";
 import { loadOrgAccess, type Actor } from "@/lib/content-model/access.server";
-import { toIsoRequired, type Executor } from "@/lib/content-model/tx.server";
+import type { DependencyImpact, DependencyItem, PlacementStatus } from "@/lib/content-model/contracts";
+import { type Executor } from "@/lib/content-model/tx.server";
+import "server-only";
 
 const asStatus = (value: string): PlacementStatus =>
   value === "active" || value === "paused" || value === "archived" ? value : "draft";
@@ -67,29 +67,3 @@ export async function computeImpact(exec: Executor, actor: Actor, assetId: strin
 }
 
 export const hasDependencies = (impact: DependencyImpact) => impact.drafts + impact.revisions + impact.placements > 0;
-
-/** Historical project grants (read-only): grants are no longer created or required. */
-export async function listGrants(exec: Executor, actor: Actor, assetId: string): Promise<AssetGrantDto[]> {
-  const rows = await exec
-    .selectFrom("asset_workspace_grant as g")
-    .innerJoin("workspace as w", "w.id", "g.workspace_id")
-    .select(["g.asset_id", "g.workspace_id", "g.organization_id", "w.name as workspace_name", "g.created_by", "g.created_at"])
-    .where("g.asset_id", "=", assetId)
-    .orderBy("g.created_at")
-    .execute();
-  if (!rows.length) return [];
-  const org = await loadOrgAccess(exec, actor, rows[0].organization_id);
-  const out: AssetGrantDto[] = [];
-  for (const row of rows) {
-    const impact = org?.canRead ? await computeImpact(exec, actor, assetId, row.workspace_id) : null;
-    out.push({
-      asset_id: row.asset_id,
-      workspace_id: row.workspace_id,
-      workspace_name: org?.canRead ? row.workspace_name : null,
-      created_by: row.created_by,
-      created_at: toIsoRequired(row.created_at),
-      dependency_count: impact ? impact.drafts + impact.revisions + impact.placements : null,
-    });
-  }
-  return out;
-}

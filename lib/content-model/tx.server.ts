@@ -1,25 +1,21 @@
-import "server-only";
-import { createHash } from "node:crypto";
-import type { Kysely, Transaction } from "kysely";
 import { db, sql, type DB } from "@/lib/db";
+import type { Kysely, Transaction } from "kysely";
+import { createHash } from "node:crypto";
+import "server-only";
 import { ContentError } from "./errors";
 
 export type Executor = Kysely<DB>;
 export type Trx = Transaction<DB>;
 
-/**
- * Who is writing. The database refuses legacy asset writes for cut-over
- * organizations unless the transaction declares one of these writers
- * (guard_legacy_asset_write), so stale binaries cannot write the old rows.
- */
-export type ContentWriter = "v2" | "migration" | "purge";
+/** Immutable rows may only be removed by an explicit purge transaction. */
+export type ContentWriter = "content" | "migration" | "purge";
 
-export async function declareWriter(trx: Trx, writer: ContentWriter = "v2"): Promise<void> {
+export async function declareWriter(trx: Trx, writer: ContentWriter = "content"): Promise<void> {
   await sql`select set_config('content_model.writer', ${writer}, true)`.execute(trx);
 }
 
 /** One transaction of the content-model services. */
-export function contentTransaction<T>(fn: (trx: Trx) => Promise<T>, writer: ContentWriter = "v2"): Promise<T> {
+export function contentTransaction<T>(fn: (trx: Trx) => Promise<T>, writer: ContentWriter = "content"): Promise<T> {
   return db.transaction().execute(async (trx) => {
     await declareWriter(trx, writer);
     return fn(trx);
@@ -112,7 +108,7 @@ export interface AuditEntry {
   organizationId: string | null;
   actorId: string | null;
   action: string;
-  objectType: "asset" | "asset_version" | "asset_grant" | "scene" | "scene_revision" | "placement" | "workspace" | "workspace_member" | "organization";
+  objectType: "asset" | "asset_version" | "scene" | "scene_revision" | "placement" | "workspace" | "organization";
   objectId: string | null;
   workspaceId?: string | null;
   details?: Record<string, unknown>;

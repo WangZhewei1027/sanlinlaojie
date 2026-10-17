@@ -7,39 +7,39 @@
  * FORM: user-pinned Unity/Timeline workbench; code-led scoped composition, no new brand.
  * FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
  */
-import { Component, type ReactNode, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Box, Maximize, Move3D, Rotate3D, Scaling, Grid3X3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/typography";
 import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import type { ContentActionResult } from "@/app/manage/content/types";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/typography";
 import type { SceneDetailDto } from "@/lib/content-model/contracts";
-import { COMPOSITION_LIMITS, type CompositionInstance, type TransformChannel } from "@/lib/scene/protocol";
 import { AXES, deleteKeys, groupChannels, keyTimes, minimumDuration, moveKeys, nearTime, setTransform, type TransformGroup } from "@/lib/scene/editor-document";
-import { instanceValues, type TransformValues } from "@/lib/scene/theatre-state";
-import { SceneToolbar } from "./SceneToolbar";
-import { SceneViewport } from "./SceneViewport";
-import { SceneModels } from "./SceneModels";
-import { SceneInspector } from "./SceneInspector";
-import { SceneDockLayout } from "./SceneDockLayout";
-import { SceneModelDropZone } from "./SceneModelDropZone";
 import type { PlacementReader, ScenePosition } from "@/lib/scene/editor-interactions";
-import { SceneTimeline } from "./SceneTimeline";
-import { useSceneDocument } from "./useSceneDocument";
-import { addModelInstance, type ModelAddFailure } from "./scene-add-model";
-import { SceneLibraryPanel } from "./SceneLibraryPanel";
-import { SceneResourceSource } from "./SceneResourceSource";
-import { ScenePublishDialog, type PlacementUpdate } from "./ScenePublishDialog";
-import { SceneConflictBanner } from "./SceneConflictBanner";
-import type { SceneMode, SceneResource } from "./types";
+import { COMPOSITION_LIMITS, type CompositionInstance, type TransformChannel } from "@/lib/scene/protocol";
+import { instanceValues, type TransformValues } from "@/lib/scene/theatre-state";
+import { Box, Grid3X3, Maximize, Move3D, Rotate3D, Scaling } from "lucide-react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { sceneApi } from "../../lib/content-api";
 import { teamHref } from "../../lib/content-context";
 import { ERROR_TEXTS, runContentAction } from "../../lib/content-errors";
-import { newAlias, theatreView } from "../../lib/scene-v3";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
+import { newAlias } from "../../lib/scene-v3";
+import { addModelInstance, type ModelAddFailure } from "./scene-add-model";
 import "./scene-editor.css";
+import { SceneConflictBanner } from "./SceneConflictBanner";
+import { SceneDockLayout } from "./SceneDockLayout";
+import { SceneInspector } from "./SceneInspector";
+import { SceneLibraryPanel } from "./SceneLibraryPanel";
+import { SceneModelDropZone } from "./SceneModelDropZone";
+import { SceneModels } from "./SceneModels";
+import { ScenePublishDialog, type PlacementUpdate } from "./ScenePublishDialog";
+import { SceneResourceSource } from "./SceneResourceSource";
+import { SceneTimeline } from "./SceneTimeline";
+import { SceneToolbar } from "./SceneToolbar";
+import { SceneViewport } from "./SceneViewport";
+import type { SceneResource } from "./types";
+import { useSceneDocument } from "./useSceneDocument";
 
 const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
@@ -57,11 +57,11 @@ class ViewportBoundary extends Component<{ children: ReactNode; fallback: ReactN
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-export default function SceneEditor({ sceneId, mode, initial, organizationId }: { sceneId: string; mode: SceneMode; initial?: SceneDetailDto | null; organizationId: string | null }) {
+export default function SceneEditor({ sceneId, initial, organizationId }: { sceneId: string; initial?: SceneDetailDto | null; organizationId: string | null }) {
   const { t } = useTranslation();
   const tx = useIntegrationText(TEXTS);
-  const editor = useSceneDocument(sceneId, mode, initial);
-  const { session, document, models, clips, time, playing, commit, resolve, resources, detail, readOnly } = editor;
+  const editor = useSceneDocument(sceneId, initial);
+  const { session, document, clips, time, playing, commit, resolve, resources, detail, readOnly } = editor;
   const [preview3d, setPreview3d] = useState<{ instanceId: string; url: string } | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -101,18 +101,17 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId }: 
   if (!session || !document) return <main className="scene-editor-status fixed inset-0 z-50 flex items-center justify-center bg-background"><div className="max-w-lg space-y-4 p-6"><Text as="h1" variant="headingMd">{t("sceneEditor.heading")}</Text><Text as="p" variant="bodyMd" tone={editor.error ? "critical" : "subdued"}>{editor.error || t("sceneEditor.loading")}</Text>{editor.error && <Button onClick={editor.retry}>{t("sceneEditor.retry")}</Button>}</div></main>;
   const { instances, assets, loop } = document.definition.content;
   const duration = document.definition.content.durationSeconds ?? 10;
-  const v2 = mode === "v2";
-  // v2 scenes belong to the team; legacy asset scenes still carry their workspace.
+  // Scenes belong to the team.
   const sceneOrganizationId = detail?.organization_id ?? organizationId;
   const resolveUrl = (item: CompositionInstance) => preview3d?.instanceId === item.id ? preview3d.url : resolve(assets[item.asset])?.url;
   const names = Object.fromEntries(instances.map((item) => {
     const model = resolve(assets[item.asset]);
     const siblings = instances.filter((other) => other.asset === item.asset);
-    return [item.id, `${model?.name || t("sceneEditor.unnamedModel")}${v2 && model?.versionNo ? ` v${model.versionNo}` : ""}${siblings.length > 1 ? ` (${siblings.findIndex((other) => other.id === item.id) + 1})` : ""}`];
+    return [item.id, `${model?.name || t("sceneEditor.unnamedModel")}${model?.versionNo ? ` v${model.versionNo}` : ""}${siblings.length > 1 ? ` (${siblings.findIndex((other) => other.id === item.id) + 1})` : ""}`];
   }));
   const editInstance = (id: string, edit: (item: CompositionInstance) => CompositionInstance) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, instances: current.definition.content.instances.map((item) => item.id === id ? edit(item) : item) } } }));
   /**
-   * `key` is the pinned version id (v2) or the asset id (legacy). Aliases are shared only by identical versions.
+   * `key` is the pinned version id. Aliases are shared only by identical versions.
    * `picked` is the library resource behind a click or upload; it is not in `resources` until the next render.
    */
   const addModel = (key: string, position: ScenePosition = [0, 0, 0], picked?: SceneResource) => {
@@ -121,14 +120,14 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId }: 
     const outcome: { added?: boolean; failure?: ModelAddFailure } = {};
     // Plan against the latest document: an upload can finish after this render's edits.
     commit((current) => {
-      const result = addModelInstance(current.definition.content, { mode, key, resource: picked ?? resources[key], id, position });
+      const result = addModelInstance(current.definition.content, { key, resource: picked ?? resources[key], id, position });
       if (!result.ok) { outcome.failure = result.reason; return current; }
       outcome.added = true;
       return { ...current, definition: { ...current.definition, content: result.content } };
     });
     if (outcome.failure && outcome.failure !== "instanceLimit") editor.setError(outcome.failure === "assetLimit" ? t("sceneEditor.assetLimit") : outcome.failure === "archived" ? tx("contentModel.integration.sceneEditor.archivedAsset") : t("sceneEditor.missingModel"));
     if (!outcome.added) return;
-    if (v2 && picked) editor.registerResource(picked);
+    if (picked) editor.registerResource(picked);
     setSelectedId(id); setMobilePanel("scene");
   };
   /** Explicit upgrade of the selected object (new alias) or of every object sharing its alias. */
@@ -166,37 +165,37 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId }: 
   const missing = instances.some((item) => !resolve(assets[item.asset])?.url);
   const selectedResource = instance ? resolve(assets[instance.asset]) : undefined;
   const latestResource = selectedResource?.currentVersionId ? resources[selectedResource.currentVersionId] : undefined;
-  const canPublish = v2 && !!detail?.capabilities.can_publish && detail.state === "active";
+  const canPublish = !!detail?.capabilities.can_publish && detail.state === "active";
   const publishStatus = detail && <ContentStatusBadge kind={detail.state === "archived" ? "archived" : detail.publish_status === "modified" ? "changed" : detail.publish_status} number={detail.latest_revision?.revision_no} />;
   return <main className="scene-workspace" data-mobile-panel={mobilePanel} data-preview={preview} aria-label={t("sceneEditor.heading")}>
     <h1 className="sr-only">{t("sceneEditor.heading")}</h1>
     <SceneToolbar title={document.title} dirty={editor.dirty} saving={editor.saving} preview={preview} canUndo={editor.canUndo} canRedo={editor.canRedo} onTitle={(title) => commit((current) => ({ ...current, title }))} onPreview={() => { setPreview(!preview); setMobilePanel("scene"); }} onSave={() => void editor.save()} onUndo={editor.undo} onRedo={editor.redo}
-      backHref={v2 ? teamHref("/manage", sceneOrganizationId, { type: "scene" }) : undefined} readOnly={readOnly} status={publishStatus}
+      backHref={teamHref("/manage", sceneOrganizationId, { type: "scene" })} readOnly={readOnly} status={publishStatus}
       onPublish={canPublish ? () => setPublishOpen(true) : undefined} publishLabel={editor.dirty ? tx("contentModel.integration.sceneEditor.publishNeedsSave") : tx("contentModel.integration.sceneEditor.publish")} publishDisabled={editor.dirty || editor.saving || !!editor.conflict} />
     {editor.conflict && <SceneConflictBanner draftJson={() => JSON.stringify({ name: document.title, document: document.definition }, null, 2)} fileName={`${document.title || "scene"}-draft.json`} onReload={editor.retry} onDismiss={editor.dismissConflict} />}
-    {v2 && readOnly && detail && <div className="shrink-0 border-b bg-background px-4 py-2"><ContentNotice title={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedTitle" : "contentModel.integration.sceneEditor.readOnlyTitle")} description={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedBody" : "contentModel.integration.sceneEditor.readOnlyBody")} /></div>}
+    {readOnly && detail && <div className="shrink-0 border-b bg-background px-4 py-2"><ContentNotice title={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedTitle" : "contentModel.integration.sceneEditor.readOnlyTitle")} description={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedBody" : "contentModel.integration.sceneEditor.readOnlyBody")} /></div>}
     {(editor.error || missing) && <div role="alert" className="flex shrink-0 items-center gap-3 border-b bg-background px-4 py-2"><Text as="p" variant="bodySm" tone="critical">{editor.error || t("sceneEditor.missingModel")}</Text></div>}
     <nav className="scene-mobile-tabs" aria-label={t("sceneEditor.panels")}>{["scene", "objects", "inspector", "timeline"].map((panel) => <Button key={panel} variant="ghost" size="sm" aria-pressed={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{t(`sceneEditor.${panel}`)}</Button>)}</nav>
     <SceneDockLayout mobilePanel={mobilePanel} preview={preview} objects={
-      <SceneModels models={models} instances={instances} names={names} selectedId={instance?.id ?? null} canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} onAdd={addModel} onSelect={setSelectedId}
-        library={v2 && sceneOrganizationId ? <SceneLibraryPanel organizationId={sceneOrganizationId}
+      <SceneModels instances={instances} names={names} selectedId={instance?.id ?? null} onSelect={setSelectedId}
+        library={sceneOrganizationId ? <SceneLibraryPanel organizationId={sceneOrganizationId}
           inScene={Object.entries(assets).map(([alias, ref]) => ({ alias, resource: resolve(ref), instanceCount: instances.filter((item) => item.asset === alias).length }))}
           canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} canUpload={!readOnly} onRegister={editor.registerResource} onAdd={(resource) => addModel(resource.assetVersionId ?? "", undefined, resource)}
           onSelectAlias={(alias) => setSelectedId(instances.find((item) => item.asset === alias)?.id ?? null)} /> : undefined} />} scene={
       <section className="scene-stage" aria-label={t("sceneEditor.sceneView")}>
         <div className="scene-stage-toolbar"><Text as="span" variant="bodyXs" fontWeight="semibold" className="mr-3">{t(preview ? "sceneEditor.preview" : "sceneEditor.scene")}</Text>{!preview && <>{([{ mode: "translate", icon: Move3D, key: "W" }, { mode: "rotate", icon: Rotate3D, key: "E" }, { mode: "scale", icon: Scaling, key: "R" }] as const).map(({ mode, icon: Icon, key }) => <Button key={mode} size="icon" variant={tool === mode ? "secondary" : "ghost"} className="size-7" aria-pressed={tool === mode} aria-label={t(`sceneEditor.${mode}Tool`)} title={`${t(`sceneEditor.${mode}Tool`)} (${key})`} onClick={() => setTool(mode)}><Icon /></Button>)}<div className="mx-2 h-4 border-l" /><Button size="icon" variant={grid ? "secondary" : "ghost"} className="size-7" aria-label={t("sceneEditor.grid")} aria-pressed={grid} title={t("sceneEditor.grid")} onClick={() => setGrid(!grid)}><Grid3X3 /></Button></>}<Button size="icon" variant="ghost" className="ml-auto size-7" aria-label={t("sceneEditor.fit")} title={`${t("sceneEditor.fit")} (F)`} onClick={() => fitRef.current?.()}><Maximize /></Button></div>
-        <SceneModelDropZone models={models} canDrop={v2 ? (key) => !!resources[key]?.url : undefined} enabled={!readOnly && !preview && instances.length < COMPOSITION_LIMITS.maxInstances} placementRef={placementRef} onAdd={addModel}><ViewportBoundary key={instances.map((item) => item.id).join(",")} fallback={<div className="flex items-center justify-center p-6"><Text as="p" variant="bodyMd" tone="critical">{t("sceneEditor.modelFailed")}</Text></div>}><SceneViewport placementRef={placementRef} session={session} instances={instances} resolveUrl={resolveUrl} onClips={editor.onClips} fitRef={fitRef} selectedId={preview ? null : instance?.id ?? null} onSelect={setSelectedId} grid={grid && !preview} tool={tool} editable={!readOnly && !playing && !preview} onTransform={(id, next) => editInstance(id, (item) => AXES.reduce((current, axis) => { const group = tool === "translate" ? "position" : tool === "rotate" ? "rotation" : "scale"; return setTransform(current, `${group}.${axis}`, next[group][axis], time, record); }, item))} /></ViewportBoundary>
-          {!instances.length && <div className="scene-stage-empty"><Box className="size-9 text-muted-foreground" /><Text as="h2" variant="headingMd">{t("sceneEditor.emptyScene")}</Text><Text as="p" variant="bodyMd" tone="subdued">{t("sceneEditor.emptySceneHint")}</Text>{!v2 && !readOnly && models[0] && <Button variant="outline" onClick={() => addModel(models[0].id)}>{t("sceneEditor.addFirstModel")}</Button>}</div>}
+        <SceneModelDropZone canDrop={(key) => !!resources[key]?.url} enabled={!readOnly && !preview && instances.length < COMPOSITION_LIMITS.maxInstances} placementRef={placementRef} onAdd={addModel}><ViewportBoundary key={instances.map((item) => item.id).join(",")} fallback={<div className="flex items-center justify-center p-6"><Text as="p" variant="bodyMd" tone="critical">{t("sceneEditor.modelFailed")}</Text></div>}><SceneViewport placementRef={placementRef} session={session} instances={instances} resolveUrl={resolveUrl} onClips={editor.onClips} fitRef={fitRef} selectedId={preview ? null : instance?.id ?? null} onSelect={setSelectedId} grid={grid && !preview} tool={tool} editable={!readOnly && !playing && !preview} onTransform={(id, next) => editInstance(id, (item) => AXES.reduce((current, axis) => { const group = tool === "translate" ? "position" : tool === "rotate" ? "rotation" : "scale"; return setTransform(current, `${group}.${axis}`, next[group][axis], time, record); }, item))} /></ViewportBoundary>
+          {!instances.length && <div className="scene-stage-empty"><Box className="size-9 text-muted-foreground" /><Text as="h2" variant="headingMd">{t("sceneEditor.emptyScene")}</Text><Text as="p" variant="bodyMd" tone="subdued">{t("sceneEditor.emptySceneHint")}</Text></div>}
           {!preview && !!instances.length && <div className="scene-stage-hint"><Text as="span" variant="bodyXs" tone="subdued">{t("sceneEditor.orbitHint")}</Text></div>}
         </SceneModelDropZone>
       </section>} inspector={
       <fieldset disabled={readOnly} className="contents"><SceneInspector instance={instance} name={instance && names[instance.id]} values={values ?? (instance && instanceValues(instance))} clips={instance && clips[instance.id]} time={time} duration={duration} record={record} playing={playing} onTransform={changeTransform} onKey={toggleKey} onAnimation={(animation) => { if (instance) editInstance(instance.id, (item) => ({ ...item, animation })); }} onRemove={removeModel}
-        source={v2 && instance && selectedResource ? <SceneResourceSource instanceId={instance.id} animation={instance.animation} resource={selectedResource} latest={latestResource}
+        source={instance && selectedResource ? <SceneResourceSource instanceId={instance.id} animation={instance.animation} resource={selectedResource} latest={latestResource}
           aliasInstanceCount={instances.filter((item) => item.asset === instance.asset).length} aliasAnimations={instances.filter((item) => item.asset === instance.asset).map((item) => item.animation)}
           assetHref={teamHref(`/manage/assets/${selectedResource.assetId}`, sceneOrganizationId)} readOnly={readOnly} previewing={preview3d?.instanceId === instance.id}
           onRegister={editor.registerResource} onPreview={(url) => setPreview3d(url ? { instanceId: instance.id, url } : null)} onUpgrade={upgrade} /> : undefined} /></fieldset>} timeline={
-      <SceneTimeline instances={instances} names={names} clips={clips} selectedId={instance?.id ?? null} time={time} duration={duration} minDuration={minimumDuration(theatreView(document.definition))} playing={playing} loop={loop} record={record} preview={preview} onSelect={setSelectedId} onSeek={editor.seek} onPlay={editor.play} onLoop={() => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, loop: !loop } } }))} onRecord={() => { session.sheet.sequence.pause(); setRecord(!record); }} onDuration={(durationSeconds) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, durationSeconds } } }))} onMoveKey={(id, group, from, to) => { editInstance(id, (item) => moveKeys(item, group, from, to)); editor.seek(to); }} onDeleteKey={(id, group, at) => editInstance(id, (item) => deleteKeys(item, group, at))} onMoveClip={(id, startSeconds) => editInstance(id, (item) => ({ ...item, animation: item.animation && { ...item.animation, startSeconds } }))} />} />
-    {v2 && publishOpen && sceneOrganizationId && <ScenePublishDialog open={publishOpen} onOpenChange={setPublishOpen} sceneId={sceneId} organizationId={sceneOrganizationId} nextRevisionNo={(detail?.latest_revision?.revision_no ?? 0) + 1} onPublish={publish} />}
+      <SceneTimeline instances={instances} names={names} clips={clips} selectedId={instance?.id ?? null} time={time} duration={duration} minDuration={minimumDuration(document.definition)} playing={playing} loop={loop} record={record} preview={preview} onSelect={setSelectedId} onSeek={editor.seek} onPlay={editor.play} onLoop={() => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, loop: !loop } } }))} onRecord={() => { session.sheet.sequence.pause(); setRecord(!record); }} onDuration={(durationSeconds) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, durationSeconds } } }))} onMoveKey={(id, group, from, to) => { editInstance(id, (item) => moveKeys(item, group, from, to)); editor.seek(to); }} onDeleteKey={(id, group, at) => editInstance(id, (item) => deleteKeys(item, group, at))} onMoveClip={(id, startSeconds) => editInstance(id, (item) => ({ ...item, animation: item.animation && { ...item.animation, startSeconds } }))} />} />
+    {publishOpen && sceneOrganizationId && <ScenePublishDialog open={publishOpen} onOpenChange={setPublishOpen} sceneId={sceneId} organizationId={sceneOrganizationId} nextRevisionNo={(detail?.latest_revision?.revision_no ?? 0) + 1} onPublish={publish} />}
     <footer className="scene-status"><Text as="span" variant="bodyXs" tone="subdued">{instance ? names[instance.id] : t("sceneEditor.noSelection")} · {t("sceneEditor.unitsShort")}</Text><Text as="span" variant="bodyXs" tone="subdued">{t("sceneEditor.shortcuts")}</Text></footer>
   </main>;
 }

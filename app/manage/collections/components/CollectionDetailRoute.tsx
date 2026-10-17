@@ -1,19 +1,16 @@
 "use client";
 
-import { use, useEffect, useMemo, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { WorkspaceQrButton } from "@/components/workspace-qr-button";
-import { CollectionHeaderBar, ContentErrorState, ContentNotice } from "@/app/manage/content";
-import { ContentFeatureState } from "@/app/manage/components/ContentFeatureState";
-import { LegacyManageView } from "@/app/manage/components/LegacyManageView";
 import { ManageLayoutSkeleton } from "@/app/manage/components/placements/ManageLayoutSkeleton";
 import { PlacementMapView } from "@/app/manage/components/placements/PlacementMapView";
+import { CollectionHeaderBar, ContentErrorState, ContentNotice } from "@/app/manage/content";
 import { useCollections } from "@/app/manage/lib/collections";
 import { collectionApi, isContentApiError } from "@/app/manage/lib/content-api";
-import { teamHref, useCollectionInfo, useContentModel, useResourceTeam, useTeamContext } from "@/app/manage/lib/content-context";
+import { teamHref, useCollectionInfo, useResourceTeam, useTeamContext } from "@/app/manage/lib/content-context";
 import { ERROR_TEXTS, errorMessage, runContentAction } from "@/app/manage/lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "@/app/manage/lib/integration-text";
-import { useManageStore } from "@/app/manage/store";
+import { Button } from "@/components/ui/button";
+import { WorkspaceQrButton } from "@/components/workspace-qr-button";
+import { use, useMemo, type ReactNode } from "react";
 
 const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
@@ -25,7 +22,7 @@ const TEXTS: IntegrationTexts = {
 
 /**
  * /manage/collections/[id]: one map collection. The collection id is the
- * compatibility workspace UUID, so the existing placement map, its QR code
+ * workspace UUID, so the existing placement map, its QR code
  * and old deep links keep working. Selection lives here only.
  */
 export function CollectionDetailRoute({ params }: { params: Promise<{ id: string }> }) {
@@ -39,9 +36,7 @@ function CollectionDetailView({ id }: { id: string }) {
   const info = useCollectionInfo(id);
   const collection = info.collection;
   const organizationId = collection?.organization_id || team.organizationId;
-  const model = useContentModel(organizationId);
-  const v2 = model.state === "v2";
-  const siblings = useCollections(organizationId, "all", v2);
+  const siblings = useCollections(organizationId, "all");
   const organization = team.organizations.find((item) => item.id === organizationId) ?? null;
   const backHref = teamHref("/manage/collections", organizationId);
   const workspaces = useMemo(
@@ -51,12 +46,6 @@ function CollectionDetailView({ id }: { id: string }) {
 
   // The owning team drives the URL and header; a later header switch leaves for that team's collections.
   const { settled } = useResourceTeam(collection?.organization_id, "/manage/collections");
-
-  // Legacy and frozen teams render the old asset map, which reads the persisted workspace.
-  const legacyMap = settled && model.status === "ready" && !v2;
-  useEffect(() => {
-    if (legacyMap && useManageStore.getState().selectedWorkspaceId !== id) useManageStore.getState().setSelectedWorkspaceId(id);
-  }, [legacyMap, id]);
 
   const archived = !!collection?.archived_at;
   const frame = (body: ReactNode) => (
@@ -71,7 +60,7 @@ function CollectionDetailView({ id }: { id: string }) {
     </div>
   );
 
-  if (info.status === "loading" || info.status === "idle" || model.status === "loading") return frame(<ManageLayoutSkeleton fill />);
+  if (info.status === "loading" || info.status === "idle") return frame(<ManageLayoutSkeleton fill />);
   if (info.status === "error" || !collection) {
     const missing = isContentApiError(info.error) && (info.error.status === 404 || info.error.status === 403);
     return frame(
@@ -83,14 +72,6 @@ function CollectionDetailView({ id }: { id: string }) {
     );
   }
   if (!settled) return frame(<ManageLayoutSkeleton fill />);
-  if (model.status === "error") {
-    return frame(<div className="mx-auto max-w-xl p-6"><ContentFeatureState state="error" mapHref={backHref} error={model.error} onRetry={model.refresh} /></div>);
-  }
-  if (legacyMap) {
-    const frozen = model.state === "readonly";
-    return frame(<LegacyManageView fill readOnly={frozen} notice={frozen ? <ContentFeatureState state="readonly" mapHref={backHref} /> : undefined} />);
-  }
-
   const canEdit = !archived && !!collection.capabilities?.can_edit;
   return frame(
     <>

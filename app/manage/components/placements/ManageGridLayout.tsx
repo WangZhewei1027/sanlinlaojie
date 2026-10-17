@@ -36,7 +36,7 @@ const LAYOUTS: Partial<Record<string, Layout>> = {
 };
 
 interface ManageGridLayoutProps {
-  /** Left list panel (legacy AssetManager or the v2 placement list). */
+  /** Left list panel (placement list). */
   list: ReactNode;
   /** Contents of the bordered viewer panel (overlays + ViewerFrame). */
   viewer: ReactNode;
@@ -46,8 +46,7 @@ interface ManageGridLayoutProps {
 }
 
 /**
- * The three-column /manage workspace grid shared by the legacy asset map and
- * the v2 placement map, so both keep exactly the same layout and breakpoints.
+ * The three-column /manage workspace grid used by each collection map.
  */
 export function ManageGridLayout({ list, viewer, sidebar, fill }: ManageGridLayoutProps) {
   const { width, containerRef, mounted } = useContainerWidth();

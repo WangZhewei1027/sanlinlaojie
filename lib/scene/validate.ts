@@ -13,9 +13,9 @@ export function validateSceneDefinition(def: unknown): ValidationResult {
   const root = requireObject(issues, "$", def);
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
-    if (root.schemaVersion !== 1 && root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "仅支持 schemaVersion 1 或 2");
+    if (root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 2");
     const content = requireObject(issues, "content", root.content);
-    if (content?.kind === "composition") validateCompositionContent(issues, content, root.schemaVersion === 2);
+    if (content?.kind === "composition") validateCompositionContent(issues, content, true);
     else if (content) issues.error("content.kind", "场景素材仅支持 composition");
   }
   return { ok: !issues.hasErrors, issues: issues.issues };

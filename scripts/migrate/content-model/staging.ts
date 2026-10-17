@@ -1,20 +1,13 @@
 import type { Client } from "pg";
-import type { AssetMapping, LegacyAsset } from "./audit";
 import type { ModelAnimationInfo } from "../../../lib/content-model/contracts";
-import type { SceneDefinition, SceneDocumentV3 } from "../../../lib/scene/protocol";
-import { validateSceneDefinition } from "../../../lib/scene/validate";
-import { fingerprint, type MigrationOptions } from "./shared";
+import type { SceneDocumentV3 } from "../../../lib/scene/protocol";
+import { validateLegacySceneDefinition as validateSceneDefinition, type LegacySceneDefinition as SceneDefinition } from "./legacy-scene";
+import type { AssetMapping, LegacyAsset } from "./audit";
 import { enumerateResources, stableId, type MappingTarget, type MigrationReview, type ResourceSnapshot } from "./review";
+import { fingerprint, type MigrationOptions } from "./shared";
 
 export const sourceKind = (mapping: AssetMapping): string => mapping.kind === "scene" ? "scene_asset" : ["shop","anchor","text"].includes(mapping.kind) ? mapping.kind : "asset";
-export async function migrationLock(client: Client, opts: MigrationOptions): Promise<void> {
-  for (const id of opts.organizations) await client.query("select pg_advisory_xact_lock(hashtextextended($1,0))", [`content-migration:${id}`]);
-  // Also drains transactions that passed the old trigger before readonly was committed.
-  // Kept bounded by statement/lock timeouts; no per-row lock can drain legacy bulk writes.
-  await client.query("lock table asset, workspace, workspace_assignment, organization_member in share row exclusive mode");
-  await client.query("select id from organization where id=any($1::uuid[]) order by id for update", [opts.organizations]);
-  await client.query("select set_config('content_model.writer','migration',true)");
-}
+
 export async function recordMap(client: Client, opts: MigrationOptions, mapping: AssetMapping, target: MappingTarget | null, kind: string | null, id: string | null, status = "staged", reason: string | null = null): Promise<void> {
   await client.query(`insert into content_migration_map(run_id,source_kind,source_id,source_workspace_id,source_row_hash,target_organization_id,target_kind,target_id,status,reason)
     values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -96,7 +89,7 @@ export async function stageScene(client: Client, opts: MigrationOptions, review:
   const document: SceneDocumentV3 = {schemaVersion:3,content:{...legacy.content,assets:{}}};
   for (const [alias,ref] of Object.entries(legacy.content.assets)) {
     const model = review.mappings.find((m) => m.source_id === ref.assetId && m.disposition === "migrate");
-    const modelTarget = model?.targets.find((t) => t.organization_id === target.organization_id);
+    const modelTarget = model?.targets.find((t) => t.organization_id === target.organization_id) ?? (versions.has(`${target.organization_id}:${ref.assetId}`) ? { target_id: ref.assetId } : undefined);
     const versionId = versions.get(`${target.organization_id}:${ref.assetId}`);
     if (!modelTarget?.target_id || !versionId) throw new Error(`Scene dependency is isolated or missing: ${ref.assetId}`);
     document.content.assets[alias] = {assetId:modelTarget.target_id,assetVersionId:versionId};
@@ -152,13 +145,14 @@ export async function stagePlacement(client: Client, opts: MigrationOptions, map
     if (workspace === target.source_workspace_id) for (const tag of tags) await client.query("insert into placement_tag(placement_id,tag_id,workspace_id) values($1,$2,$3)",[placementId,tag,workspace]);
   }
 }
-export async function stageSources(client: Client, opts: MigrationOptions, review: MigrationReview, sources: Map<string,LegacyAsset>): Promise<void> {
+export async function stageSources(client: Client, opts: MigrationOptions, review: MigrationReview, sources: Map<string,LegacyAsset>, verifyInventory = true): Promise<void> {
   const versions = new Map<string,string>();
+  for (const row of (await client.query<{id:string;organization_id:string;current_version_id:string}>("select id,organization_id,current_version_id from asset where current_version_id is not null")).rows) versions.set(`${row.organization_id}:${row.id}`,row.current_version_id);
   for (const mapping of review.mappings) {
     if (mapping.disposition === "isolate") { await recordMap(client,opts,mapping,null,null,null,"quarantined",review.review_notes[mapping.source_id]); continue; }
     if (mapping.kind === "scene") continue;
     const source = sources.get(mapping.source_id)!;
-    const resources = enumerateResources(source,review);
+    const resources = enumerateResources(source,review,verifyInventory);
     for (const target of mapping.targets) versions.set(`${target.organization_id}:${source.id}`,await stageAsset(client,opts,mapping,target,source,resources));
   }
   for (const mapping of review.mappings.filter((m) => m.disposition === "migrate")) {

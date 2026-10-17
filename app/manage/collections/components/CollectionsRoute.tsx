@@ -1,19 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { WorkspaceQrButton } from "@/components/workspace-qr-button";
-import { CollectionList, type ContentLifecycle } from "@/app/manage/content";
 import { ContentFeatureState } from "@/app/manage/components/ContentFeatureState";
 import { TeamPageLoading, TeamShell } from "@/app/manage/components/TeamShell";
+import { CollectionList, type ContentLifecycle } from "@/app/manage/content";
 import { useCollections } from "@/app/manage/lib/collections";
 import { collectionApi, isEndpointMissing, organizationApi } from "@/app/manage/lib/content-api";
-import { collectionHref, teamCanWrite, teamHref, useContentModel, useTeamContext } from "@/app/manage/lib/content-context";
+import { collectionHref, teamCanWrite, useTeamContext } from "@/app/manage/lib/content-context";
 import { ERROR_TEXTS, errorMessage, runContentAction } from "@/app/manage/lib/content-errors";
 import { toCollectionItem } from "@/app/manage/lib/content-mappers";
 import { useIntegrationText, type IntegrationTexts } from "@/app/manage/lib/integration-text";
+import { WorkspaceQrButton } from "@/components/workspace-qr-button";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
@@ -29,26 +29,18 @@ export function CollectionsRoute() {
   const router = useRouter();
   const team = useTeamContext();
   const organizationId = team.organizationId;
-  const model = useContentModel(organizationId);
   const [state, setState] = useState<ContentLifecycle>("active");
-  const browsable = model.state === "v2" || model.state === "readonly";
-  const list = useCollections(organizationId, state, browsable);
+  const list = useCollections(organizationId, state);
   const items = useMemo(() => list.collections.map(toCollectionItem), [list.collections]);
-  const canCreate = teamCanWrite({ state: model.state, dto: model.dto, orgRole: team.organization?.role, globalRole: team.currentUserRole });
+  const canCreate = teamCanWrite({ archivedAt: team.organization?.archived_at, orgRole: team.organization?.role, globalRole: team.currentUserRole });
   // The team-level mini-program QR (no collection) keeps the old "all workspaces" entry.
-  const teamQr = organizationId && browsable ? <WorkspaceQrButton organizationId={organizationId} workspaceId={null} /> : undefined;
+  const teamQr = organizationId ? <WorkspaceQrButton organizationId={organizationId} workspaceId={null} /> : undefined;
   const shell = (body: React.ReactNode) => <TeamShell organizationId={organizationId} aside={teamQr}>{body}</TeamShell>;
 
-  if (!organizationId) return shell(team.loading ? <TeamPageLoading label={t("contentModel.state.loading")} /> : <ContentFeatureState state="no-organization" mapHref="/manage" />);
-  if (model.status === "loading") return shell(<TeamPageLoading label={t("contentModel.state.loading")} />);
-  if (model.status === "error") return shell(<ContentFeatureState state="error" mapHref="/manage" error={model.error} onRetry={model.refresh} />);
-  // Legacy teams keep their workspaces on the old map and the old admin page.
-  if (!browsable) return shell(<ContentFeatureState state={model.state ?? "legacy"} mapHref={teamHref("/manage", organizationId)} />);
+  if (!organizationId) return shell(team.loading ? <TeamPageLoading label={t("contentModel.state.loading")} /> : <ContentFeatureState state="no-organization"  />);
 
   const listError = list.error ? (isEndpointMissing(list.error) ? tx("contentModel.integration.collections.endpointMissing") : errorMessage(list.error, tx)) : undefined;
-  const readOnlyReason = model.state === "readonly"
-    ? t("contentModel.workbench.readOnlyFrozen")
-    : team.organization?.role === "viewer" ? t("contentModel.workbench.readOnlyViewer") : t("contentModel.workbench.readOnlyOther");
+  const readOnlyReason = team.organization?.role === "viewer" ? t("contentModel.workbench.readOnlyViewer") : t("contentModel.workbench.readOnlyOther");
 
   return shell(
     <CollectionList
@@ -62,7 +54,6 @@ export function CollectionsRoute() {
       getHref={(id) => collectionHref(id, organizationId)}
       canCreate={canCreate}
       readOnlyReason={readOnlyReason}
-      notice={model.state === "readonly" ? <ContentFeatureState state="readonly" mapHref={teamHref("/manage", organizationId)} /> : undefined}
       onCreate={(input) => runContentAction(() => organizationApi.createCollection(organizationId, { name: input.name, description: input.description || null }), tx, (collection) => {
         list.reload();
         toast.success(tx("contentModel.integration.collections.created", { name: collection.name }), {

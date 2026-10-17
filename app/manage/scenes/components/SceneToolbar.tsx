@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { ArrowLeft, Box, Save, Eye, Undo2, Redo2, SlidersHorizontal, LoaderCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
+import { ArrowLeft, Box, Eye, LoaderCircle, Redo2, Save, Send, SlidersHorizontal, Undo2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 export interface SceneToolbarProps {
   title: string; dirty: boolean; saving: boolean; preview: boolean; canUndo: boolean; canRedo: boolean;
@@ -13,9 +13,9 @@ export interface SceneToolbarProps {
   backHref?: string;
   /** Viewer or archived scene: no title edit, save, undo or publish. */
   readOnly?: boolean;
-  /** Publication state shown beside the save state (v2 scenes). */
+  /** Publication state shown beside the save state (scenes). */
   status?: ReactNode;
-  /** Separate publish command (v2 scenes); saving never publishes. */
+  /** Separate publish command (scenes); saving never publishes. */
   onPublish?: () => void;
   publishLabel?: string;
   publishDisabled?: boolean;

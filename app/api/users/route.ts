@@ -1,12 +1,12 @@
-import { NextResponse, connection } from "next/server";
-import { db, jsonArrayFrom, jsonObjectFrom } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import {
   createUserWithPassword,
   deleteAuthUser,
   UserExistsError,
 } from "@/lib/auth/users.server";
+import { db } from "@/lib/db";
 import { logErrorSafe } from "@/lib/log-error";
+import { connection, NextResponse } from "next/server";
 
 export async function GET() {
   await connection();
@@ -39,31 +39,7 @@ export async function GET() {
     // 触发器维护在 public.users 上）
     const data = await db
       .selectFrom("users")
-      .select((eb) => [
-        "user_id",
-        "name",
-        "email",
-        "role",
-        "created_at",
-        "last_sign_in_at",
-        jsonArrayFrom(
-          eb
-            .selectFrom("workspace_assignment")
-            .select((eb2) => [
-              "workspace_assignment.id",
-              "workspace_assignment.workspace_id",
-              "workspace_assignment.role",
-              "workspace_assignment.created_at",
-              jsonObjectFrom(
-                eb2
-                  .selectFrom("workspace")
-                  .select(["workspace.id", "workspace.name"])
-                  .whereRef("workspace.id", "=", "workspace_assignment.workspace_id"),
-              ).as("workspace"),
-            ])
-            .whereRef("workspace_assignment.user_id", "=", "users.user_id"),
-        ).as("workspace_assignment"),
-      ])
+      .select(["user_id", "name", "email", "role", "created_at", "last_sign_in_at"])
       .orderBy("created_at", "desc")
       .execute();
 

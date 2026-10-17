@@ -1,15 +1,11 @@
 /**
  * Client adapter between the existing browser preprocessing (FILE_TYPE_CONFIGS
  * compression and EXIF/audio metadata via FileUploadService.processFile) and
- * the v2 commands, which accept upload receipts instead of URLs.
+ * the commands, which accept upload receipts instead of URLs.
  *
  * Capture GPS goes into `payload.capture` as provenance only; a placement is
  * created solely from an explicit location the caller passes.
  */
-import { FileUploadService } from "@/lib/upload/service";
-import { FILE_TYPE_CONFIGS, getEffectiveMaxSizeMB, validateFileSize } from "@/lib/upload/config";
-import type { UploadType } from "@/lib/upload/types";
-import type { LinkAssetData } from "@/lib/link-asset";
 import type {
   AssetFileType,
   AssetVersionPayload,
@@ -19,6 +15,10 @@ import type {
   ResourceInput,
   UploadReceiptDto,
 } from "@/lib/content-model/contracts";
+import type { LinkAssetData } from "@/lib/link-asset";
+import { FILE_TYPE_CONFIGS, getEffectiveMaxSizeMB, validateFileSize } from "@/lib/upload/config";
+import { FileUploadService } from "@/lib/upload/service";
+import type { UploadType } from "@/lib/upload/types";
 import { uploadReceipt, type UploadScope } from "./content-api";
 
 export interface PreparedFile {
@@ -29,7 +29,7 @@ export interface PreparedFile {
 }
 
 /** Upload types that become an asset version in the generic library. */
-export const LIBRARY_UPLOAD_TYPES = ["model", "image", "video", "audio", "document"] as const;
+export const LIBRARY_UPLOAD_TYPES = ["model", "image", "video", "audio", "document", "anchor"] as const;
 export type LibraryUploadType = (typeof LIBRARY_UPLOAD_TYPES)[number];
 
 export function acceptFor(type: UploadType) {
@@ -40,7 +40,7 @@ export function maxSizeFor(type: UploadType) {
   return getEffectiveMaxSizeMB(type);
 }
 
-/** Compress/inspect in the browser exactly as the legacy upload panel does. */
+/** Compress and inspect files in the browser before issuing a version receipt. */
 export async function prepareFile(file: File, type?: UploadType): Promise<PreparedFile> {
   if (type === "model") {
     if (!validateFileSize(file, getEffectiveMaxSizeMB("model"))) throw new Error(`> ${getEffectiveMaxSizeMB("model")} MB`);
@@ -104,5 +104,5 @@ export interface UploadedVersionInput {
  */
 export async function uploadFileVersion(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal): Promise<UploadedVersionInput> {
   const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset_version", signal });
-  return { payload: filePayload(prepared), resources: [{ role: "primary", receiptId: receipt.id }], receipts: [receipt] };
+  return { payload: filePayload(prepared), resources: [{ role: prepared.type === "anchor" ? "reference" : "primary", receiptId: receipt.id }], receipts: [receipt] };
 }

@@ -1,25 +1,25 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Text } from "@/components/ui/typography";
 import { getLinkAssetErrorKey, parseLinkAssetInput } from "@/lib/link-asset";
 import type { UploadType } from "@/lib/upload/types";
+import { Camera, Loader2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { acceptFor, fileTypeOf, linkPayload, prepareFile, textPayload, uploadFileVersion, type PreparedFile, type UploadedVersionInput } from "../../lib/content-upload";
+import { usePlacementStore } from "../../lib/placement-store";
 import { FieldLabel } from "../AssetEditor/FieldLabel";
 import { AssetLinkPreview } from "../AssetEditor/previews/AssetLinkPreview";
 import { FileDropzone } from "../upload/file-dropzone";
 import { FileTypeSelector } from "../upload/file-type-selector";
-import { acceptFor, fileTypeOf, linkPayload, prepareFile, textPayload, uploadFileVersion, type PreparedFile, type UploadedVersionInput } from "../../lib/content-upload";
-import { usePlacementStore } from "../../lib/placement-store";
-import { usePlacementMap } from "./PlacementMapContext";
 import { PlacementLocationFields } from "./PlacementLocationFields";
+import { usePlacementMap } from "./PlacementMapContext";
 import { EMPTY_LOCATION, locationFromCapture, parseLocation, useCreatePlacement, type LocationInput } from "./useCreatePlacement";
 
-const PLACEABLE: UploadType[] = ["image", "video", "audio", "model", "document", "text", "link"];
+const PLACEABLE: UploadType[] = ["image", "video", "audio", "model", "document", "text", "link", "anchor"];
 
 /**
  * "Upload and place": one server command creates the asset, its v1 and an

@@ -17,7 +17,6 @@ const PATH_LABELS: Record<string, string> = {
   "/settings": "settings.title",
   "/admin": "contentModel.integration.nav.settings",
   "/admin/members": "admin.sidebar.members",
-  "/admin/workspaces": "admin.sidebar.workspaces",
   "/admin/settings": "admin.sidebar.settings",
   "/super-admin": "superAdmin.title",
   "/super-admin/users": "superAdmin.sidebar.users",

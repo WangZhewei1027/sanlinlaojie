@@ -27,6 +27,7 @@ export type UserRole = "super_admin" | "user";
 
 export interface AnchorEmbedding {
   anchor_id: string;
+  asset_version_id: string;
   embedding: number[] | null;
   embedding_version: string | null;
   generation: string;
@@ -49,32 +50,22 @@ export interface AppConfig {
 }
 
 export interface Asset {
-  anchor_id: string | null;
   archived_at: Timestamp | null;
   archived_by: string | null;
-  config: Generated<Json>;
-  content_hash: string | null;
   create_at: Generated<Timestamp | null>;
   created_by: string | null;
   current_version_id: string | null;
   file_type: string;
-  file_url: string | null;
   id: Generated<string>;
-  is_huge: Generated<boolean>;
-  location: string | null;
   lock_version: Generated<number>;
   maintained_by: string | null;
-  metadata: Generated<Json | null>;
   name: string | null;
-  organization_id: string | null;
+  organization_id: string;
   origin: Generated<string>;
   origin_workspace_id: string | null;
   state: Generated<string>;
-  tag_ids: Generated<string[] | null>;
-  text_content: string | null;
   updated_at: Generated<Timestamp>;
   visibility: Generated<string>;
-  workspace_id: Generated<string[] | null>;
 }
 
 export interface AssetVersion {
@@ -98,14 +89,6 @@ export interface AssetVersionResource {
   role: string;
   size_bytes: number | null;
   storage_key: string | null;
-}
-
-export interface AssetWorkspaceGrant {
-  asset_id: string;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  organization_id: string;
-  workspace_id: string;
 }
 
 export interface AuthAccount {
@@ -177,33 +160,6 @@ export interface ContentCommandIdempotency {
   result_type: string;
 }
 
-export interface ContentMigrationMap {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  reason: string | null;
-  run_id: string | null;
-  source_id: string;
-  source_kind: string;
-  source_row_hash: string;
-  source_workspace_id: string | null;
-  status: string;
-  target_id: string | null;
-  target_kind: string | null;
-  target_organization_id: string | null;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface ContentMigrationRun {
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  finished_at: Timestamp | null;
-  id: Generated<string>;
-  notes: Generated<Json>;
-  organization_ids: Generated<string[]>;
-  phase: string;
-  status: Generated<string>;
-}
-
 export interface ErrorLog {
   context: Json | null;
   created_at: Generated<Timestamp | null>;
@@ -216,31 +172,10 @@ export interface ErrorLog {
   user_id: string | null;
 }
 
-export interface LegacyContentMap {
-  active: Generated<boolean>;
-  binding_id: string;
-  created_at: Generated<Timestamp>;
-  organization_id: string;
-  public_id: string;
-  tag_ids: Generated<string[]>;
-  workspace_id: string;
-}
-
-export interface LegacyRuntimeBinding {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  legacy_asset_id: string | null;
-  organization_id: string;
-  placement_id: string;
-  public_id: string;
-}
-
 export interface Organization {
   allowed_file_types: string[] | null;
   archived_at: Timestamp | null;
   config: Generated<Json>;
-  content_model_changed_at: Timestamp | null;
-  content_model_state: Generated<string>;
   created_at: Generated<Timestamp | null>;
   created_by: string | null;
   description: string | null;
@@ -302,7 +237,6 @@ export interface Scene {
   created_by: string | null;
   draft_document: Json;
   id: Generated<string>;
-  legacy_asset_id: string | null;
   lock_version: Generated<number>;
   name: string;
   organization_id: string;
@@ -343,6 +277,12 @@ export interface SceneRevisionAssetRef {
 export interface SchemaMigrations {
   applied_at: Generated<Timestamp>;
   name: string;
+}
+
+export interface StorageHold {
+  created_at: Generated<Timestamp>;
+  reason: string;
+  storage_key: string;
 }
 
 export interface Tag {
@@ -396,15 +336,6 @@ export interface Workspace {
   organization_id: string;
 }
 
-export interface WorkspaceAssignment {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  legacy_role: string | null;
-  role: Generated<string>;
-  user_id: string;
-  workspace_id: string;
-}
-
 export interface DB {
   anchor_embedding: AnchorEmbedding;
   anchor_match_rate_limit: AnchorMatchRateLimit;
@@ -412,18 +343,13 @@ export interface DB {
   asset: Asset;
   asset_version: AssetVersion;
   asset_version_resource: AssetVersionResource;
-  asset_workspace_grant: AssetWorkspaceGrant;
   "auth.account": AuthAccount;
   "auth.session": AuthSession;
   "auth.users": AuthUsers;
   "auth.verification": AuthVerification;
   content_audit_log: ContentAuditLog;
   content_command_idempotency: ContentCommandIdempotency;
-  content_migration_map: ContentMigrationMap;
-  content_migration_run: ContentMigrationRun;
   error_log: ErrorLog;
-  legacy_content_map: LegacyContentMap;
-  legacy_runtime_binding: LegacyRuntimeBinding;
   organization: Organization;
   organization_invitation: OrganizationInvitation;
   organization_member: OrganizationMember;
@@ -434,10 +360,10 @@ export interface DB {
   scene_revision: SceneRevision;
   scene_revision_asset_ref: SceneRevisionAssetRef;
   schema_migrations: SchemaMigrations;
+  storage_hold: StorageHold;
   tag: Tag;
   upload_receipt: UploadReceipt;
   user_organization_pin: UserOrganizationPin;
   users: Users;
   workspace: Workspace;
-  workspace_assignment: WorkspaceAssignment;
 }
