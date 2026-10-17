@@ -6,7 +6,7 @@ import type { CreatePlacementResult, GeoPointInput } from "@/lib/content-model/c
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/typography";
-import { contextHref } from "@/app/manage/lib/content-context";
+import { collectionHref, teamHref } from "@/app/manage/lib/content-context";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { ONSITE_TEXTS } from "../onsite-texts";
 
@@ -14,7 +14,7 @@ export interface OnsiteReceipt {
   result: CreatePlacementResult;
   organizationId: string | null;
   workspaceId: string;
-  projectName: string | null;
+  collectionName: string | null;
   /** Location that was submitted; shown when the response carries none. */
   submittedLocation: GeoPointInput;
 }
@@ -25,11 +25,10 @@ export function UploadReceiptCard({ receipt, onDismiss }: { receipt: OnsiteRecei
   const { result, organizationId, workspaceId } = receipt;
   const { placement, asset, version } = result;
   const location = placement.location ?? receipt.submittedLocation;
-  const context = { organizationId, workspaceId };
   const rows: { label: string; value: string; mono?: boolean }[] = [
     { label: tx("contentModel.integration.onsite.receipt.asset"), value: asset?.name || placement.name || tx("contentModel.integration.onsite.receipt.untitled") },
     ...(version ? [{ label: tx("contentModel.integration.onsite.receipt.version"), value: `v${version.version_no}` }] : []),
-    { label: tx("contentModel.integration.onsite.receipt.project"), value: placement.workspace_name || receipt.projectName || workspaceId },
+    { label: tx("contentModel.integration.onsite.receipt.collection"), value: placement.workspace_name || receipt.collectionName || workspaceId },
     {
       label: tx("contentModel.integration.onsite.receipt.location"),
       value: tx("contentModel.integration.onsite.location.coords", { lon: location.longitude.toFixed(6), lat: location.latitude.toFixed(6) }),
@@ -65,14 +64,14 @@ export function UploadReceiptCard({ receipt, onDismiss }: { receipt: OnsiteRecei
 
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link href={contextHref("/manage", context, { placementId: placement.id })}>
+          <Link href={collectionHref(workspaceId, organizationId, { placementId: placement.id })}>
             <MapPinned aria-hidden />
             {tx("contentModel.integration.onsite.receipt.openMap")}
           </Link>
         </Button>
         {asset && (
           <Button asChild variant="outline" size="sm">
-            <Link href={contextHref(`/manage/assets/${encodeURIComponent(asset.id)}`, context)}>
+            <Link href={teamHref(`/manage/assets/${encodeURIComponent(asset.id)}`, organizationId)}>
               <Package aria-hidden />
               {tx("contentModel.integration.onsite.receipt.openAsset")}
             </Link>

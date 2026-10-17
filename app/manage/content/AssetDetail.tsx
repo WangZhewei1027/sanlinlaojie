@@ -5,29 +5,24 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AssetDetailHeader } from "./AssetDetailHeader";
 import { AssetMaintenancePanel } from "./AssetMaintenancePanel";
-import { AssetSharingPanel } from "./AssetSharingPanel";
 import { AssetUsagePanel } from "./AssetUsagePanel";
 import { AssetVersionHistory } from "./AssetVersionHistory";
 import { AssetVersionUploadDialog, type AssetVersionInput } from "./AssetVersionUploadDialog";
 import { ContentNotice } from "./ContentFeedback";
 import type {
   AssetDetailData,
-  AssetProjectGrant,
   AssetUsageKind,
   AssetUsageSummary,
   AssetVersion,
-  AssetVisibility,
   ContentAction,
   ContentLoadStatus,
-  ContentPerson,
-  ContentProject,
 } from "./types";
 
 export interface AssetDetailProps {
   asset: AssetDetailData;
   preview?: ReactNode;
+  /** Server capability: editing team members may upload versions, rename and archive. */
   canMaintain: boolean;
-  canTransfer: boolean;
   /** Set after a write returned a stale lock; the page reloads fresh data. */
   stale?: boolean;
   onReload?: () => void;
@@ -50,19 +45,11 @@ export interface AssetDetailProps {
   usageLoadingMore?: boolean;
   onLoadMoreUsage?: () => void;
 
-  grants: AssetProjectGrant[];
-  grantableProjects: ContentProject[];
-  onVisibilityChange: ContentAction<[visibility: AssetVisibility]>;
-  onGrant: ContentAction<[projectId: string]>;
-  onRevoke: ContentAction<[projectId: string]>;
-
-  maintainerCandidates: ContentPerson[];
-  onTransfer: ContentAction<[personId: string]>;
   onArchive: ContentAction;
   onRestore: ContentAction;
 }
 
-/** Asset detail: identity, versions and usage in the main column; sharing and maintenance beside. */
+/** Asset detail: identity, versions and usage in the main column; lifecycle beside. */
 export function AssetDetail(props: AssetDetailProps) {
   const { t } = useTranslation();
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -108,25 +95,11 @@ export function AssetDetail(props: AssetDetailProps) {
           />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <AssetSharingPanel
-            visibility={asset.visibility}
-            grants={props.grants}
-            grantableProjects={props.grantableProjects}
-            canMaintain={props.canMaintain}
-            archived={archived}
-            onVisibilityChange={props.onVisibilityChange}
-            onGrant={props.onGrant}
-            onRevoke={props.onRevoke}
-          />
           <AssetMaintenancePanel
             assetName={asset.name}
             state={asset.state}
-            maintainer={asset.maintainer}
             canMaintain={props.canMaintain}
-            canTransfer={props.canTransfer}
-            candidates={props.maintainerCandidates}
             impact={props.usageByKind}
-            onTransfer={props.onTransfer}
             onArchive={props.onArchive}
             onRestore={props.onRestore}
           />

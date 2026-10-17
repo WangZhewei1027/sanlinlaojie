@@ -1,7 +1,10 @@
 /** Full HTTP contract smoke test against a disposable local Next.js + DB pair.
  * No .env loading, external storage, production host, or real user credentials.
- * Start Next on :13000 against content_http on :55439, then run with the same
- * explicit DATABASE_URL. Fixtures remain available for the bounded UI review.
+ * Start Next on :13000 against content_http (or team_wb_http) on :55439, then run
+ * with the same explicit DATABASE_URL. Fixtures remain available for the bounded
+ * UI review. Team model: every member reads and every writer edits team content;
+ * workspace assignments seeded below are history only.
+ * (scripts/test-team-workbench-routes.ts covers the same routes in-process.)
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -10,7 +13,10 @@ import bcrypt from "bcryptjs";
 import { Client } from "pg";
 import type { AssetDetailDto, CreateAssetResult, CreatePlacementResult, PlacementContentDto, PlacementDto, PublishSceneResult, SceneDetailDto } from "../lib/content-model/contracts";
 
-const origin = "http://localhost:13000";
+// Allow a second local port when a pre-existing validation server owns :13000.
+// Never accept a remote host, credentials, path, query or fragment.
+const origin = process.env.CONTENT_HTTP_ORIGIN ?? "http://localhost:13000";
+assert.ok(["http://localhost:13000", "http://127.0.0.1:13000", "http://localhost:13001", "http://127.0.0.1:13001"].includes(origin), "CONTENT_HTTP_ORIGIN must be an allowlisted loopback validation origin");
 const marker = `content-http-${randomUUID().slice(0, 8)}`;
 const password = `fixture-${randomUUID()}`;
 const ids = { org: randomUUID(), foreignOrg: randomUUID(), projectA: randomUUID(), projectB: randomUUID(), foreignProject: randomUUID() };
@@ -56,8 +62,23 @@ async function seed(db: Client) {
     }
     await db.query("commit");
   } catch (error) { await db.query("rollback"); throw error; }
+  // Sign-up bootstrap: each personal team is v2 with zero collections, before any test collection exists.
+  const personal = await db.query<{ state: string; collections: number }>(
+    "select o.content_model_state state, (select count(*) from workspace w where w.organization_id=o.id)::int collections from organization o where o.created_by=any($1::uuid[])",
+    [Object.values(users).map((user) => user.id)]);
+  assert.equal(personal.rows.length, Object.keys(users).length);
+  assert.ok(personal.rows.every((row) => row.state === "v2" && row.collections === 0), "personal teams start as v2 without a default workspace");
   for (const user of Object.values(users)) {
-    const response = await fetch(`${origin}/api/auth/sign-in/email`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, password }) });
+    const signIn = () => fetch(`${origin}/api/auth/sign-in/email`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, password }) });
+    let response = await signIn();
+    // Production Better Auth throttles rapid sign-ins from one loopback IP.
+    // Respect its retry window instead of disabling the application's protection.
+    for (let attempt = 0; response.status === 429 && attempt < 2; attempt++) {
+      const seconds = Number(response.headers.get("retry-after") ?? 10);
+      assert.ok(Number.isFinite(seconds) && seconds >= 0 && seconds <= 30, "unexpected sign-in retry window");
+      await new Promise((resolve) => setTimeout(resolve, (seconds + 1) * 1000));
+      response = await signIn();
+    }
     assert.equal(response.status, 200, "local fixture sign-in");
     user.cookie = response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
     assert.ok(user.cookie.includes("session_token"));
@@ -75,26 +96,29 @@ async function checks() {
   await request(a, `/api/workspaces/${ids.projectA}/assets`, "POST", { ...body, name: "changed" }, [409]);
   await request(viewer, `/api/workspaces/${ids.projectA}/assets`, "POST", { ...body, idempotencyKey: `${marker}-viewer` }, [403]);
   await request(outsider, `/api/assets/${created.asset.id}`, "GET", undefined, [403, 404]);
-  await request(b, `/api/assets/${created.asset.id}`, "PATCH", { name: "steal", expectedLockVersion: created.asset.lock_version }, [403]);
+  const teammate = await data(request<{ data: { lock_version: number; maintained_by: string | null } }>(b, `/api/assets/${created.asset.id}`, "PATCH", { name: "榕树模型（共同维护）", expectedLockVersion: created.asset.lock_version }));
+  assert.equal(teammate.maintained_by, a.id, "a teammate edits without becoming the maintainer");
+  await request(viewer, `/api/assets/${created.asset.id}`, "PATCH", { name: "viewer edit", expectedLockVersion: teammate.lock_version }, [403]);
   await request(a, `/api/assets/${created.asset.id}`, "PATCH", { name: "stale client" }, [409], false);
-  console.log("PASS HTTP create retry, project viewer cap, source maintenance and old-client fence");
+  console.log("PASS HTTP create retry, viewer read-only cap, team editing and old-client fence");
 
   const document = { schemaVersion: 3, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
     assets: { tree: { assetId: created.asset.id, assetVersionId: created.version.id } },
     instances: [{ id: "tree-one", asset: "tree", position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: { clipName: "sway", startSeconds: 0, loop: true } }] } };
   const scene = await data(request<{ data: SceneDetailDto }>(b, `/api/workspaces/${ids.projectB}/scenes`, "POST", { name: "社区入口", document, idempotencyKey: `${marker}-scene` }));
   assert.equal(scene.referenced_resources[0].asset_version_id, created.version.id);
-  await request(a, `/api/scenes/${scene.id}`, "GET", undefined, [403, 404]);
+  await request(a, `/api/scenes/${scene.id}`, "GET");
+  await request(outsider, `/api/scenes/${scene.id}`, "GET", undefined, [404]);
   const usage = await request<{ data: { impact: { restricted_count: number; items: unknown[] } } }>(a, `/api/assets/${created.asset.id}/usage`);
-  assert.ok(usage.data.impact.restricted_count > 0);
-  assert.equal(JSON.stringify(usage).includes("社区入口"), false, "dependency names do not cross project permissions");
-  await request(a, `/api/assets/${created.asset.id}/workspace-grants?workspace_id=${ids.projectB}`, "DELETE", undefined, [409]);
+  assert.equal(usage.data.impact.restricted_count, 0);
+  assert.equal(JSON.stringify(usage).includes("社区入口"), true, "every team member sees every same-team dependency");
+  await request(a, `/api/assets/${created.asset.id}/workspace-grants?workspace_id=${ids.projectB}`, "DELETE", undefined, [410]);
   const publication = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
   const publishRetry = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
   assert.equal(publication.revision.id, publishRetry.revision.id);
   const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/workspaces/${ids.projectB}/placements`, "POST", { target: { kind: "scene_revision", sceneRevisionId: publication.revision.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
-  const next = await data(request<{ data: { version: { id: string } } }>(a, `/api/assets/${created.asset.id}/versions`, "POST", {
-    expectedLockVersion: created.asset.lock_version, payload: body.payload,
+  const next = await data(request<{ data: { version: { id: string } } }>(b, `/api/assets/${created.asset.id}/versions`, "POST", {
+    expectedLockVersion: teammate.lock_version, payload: body.payload,
     resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v2.glb" }], idempotencyKey: `${marker}-version`,
   }));
   assert.notEqual(next.version.id, created.version.id);
@@ -116,7 +140,7 @@ async function checks() {
   }
   await request(outsider, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`, "GET", undefined, [404]);
   await request(owner, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.foreignProject}`, "GET", undefined, [404]);
-  console.log("PASS HTTP cross-project reuse, hidden dependency names, grant protection and immutable publication");
+  console.log("PASS HTTP cross-collection reuse, team-wide dependency names, retired grants and immutable publication");
 
   const saved = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`, "PATCH", { name: "社区入口 · 草稿", expectedLockVersion: fixed.lock_version }));
   await request(b, `/api/scenes/${scene.id}`, "PATCH", { name: "lost edit", expectedLockVersion: fixed.lock_version }, [409]);
@@ -140,13 +164,24 @@ async function checks() {
   assert.equal(retained.referenced_resources[0].url, "https://fixture.invalid/tree-v1.glb");
   await request(owner, `/api/workspaces/${ids.projectB}`, "DELETE", undefined, [409]);
   console.log("PASS HTTP optimistic conflicts, independent placements and archived-source retention");
+
+  const teamAsset = await data(request<{ data: CreateAssetResult }>(b, `/api/organizations/${ids.org}/assets`, "POST", { ...body, name: "团队素材", idempotencyKey: `${marker}-team-asset` }));
+  assert.equal(teamAsset.asset.origin_workspace_id, null);
+  const teamScene = await data(request<{ data: SceneDetailDto }>(b, `/api/organizations/${ids.org}/scenes`, "POST", { name: "团队场景", idempotencyKey: `${marker}-team-scene` }));
+  assert.equal(teamScene.workspace_id, null);
+  const collection = await data(request<{ data: { id: string } }>(b, `/api/organizations/${ids.org}/collections`, "POST", { name: "新合集" }));
+  await request(viewer, `/api/organizations/${ids.org}/collections`, "POST", { name: "viewer" }, [403]);
+  await request(b, `/api/collections/${collection.id}/archive`, "POST");
+  await request(b, `/api/collections/${collection.id}/archive`, "DELETE");
+  await request(owner, `/api/workspaces/${ids.projectA}/members`, "PUT", { userId: b.id, role: "editor" }, [410]);
+  console.log("PASS HTTP team asset/scene/collection routes without any workspace; retired project membership");
   return { assetId: created.asset.id, sceneId: scene.id, placementId: copy.placement.id };
 }
 
 async function main() {
   assert.ok(process.env.DATABASE_URL, "Provide the dedicated local DATABASE_URL explicitly");
   const target = new URL(process.env.DATABASE_URL);
-  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55439"); assert.equal(target.pathname, "/content_http");
+  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55439"); assert.ok(["/content_http", "/team_wb_http"].includes(target.pathname));
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   try {

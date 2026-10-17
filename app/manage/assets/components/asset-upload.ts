@@ -64,7 +64,7 @@ export function parseLink(url: string, translate: (key: string) => string) {
 
 export async function buildVersionBody(
   content: VersionContent,
-  workspaceId: string,
+  organizationId: string,
   translate: (key: string) => string,
   onStage?: (stage: UploadStage) => void,
 ): Promise<VersionBody> {
@@ -73,7 +73,8 @@ export async function buildVersionBody(
   onStage?.("preparing");
   const prepared = await prepareFile(content.file, content.type);
   onStage?.("uploading");
-  const { payload, resources } = await uploadFileVersion(prepared, workspaceId);
+  // Team content: the receipt is bound to the organization, never to a collection.
+  const { payload, resources } = await uploadFileVersion(prepared, { organizationId });
   return { payload, resources };
 }
 
@@ -81,11 +82,11 @@ export async function buildVersionBody(
 export async function bodyForIntent(
   intent: UploadIntent,
   content: VersionContent,
-  workspaceId: string,
+  organizationId: string,
   translate: (key: string) => string,
   onStage?: (stage: UploadStage) => void,
 ): Promise<VersionBody> {
-  if (!intent.body) intent.body = await buildVersionBody(content, workspaceId, translate, onStage);
+  if (!intent.body) intent.body = await buildVersionBody(content, organizationId, translate, onStage);
   return intent.body;
 }
 

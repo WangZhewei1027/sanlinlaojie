@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { SPECIAL_ASSET_FILE_TYPES, type AssetDto, type SceneSummaryDto } from "@/lib/content-model/contracts";
 import { AssetThumbnail } from "../AssetManager/AssetThumbnail";
-import { workspaceApi } from "../../lib/content-api";
+import { organizationApi } from "../../lib/content-api";
 import { errorMessage } from "../../lib/content-errors";
 import { excerptOf, thumbnailOf } from "../../lib/content-mappers";
 import { usePlacementMap } from "./PlacementMapContext";
@@ -18,9 +18,12 @@ const SEARCH_DELAY_MS = 300;
 
 type Loaded<T> = { key: string; items: T[]; error: string | null };
 
-/** Picker for project assets (search, current version) or published project scenes. */
+/**
+ * Picker over the whole team: every active asset (search, current version)
+ * or every published scene. The same scene may be placed in many collections.
+ */
 export function SourcePicker({ value, onChange }: { value: PickedSource | null; onChange: (value: PickedSource | null) => void }) {
-  const { tx, workspaceId } = usePlacementMap();
+  const { tx, organizationId } = usePlacementMap();
   const [kind, setKind] = useState<"asset" | "scene">("asset");
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -32,28 +35,28 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
     return () => clearTimeout(timer);
   }, [query]);
 
-  const assetKey = `${workspaceId}|${debounced}`;
+  const assetKey = `${organizationId}|${debounced}`;
   useEffect(() => {
-    if (!workspaceId || kind !== "asset") return;
+    if (kind !== "asset") return;
     const abort = new AbortController();
-    workspaceApi
-      .assets(workspaceId, { q: debounced || undefined, limit: 20, state: "active" }, abort.signal)
+    organizationApi
+      .assets(organizationId, { view: "all", q: debounced || undefined, limit: 20, state: "active" }, abort.signal)
       .then((page) => setAssets({ key: assetKey, items: (page.data ?? []).filter((asset) => !SPECIAL_ASSET_FILE_TYPES.includes(asset.file_type)), error: null }))
       .catch((error) => !abort.signal.aborted && setAssets({ key: assetKey, items: [], error: errorMessage(error, tx) }));
     return () => abort.abort();
-  }, [workspaceId, kind, debounced, assetKey, tx]);
+  }, [organizationId, kind, debounced, assetKey, tx]);
 
   useEffect(() => {
-    if (!workspaceId || kind !== "scene") return;
+    if (kind !== "scene") return;
     const abort = new AbortController();
-    workspaceApi
-      .scenes(workspaceId, { state: "active" }, abort.signal)
-      .then((list) => setScenes({ key: workspaceId, items: list.items.filter((scene) => scene.latest_revision), error: null }))
-      .catch((error) => !abort.signal.aborted && setScenes({ key: workspaceId, items: [], error: errorMessage(error, tx) }));
+    organizationApi
+      .scenes(organizationId, { state: "active" }, abort.signal)
+      .then((list) => setScenes({ key: organizationId, items: list.items.filter((scene) => scene.latest_revision), error: null }))
+      .catch((error) => !abort.signal.aborted && setScenes({ key: organizationId, items: [], error: errorMessage(error, tx) }));
     return () => abort.abort();
-  }, [workspaceId, kind, tx]);
+  }, [organizationId, kind, tx]);
 
-  const current = kind === "asset" ? (assets?.key === assetKey ? assets : null) : scenes?.key === workspaceId ? scenes : null;
+  const current = kind === "asset" ? (assets?.key === assetKey ? assets : null) : scenes?.key === organizationId ? scenes : null;
   const switchKind = (next: "asset" | "scene") => {
     setKind(next);
     onChange(null);

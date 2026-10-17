@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { AssetDetailDto, AssetVisibility } from "@/lib/content-model/contracts";
+import type { AssetDetailDto } from "@/lib/content-model/contracts";
 import type { AssetVersionInput, ContentActionResult } from "@/app/manage/content";
 import { assetApi, isLockConflict } from "@/app/manage/lib/content-api";
 import { impactLines, runContentAction } from "@/app/manage/lib/content-errors";
@@ -12,15 +12,6 @@ import { isFileType, type CreatableType } from "./AssetContentField";
 import type { useAssetDetail } from "./useAssetDetail";
 
 type Detail = ReturnType<typeof useAssetDetail>;
-
-/**
- * Uploads need a workspace for the receipt: the current project when it holds
- * a grant, else the origin project, else any granted project.
- */
-export function uploadWorkspaceFor(asset: AssetDetailDto, contextWorkspaceId: string | null): string | null {
-  if (contextWorkspaceId && asset.grants.some((grant) => grant.workspace_id === contextWorkspaceId)) return contextWorkspaceId;
-  return asset.origin_workspace_id ?? asset.grants[0]?.workspace_id ?? null;
-}
 
 function versionContent(asset: AssetDetailDto, input: AssetVersionInput): VersionContent | null {
   const type = asset.file_type as CreatableType;
@@ -34,7 +25,7 @@ function versionContent(asset: AssetDetailDto, input: AssetVersionInput): Versio
  * Every write sends the latest lock, applies the returned identity row and
  * reloads detail + usage. A stale lock marks the page stale instead of retrying.
  */
-export function useAssetWrites(detail: Detail, contextWorkspaceId: string | null, tx: IntegrationT) {
+export function useAssetWrites(detail: Detail, tx: IntegrationT) {
   const { t } = useTranslation();
   const [stale, setStale] = useState(false);
   const [archiveImpact, setArchiveImpact] = useState<string[] | null>(null);
@@ -63,13 +54,12 @@ export function useAssetWrites(detail: Detail, contextWorkspaceId: string | null
     if (!asset) return failed();
     const content = versionContent(asset, input);
     if (!content) return failed();
-    const workspaceId = content.kind === "file" ? uploadWorkspaceFor(asset, contextWorkspaceId) : null;
-    if (content.kind === "file" && !workspaceId) return failed(tx("contentModel.integration.assetDetail.noUploadProject"));
-    const current = intentFor(versionIntent, [workspaceId, input.note, contentSignature(content)].join("|"));
+    // New versions upload into the asset's team; no collection is involved.
+    const current = intentFor(versionIntent, [asset.organization_id, input.note, contentSignature(content)].join("|"));
     return write(
       async (lock) => {
         try {
-          const body = await bodyForIntent(current, content, workspaceId ?? "", (key) => String(t(key)));
+          const body = await bodyForIntent(current, content, asset.organization_id, (key) => String(t(key)));
           return await assetApi.createVersion(asset.id, {
             payload: withNote(body.payload, input.note),
             resources: body.resources,
@@ -89,7 +79,7 @@ export function useAssetWrites(detail: Detail, contextWorkspaceId: string | null
   };
 
   const onAsset = (run: (assetId: string) => Promise<ContentActionResult>) => (asset ? run(asset.id) : Promise.resolve(failed()));
-  const update = (fields: { name?: string; visibility?: AssetVisibility; state?: "active"; maintainedBy?: string | null }) =>
+  const update = (fields: { name?: string; state?: "active" }) =>
     onAsset((assetId) => write((lock) => assetApi.update(assetId, { expectedLockVersion: lock, ...fields }), detail.applyAsset));
 
   return {
@@ -102,8 +92,6 @@ export function useAssetWrites(detail: Detail, contextWorkspaceId: string | null
     },
     uploadVersion,
     rename: (name: string) => update({ name }),
-    changeVisibility: (visibility: AssetVisibility) => update({ visibility }),
-    transfer: (personId: string) => update({ maintainedBy: personId }),
     restore: async () => {
       const result = await update({ state: "active" });
       if (result.ok) setArchiveImpact(null);
@@ -116,7 +104,5 @@ export function useAssetWrites(detail: Detail, contextWorkspaceId: string | null
           setArchiveImpact(impactLines(result.impact, tx));
         }),
       ),
-    grant: (workspaceId: string) => onAsset((assetId) => write(() => assetApi.grant(assetId, workspaceId))),
-    revoke: (workspaceId: string) => onAsset((assetId) => write(() => assetApi.revoke(assetId, workspaceId))),
   };
 }

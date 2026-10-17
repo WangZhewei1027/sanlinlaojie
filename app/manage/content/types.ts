@@ -10,61 +10,75 @@ export type ContentAssetType =
   | "link"
   | "document";
 
-export type AssetVisibility = "restricted" | "organization";
 export type ContentLifecycle = "active" | "archived";
 export type AssetOrigin = "team_upload" | "public_submission" | "legacy";
-export type AssetLibraryScope = "project" | "organization";
-export type ProjectRole = "manager" | "editor" | "viewer";
 export type SceneStatus = "unpublished" | "published" | "changed" | "archived";
 export type PlacementStatus = "draft" | "active" | "paused" | "archived";
+export type TeamRole = "owner" | "admin" | "member" | "viewer";
 
 export interface ContentPerson {
   id: string;
   name: string;
 }
 
-export interface ContentProject {
-  id: string;
+/** The team the workbench and collections belong to. */
+export interface TeamSummary {
   name: string;
-  archived?: boolean;
+  /** The viewer's team role, when known; shown only when it limits the page. */
+  role?: TeamRole | null;
 }
 
-export interface AssetLibraryItem {
+// ───────────────────────── workbench ─────────────────────────
+
+/** Every kind of team content shown in the one workbench. */
+export type WorkbenchType = "scene" | ContentAssetType;
+export type WorkbenchTypeFilter = "all" | WorkbenchType;
+export type WorkbenchView = "grid" | "list";
+
+export interface WorkbenchItem {
+  id: string;
+  /** Scenes open the editor; assets open their detail page. */
+  kind: "asset" | "scene";
+  name: string;
+  type: WorkbenchType;
+  thumbnailUrl?: string | null;
+  textExcerpt?: string | null;
+  state: ContentLifecycle;
+  updatedAt: string;
+  updatedBy?: ContentPerson | null;
+  /** Scenes only: draft/publication state. */
+  sceneStatus?: SceneStatus;
+  latestRevisionNo?: number | null;
+  /** Scenes only: placements across all collections. */
+  placementCount?: number;
+  activePlacementCount?: number | null;
+  fileMissing?: boolean;
+}
+
+export interface WorkbenchFilters {
+  query: string;
+  type: WorkbenchTypeFilter;
+  state: ContentLifecycle;
+}
+
+export const DEFAULT_WORKBENCH_FILTERS: WorkbenchFilters = { query: "", type: "all", state: "active" };
+
+// ───────────────────────── asset detail ─────────────────────────
+
+export interface AssetDetailData {
   id: string;
   name: string;
   type: ContentAssetType;
   thumbnailUrl?: string | null;
   textExcerpt?: string | null;
-  visibility: AssetVisibility;
   state: ContentLifecycle;
   origin: AssetOrigin;
+  /** Informational only: every editing team member may maintain the asset. */
   maintainer: ContentPerson | null;
   currentVersionNo: number;
-  /** All dependencies, including ones the viewer may not see by name. */
-  usageCount: number;
-  originProjectName?: string | null;
   updatedAt: string;
-  /** Organization scope: the current project already holds a use grant. */
-  inProject?: boolean;
-  fileMissing?: boolean;
-}
-
-export interface AssetLibraryFilters {
-  query: string;
-  type: ContentAssetType | "all";
-  state: ContentLifecycle | "all";
-  origin: AssetOrigin | "all";
-}
-
-export const DEFAULT_ASSET_FILTERS: AssetLibraryFilters = {
-  query: "",
-  type: "all",
-  state: "active",
-  origin: "all",
-};
-
-export interface AssetDetailData extends Omit<AssetLibraryItem, "inProject" | "usageCount"> {
   createdAt: string;
+  fileMissing?: boolean;
 }
 
 export interface AssetVersion {
@@ -74,7 +88,7 @@ export interface AssetVersion {
   createdBy: ContentPerson | null;
   note?: string | null;
   sizeBytes?: number | null;
-  /** Visible plus restricted dependencies pinned to this version. */
+  /** Dependencies pinned to this version. */
   usageCount?: number;
 }
 
@@ -83,7 +97,8 @@ export type AssetUsageKind = "draft" | "published" | "placement";
 export interface AssetUsageEntry {
   id: string;
   kind: AssetUsageKind;
-  projectName: string;
+  /** Map collection of a placement; omitted for scenes (they belong to the team). */
+  collectionName?: string | null;
   targetName: string;
   versionNo: number;
   href?: string;
@@ -92,39 +107,39 @@ export interface AssetUsageEntry {
 
 export interface AssetUsageSummary {
   entries: AssetUsageEntry[];
-  /** Total dependencies, visible and restricted. */
+  /** Total dependencies. */
   totalCount: number;
-  /** Dependencies in projects the viewer cannot read; shown only as a count. */
+  /** Dependencies the server reports only as a count; usually zero inside one team. */
   restrictedCount: number;
 }
 
-export interface AssetProjectGrant {
-  projectId: string;
-  projectName: string;
-  isOrigin: boolean;
-  dependencyCount: number;
-  archived?: boolean;
-}
+// ───────────────────────── scenes ─────────────────────────
 
-export interface SceneListItem {
+/** What the scene dialogs need to name and describe one scene. */
+export interface SceneRef {
   id: string;
   name: string;
-  status: SceneStatus;
-  latestRevisionNo: number | null;
-  placementCount: number;
-  /** Active placements, when the service reports them; omitted rather than guessed. */
+  placementCount?: number;
   activePlacementCount?: number | null;
-  updatedAt: string;
-  updatedBy: ContentPerson | null;
 }
 
-export interface SceneListFilters {
-  query: string;
-  /** "current" shows every non-archived scene. */
-  status: SceneStatus | "current";
+// ───────────────────────── map collections ─────────────────────────
+
+export interface CollectionItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  createdAt?: string | null;
+  archived: boolean;
+  /** Server capabilities of this collection. */
+  canEdit: boolean;
+  canArchive: boolean;
 }
 
-export const DEFAULT_SCENE_FILTERS: SceneListFilters = { query: "", status: "current" };
+export interface CollectionInput {
+  name: string;
+  description: string;
+}
 
 export interface PinnedTargetOption {
   id: string;
@@ -141,7 +156,7 @@ export type ContentActionResult =
       ok: false;
       kind: "conflict" | "forbidden" | "error";
       message?: string;
-      /** Already-localized impact lines, e.g. "项目乙 · 春节灯会". */
+      /** Already-localized impact lines, e.g. "东街合集 · 灯会入口". */
       details?: string[];
     };
 

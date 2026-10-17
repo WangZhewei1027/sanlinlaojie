@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { FolderKanban, Users, Settings, Menu } from "lucide-react";
+import { MapPinned, Users, Settings, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -37,9 +37,10 @@ function useSidebarItems(): SidebarItem[] {
       icon: Users,
     },
     {
-      label: t("admin.sidebar.workspaces", "Workspaces"),
+      // v2 teams land on /manage/collections; legacy teams keep the workspace page.
+      label: t("admin.sidebar.workspaces", "Collections"),
       href: "/admin/workspaces",
-      icon: FolderKanban,
+      icon: MapPinned,
     },
   ];
 
@@ -87,7 +88,7 @@ function SidebarNav({
       {/* Organization section */}
       <div className="px-3 py-2">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          {t("admin.sidebar.orgSection", "Organization")}
+          {t("admin.sidebar.orgSection", "Team")}
         </h3>
       </div>
       {items.map(renderItem)}
@@ -100,6 +101,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const items = useSidebarItems();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -118,6 +120,7 @@ export default function AdminLayout({
               size="icon"
               variant="outline"
               className="rounded-full shadow-lg"
+              aria-label={t("admin.sidebar.orgSection", "Team")}
             >
               <Menu className="h-5 w-5" />
             </Button>

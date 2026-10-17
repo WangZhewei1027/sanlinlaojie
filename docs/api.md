@@ -28,32 +28,36 @@ Applying the schema does not automatically switch an organization. See
 
 | Method and path | Behavior / request type |
 | --- | --- |
-| `GET /api/organizations/[id]/assets` with `X-Content-Model: 2` | Organization catalog: view=shared (default), maintained, or all (admin only); supports q/file_type/origin/state/usable_in/limit/offset |
-| `GET/POST /api/workspaces/[id]/assets` with `X-Content-Model: 2` | Grant-based project catalog / CreateAssetRequest; creates Asset + v1 + grant and optional Placement |
-| `GET/PATCH /api/assets/[id]` with `X-Content-Model: 2` | Detail with retained versions/grants / identity maintenance using expectedLockVersion |
+| `GET /api/organizations/[id]/assets` with `X-Content-Model: 2` | Team catalog: every same-team asset; view=all (default), shared/maintained are metadata filters; supports q/file_type/origin/state/usable_in/limit/offset |
+| `POST /api/organizations/[id]/assets` with `X-Content-Model: 2` | `CreateOrganizationAssetRequest`: team asset + v1, no collection, no placement (workbench upload) |
+| `GET/POST /api/workspaces/[id]/assets` with `X-Content-Model: 2` | Same team catalog with `usable_in` fixed to that collection / CreateAssetRequest whose origin is the collection, optional Placement; no grant |
+| `GET/PATCH /api/assets/[id]` with `X-Content-Model: 2` | Detail with retained versions (grants are read-only history) / identity maintenance by any team writer using expectedLockVersion |
 | `DELETE /api/assets/[id]?expectedLockVersion=N` with `X-Content-Model: 2` | Archive Asset and return dependency impact; Anchor uses its dedicated compatibility service |
 | `GET /api/assets/[id]/versions` | Versions, newest first; requires Asset read access |
-| `POST /api/upload` | Multipart file, workspace_id, optional type/purpose; project edit permission; returns legacy url/contentHash/storagePath plus data: UploadReceiptDto |
+| `POST /api/upload` | Multipart file, `organization_id` and/or `workspace_id` (collection), optional type/purpose; team writer; returns legacy url/contentHash/storagePath plus data: UploadReceiptDto (`workspace_id` null for team uploads) |
 | `DELETE /api/upload?key=…` | End this uploader's unused lease and request protected cleanup; may return removed=false, reason=deferred |
-| `POST /api/assets/[id]/versions` | `CreateAssetVersionRequest`: payload, resources, idempotencyKey, optional expectedLockVersion; source maintainer/admin only |
-| `GET /api/assets/[id]/usage` | Visible dependencies and restricted counts |
-| `POST /api/assets/[id]/duplicate` | `DuplicateAssetRequest`: targetWorkspaceId, optional sourceVersionId/name, idempotencyKey; new Asset identity |
-| `POST /api/assets/[id]/workspace-grants` | `{ workspaceId }`, same-organization use grant |
-| `DELETE /api/assets/[id]/workspace-grants?workspace_id=…` | Revoke only without retained dependencies; otherwise 409 with impact |
-| `GET/POST /api/workspaces/[id]/scenes` | List (`state=active|archived|all`) / create project Scene; import document must be schema 3 |
+| `POST /api/assets/[id]/versions` | `CreateAssetVersionRequest`: payload, resources, idempotencyKey, optional expectedLockVersion; any team writer |
+| `GET /api/assets/[id]/usage` | Every same-team dependency (`restricted_count` is 0) |
+| `POST /api/assets/[id]/duplicate` | `DuplicateAssetRequest`: optional targetWorkspaceId (omit for a team copy), optional sourceVersionId/name, idempotencyKey; new Asset identity |
+| `POST/DELETE /api/assets/[id]/workspace-grants` | Retired: 410 `DEPRECATED` |
+| `GET/POST /api/organizations/[id]/scenes` | Team scenes (`state=active|archived|all`, default all) / create a team Scene; import document must be schema 3 |
+| `GET/POST /api/workspaces/[id]/scenes` | Compatibility adapter: the same team list / team Scene whose `workspace_id` records the origin |
 | `GET/PATCH /api/scenes/[id]` | Draft and pinned resources / `SaveSceneRequest` with mandatory expectedLockVersion |
 | `POST /api/scenes/[id]/publish` | `{ expectedLockVersion, updatePlacements?: [{ placementId, expectedLockVersion }] }`; freezes the requested draft and optionally updates selected existing placements |
 | `GET /api/scenes/[id]/revisions` | Retained published versions, newest first |
-| `POST /api/scenes/[id]/copy` | New editable Scene; checks target-project access and each source Asset grant |
+| `POST /api/scenes/[id]/copy` | New editable team Scene; optional targetWorkspaceId (origin metadata) |
 | `GET/POST /api/workspaces/[id]/placements` | List or create fixed target; `include_shared=false` hides legacy shared scopes; optional status filter |
-| `GET /api/organizations/[id]/placements` | Aggregation restricted to readable projects |
+| `GET /api/organizations/[id]/placements` | Every collection of the team, de-duplicated |
+| `GET/POST /api/organizations/[id]/collections` | Map collections (`state`, default active) / `{ name, description? }` → WorkspaceDto |
+| `GET/PATCH /api/collections/[id]` | One collection / `{ name?, description? }` |
+| `POST/DELETE /api/collections/[id]/archive` | Archive / restore a collection; its placements become read-only, team content is untouched |
 | `GET/PATCH /api/placements/[id]` | Read or edit Placement; optional GET workspace_id supplies shared viewer context |
 | `GET /api/placements/[id]/content?workspace_id=…` | PlacementContentDto: only the pinned playable AssetVersion or SceneRevision; authorized through the placement, without source catalog/history access |
 | `DELETE /api/placements/[id]?expectedLockVersion=N` | Archive this placement |
 | `POST /api/placements/move` | Atomic batch of `{ placementId, expectedLockVersion, longitude, latitude, altitude? }` |
 | `POST /api/placements/[id]/copy` | New independent placement; optional targetWorkspaceId, location/offset and idempotencyKey |
-| `GET/PUT/DELETE /api/workspaces/[id]/members` | Project members; PUT `{ userId, role }`, DELETE `?user_id=…`; managers cannot grant manager |
-| `POST/DELETE /api/workspaces/[id]/archive` | Archive/restore project; owner/admin only |
+| `GET /api/workspaces/[id]/members` | Read-only compatibility view (every team member, implicit); PUT/DELETE answer 410 `DEPRECATED` |
+| `POST/DELETE /api/workspaces/[id]/archive` | Alias of the collection archive; any team writer |
 | `GET /api/organizations/[id]/content-model` | State, legacy count and capabilities |
 | `PUT /api/organizations/[id]/content-model` | Super-admin initialization with `{ state, expectedState, note? }`; only legacy → v2 for an organization with no legacy Asset rows |
 
@@ -435,7 +439,7 @@ ownership or placement.
     ]
   }
   ```
-- **Note**: Legacy Asset rows may contain multiple workspace IDs. This is compatibility data; v2 ownership is a single organization, project use is a grant, and location belongs to Placement.
+- **Note**: Legacy Asset rows may contain multiple workspace IDs. This is compatibility data; v2 content belongs to one team, all team members can read it, and location belongs to Placement in a map collection.
 - **Error Handling**:
   - `401`: Unauthorized
   - `500`: Server error
@@ -445,8 +449,8 @@ ownership or placement.
 ## Notes
 
 - All authenticated endpoints require a valid Better Auth session (`getSessionUser()` in `lib/auth/server.ts`; `proxy.ts` only checks for the cookie)
-- super_admin endpoints require `users.role = 'super_admin'`; content endpoints also enforce project roles, Asset use/maintenance rights and organization write gates (see `docs/permissions.md`)
+- super_admin endpoints require `users.role = 'super_admin'`; content endpoints enforce team roles, resource lifecycle rules and organization write gates (see `docs/permissions.md`). Historical assignments and grants no longer determine access.
 - All timestamps are in UTC with timezone (timestamptz)
 - UUIDs follow RFC 4122 standard
 - In the legacy response, Assets with `location IS NULL` are included unless `requireLocation=true` is passed. V2 geographic filtering belongs to Placement queries.
-- Never send `workspace_id: [uuid]` to establish v2 ownership; the server derives organization and origin from the authorized project and creates grants through the domain command.
+- Never send `workspace_id: [uuid]` to establish v2 ownership. Team content commands validate membership in the specified organization; collection commands additionally validate that the collection belongs to that team. New commands never create grants.

@@ -2,8 +2,14 @@
  * Content model v2 — client-safe request/response contracts.
  *
  * Single source of truth for the team asset / scene / placement APIs described
- * in docs/team-assets-scenes-refactor-plan.md §7. Pure types and constants:
- * no server imports, safe in Client Components.
+ * in docs/team-assets-scenes-refactor-plan.md §7 and the team workbench
+ * contract (docs/team-workbench-backend-contract.md). Pure types and
+ * constants: no server imports, safe in Client Components.
+ *
+ * Team model: the organization (UI: 团队) owns assets and scenes directly and
+ * is the only permission boundary. Workspace rows are map collections that
+ * own placements; `WorkspaceDto` is their compatibility shape. Grants,
+ * project assignments and asset visibility are not access control.
  *
  * Conventions
  * - Success: `{ data: T }` (lists may add `page`). Response rows are snake_case.
@@ -51,6 +57,8 @@ export type ContentErrorCode =
   | "UNMANAGED_URL"
   | "LEGACY_AMBIGUOUS"
   | "RATE_LIMITED"
+  /** Retired project-ACL mutation (grants, project members, assignments). */
+  | "DEPRECATED"
   | "INTERNAL";
 
 export const CONTENT_ERROR_STATUS: Record<ContentErrorCode, number> = {
@@ -71,6 +79,7 @@ export const CONTENT_ERROR_STATUS: Record<ContentErrorCode, number> = {
   UNMANAGED_URL: 400,
   LEGACY_AMBIGUOUS: 409,
   RATE_LIMITED: 429,
+  DEPRECATED: 410,
   INTERNAL: 500,
 };
 
@@ -108,12 +117,15 @@ export interface ApiErrorDetails {
 
 // ───────────────────────── shared enums ─────────────────────────
 
+/** Collection role derived from the team role (owner/admin → manager, member → editor, viewer → viewer). */
 export type ProjectRole = "manager" | "editor" | "viewer";
 export const PROJECT_ROLES: readonly ProjectRole[] = ["manager", "editor", "viewer"];
-/** Roles a project manager (not org owner/admin) may hand out. */
+/** @deprecated Project assignments are retired; kept for type compatibility. */
 export const MANAGER_ASSIGNABLE_ROLES: readonly ProjectRole[] = ["editor", "viewer"];
+/** @deprecated Project assignments are retired; kept for type compatibility. */
 export const DEFAULT_PROJECT_ROLE: ProjectRole = "editor";
 
+/** Descriptive metadata only: every team member reads every asset of the team. */
 export type AssetVisibility = "restricted" | "organization";
 export type AssetState = "active" | "archived";
 export type AssetOrigin = "team_upload" | "public_submission" | "legacy";
@@ -138,29 +150,32 @@ export type UploadPurpose = "asset_version" | "anchor_reference" | "legacy_asset
 
 export interface OrganizationCapabilities {
   can_read: boolean;
-  /** Owner/admin (or super_admin): implicit manager of every project. */
+  /** Owner/admin (or super_admin): ownership and team administration. */
   can_administer: boolean;
   can_manage_content_model: boolean;
 }
 
+/** Capabilities on one map collection (a workspace row). */
 export interface WorkspaceCapabilities {
+  /** Every team member. */
   can_read: boolean;
-  /** Upload, create/edit scenes, publish, manage placements. */
+  /** Team writer and the collection/organization are open: placements, tags, rename. */
   can_edit: boolean;
-  /** Project member management (editor/viewer). */
+  /** @deprecated Always false: collections have no membership. */
   can_manage_members: boolean;
-  /** May grant the manager role (org owner/admin only). */
+  /** @deprecated Always false: collections have no membership. */
   can_assign_manager: boolean;
+  /** Team writer in an open organization: archive and restore. */
   can_archive: boolean;
 }
 
 export interface AssetCapabilities {
   can_read: boolean;
-  /** Source maintenance: name, visibility, versions, archive, grants. */
+  /** Team writer (owner/admin/member) in an open organization: name, versions, archive, restore. */
   can_maintain: boolean;
-  /** Owner/admin only. */
+  /** Owner/admin only: change the responsible maintainer. */
   can_transfer_maintainer: boolean;
-  /** Present when the request named a target workspace (`usable_in`). */
+  /** Present when the request named a target collection (`usable_in`): writer, open collection, active asset. */
   can_use_in_workspace?: boolean;
 }
 
@@ -174,13 +189,13 @@ export interface SceneCapabilities {
 export interface PlacementCapabilities {
   can_read: boolean;
   can_edit: boolean;
-  /** Copy the fixed content into the request's workspace (own or legacy scope). */
+  /** Copy the fixed content into the request's collection (own or legacy scope). */
   can_copy: boolean;
-  /** True when shown through a legacy scope of another project. */
+  /** True when shown through a legacy scope of another collection. */
   read_only_shared: boolean;
 }
 
-// ───────────────────────── organization / workspace ─────────────────────────
+// ───────────────────────── organization / map collections ─────────────────────────
 
 export interface OrganizationContentModelDto {
   organization_id: string;
@@ -200,6 +215,10 @@ export interface SetContentModelStateRequest {
   note?: string;
 }
 
+/**
+ * A map collection (stored as a workspace row). Placements belong to exactly
+ * one collection; assets and scenes do not.
+ */
 export interface WorkspaceDto {
   id: string;
   name: string;
@@ -207,48 +226,74 @@ export interface WorkspaceDto {
   organization_id: string;
   create_date: string | null;
   archived_at: string | null;
-  /** Effective role after the org-role cap; null when only super_admin access. */
+  /** @deprecated Derived from the team role (see ProjectRole); null for super_admin-only access. */
   project_role: ProjectRole | null;
   content_model_state: ContentModelState;
   capabilities: WorkspaceCapabilities;
 }
 
+export type CollectionState = "active" | "archived" | "all";
+
+/**
+ * GET  /api/organizations/[id]/collections?state=active|archived|all (default active) → { data: WorkspaceDto[] }
+ * POST /api/organizations/[id]/collections CreateCollectionRequest → 201 { data: WorkspaceDto }
+ */
+export interface CreateCollectionRequest {
+  name: string;
+  description?: string | null;
+}
+
+/**
+ * GET   /api/collections/[id] → { data: WorkspaceDto }
+ * PATCH /api/collections/[id] UpdateCollectionRequest → { data: WorkspaceDto }
+ * POST  /api/collections/[id]/archive → archive; DELETE … → restore → { data: WorkspaceDto }
+ * Archiving never changes team assets or scenes; it makes the collection's
+ * placements read-only and stops their public entries.
+ */
+export interface UpdateCollectionRequest {
+  name?: string;
+  description?: string | null;
+}
+
+/** @deprecated Read-only compatibility row: every team member reaches every collection. */
 export interface WorkspaceMemberDto {
   user_id: string;
   name: string | null;
   email: string | null;
   org_role: "owner" | "admin" | "member" | "viewer";
-  /** Explicit assignment role (null for implicit owner/admin access). */
+  /** Historical assignment role, if one was recorded; grants nothing. */
   assignment_role: ProjectRole | null;
   effective_role: ProjectRole;
+  /** Always true: access comes from the team role. */
   implicit: boolean;
   assigned_at: string | null;
 }
 
-/** GET /api/workspaces/[id]/members */
+/** GET /api/workspaces/[id]/members (read-only compatibility view). */
 export interface WorkspaceMembersDto {
   workspace_id: string;
   members: WorkspaceMemberDto[];
-  /** Org members without access to this project (candidates for PUT). */
+  /** Always empty: there is no collection membership to grant. */
   candidates: { user_id: string; name: string | null; email: string | null; org_role: string }[];
   capabilities: WorkspaceCapabilities;
 }
 
-/** PUT /api/workspaces/[id]/members → { data: WorkspaceMemberDto } */
+/** @deprecated PUT /api/workspaces/[id]/members → 410 DEPRECATED. */
 export interface PutWorkspaceMemberRequest {
   userId: string;
   role: ProjectRole;
 }
-// DELETE /api/workspaces/[id]/members?user_id=… → { data: { removed: boolean } }
+// DELETE /api/workspaces/[id]/members?user_id=… → 410 DEPRECATED
 
-// POST /api/workspaces/[id]/archive → { data: WorkspaceDto }; DELETE … → restore.
+// POST /api/workspaces/[id]/archive → { data: WorkspaceDto }; DELETE … → restore (alias of the collection archive).
 
 // ───────────────────────── uploads ─────────────────────────
 
 export interface UploadReceiptDto {
   id: string;
   organization_id: string;
-  workspace_id: string;
+  /** Collection named by the upload, if any; receipts are organization-bound. */
+  workspace_id: string | null;
   storage_key: string;
   url: string;
   content_hash: string;
@@ -261,9 +306,12 @@ export interface UploadReceiptDto {
 }
 
 /**
- * POST /api/upload (multipart: file, type, workspace_id, purpose?).
- * Legacy top-level fields are kept for existing callers; `data` is the receipt
- * (absent only when no workspace was given — legacy callers, no v2 use).
+ * POST /api/upload (multipart: file, type?, organization_id and/or workspace_id, purpose?).
+ * The organization comes from the database, never from the form alone: the
+ * caller must be a team writer, and a given workspace_id must be an open
+ * collection of that organization. Legacy top-level fields are kept for
+ * existing callers; `data` is the receipt (absent only when neither id was
+ * given — legacy callers, no v2 use).
  */
 export interface UploadResponse {
   url: string;
@@ -391,9 +439,12 @@ export interface AssetDto {
   name: string | null;
   file_type: AssetFileType;
   origin: AssetOrigin;
+  /** Metadata only (new assets: `organization`). */
   visibility: AssetVisibility;
   state: AssetState;
+  /** Collection the asset was first uploaded from, if any (metadata). */
   origin_workspace_id: string | null;
+  /** Responsible person (metadata); does not restrict editing. */
   maintained_by: string | null;
   maintainer: UserRefDto | null;
   current_version_id: string | null;
@@ -411,9 +462,11 @@ export interface AssetDto {
 }
 
 /**
- * GET /api/workspaces/[id]/assets           (X-Content-Model: 2) project assets via grants
- * GET /api/organizations/[id]/assets        (X-Content-Model: 2) org catalog
- *   ?view=shared|maintained|all  (default shared; all = owner/admin)
+ * GET /api/organizations/[id]/assets        (X-Content-Model: 2) team catalog
+ * GET /api/workspaces/[id]/assets           (X-Content-Model: 2) the same team catalog,
+ *   with `usable_in` fixed to that collection
+ *   ?view=all|shared|maintained  (default all; every member; shared = visibility
+ *     "organization", maintained = maintained by me — metadata filters only)
  *   ?q=&file_type=&origin=&state=active|archived|all&usable_in=<workspaceId>&limit=&offset=
  * → ApiPage<AssetDto>
  */
@@ -441,17 +494,25 @@ export interface PlacementFieldsInput {
 /**
  * POST /api/workspaces/[id]/assets (X-Content-Model: 2)
  * → 201 { data: CreateAssetResult }; replay → 200 with created=false.
+ * Team asset whose origin is that collection; `placement` places it there.
  */
 export interface CreateAssetRequest {
   name: string;
   fileType: AssetFileType;
   payload: AssetVersionPayload;
   resources: ResourceInput[];
+  /** Metadata only; defaults to `organization`. */
   visibility?: AssetVisibility;
   idempotencyKey: string;
-  /** Optional one-step placement in the same workspace. */
+  /** Optional one-step placement in the same collection. */
   placement?: PlacementFieldsInput;
 }
+
+/**
+ * POST /api/organizations/[id]/assets → 201 { data: CreateAssetResult } (placement null);
+ * replay → 200 with created=false. Needs no collection.
+ */
+export type CreateOrganizationAssetRequest = Omit<CreateAssetRequest, "placement">;
 
 export interface CreateAssetResult {
   asset: AssetDto;
@@ -466,14 +527,15 @@ export interface AssetDetailDto extends AssetDto {
   grants: AssetGrantDto[];
 }
 
-/** PATCH /api/assets/[id] (X-Content-Model: 2) → { data: AssetDto } */
+/** PATCH /api/assets/[id] (X-Content-Model: 2) → { data: AssetDto } (any team writer) */
 export interface UpdateAssetRequest {
   expectedLockVersion: number;
   name?: string;
+  /** Metadata only. */
   visibility?: AssetVisibility;
   /** `active` restores an archived asset; archiving is DELETE. */
   state?: AssetState;
-  /** Owner/admin only; null hands maintenance back to admins. */
+  /** Owner/admin only; null clears the responsible maintainer. */
   maintainedBy?: string | null;
 }
 
@@ -485,41 +547,45 @@ export interface ArchiveAssetResult {
 
 /** POST /api/assets/[id]/duplicate → 201 { data: CreateAssetResult } ("另存素材副本") */
 export interface DuplicateAssetRequest {
-  targetWorkspaceId: string;
+  /** Optional origin collection (metadata, must be an open collection of the team); omit for a team-owned copy. */
+  targetWorkspaceId?: string;
   name?: string;
   /** Defaults to the current version. */
   sourceVersionId?: string;
   idempotencyKey: string;
 }
 
+/** @deprecated Historical project grant (read-only); new commands never create grants. */
 export interface AssetGrantDto {
   asset_id: string;
   workspace_id: string;
   workspace_name: string | null;
   created_by: string | null;
   created_at: string;
-  /** Null when the caller cannot read the workspace. */
+  /** Dependencies inside that collection. */
   dependency_count: number | null;
 }
 
-/** POST /api/assets/[id]/workspace-grants → 201 { data: AssetGrantDto } */
+/** @deprecated POST /api/assets/[id]/workspace-grants → 410 DEPRECATED. */
 export interface CreateGrantRequest {
   workspaceId: string;
 }
-// DELETE /api/assets/[id]/workspace-grants?workspace_id=… → { data: { revoked: true } } or 409 DEPENDENCY_CONFLICT.
+// DELETE /api/assets/[id]/workspace-grants?workspace_id=… → 410 DEPRECATED.
 
 export interface DependencyImpact {
   drafts: number;
   revisions: number;
   placements: number;
-  /** Visible subset; names of unreadable projects are never returned. */
+  /** Every same-team dependency. */
   items: DependencyItem[];
+  /** Always 0: team members see every dependency of a team asset. */
   restricted_count: number;
 }
 
+/** Scene items carry the scene's origin collection (null for team scenes); placements their collection. */
 export type DependencyItem =
-  | { kind: "scene_draft"; scene_id: string; scene_name: string; workspace_id: string; workspace_name: string; resource_alias: string; asset_version_id: string; version_no: number }
-  | { kind: "scene_revision"; scene_id: string; scene_name: string; scene_revision_id: string; revision_no: number; workspace_id: string; workspace_name: string; resource_alias: string; asset_version_id: string; version_no: number }
+  | { kind: "scene_draft"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string; asset_version_id: string; version_no: number }
+  | { kind: "scene_revision"; scene_id: string; scene_name: string; scene_revision_id: string; revision_no: number; workspace_id: string | null; workspace_name: string | null; resource_alias: string; asset_version_id: string; version_no: number }
   | { kind: "placement"; placement_id: string; placement_name: string | null; status: PlacementStatus; workspace_id: string; workspace_name: string; asset_version_id: string; version_no: number };
 
 /** GET /api/assets/[id]/usage → { data: AssetUsageDto } */
@@ -527,6 +593,7 @@ export interface AssetUsageDto {
   asset_id: string;
   current_version_id: string | null;
   impact: DependencyImpact;
+  /** @deprecated Historical grants only. */
   grants: AssetGrantDto[];
 }
 
@@ -552,7 +619,8 @@ export interface SceneRevisionSummaryDto {
 export interface SceneSummaryDto {
   id: string;
   organization_id: string;
-  workspace_id: string;
+  /** Legacy origin collection (metadata only); null for team scenes. */
+  workspace_id: string | null;
   name: string;
   state: SceneState;
   lock_version: number;
@@ -602,7 +670,12 @@ export interface SceneDocumentV3Json {
   };
 }
 
-/** POST /api/workspaces/[id]/scenes → 201 { data: SceneDetailDto } */
+/**
+ * POST /api/organizations/[id]/scenes → 201 { data: SceneDetailDto } (team scene)
+ * POST /api/workspaces/[id]/scenes    → 201 { data: SceneDetailDto } (team scene, workspace_id = origin)
+ * GET  /api/organizations/[id]/scenes?state=active|archived|all (default all) → { data: SceneSummaryDto[] }
+ * GET  /api/workspaces/[id]/scenes    → the same team list (compatibility)
+ */
 export interface CreateSceneRequest {
   name: string;
   /** Optional import; schema 1/2 imports must be converted by the client first. */
@@ -640,9 +713,10 @@ export interface PublishSceneResult {
   updated_placements: PlacementDto[];
 }
 
-/** POST /api/scenes/[id]/copy → 201 { data: SceneDetailDto } */
+/** POST /api/scenes/[id]/copy → 201 { data: SceneDetailDto } (always inside the same team) */
 export interface CopySceneRequest {
-  targetWorkspaceId: string;
+  /** Optional origin collection (metadata, must be an open collection of the team); omit for a team scene. */
+  targetWorkspaceId?: string;
   name?: string;
   idempotencyKey?: string;
 }
@@ -697,7 +771,8 @@ export type PlacementTargetDto =
       scene_revision_id: string;
       revision_no: number;
       scene_name: string;
-      scene_workspace_id: string;
+      /** Scene's legacy origin collection; null for team scenes. */
+      scene_workspace_id: string | null;
       scene_state: SceneState;
       latest_revision_id: string | null;
       upgrade_available: boolean;
@@ -718,7 +793,7 @@ export interface PlacementDto {
   tag_ids: string[];
   /** Id the mini-program sees (legacy public id for migrated content). */
   public_id: string;
-  /** Other projects that still discover this placement through legacy scopes. */
+  /** Other collections that still discover this placement through legacy scopes. */
   legacy_scope_workspace_ids: string[];
   /** No GPS/anchor discovery; listed by the shops endpoint only. */
   directory_only: boolean;
@@ -731,10 +806,14 @@ export interface PlacementDto {
 
 /**
  * GET /api/workspaces/[id]/placements?status=&include_shared=true → { data: PlacementDto[] }
- * GET /api/organizations/[id]/placements → { data: PlacementDto[] } (readable projects, de-duplicated)
+ * GET /api/organizations/[id]/placements → { data: PlacementDto[] } (every collection of the team)
  */
 
-/** POST /api/workspaces/[id]/placements → 201 { data: CreatePlacementResult } */
+/**
+ * POST /api/workspaces/[id]/placements → 201 { data: CreatePlacementResult }
+ * Any same-team AssetVersion or SceneRevision can be placed into any open
+ * collection; a scene is never copied to be placed in another collection.
+ */
 export type CreatePlacementRequest =
   | (PlacementFieldsInput & { target: PlacementTargetInput; idempotencyKey?: string })
   | (PlacementFieldsInput & { asset: Omit<CreateAssetRequest, "placement" | "idempotencyKey">; idempotencyKey: string });
@@ -763,13 +842,13 @@ export interface UpdatePlacementRequest {
 // DELETE /api/placements/[id]?expectedLockVersion=N → archive → { data: PlacementDto }
 
 /**
- * GET /api/placements/[id]/content?workspace_id=<viewer project>
+ * GET /api/placements/[id]/content?workspace_id=<viewer collection>
  * → { data: PlacementContentDto }
  *
  * Fixed playable content of one placement for preview, authorized exactly
- * like GET /api/placements/[id]: read access to the owning project, or read
- * access to `workspace_id` while it holds an active legacy scope for the
- * placement. Returns only what the placement pins — never version history,
+ * like GET /api/placements/[id]: team membership of the placement's
+ * organization (`workspace_id` with an active legacy scope marks the shared
+ * view). Returns only what the placement pins — never version history,
  * the asset's current version, grants, drafts or catalog data — and grants
  * nothing for reuse. Unreadable placements are 404.
  */

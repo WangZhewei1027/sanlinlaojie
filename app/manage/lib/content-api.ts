@@ -18,15 +18,16 @@ import {
   type ArchiveAssetResult,
   type AssetDetailDto,
   type AssetDto,
-  type AssetGrantDto,
   type AssetListQuery,
+  type CollectionState,
   type AssetUsageDto,
   type ContentErrorCode,
   type CopyPlacementRequest,
   type CopySceneRequest,
-  type CreateAssetRequest,
   type CreateAssetResult,
   type CreateAssetVersionRequest,
+  type CreateCollectionRequest,
+  type CreateOrganizationAssetRequest,
   type CreatePlacementRequest,
   type CreatePlacementResult,
   type CreateSceneRequest,
@@ -39,18 +40,17 @@ import {
   type PlacementStatus,
   type PublishSceneRequest,
   type PublishSceneResult,
-  type PutWorkspaceMemberRequest,
   type SaveSceneRequest,
   type SceneDetailDto,
   type SceneRevisionSummaryDto,
   type SceneSummaryDto,
   type UpdateAssetRequest,
+  type UpdateCollectionRequest,
   type UpdatePlacementRequest,
   type UploadPurpose,
   type UploadReceiptDto,
   type UploadResponse,
   type WorkspaceDto,
-  type WorkspaceMemberDto,
   type WorkspaceMembersDto,
 } from "@/lib/content-model/contracts";
 
@@ -156,27 +156,57 @@ function list<T>(body: { data: T[]; page?: { total: number } }): ListResult<T> {
   return { items: body.data ?? [], total: body.page?.total ?? null };
 }
 
-// ───────────────────────── organization / workspace ─────────────────────────
+// ───────────────────────── team / collections ─────────────────────────
 
+export type { CollectionState, CreateCollectionRequest, UpdateCollectionRequest };
+
+/**
+ * Team-scoped content. Assets and scenes belong to the team (organization);
+ * creating them never needs a collection.
+ */
 export const organizationApi = {
   /** Assumed GET twin of `PUT /api/organizations/[id]/content-model` (see contract). */
   contentModel: (organizationId: string, signal?: AbortSignal) =>
     get<Data<OrganizationContentModelDto>>(`/api/organizations/${id(organizationId)}/content-model`, undefined, signal).then((body) => body.data),
   assets: (organizationId: string, query: AssetListQuery, signal?: AbortSignal) =>
     get<ApiPage<AssetDto>>(`/api/organizations/${id(organizationId)}/assets`, query as Query, signal),
+  createAsset: (organizationId: string, request: CreateOrganizationAssetRequest) =>
+    send<Data<CreateAssetResult>>("POST", `/api/organizations/${id(organizationId)}/assets`, request).then((body) => body.data),
+  scenes: (organizationId: string, query?: { state?: "active" | "archived" | "all" }, signal?: AbortSignal) =>
+    get<{ data: SceneSummaryDto[]; page?: { total: number } }>(`/api/organizations/${id(organizationId)}/scenes`, query, signal).then(list),
+  createScene: (organizationId: string, request: CreateSceneRequest) =>
+    send<Data<SceneDetailDto>>("POST", `/api/organizations/${id(organizationId)}/scenes`, request).then((body) => body.data),
   placements: (organizationId: string, signal?: AbortSignal) =>
     get<Data<PlacementDto[]>>(`/api/organizations/${id(organizationId)}/placements`, undefined, signal).then((body) => body.data ?? []),
+  /** Map collections; the response keeps the WorkspaceDto compatibility shape. */
+  collections: (organizationId: string, query?: { state?: CollectionState }, signal?: AbortSignal) =>
+    get<Data<WorkspaceDto[]>>(`/api/organizations/${id(organizationId)}/collections`, query, signal).then((body) => body.data ?? []),
+  createCollection: (organizationId: string, request: CreateCollectionRequest) =>
+    send<Data<WorkspaceDto>>("POST", `/api/organizations/${id(organizationId)}/collections`, request).then((body) => body.data),
 };
 
+export const collectionApi = {
+  get: (collectionId: string, signal?: AbortSignal) =>
+    get<Data<WorkspaceDto>>(`/api/collections/${id(collectionId)}`, undefined, signal).then((body) => body.data),
+  update: (collectionId: string, request: UpdateCollectionRequest) =>
+    send<Data<WorkspaceDto>>("PATCH", `/api/collections/${id(collectionId)}`, request).then((body) => body.data),
+  archive: (collectionId: string) => send<Data<WorkspaceDto>>("POST", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
+  restore: (collectionId: string) => send<Data<WorkspaceDto>>("DELETE", `/api/collections/${id(collectionId)}/archive`).then((body) => body.data),
+};
+
+/**
+ * Compatibility paths keyed by the collection's workspace UUID. Only the map
+ * adapter (placements, anchors, tags) and the legacy admin page use these;
+ * content creation never goes through a workspace.
+ */
 export const workspaceApi = {
   /** WorkspaceDto through the legacy detail path with the v2 header. */
   get: (workspaceId: string, signal?: AbortSignal) =>
     get<Data<WorkspaceDto>>(`/api/workspaces/${id(workspaceId)}`, undefined, signal).then((body) => body.data),
   /**
-   * Project facts plus server capabilities. The legacy detail route returns
-   * the raw row without capabilities; then the capabilities come from the
-   * members route (readable by any project reader, computed by the same
-   * server rules). `project_role` stays null when only that fallback exists.
+   * Collection facts plus server capabilities through the legacy detail
+   * route, for deployments without `/api/collections/[id]`. The raw row may
+   * lack capabilities; the members route then supplies them.
    */
   info: async (workspaceId: string, signal?: AbortSignal): Promise<WorkspaceDto> => {
     const row = await get<Data<Partial<WorkspaceDto> & { id: string; name: string }>>(`/api/workspaces/${id(workspaceId)}`, undefined, signal).then((body) => body.data);
@@ -196,20 +226,9 @@ export const workspaceApi = {
   },
   archive: (workspaceId: string) => send<Data<WorkspaceDto>>("POST", `/api/workspaces/${id(workspaceId)}/archive`).then((body) => body.data),
   restore: (workspaceId: string) => send<Data<WorkspaceDto>>("DELETE", `/api/workspaces/${id(workspaceId)}/archive`).then((body) => body.data),
-  members: (workspaceId: string, signal?: AbortSignal) =>
-    get<Data<WorkspaceMembersDto>>(`/api/workspaces/${id(workspaceId)}/members`, undefined, signal).then((body) => body.data),
-  putMember: (workspaceId: string, request: PutWorkspaceMemberRequest) =>
-    send<Data<WorkspaceMemberDto>>("PUT", `/api/workspaces/${id(workspaceId)}/members`, request).then((body) => body.data),
-  removeMember: (workspaceId: string, userId: string) =>
-    send<Data<{ removed: boolean }>>("DELETE", `/api/workspaces/${id(workspaceId)}/members`, undefined, { user_id: userId }).then((body) => body.data),
+  /** Anchors keep their workspace-bound identity (dedicated legacy service). */
   assets: (workspaceId: string, query: AssetListQuery, signal?: AbortSignal) =>
     get<ApiPage<AssetDto>>(`/api/workspaces/${id(workspaceId)}/assets`, query as Query, signal),
-  createAsset: (workspaceId: string, request: CreateAssetRequest) =>
-    send<Data<CreateAssetResult>>("POST", `/api/workspaces/${id(workspaceId)}/assets`, request).then((body) => body.data),
-  scenes: (workspaceId: string, query?: { state?: "active" | "archived" | "all" }, signal?: AbortSignal) =>
-    get<{ data: SceneSummaryDto[]; page?: { total: number } }>(`/api/workspaces/${id(workspaceId)}/scenes`, query, signal).then(list),
-  createScene: (workspaceId: string, request: CreateSceneRequest) =>
-    send<Data<SceneDetailDto>>("POST", `/api/workspaces/${id(workspaceId)}/scenes`, request).then((body) => body.data),
   placements: (workspaceId: string, query?: { status?: PlacementStatus; include_shared?: boolean }, signal?: AbortSignal) =>
     get<Data<PlacementDto[]>>(`/api/workspaces/${id(workspaceId)}/placements`, query, signal).then((body) => body.data ?? []),
   createPlacement: (workspaceId: string, request: CreatePlacementRequest) =>
@@ -226,10 +245,7 @@ export const assetApi = {
   createVersion: (assetId: string, request: CreateAssetVersionRequest) =>
     send<Data<CreateVersionResult>>("POST", `/api/assets/${id(assetId)}/versions`, request).then((body) => body.data),
   usage: (assetId: string, signal?: AbortSignal) => get<Data<AssetUsageDto>>(`/api/assets/${id(assetId)}/usage`, undefined, signal).then((body) => body.data),
-  grant: (assetId: string, workspaceId: string) =>
-    send<Data<AssetGrantDto>>("POST", `/api/assets/${id(assetId)}/workspace-grants`, { workspaceId }).then((body) => body.data),
-  revoke: (assetId: string, workspaceId: string) =>
-    send<Data<{ revoked: true }>>("DELETE", `/api/assets/${id(assetId)}/workspace-grants`, undefined, { workspace_id: workspaceId }).then((body) => body.data),
+  /** Same-team copy when `targetWorkspaceId` is omitted. */
   duplicate: (assetId: string, request: DuplicateAssetRequest) =>
     send<Data<CreateAssetResult>>("POST", `/api/assets/${id(assetId)}/duplicate`, request).then((body) => body.data),
 };
@@ -241,6 +257,7 @@ export const sceneApi = {
   save: (sceneId: string, request: SaveSceneRequest) => send<Data<SceneDetailDto>>("PATCH", `/api/scenes/${id(sceneId)}`, request).then((body) => body.data),
   publish: (sceneId: string, request: PublishSceneRequest) =>
     send<Data<PublishSceneResult>>("POST", `/api/scenes/${id(sceneId)}/publish`, request).then((body) => body.data),
+  /** Same-team copy when `targetWorkspaceId` is omitted. */
   copy: (sceneId: string, request: CopySceneRequest) => send<Data<SceneDetailDto>>("POST", `/api/scenes/${id(sceneId)}/copy`, request).then((body) => body.data),
   revisions: (sceneId: string, signal?: AbortSignal) =>
     get<Data<SceneRevisionSummaryDto[]>>(`/api/scenes/${id(sceneId)}/revisions`, undefined, signal).then((body) => body.data ?? []),
@@ -262,18 +279,26 @@ export const placementApi = {
 
 // ───────────────────────── uploads ─────────────────────────
 
+/** Where an upload lands: always the team; a collection only for map/onsite placement. */
+export interface UploadScope {
+  organizationId: string;
+  /** Collection (workspace UUID) of an upload-and-place command; omitted for team content. */
+  workspaceId?: string | null;
+}
+
 /**
  * Upload one already-processed file and return its receipt. The receipt (not
  * the URL) is what version and placement commands accept.
  */
 export async function uploadReceipt(
   file: File,
-  options: { type: string; workspaceId: string; purpose?: UploadPurpose; signal?: AbortSignal },
+  options: UploadScope & { type: string; purpose?: UploadPurpose; signal?: AbortSignal },
 ): Promise<UploadReceiptDto> {
   const form = new FormData();
   form.set("file", file, file.name);
   form.set("type", options.type);
-  form.set("workspace_id", options.workspaceId);
+  form.set("organization_id", options.organizationId);
+  if (options.workspaceId) form.set("workspace_id", options.workspaceId);
   form.set("purpose", options.purpose ?? "asset_version");
   let response: Response;
   try {

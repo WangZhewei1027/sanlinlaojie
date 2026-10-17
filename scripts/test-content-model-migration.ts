@@ -84,7 +84,7 @@ async function snapshotGuardCheck(client:Client){
 async function main(){
   assert.ok(process.env.DATABASE_URL,"Set dedicated test DATABASE_URL");
   const url=new URL(process.env.DATABASE_URL);
-  assert.equal(url.hostname,"127.0.0.1");assert.equal(url.port,"55439");assert.equal(url.pathname,"/content_migration");assert.equal(url.username,"postgres");
+  assert.equal(url.hostname,"127.0.0.1");assert.equal(url.port,"55439");assert.ok(["/content_migration","/team_wb_migration"].includes(url.pathname),"Only a dedicated migration fixture database is permitted");assert.equal(url.username,"postgres");
   const client=await connect(opts);
   try{
     if(process.argv.includes("--snapshot-guard-only")){await snapshotGuardCheck(client);return;}

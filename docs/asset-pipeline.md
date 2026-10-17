@@ -11,18 +11,18 @@
 ```text
 选择/处理文件 → 上传取得 receipt
   → 校验操作者、组织、有效期与用途
-  → Asset + AssetVersion + resource 文件清单 + 来源项目 grant
+  → Asset + AssetVersion + resource 文件清单（团队所有，不创建授权）
   → 可选：同事务创建指向固定版本的 Placement
 ```
 
-上传完成只代表文件可供提交，不表示素材或投放已创建。`lib/upload/receipts.server.ts` 的回执绑定操作者、组织、项目、key、hash 与用途；有效期内也保护在途文件。版本资源可引用同组织可读取的已有版本文件，以复用物理存储。新版本不会改动已有草稿、发布或投放。
+上传完成只代表文件可供提交，不表示素材或投放已创建。`lib/upload/receipts.server.ts` 的回执绑定操作者、团队（组织）、可选合集、key、hash 与用途；工作台上传只传 `organization_id`，上传并投放才同时传合集；有效期内也保护在途文件。版本资源可引用同组织可读取的已有版本文件，以复用物理存储。新版本不会改动已有草稿、发布或投放。
 
 | 入口 | 写入结果 |
 | --- | --- |
-| 素材库上传 | Asset、v1、项目 grant，不默认投放 |
+| 工作台上传 | 团队 Asset 与 v1（`POST /api/organizations/[id]/assets`），不选合集、不默认投放 |
 | 场景内上传并添加 | 创建素材后，草稿固定引用所选版本 |
 | 上传新版本 | 追加不可变内容、推进 current 指针；使用方主动升级 |
-| 现场上传并放置 | 一次组合命令创建素材、版本与 Placement；无需创建 Scene |
+| 现场上传并放置 | 页面内选择地图合集后，一次组合命令创建素材、版本与 Placement；无需创建 Scene |
 
 素材固有信息与投放参数分开：内容、尺寸、时长、动画列表进入 version payload；文件进入 `asset_version_resource`；位置、Anchor、比例/朝向与局部展示参数进入 Placement。EXIF GPS 是采集信息，只有明确的投放操作才用于展示位置。上传和创建命令使用幂等键与回执重试，失败后的文件由 [统一回收](asset-storage-lifecycle.md) 处理。
 

@@ -17,9 +17,9 @@ import { createAnchorV2 } from "@/lib/assets/legacy.server";
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * GET — requires read access to the project.
- *   X-Content-Model: 2 → project assets via grants: ApiPage<AssetDto>
- *     (?q=&file_type=&origin=&state=&limit=&offset=)
+ * GET — any member of the collection's team.
+ *   X-Content-Model: 2 → the team catalog with use flags for this collection
+ *     (no grants needed): ApiPage<AssetDto> (?view=&q=&file_type=&origin=&state=&limit=&offset=)
  *   otherwise          → v1 projection: legacy rows of this workspace
  *     (?type=&requireLocation=true), frozen read-only after cutover.
  */
@@ -55,10 +55,11 @@ export async function GET(request: Request, { params }: Context) {
 }
 
 /**
- * POST — requires edit rights on the project.
- *   Cut-over organization + X-Content-Model: 2 → CreateAssetRequest: Asset +
- *     immutable v1 + origin grant (+ optional placement), idempotent; anchors
- *     keep the legacy field shape and their dedicated service.
+ * POST — team writer, collection open.
+ *   Cut-over organization + X-Content-Model: 2 → CreateAssetRequest: team
+ *     Asset (origin: this collection) + immutable v1 (+ optional placement
+ *     here), idempotent; anchors keep the legacy field shape and their
+ *     dedicated service.
  *   Legacy organization → unchanged legacy row insert.
  *   Cut-over organization without the header → 409 CONTENT_MODEL_UPGRADE_REQUIRED.
  */

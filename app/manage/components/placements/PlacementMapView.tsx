@@ -6,7 +6,7 @@ import type { PlacementDto } from "@/lib/content-model/contracts";
 import { DEFAULT_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 import { ViewerFrame } from "../ViewerFrame";
 import { usePlacementViewer } from "../../hooks/usePlacementViewer";
-import { useWorkspaceInfo, type ContentContext } from "../../lib/content-context";
+import type { Organization, Workspace } from "../../types";
 import { placementScopeKey, toViewerItems } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
 import { ManageGridLayout } from "./ManageGridLayout";
@@ -18,24 +18,37 @@ import { listTabOf, matchesFilters } from "./placement-utils";
 import { usePlacementText } from "./placement-texts";
 import { usePlacementData } from "./usePlacementData";
 
+/** One map collection as the placement map sees it (the collection id is its workspace UUID). */
+export interface PlacementMapScope {
+  organizationId: string;
+  organization: Organization | null;
+  /** The open collection. */
+  workspaceId: string;
+  /** The team's collections, for names of legacy shared placements and copy targets. */
+  workspaces: Workspace[];
+  /** Server capability of the collection (`capabilities.can_edit`, not archived). */
+  canEdit: boolean;
+  capabilitiesLoading: boolean;
+  /** Collection detail lays the grid out under its own header bar. */
+  fill?: boolean;
+}
+
 /**
- * v2 placement map: Placement list | map iframe | placement sidebar.
- * Rights come only from server capabilities (`placement.capabilities`,
- * project `capabilities.can_edit`); `__all__` is browse-only.
+ * v2 placement map of one collection: Placement list | map iframe | sidebar.
+ * Rights come only from server capabilities (`placement.capabilities` and the
+ * collection's `capabilities.can_edit`).
  */
-export function PlacementMapView({ context }: { context: ContentContext }) {
+export function PlacementMapView({ scope }: { scope: PlacementMapScope }) {
   const tx = usePlacementText();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const organizationId = context.organizationId as string;
-  const { workspaceId, isAll, organization, workspaces } = context;
-  const workspaceInfo = useWorkspaceInfo(workspaceId);
-  const workspaceCanEdit = !isAll && !!workspaceId && !!workspaceInfo.workspace?.capabilities.can_edit;
+  const { organizationId, workspaceId, organization, workspaces } = scope;
+  const workspaceCanEdit = scope.canEdit;
 
-  const data = usePlacementData({ organizationId, workspaceId, isAll, tx });
+  const data = usePlacementData({ organizationId, workspaceId, isAll: false, tx });
   const placements = usePlacementStore((state) => state.placements);
   const placementContents = usePlacementStore((state) => state.placementContents);
   const loadedScopeKey = usePlacementStore((state) => state.scopeKey);
-  const scopeKey = !isAll && !workspaceId ? null : placementScopeKey(organizationId, workspaceId);
+  const scopeKey = placementScopeKey(organizationId, workspaceId);
   const statusFilter = usePlacementStore((state) => state.statusFilter);
   const fileTypeFilter = usePlacementStore((state) => state.fileTypeFilter);
   const tagFilter = usePlacementStore((state) => state.tagFilter);
@@ -48,12 +61,12 @@ export function PlacementMapView({ context }: { context: ContentContext }) {
 
   const canWrite = useCallback(
     (placement: PlacementDto) =>
-      !isAll && !!workspaceId && placement.capabilities.can_edit && !placement.capabilities.read_only_shared,
-    [isAll, workspaceId],
+      placement.capabilities.can_edit && !placement.capabilities.read_only_shared,
+    [],
   );
   const canCopy = useCallback(
-    (placement: PlacementDto) => !isAll && workspaceCanEdit && placement.capabilities.can_copy,
-    [isAll, workspaceCanEdit],
+    (placement: PlacementDto) => workspaceCanEdit && placement.capabilities.can_copy,
+    [workspaceCanEdit],
   );
 
   const viewer = usePlacementViewer({ iframeRef, items, mapCenter: organization?.map_center, canWrite, tx });
@@ -84,10 +97,10 @@ export function PlacementMapView({ context }: { context: ContentContext }) {
     organizationId,
     organization,
     workspaceId,
-    isAll,
+    isAll: false,
     workspaces,
     workspaceCanEdit,
-    workspaceInfoLoading: workspaceInfo.status === "loading",
+    workspaceInfoLoading: scope.capabilitiesLoading,
     tags: data.tags,
     anchors: data.anchors,
     anchorsStatus: data.anchorsStatus,
@@ -105,6 +118,7 @@ export function PlacementMapView({ context }: { context: ContentContext }) {
   return (
     <PlacementMapProvider value={value}>
       <ManageGridLayout
+        fill={scope.fill}
         list={<PlacementList visible={visible} />}
         viewer={
           <>

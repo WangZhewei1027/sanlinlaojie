@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Text } from "@/components/ui/typography";
-import type { AssetDto, AssetVisibility } from "@/lib/content-model/contracts";
+import type { AssetDto } from "@/lib/content-model/contracts";
 import { ContentFailureNotice, useContentAction } from "@/app/manage/content";
-import { workspaceApi } from "@/app/manage/lib/content-api";
+import { organizationApi } from "@/app/manage/lib/content-api";
 import { runContentAction } from "@/app/manage/lib/content-errors";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { bodyForIntent, contentSignature, intentFor, settleFailure, type UploadIntent, type UploadStage } from "./asset-upload";
@@ -21,9 +21,9 @@ import { ASSET_TEXTS } from "./texts";
 export interface AssetCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceId: string;
-  projectName: string;
-  /** Types the organization allows, in display order. */
+  organizationId: string;
+  teamName: string;
+  /** Types the team allows, in display order. */
   types: CreatableType[];
   onCreated: (asset: AssetDto) => void;
 }
@@ -31,17 +31,16 @@ export interface AssetCreateDialogProps {
 const NAME_MAX = 120;
 const EMPTY_DRAFT: DraftContent = { file: null, text: "" };
 
-/** New asset in the current project: content → receipt → createAsset. No placement. */
-export function AssetCreateDialog({ open, onOpenChange, workspaceId, projectName, types, onCreated }: AssetCreateDialogProps) {
+/** New team asset: content → receipt → createAsset. No collection, no placement. */
+export function AssetCreateDialog({ open, onOpenChange, organizationId, teamName, types, onCreated }: AssetCreateDialogProps) {
   const { t } = useTranslation();
   const tx = useIntegrationText(ASSET_TEXTS);
-  const ids = { type: useId(), name: useId(), visibility: useId() };
+  const ids = { type: useId(), name: useId() };
   const [type, setType] = useState<CreatableType>(types[0] ?? "image");
   const [draft, setDraft] = useState<DraftContent>(EMPTY_DRAFT);
   const [name, setName] = useState("");
   /** Last suggested name; replaced on content change unless the user edited it. */
   const [suggested, setSuggested] = useState("");
-  const [visibility, setVisibility] = useState<AssetVisibility>("restricted");
   const [stage, setStage] = useState<UploadStage | null>(null);
   const action = useContentAction();
   const intent = useRef<UploadIntent | null>(null);
@@ -49,7 +48,7 @@ export function AssetCreateDialog({ open, onOpenChange, workspaceId, projectName
   const content = contentOf(activeType, draft);
 
   const reset = () => {
-    setDraft(EMPTY_DRAFT); setName(""); setSuggested(""); setVisibility("restricted"); setStage(null);
+    setDraft(EMPTY_DRAFT); setName(""); setSuggested(""); setStage(null);
     intent.current = null; action.reset();
   };
   const close = (next: boolean) => {
@@ -75,20 +74,19 @@ export function AssetCreateDialog({ open, onOpenChange, workspaceId, projectName
     event.preventDefault();
     const trimmed = name.trim();
     if (!content || !trimmed) return;
-    const signature = [workspaceId, trimmed, visibility, contentSignature(content)].join("|");
+    const signature = [organizationId, trimmed, contentSignature(content)].join("|");
     const current = intentFor(intent, signature);
     const ok = await action.run(() =>
       runContentAction(
         async () => {
           try {
-            const body = await bodyForIntent(current, content, workspaceId, (key) => String(t(key)), setStage);
+            const body = await bodyForIntent(current, content, organizationId, (key) => String(t(key)), setStage);
             setStage("creating");
-            return await workspaceApi.createAsset(workspaceId, {
+            return await organizationApi.createAsset(organizationId, {
               name: trimmed,
               fileType: content.kind === "file" ? content.type : content.kind,
               payload: body.payload,
               resources: body.resources,
-              visibility,
               idempotencyKey: current.key,
             });
           } catch (error) {
@@ -111,33 +109,18 @@ export function AssetCreateDialog({ open, onOpenChange, workspaceId, projectName
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{tx("contentModel.integration.assets.create.title")}</DialogTitle>
-            <DialogDescription>{tx("contentModel.integration.assets.create.body", { project: projectName })}</DialogDescription>
+            <DialogDescription>{tx("contentModel.integration.assets.create.body", { team: teamName })}</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={ids.type}>{tx("contentModel.integration.assets.create.type")}</Label>
-              <Select value={activeType} onValueChange={(value) => changeType(value as CreatableType)} disabled={action.pending}>
-                <SelectTrigger id={ids.type} className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {types.map((value) => <SelectItem key={value} value={value}>{t(`fileTypes.${value}`)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={ids.visibility}>{tx("contentModel.integration.assets.create.visibility")}</Label>
-              <Select value={visibility} onValueChange={(value) => setVisibility(value as AssetVisibility)} disabled={action.pending}>
-                <SelectTrigger id={ids.visibility} className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="restricted">{tx("contentModel.integration.assets.create.restricted")}</SelectItem>
-                  <SelectItem value="organization">{tx("contentModel.integration.assets.create.organization")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={ids.type}>{tx("contentModel.integration.assets.create.type")}</Label>
+            <Select value={activeType} onValueChange={(value) => changeType(value as CreatableType)} disabled={action.pending}>
+              <SelectTrigger id={ids.type} className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {types.map((value) => <SelectItem key={value} value={value}>{t(`fileTypes.${value}`)}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <Text as="p" variant="bodyXs" tone="subdued">
-            {tx(visibility === "organization" ? "contentModel.integration.assets.create.organizationHint" : "contentModel.integration.assets.create.restrictedHint")}
-          </Text>
 
           <AssetContentField type={activeType} draft={draft} onChange={changeDraft} disabled={action.pending} tx={tx} />
 

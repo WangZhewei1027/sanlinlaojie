@@ -8,8 +8,9 @@ import { loadActor, requireWorkspaceRead } from "@/lib/content-model/access.serv
 import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
 import { isUuid } from "@/lib/content-model/input";
 import { ContentError } from "@/lib/content-model/errors";
+import { updateCollection } from "@/lib/content-model/projects.server";
 
-/** Project row plus the caller's effective role and capabilities (read access required). */
+/** Collection row plus the caller's team-derived role and capabilities (any team member). */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -18,7 +19,7 @@ export async function GET(
   let userId: string | null = null;
   try {
     userId = await requireSessionUserId();
-    if (!isUuid(id)) throw new ContentError("NOT_FOUND", "项目不存在");
+    if (!isUuid(id)) throw new ContentError("NOT_FOUND", "合集不存在");
     const access = await requireWorkspaceRead(db, await loadActor(db, userId), id);
     const data = await db.selectFrom("workspace").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
     return NextResponse.json({
@@ -35,9 +36,9 @@ export async function GET(
 }
 
 /**
- * Gate a workspace mutation: the caller must be super_admin, or hold the given
- * org permission in the workspace's organization. Returns the resolved orgId
- * on success, or a NextResponse (401/403/404) to short-circuit.
+ * Gate a hard delete: the caller must be super_admin, or hold the given org
+ * permission (owner/admin) in the workspace's organization. Returns
+ * a NextResponse (401/403/404) to short-circuit on denial.
  */
 async function authorizeWorkspaceMutation(
   workspaceId: string,
@@ -80,46 +81,27 @@ async function authorizeWorkspaceMutation(
   return { ok: true };
 }
 
+/** PUT { name, description? } → { data: WorkspaceDto }: rename an open collection (any team writer). */
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  let userId: string | null = null;
   try {
-    const auth = await authorizeWorkspaceMutation(
-      id,
-      "org.workspaces.edit",
-      "PUT",
-    );
-    if (!auth.ok) return auth.response;
-
-    const body = await request.json();
-    const { name, description } = body;
+    userId = await requireSessionUserId();
+    if (!isUuid(id)) throw new ContentError("NOT_FOUND", "合集不存在");
+    const body = await request.json().catch(() => null);
+    const { name, description } = body ?? {};
 
     if (!name) {
       return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
-    const data = await db
-      .updateTable("workspace")
-      .set({
-        name,
-        description: description || null,
-      })
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
+    const data = await updateCollection(await loadActor(db, userId), id, { name, description: description || null });
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("更新 workspace 失败:", error);
-    await logError({
-      method: "PUT",
-      path: `/api/workspaces/${id}`,
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "更新工作空间失败" }, { status: 500 });
+    return failure(error, { method: "PUT", path: `/api/workspaces/${id}`, userId });
   }
 }
 
@@ -128,6 +110,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "工作空间不存在" }, { status: 404 });
   try {
     const auth = await authorizeWorkspaceMutation(
       id,
@@ -136,8 +119,8 @@ export async function DELETE(
     );
     if (!auth.ok) return auth.response;
 
-    // 只有完全空的项目可以硬删除；有任何内容（旧资产行、素材授权、场景、投放、
-    // 旧多项目入口）时默认归档（POST /api/workspaces/[id]/archive），不级联吞掉依赖。
+    // 只有完全空的合集可以硬删除（owner/admin）；仍被旧资产行、历史授权、来源场景、
+    // 投放或旧入口引用时改为归档（POST /api/collections/[id]/archive），团队内容不受影响。
     const { rows } = await sql<{ assets: number; grants: number; scenes: number; placements: number; scopes: number }>`
       select
         (select count(*) from asset where workspace_id @> array[${id}::uuid] or origin_workspace_id = ${id}::uuid) as assets,

@@ -9,12 +9,13 @@ export interface BreadcrumbCrumb {
 // segment (e.g. "settings") can resolve differently per console, and
 // dynamic segments (UUIDs, tokens) simply never match.
 const PATH_LABELS: Record<string, string> = {
-  "/manage": "nav.manage",
+  "/manage": "contentModel.integration.nav.workbench",
   "/manage/assets": "contentModel.integration.nav.assets",
   "/manage/scenes": "contentModel.integration.nav.scenes",
+  "/manage/collections": "contentModel.integration.nav.collections",
   "/upload-onsite": "nav.upload",
   "/settings": "settings.title",
-  "/admin": "nav.admin",
+  "/admin": "contentModel.integration.nav.settings",
   "/admin/members": "admin.sidebar.members",
   "/admin/workspaces": "admin.sidebar.workspaces",
   "/admin/settings": "admin.sidebar.settings",
@@ -29,8 +30,11 @@ const PATH_LABELS: Record<string, string> = {
 // zh/en fallbacks for label keys the locale files may not carry yet.
 // Same keys and wording as app/manage/components/ContentNav.tsx.
 const LABEL_FALLBACKS: Record<string, readonly [zh: string, en: string]> = {
-  "contentModel.integration.nav.assets": ["素材库", "Asset library"],
+  "contentModel.integration.nav.workbench": ["工作台", "Workbench"],
+  "contentModel.integration.nav.assets": ["素材", "Assets"],
   "contentModel.integration.nav.scenes": ["场景", "Scenes"],
+  "contentModel.integration.nav.collections": ["合集", "Collections"],
+  "contentModel.integration.nav.settings": ["团队设置", "Team settings"],
 };
 
 /**

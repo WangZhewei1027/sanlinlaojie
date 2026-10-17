@@ -5,7 +5,6 @@ import { ListChecks, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Text } from "@/components/ui/typography";
-import { ContentNav } from "../ContentNav";
 import { FileTypeFilter } from "../AssetManager/FileTypeFilter";
 import { TagFilter } from "../AssetManager/TagFilter";
 import { usePlacementStore, type PlacementStatusFilter } from "../../lib/placement-store";
@@ -21,9 +20,9 @@ interface PlacementListHeaderProps {
   onToggleSelectMode: () => void;
 }
 
-/** Section tabs, counts, refresh, multi-select and the status / type / tag filters. */
+/** Counts, refresh, multi-select and the status / type / tag filters of one collection. */
 export function PlacementListHeader({ shownCount, totalCount, fileTypes, selectMode, onToggleSelectMode }: PlacementListHeaderProps) {
-  const { tx, tags, organizationId, workspaceId, isAll } = usePlacementMap();
+  const { tx, tags } = usePlacementMap();
   const statusId = useId();
   const loading = usePlacementStore((state) => state.status === "loading");
   const statusFilter = usePlacementStore((state) => state.statusFilter);
@@ -33,7 +32,6 @@ export function PlacementListHeader({ shownCount, totalCount, fileTypes, selectM
 
   return (
     <div className="space-y-2 border-b p-3">
-      <ContentNav organizationId={organizationId} workspaceId={isAll ? null : workspaceId} className="-mx-1" />
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <Text as="h2" variant="bodySm" fontWeight="semibold" truncate>{tx("contentModel.integration.map.list.title")}</Text>

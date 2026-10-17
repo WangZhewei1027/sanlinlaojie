@@ -21,14 +21,28 @@ import { buildQrPublicUrl } from "@/lib/wechat-qr";
 // switching org/workspace back and forth never refetches within a page session.
 const confirmedQrUrls = new Map<string, string>();
 
-export function WorkspaceQrButton() {
+interface WorkspaceQrButtonProps {
+  /**
+   * Explicit target, e.g. the open map collection (its workspace UUID). When
+   * omitted the persisted selection is used (legacy map header).
+   */
+  organizationId?: string | null;
+  workspaceId?: string | null;
+}
+
+export function WorkspaceQrButton(props: WorkspaceQrButtonProps = {}) {
   const { t } = useTranslation();
-  const selectedOrganizationId = useManageStore(
+  const storeOrganizationId = useManageStore(
     (state) => state.selectedOrganizationId,
   );
-  const selectedWorkspaceId = useManageStore(
-    (state) => state.selectedWorkspaceId,
-  );
+  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
+  const explicit = props.organizationId !== undefined;
+  const selectedOrganizationId = explicit
+    ? (props.organizationId ?? null)
+    : storeOrganizationId;
+  const selectedWorkspaceId = explicit
+    ? (props.workspaceId ?? null)
+    : storeWorkspaceId;
 
   const workspaceId = isSpecificWorkspaceId(selectedWorkspaceId)
     ? selectedWorkspaceId

@@ -140,33 +140,10 @@ async function usageCounts(exec: Executor, assetIds: string[]): Promise<Map<stri
   return new Map(rows.map((row) => [row.asset_id, Number(row.n)]));
 }
 
-/** Assets reachable through a grant to a project the caller is assigned to. */
-async function grantReadable(exec: Executor, actor: Actor, assetIds: string[]): Promise<Set<string>> {
-  if (!assetIds.length) return new Set();
-  const rows = await exec
-    .selectFrom("asset_workspace_grant as g")
-    .innerJoin("workspace_assignment as a", "a.workspace_id", "g.workspace_id")
-    .select("g.asset_id")
-    .where("g.asset_id", "in", assetIds)
-    .where("a.user_id", "=", actor.userId)
-    .execute();
-  return new Set(rows.map((row) => row.asset_id));
-}
-
-async function grantsIn(exec: Executor, workspaceId: string, assetIds: string[]): Promise<Set<string>> {
-  if (!assetIds.length) return new Set();
-  const rows = await exec
-    .selectFrom("asset_workspace_grant")
-    .select("asset_id")
-    .where("workspace_id", "=", workspaceId)
-    .where("asset_id", "in", assetIds)
-    .execute();
-  return new Set(rows.map((row) => row.asset_id));
-}
-
 /**
- * Asset DTOs with capability flags, current version and usage count. Rows
- * the caller cannot read are dropped (lists never leak restricted assets).
+ * Asset DTOs with capability flags, current version and usage count. Rows of
+ * organizations the caller does not belong to are dropped; inside the team
+ * every asset is readable (visibility is metadata).
  */
 export async function buildAssetDtos(
   exec: Executor,
@@ -185,33 +162,25 @@ export async function buildAssetDtos(
     if (access) orgAccess.set(orgId, access);
   }
   const maintainerIds = [...new Set(rows.map((row) => row.maintained_by).filter((id): id is string => !!id))];
-  const [grantRead, usage, versions, maintainers, usableGrants] = await Promise.all([
-    grantReadable(exec, actor, ids),
+  const [usage, versions, maintainers] = await Promise.all([
     usageCounts(exec, ids),
     loadVersionDtos(exec, rows.map((row) => row.current_version_id).filter((id): id is string => !!id)),
     maintainerIds.length
       ? exec.selectFrom("users").select(["user_id", "name", "email"]).where("user_id", "in", maintainerIds).execute()
       : Promise.resolve([]),
-    opts.usableIn ? grantsIn(exec, opts.usableIn.workspace.id, ids) : Promise.resolve(new Set<string>()),
   ]);
   const maintainerById = new Map(maintainers.map((m) => [m.user_id, m]));
   const out: AssetDto[] = [];
   for (const row of rows) {
     const org = orgAccess.get(row.organization_id);
     if (!org) continue;
-    const access = assetAccessFrom(org, actor, row, grantRead.has(row.id));
+    const access = assetAccessFrom(org, row);
     if (!access.canRead) continue;
     const version = row.current_version_id ? versions.get(row.current_version_id) ?? null : null;
-    let usable: boolean | undefined;
-    if (opts.usableIn) {
-      const target = opts.usableIn;
-      const isMaintainer = row.maintained_by === actor.userId && target.orgRole !== null;
-      usable =
-        target.canEdit &&
-        target.workspace.organization_id === row.organization_id &&
-        row.state === "active" &&
-        (usableGrants.has(row.id) || row.visibility === "organization" || target.canAdminister || isMaintainer);
-    }
+    // Any active team asset can be used in an open collection of the same team by a writer.
+    const usable = opts.usableIn
+      ? opts.usableIn.canEdit && opts.usableIn.workspace.organization_id === row.organization_id && row.state === "active"
+      : undefined;
     const maintainer = row.maintained_by ? maintainerById.get(row.maintained_by) : undefined;
     out.push({
       id: row.id,

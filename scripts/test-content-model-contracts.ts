@@ -1,25 +1,32 @@
-/** Pure regressions for project permissions and pinned scene playback. No DB or storage access. */
+/** Pure regressions for team permissions, contracts and pinned scene playback. No DB or storage access. */
 import assert from "node:assert/strict";
-import { assignmentRoleFor, effectiveProjectRole, orgRoleCanWrite, projectRoleAtLeast } from "../lib/permissions";
+import { effectiveProjectRole, hasOrgPermission, orgRoleCanWrite, projectRoleAtLeast, teamProjectRole } from "../lib/permissions";
+import { CONTENT_ERROR_STATUS } from "../lib/content-model/contracts";
 import { createBlankSceneDocument, type CompositionInstance } from "../lib/scene/protocol";
 import { validateSceneDefinition, validateSceneDocumentV3 } from "../lib/scene/validate";
 import { clipIssues, compileSceneManifest } from "../lib/scene/compile";
 import { parseAssetPayload, parseRenderConfig, parseResourceInputs } from "../lib/content-model/payload";
 
 const uuid = (n: number) => `10150000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-for (const role of ["owner", "admin"]) assert.equal(effectiveProjectRole(role, null), "manager");
-for (const role of ["manager", "editor", "viewer"]) {
-  assert.equal(effectiveProjectRole("viewer", role), "viewer", "organization viewer caps every project role");
-  assert.equal(effectiveProjectRole("member", role), role);
+// Team model: the organization role alone decides collection access; assignments are history.
+const teamRoles = { owner: "manager", admin: "manager", member: "editor", viewer: "viewer" } as const;
+for (const [org, expected] of Object.entries(teamRoles)) {
+  assert.equal(teamProjectRole(org), expected);
+  for (const assignment of [null, undefined, "manager", "editor", "viewer", "unexpected"])
+    assert.equal(effectiveProjectRole(org, assignment), expected, `${org} with assignment ${assignment} is ${expected}`);
 }
-for (const org of [null, "unexpected"]) assert.equal(effectiveProjectRole(org, "manager"), null);
-for (const project of [null, "member", "unexpected"]) assert.equal(effectiveProjectRole("member", project), null);
-assert.equal(effectiveProjectRole("viewer", null), null, "viewer still needs a project assignment");
+for (const org of [null, undefined, "unexpected"]) assert.equal(effectiveProjectRole(org, "manager"), null, "non-members get nothing from an assignment");
 assert.equal(projectRoleAtLeast("editor", "manager"), false);
 assert.equal(projectRoleAtLeast(null, "viewer"), false);
 assert.equal(orgRoleCanWrite("viewer"), false);
-assert.equal(assignmentRoleFor("viewer", "manager"), "viewer");
-console.log("PASS implicit managers, organization viewer cap and unknown role denial");
+for (const role of ["owner", "admin", "member"]) {
+  assert.equal(orgRoleCanWrite(role), true);
+  assert.equal(hasOrgPermission(role, "org.collections.manage"), true, `${role} manages map collections`);
+}
+assert.equal(hasOrgPermission("viewer", "org.collections.manage"), false);
+assert.equal(hasOrgPermission("member", "org.members.changeRole"), false, "team administration stays owner/admin");
+assert.equal(CONTENT_ERROR_STATUS.DEPRECATED, 410);
+console.log("PASS team roles drive collection access; assignments are ignored; viewers stay read-only");
 
 const doc = createBlankSceneDocument();
 doc.content.assets = {

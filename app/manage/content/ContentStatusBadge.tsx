@@ -8,18 +8,12 @@ import {
   CircleDashed,
   CircleDot,
   FileWarning,
-  FolderCheck,
-  Lock,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import { badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export type ContentBadgeKind =
-  | "organization"
-  | "restricted"
-  | "inProject"
   | "archived"
   | "fileMissing"
   | "unpublished"
@@ -30,9 +24,6 @@ export type ContentBadgeKind =
 type Tone = "neutral" | "quiet" | "success" | "warning" | "critical";
 
 const KINDS: Record<ContentBadgeKind, { icon: LucideIcon; tone: Tone }> = {
-  organization: { icon: Users, tone: "neutral" },
-  restricted: { icon: Lock, tone: "neutral" },
-  inProject: { icon: FolderCheck, tone: "neutral" },
   archived: { icon: Archive, tone: "quiet" },
   fileMissing: { icon: FileWarning, tone: "critical" },
   unpublished: { icon: CircleDashed, tone: "neutral" },
@@ -56,7 +47,7 @@ export interface ContentStatusBadgeProps {
   className?: string;
 }
 
-/** One status vocabulary for asset sharing/lifecycle and scene publication. */
+/** One status vocabulary for asset lifecycle and scene publication. */
 export function ContentStatusBadge({ kind, number, className }: ContentStatusBadgeProps) {
   const { t } = useTranslation();
   const { icon: Icon, tone } = KINDS[kind];

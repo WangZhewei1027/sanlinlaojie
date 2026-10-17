@@ -4,9 +4,11 @@ import { setWorkspaceArchived } from "@/lib/content-model/projects.server";
 
 type Context = { params: Promise<{ id: string }> };
 
-// POST   /api/workspaces/[id]/archive → archive the project → { data: WorkspaceDto }
+// POST   /api/workspaces/[id]/archive → archive the collection → { data: WorkspaceDto }
 // DELETE /api/workspaces/[id]/archive → restore → { data: WorkspaceDto }
-// Archived projects are read-only and stop every public entry of their own placements.
+// Alias of /api/collections/[id]/archive (any team writer). Archived collections
+// keep their placements read-only and stop their public entries; team assets
+// and scenes are unaffected.
 export async function POST(request: Request, { params }: Context) {
   const { id } = await params;
   return handleActorRoute(request, `/api/workspaces/${id}/archive`, (actor) => setWorkspaceArchived(actor, requireUuid(id, "workspace id"), true));

@@ -8,7 +8,7 @@ import type { IntegrationT } from "@/app/manage/lib/integration-text";
 interface OnsiteAccessNoticeProps {
   tx: IntegrationT;
   frozen: boolean;
-  hasWorkspace: boolean;
+  hasCollection: boolean;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
   archived: boolean;
@@ -17,7 +17,7 @@ interface OnsiteAccessNoticeProps {
 }
 
 /** Why capture is unavailable; capability comes from the server only. */
-export function OnsiteAccessNotice({ tx, frozen, hasWorkspace, status, error, archived, canEdit, onRetry }: OnsiteAccessNoticeProps) {
+export function OnsiteAccessNotice({ tx, frozen, hasCollection, status, error, archived, canEdit, onRetry }: OnsiteAccessNoticeProps) {
   if (frozen) {
     return (
       <ContentNotice
@@ -27,7 +27,7 @@ export function OnsiteAccessNotice({ tx, frozen, hasWorkspace, status, error, ar
       />
     );
   }
-  if (!hasWorkspace || canEdit) return null;
+  if (!hasCollection || canEdit) return null;
   if (status === "loading" || status === "idle") {
     return <Text as="p" variant="bodySm" tone="subdued" role="status">{tx("contentModel.integration.onsite.checkingAccess")}</Text>;
   }

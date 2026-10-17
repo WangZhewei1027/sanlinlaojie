@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AssetLibraryRoute } from "./components/AssetLibraryRoute";
+import { WorkbenchAlias } from "../components/WorkbenchAlias";
 
-export const metadata: Metadata = { title: "素材库" };
+export const metadata: Metadata = { title: "工作台" };
 
-export default function AssetLibraryPage() {
-  return <Suspense><AssetLibraryRoute /></Suspense>;
+/** Compatibility alias: the asset library is now the team workbench. */
+export default function AssetLibraryAlias() {
+  return <Suspense><WorkbenchAlias /></Suspense>;
 }

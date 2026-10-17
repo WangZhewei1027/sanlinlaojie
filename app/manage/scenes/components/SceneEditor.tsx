@@ -35,7 +35,7 @@ import { ScenePublishDialog, type PlacementUpdate } from "./ScenePublishDialog";
 import { SceneConflictBanner } from "./SceneConflictBanner";
 import type { SceneMode, SceneResource } from "./types";
 import { sceneApi } from "../../lib/content-api";
-import { contextHref } from "../../lib/content-context";
+import { teamHref } from "../../lib/content-context";
 import { ERROR_TEXTS, runContentAction } from "../../lib/content-errors";
 import { newAlias, theatreView } from "../../lib/scene-v3";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
@@ -46,7 +46,7 @@ const TEXTS: IntegrationTexts = {
   "contentModel.integration.sceneEditor.publish": ["发布", "Publish"],
   "contentModel.integration.sceneEditor.publishNeedsSave": ["先保存草稿再发布", "Save the draft before publishing"],
   "contentModel.integration.sceneEditor.readOnlyTitle": ["只读", "Read-only"],
-  "contentModel.integration.sceneEditor.readOnlyBody": ["你在此项目中没有编辑权限，可以预览和播放，但不能修改。", "You cannot edit in this project. You can preview and play, but not change anything."],
+  "contentModel.integration.sceneEditor.readOnlyBody": ["你在这个团队中只能查看，可以预览和播放，但不能修改。", "You can only view in this team. You can preview and play, but not change anything."],
   "contentModel.integration.sceneEditor.archivedTitle": ["场景已归档", "Scene archived"],
   "contentModel.integration.sceneEditor.archivedBody": ["已有投放继续播放保留的发布版本。恢复场景后才能编辑或发布。", "Existing placements keep playing their revision. Restore the scene to edit or publish."],
   "contentModel.integration.sceneEditor.archivedAsset": ["素材已归档，不能新增引用。", "This asset is archived and cannot be newly referenced."],
@@ -57,7 +57,7 @@ class ViewportBoundary extends Component<{ children: ReactNode; fallback: ReactN
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-export default function SceneEditor({ sceneId, mode, initial, organizationId, workspaceId }: { sceneId: string; mode: SceneMode; initial?: SceneDetailDto | null; organizationId: string | null; workspaceId: string | null }) {
+export default function SceneEditor({ sceneId, mode, initial, organizationId }: { sceneId: string; mode: SceneMode; initial?: SceneDetailDto | null; organizationId: string | null }) {
   const { t } = useTranslation();
   const tx = useIntegrationText(TEXTS);
   const editor = useSceneDocument(sceneId, mode, initial);
@@ -102,7 +102,8 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId, wo
   const { instances, assets, loop } = document.definition.content;
   const duration = document.definition.content.durationSeconds ?? 10;
   const v2 = mode === "v2";
-  const sceneContext = { organizationId: detail?.organization_id ?? organizationId, workspaceId: detail?.workspace_id ?? workspaceId };
+  // v2 scenes belong to the team; legacy asset scenes still carry their workspace.
+  const sceneOrganizationId = detail?.organization_id ?? organizationId;
   const resolveUrl = (item: CompositionInstance) => preview3d?.instanceId === item.id ? preview3d.url : resolve(assets[item.asset])?.url;
   const names = Object.fromEntries(instances.map((item) => {
     const model = resolve(assets[item.asset]);
@@ -170,7 +171,7 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId, wo
   return <main className="scene-workspace" data-mobile-panel={mobilePanel} data-preview={preview} aria-label={t("sceneEditor.heading")}>
     <h1 className="sr-only">{t("sceneEditor.heading")}</h1>
     <SceneToolbar title={document.title} dirty={editor.dirty} saving={editor.saving} preview={preview} canUndo={editor.canUndo} canRedo={editor.canRedo} onTitle={(title) => commit((current) => ({ ...current, title }))} onPreview={() => { setPreview(!preview); setMobilePanel("scene"); }} onSave={() => void editor.save()} onUndo={editor.undo} onRedo={editor.redo}
-      backHref={v2 ? contextHref("/manage/scenes", sceneContext) : undefined} readOnly={readOnly} status={publishStatus}
+      backHref={v2 ? teamHref("/manage", sceneOrganizationId, { type: "scene" }) : undefined} readOnly={readOnly} status={publishStatus}
       onPublish={canPublish ? () => setPublishOpen(true) : undefined} publishLabel={editor.dirty ? tx("contentModel.integration.sceneEditor.publishNeedsSave") : tx("contentModel.integration.sceneEditor.publish")} publishDisabled={editor.dirty || editor.saving || !!editor.conflict} />
     {editor.conflict && <SceneConflictBanner draftJson={() => JSON.stringify({ name: document.title, document: document.definition }, null, 2)} fileName={`${document.title || "scene"}-draft.json`} onReload={editor.retry} onDismiss={editor.dismissConflict} />}
     {v2 && readOnly && detail && <div className="shrink-0 border-b bg-background px-4 py-2"><ContentNotice title={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedTitle" : "contentModel.integration.sceneEditor.readOnlyTitle")} description={tx(detail.state === "archived" ? "contentModel.integration.sceneEditor.archivedBody" : "contentModel.integration.sceneEditor.readOnlyBody")} /></div>}
@@ -178,7 +179,7 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId, wo
     <nav className="scene-mobile-tabs" aria-label={t("sceneEditor.panels")}>{["scene", "objects", "inspector", "timeline"].map((panel) => <Button key={panel} variant="ghost" size="sm" aria-pressed={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{t(`sceneEditor.${panel}`)}</Button>)}</nav>
     <SceneDockLayout mobilePanel={mobilePanel} preview={preview} objects={
       <SceneModels models={models} instances={instances} names={names} selectedId={instance?.id ?? null} canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} onAdd={addModel} onSelect={setSelectedId}
-        library={v2 && sceneContext.organizationId && sceneContext.workspaceId ? <SceneLibraryPanel organizationId={sceneContext.organizationId} workspaceId={sceneContext.workspaceId}
+        library={v2 && sceneOrganizationId ? <SceneLibraryPanel organizationId={sceneOrganizationId}
           inScene={Object.entries(assets).map(([alias, ref]) => ({ alias, resource: resolve(ref), instanceCount: instances.filter((item) => item.asset === alias).length }))}
           canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} canUpload={!readOnly} onRegister={editor.registerResource} onAdd={(resource) => addModel(resource.assetVersionId ?? "", undefined, resource)}
           onSelectAlias={(alias) => setSelectedId(instances.find((item) => item.asset === alias)?.id ?? null)} /> : undefined} />} scene={
@@ -192,10 +193,10 @@ export default function SceneEditor({ sceneId, mode, initial, organizationId, wo
       <fieldset disabled={readOnly} className="contents"><SceneInspector instance={instance} name={instance && names[instance.id]} values={values ?? (instance && instanceValues(instance))} clips={instance && clips[instance.id]} time={time} duration={duration} record={record} playing={playing} onTransform={changeTransform} onKey={toggleKey} onAnimation={(animation) => { if (instance) editInstance(instance.id, (item) => ({ ...item, animation })); }} onRemove={removeModel}
         source={v2 && instance && selectedResource ? <SceneResourceSource instanceId={instance.id} animation={instance.animation} resource={selectedResource} latest={latestResource}
           aliasInstanceCount={instances.filter((item) => item.asset === instance.asset).length} aliasAnimations={instances.filter((item) => item.asset === instance.asset).map((item) => item.animation)}
-          assetHref={contextHref(`/manage/assets/${selectedResource.assetId}`, sceneContext)} readOnly={readOnly} previewing={preview3d?.instanceId === instance.id}
+          assetHref={teamHref(`/manage/assets/${selectedResource.assetId}`, sceneOrganizationId)} readOnly={readOnly} previewing={preview3d?.instanceId === instance.id}
           onRegister={editor.registerResource} onPreview={(url) => setPreview3d(url ? { instanceId: instance.id, url } : null)} onUpgrade={upgrade} /> : undefined} /></fieldset>} timeline={
       <SceneTimeline instances={instances} names={names} clips={clips} selectedId={instance?.id ?? null} time={time} duration={duration} minDuration={minimumDuration(theatreView(document.definition))} playing={playing} loop={loop} record={record} preview={preview} onSelect={setSelectedId} onSeek={editor.seek} onPlay={editor.play} onLoop={() => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, loop: !loop } } }))} onRecord={() => { session.sheet.sequence.pause(); setRecord(!record); }} onDuration={(durationSeconds) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, durationSeconds } } }))} onMoveKey={(id, group, from, to) => { editInstance(id, (item) => moveKeys(item, group, from, to)); editor.seek(to); }} onDeleteKey={(id, group, at) => editInstance(id, (item) => deleteKeys(item, group, at))} onMoveClip={(id, startSeconds) => editInstance(id, (item) => ({ ...item, animation: item.animation && { ...item.animation, startSeconds } }))} />} />
-    {v2 && publishOpen && sceneContext.organizationId && sceneContext.workspaceId && <ScenePublishDialog open={publishOpen} onOpenChange={setPublishOpen} sceneId={sceneId} organizationId={sceneContext.organizationId} workspaceId={sceneContext.workspaceId} nextRevisionNo={(detail?.latest_revision?.revision_no ?? 0) + 1} onPublish={publish} />}
+    {v2 && publishOpen && sceneOrganizationId && <ScenePublishDialog open={publishOpen} onOpenChange={setPublishOpen} sceneId={sceneId} organizationId={sceneOrganizationId} nextRevisionNo={(detail?.latest_revision?.revision_no ?? 0) + 1} onPublish={publish} />}
     <footer className="scene-status"><Text as="span" variant="bodyXs" tone="subdued">{instance ? names[instance.id] : t("sceneEditor.noSelection")} · {t("sceneEditor.unitsShort")}</Text><Text as="span" variant="bodyXs" tone="subdued">{t("sceneEditor.shortcuts")}</Text></footer>
   </main>;
 }

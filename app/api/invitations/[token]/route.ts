@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, sql, jsonObjectFrom } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { getWorkspaceOrgId } from "@/lib/permissions.server";
 import { logError } from "@/lib/log-error";
-import { assignmentRoleFor } from "@/lib/permissions";
 
 interface InvitationRow {
   id: string;
@@ -68,7 +66,7 @@ export async function GET(
   }
 }
 
-// 接受邀请（自动同意）：先入 org（强制），再按需分配 workspace
+// 接受邀请（自动同意）：加入 org；workspace_id 只作为加入后的跳转目标返回
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> },
@@ -114,30 +112,8 @@ export async function POST(
       )
       .execute();
 
-    // ② workspace 可选：复核归属后分配（幂等）。新项目授权默认为 editor；
-    //    组织 viewer 收口为 viewer。已是成员时以实际组织角色为准。
-    if (invitation.workspace_id) {
-      const wsOrg = await getWorkspaceOrgId(invitation.workspace_id);
-      if (wsOrg === invitation.organization_id) {
-        const membership = await db
-          .selectFrom("organization_member")
-          .select("role")
-          .where("organization_id", "=", invitation.organization_id)
-          .where("user_id", "=", user.id)
-          .executeTakeFirst();
-        await db
-          .insertInto("workspace_assignment")
-          .values({
-            user_id: user.id,
-            workspace_id: invitation.workspace_id,
-            role: assignmentRoleFor(membership?.role ?? invitation.role),
-          })
-          .onConflict((oc) =>
-            oc.columns(["workspace_id", "user_id"]).doNothing(),
-          )
-          .execute();
-      }
-    }
+    // ② workspace 仅用于加入后的跳转：合集没有成员关系，团队角色即可访问全部合集，
+    //    不再写入 workspace_assignment。
 
     // 使用计数仅作展示；加入已完成，计数写入失败不影响结果（沿用原实现：忽略该错误）
     await db

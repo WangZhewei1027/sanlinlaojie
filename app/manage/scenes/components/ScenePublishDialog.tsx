@@ -9,7 +9,7 @@ import { ContentFailureNotice } from "@/app/manage/content/ContentFeedback";
 import { useContentAction } from "@/app/manage/content/useContentAction";
 import type { ContentActionResult } from "@/app/manage/content/types";
 import type { PlacementDto } from "@/lib/content-model/contracts";
-import { organizationApi, workspaceApi } from "../../lib/content-api";
+import { organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
 
@@ -21,8 +21,9 @@ const TEXTS: IntegrationTexts = {
     "Publishing freezes the saved draft as revision #{{number}}. Existing placements keep their revision unless you tick them below.",
   ],
   "contentModel.integration.publish.placements": ["同时更新这些投放", "Also update these placements"],
-  "contentModel.integration.publish.noPlacements": ["这个场景还没有投放。发布后可在投放地图中放置。", "This scene has no placements yet. Place it from the map after publishing."],
-  "contentModel.integration.publish.placementLine": ["{{project}} · 当前 #{{revision}}", "{{project}} · now #{{revision}}"],
+  "contentModel.integration.publish.noPlacements": ["这个场景还没有投放。发布后可在任意地图合集中放置。", "This scene has no placements yet. Place it in any map collection after publishing."],
+  "contentModel.integration.publish.placementLine": ["{{collection}} · 当前 #{{revision}}", "{{collection}} · now #{{revision}}"],
+  "contentModel.integration.publish.noCollection": ["地图合集", "Map collection"],
   "contentModel.integration.publish.unnamed": ["未命名投放", "Unnamed placement"],
   "contentModel.integration.publish.noPermission": ["无权修改", "No permission"],
   "contentModel.integration.publish.loadFailed": ["无法读取投放：{{message}}。仍可只发布新版本。", "Could not load placements: {{message}}. You can still publish without updating them."],
@@ -39,8 +40,8 @@ const TEXTS: IntegrationTexts = {
 export interface PlacementUpdate { placementId: string; expectedLockVersion: number }
 
 /** Publishing creates a fixed revision; switching placements is an explicit, listed choice. */
-export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId, workspaceId, nextRevisionNo, onPublish }: {
-  open: boolean; onOpenChange: (open: boolean) => void; sceneId: string; organizationId: string; workspaceId: string; nextRevisionNo: number;
+export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId, nextRevisionNo, onPublish }: {
+  open: boolean; onOpenChange: (open: boolean) => void; sceneId: string; organizationId: string; nextRevisionNo: number;
   /** Each selected placement carries the lock version of the row the user actually saw. */
   onPublish: (updatePlacements: PlacementUpdate[]) => Promise<ContentActionResult>;
 }) {
@@ -64,9 +65,8 @@ export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId
     const abort = new AbortController();
     setPlacements(null); setLoadError("");
     const ofScene = (list: PlacementDto[]) => list.filter((item) => item.target.kind === "scene_revision" && item.target.scene_id === sceneId && item.status !== "archived");
-    // Organization view covers cross-project placements the caller can read; fall back to this project.
+    // Every placement of this scene, in every collection of the team.
     organizationApi.placements(organizationId, abort.signal)
-      .catch(() => workspaceApi.placements(workspaceId, undefined, abort.signal))
       .then((list) => {
         const rows = ofScene(list);
         setPlacements(rows);
@@ -77,7 +77,7 @@ export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId
     return () => abort.abort();
     // `tx` only formats messages; reloading on its identity would drop fresh lock versions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, sceneId, organizationId, workspaceId, reload]);
+  }, [open, sceneId, organizationId, reload]);
 
   const close = (next: boolean) => { if (!action.pending) onOpenChange(next); };
   const submit = async () => {
@@ -106,7 +106,7 @@ export function ScenePublishDialog({ open, onOpenChange, sceneId, organizationId
               <label htmlFor={id} className="min-w-0 flex-1 space-y-0.5">
                 <Text as="span" variant="bodySm" fontWeight="medium" truncate className="block">{placement.name || tx("contentModel.integration.publish.unnamed")}</Text>
                 <Text as="span" variant="bodyXs" tone="subdued" className="block">
-                  {tx("contentModel.integration.publish.placementLine", { project: placement.workspace_name ?? placement.workspace_id.slice(0, 8), revision })} · {tx(`contentModel.integration.publish.status.${placement.status}`)}
+                  {tx("contentModel.integration.publish.placementLine", { collection: placement.workspace_name || tx("contentModel.integration.publish.noCollection"), revision })} · {tx(`contentModel.integration.publish.status.${placement.status}`)}
                   {!editable && ` · ${tx("contentModel.integration.publish.noPermission")}`}
                 </Text>
               </label>

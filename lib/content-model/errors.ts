@@ -21,6 +21,8 @@ export const invalid = (message: string, issues?: { path: string; message: strin
 export const forbidden = (message = "权限不足") => new ContentError("FORBIDDEN", message);
 export const notFound = (message = "资源不存在") => new ContentError("NOT_FOUND", message);
 export const archived = (message: string) => new ContentError("ARCHIVED", message);
+/** 410 for retired project-ACL mutations (grants, project members, assignments). */
+export const deprecated = (message: string) => new ContentError("DEPRECATED", message);
 
 /** 428 when the client omitted the guard, 409 when it is stale. */
 export function checkLockVersion(expected: number | undefined, current: number, what = "内容"): void {

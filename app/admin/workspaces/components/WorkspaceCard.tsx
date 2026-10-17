@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, ArchiveRestore, Calendar, Edit, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Text } from "@/components/ui/typography";
 import { ContentFailureNotice } from "@/app/manage/content/ContentFeedback";
 import { useContentAction } from "@/app/manage/content/useContentAction";
 import { workspaceApi } from "@/app/manage/lib/content-api";
-import { useWorkspaceInfo } from "@/app/manage/lib/content-context";
+import { useCollectionInfo } from "@/app/manage/lib/content-context";
 import { runContentAction } from "@/app/manage/lib/content-errors";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
 import { ArchiveWorkspaceDialog } from "./ArchiveWorkspaceDialog";
@@ -31,16 +31,15 @@ interface WorkspaceCardProps {
   createdAtLabel: string;
   onEdit: () => void;
   onDelete: () => void;
-  onMembers: () => void;
   tx: IntegrationT;
 }
 
-export function WorkspaceCard({ workspace, lifecycle, canEdit, canDelete, createdAtLabel, onEdit, onDelete, onMembers, tx }: WorkspaceCardProps) {
+export function WorkspaceCard({ workspace, lifecycle, canEdit, canDelete, createdAtLabel, onEdit, onDelete, tx }: WorkspaceCardProps) {
   // Capabilities are fetched only for v2 organizations; legacy keeps the org-role gated delete.
   const contentModelV2 = lifecycle === "v2";
-  const info = useWorkspaceInfo(contentModelV2 ? workspace.id : null);
-  const archived = Boolean(info.workspace?.archived_at);
-  const canArchive = contentModelV2 && info.workspace?.capabilities.can_archive === true;
+  const info = useCollectionInfo(contentModelV2 ? workspace.id : null);
+  const archived = Boolean(info.collection?.archived_at);
+  const canArchive = contentModelV2 && info.collection?.capabilities.can_archive === true;
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveAction = useContentAction();
   const restoreAction = useContentAction();
@@ -72,10 +71,6 @@ export function WorkspaceCard({ workspace, lifecycle, canEdit, canDelete, create
         )}
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          <Button variant="outline" size="sm" onClick={onMembers} className="flex-1">
-            <Users aria-hidden />
-            {tx("contentModel.integration.members.action")}
-          </Button>
           {canEdit && (
             <Button variant="outline" size="sm" onClick={onEdit} className="flex-1">
               <Edit aria-hidden />

@@ -9,10 +9,10 @@ import { Text } from "@/components/ui/typography";
 import { ContentFailureNotice } from "./ContentFeedback";
 import { useContentAction } from "./useContentAction";
 import { useScenePlacementText } from "./scenePlacementText";
-import type { ContentAction, SceneListItem } from "./types";
+import type { ContentAction, SceneRef } from "./types";
 
 export interface SceneArchiveDialogProps {
-  scene: SceneListItem | null;
+  scene: SceneRef | null;
   onOpenChange: (open: boolean) => void;
   onArchive: ContentAction<[sceneId: string]>;
 }
@@ -41,8 +41,8 @@ export function SceneArchiveDialog({ scene, onOpenChange, onArchive }: SceneArch
           <DialogTitle>{t("contentModel.scene.archiveTitle", { name: shown?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("contentModel.scene.archiveBody")}</DialogDescription>
         </DialogHeader>
-        {shown && shown.placementCount > 0 && (
-          <Text as="p" variant="bodySm">{placementText.archive(shown)}</Text>
+        {!!shown?.placementCount && (
+          <Text as="p" variant="bodySm">{placementText.archive({ placementCount: shown.placementCount, activePlacementCount: shown.activePlacementCount })}</Text>
         )}
         {action.failure && <ContentFailureNotice failure={action.failure} />}
         <DialogFooter>

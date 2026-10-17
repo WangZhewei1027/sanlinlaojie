@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Archive, Copy, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useWorkspaceInfo } from "../../lib/content-context";
+import { useCollectionInfo } from "../../lib/content-context";
 import { usePlacementStore } from "../../lib/placement-store";
 import { PlacementArchiveDialog } from "./PlacementArchiveDialog";
 import { usePlacementMap } from "./PlacementMapContext";
@@ -23,10 +23,10 @@ export function PlacementSelectionBar() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   // `__all__` is browse-only: copying needs an explicit target project.
   const [targetId, setTargetId] = useState<string | null>(null);
-  const target = useWorkspaceInfo(isAll ? targetId : null);
+  const target = useCollectionInfo(isAll ? targetId : null);
 
   const selected = useMemo(() => placements.filter((placement) => ids.includes(placement.id)), [placements, ids]);
-  const copyable = isAll ? (target.workspace?.capabilities.can_edit ? selected : []) : selected.filter(canCopy);
+  const copyable = isAll ? (target.collection?.capabilities.can_edit ? selected : []) : selected.filter(canCopy);
   const archivable = selected.filter((placement) => canWrite(placement) && placement.status !== "archived");
   const copyTarget = isAll ? targetId : workspaceId;
 

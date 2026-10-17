@@ -11,9 +11,10 @@ import { collectProtectedKeys, releaseObjectsIfUnreferenced } from "@/lib/storag
 /**
  * 存储/数据库一致性清扫（仅 super_admin）：
  *
- * - clean-rows：按 workspace 检查旧资产行与该项目已授权素材的版本文件，报告
- *   存储对象已不存在的记录（需要 workspaceId）。只报告、不删行：缺文件的版本
- *   不可发布，素材身份与引用必须保留，由维护者上传新版本修复。
+ * - clean-rows：按合集（workspace）检查旧资产行，以及该合集投放直接或经
+ *   场景发布版本固定的素材版本文件（另含历史授权素材的版本），报告存储对象已
+ *   不存在的记录（需要 workspaceId）。只报告、不删行：缺文件的版本不可发布，
+ *   素材身份与引用必须保留，由团队成员上传新版本修复。
  * - clean-files：遍历 OSS assets/ 下全部对象，与全局保留集合（版本资源、旧行
  *   引用、匹配点参考图、有效上传回执、.webm↔.m4a 派生文件）对比；候选逐个在
  *   对象 key 锁内复核后才回收。迁移期间实际删除关闭
@@ -38,7 +39,11 @@ interface CleanResult {
   deletionEnabled?: boolean;
 }
 
-/** Managed objects a project depends on: legacy rows + files of granted asset versions. */
+/**
+ * Managed objects a collection depends on: legacy rows, the versions its
+ * placements pin (directly or through their scene revisions) and, as
+ * history, versions of assets once granted to it.
+ */
 async function workspaceObjects(workspaceId: string): Promise<{ id: string; url: string; key: string; reason: string }[]> {
   const legacy = await db
     .selectFrom("asset")
@@ -47,13 +52,20 @@ async function workspaceObjects(workspaceId: string): Promise<{ id: string; url:
     .where("file_url", "is not", null)
     .orderBy("id", "asc")
     .execute();
+  const versionIds = sql<string>`(
+    select p.asset_version_id from placement p where p.workspace_id = ${workspaceId}::uuid and p.asset_version_id is not null
+    union
+    select ra.asset_version_id from placement p join scene_revision_asset_ref ra on ra.scene_revision_id = p.scene_revision_id where p.workspace_id = ${workspaceId}::uuid
+    union
+    select v.id from asset_workspace_grant g join asset_version v on v.asset_id = g.asset_id where g.workspace_id = ${workspaceId}::uuid
+  )`;
   const versions = await db
-    .selectFrom("asset_workspace_grant as g")
-    .innerJoin("asset_version as v", "v.asset_id", "g.asset_id")
+    .selectFrom("asset_version as v")
     .innerJoin("asset_version_resource as r", "r.asset_version_id", "v.id")
     .select(["v.id", "r.storage_key", "r.role", "v.version_no"])
-    .where("g.workspace_id", "=", workspaceId)
+    .where(sql<boolean>`v.id in ${versionIds}`)
     .where("r.storage_key", "is not", null)
+    .orderBy("v.id")
     .execute();
   const out: { id: string; url: string; key: string; reason: string }[] = [];
   for (const row of legacy) {

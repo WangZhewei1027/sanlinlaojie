@@ -22,7 +22,7 @@
 
 ## V2 运行内容与公开 ID
 
-`scopeState` 从 Workspace 或 Organization 确定范围，两个参数同时传入时必须相符。公开解析只返回未归档组织、未归档所属项目中的 active Placement，并检查旧 scope 是否仍有效。素材目录 visibility/grant 用于团队管理，不能单独令内容上线，也不替代投放公开范围检查。
+`scopeState` 从 Workspace 或 Organization 确定范围，两个参数同时传入时必须相符。公开解析只返回未归档组织、未归档所属项目中的 active Placement，并检查旧 scope 是否仍有效。素材目录 visibility/grant 只是历史元数据，不能令内容上线，也不替代投放公开范围检查。
 
 | 服务函数 | 投影来源 |
 | --- | --- |

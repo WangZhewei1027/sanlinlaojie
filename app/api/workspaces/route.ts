@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { db, sql } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { getUserContext } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
-import { logError } from "@/lib/log-error";
 import { loadActor, loadWorkspaceAccessMany } from "@/lib/content-model/access.server";
+import { failure } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
+import { createCollection } from "@/lib/content-model/projects.server";
 
-/** Adds the caller's effective project role, capability flags and archive/cutover state. */
+/**
+ * Legacy collection list/create (map collections are stored as workspace
+ * rows). Every member of an organization sees all of its collections; the
+ * team role, not workspace_assignment, decides access.
+ */
+
+/** Adds the caller's team-derived role, capability flags and archive/cutover state. */
 async function withCapabilities<T extends { id: string }>(userId: string, rows: T[]) {
   const access = await loadWorkspaceAccessMany(db, await loadActor(db, userId), rows.map((r) => r.id));
   return rows.map((row) => {
@@ -21,17 +27,7 @@ async function withCapabilities<T extends { id: string }>(userId: string, rows: 
   });
 }
 
-/** public.get_user_workspaces(p_user_id) 的返回行 */
-interface UserWorkspaceRow {
-  id: string;
-  name: string;
-  description: string | null;
-  create_date: Date | null;
-  organization_id: string;
-}
-
 export async function GET(request: Request) {
-  // 获取当前用户
   const user = await getSessionUser();
 
   if (!user) {
@@ -42,16 +38,11 @@ export async function GET(request: Request) {
     // 支持按 organization_id 过滤
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get("organization_id");
+    if (organizationId && !isUuid(organizationId)) return NextResponse.json({ data: [] });
 
-    // super_admin 可查看任意组织的 workspace（get_user_workspaces 按成员关系
-    // 过滤，会漏掉 super_admin 未加入的组织——资源清理等全局管理页面需要全量）
-    const userData = await db
-      .selectFrom("users")
-      .select("role")
-      .where("user_id", "=", user.id)
-      .executeTakeFirst();
-
-    if (isSuperAdmin(userData?.role)) {
+    // super_admin 可查看任意组织的 workspace（资源清理等全局管理页面需要全量）
+    const actor = await loadActor(db, user.id);
+    if (actor.superAdmin) {
       let query = db.selectFrom("workspace").selectAll();
       if (organizationId) {
         query = query.where("organization_id", "=", organizationId);
@@ -60,25 +51,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: await withCapabilities(user.id, allWorkspaces) });
     }
 
-    // 使用数据库函数一次性获取所有数据
-    const { rows: data } = await sql<UserWorkspaceRow>`
-      select * from public.get_user_workspaces(${user.id}::uuid)
-    `.execute(db);
+    // 组织成员（含 viewer）可见本组织全部合集
+    let query = db
+      .selectFrom("workspace as w")
+      .innerJoin("organization_member as m", (join) => join.onRef("m.organization_id", "=", "w.organization_id").on("m.user_id", "=", user.id))
+      .select(["w.id", "w.name", "w.description", "w.create_date", "w.organization_id"]);
+    if (organizationId) query = query.where("w.organization_id", "=", organizationId);
+    const data = await query.orderBy("w.create_date", "desc").orderBy("w.id").execute();
 
-    // 如果指定了 organization_id，则过滤
-    const filtered = organizationId
-      ? data.filter((w) => w.organization_id === organizationId)
-      : data;
-
-    return NextResponse.json({ data: await withCapabilities(user.id, filtered) });
+    return NextResponse.json({ data: await withCapabilities(user.id, data) });
   } catch (error) {
     console.error("获取 workspace 失败:", error);
     return NextResponse.json({ error: "获取工作空间失败" }, { status: 500 });
   }
 }
 
+/** POST { name, description?, organization_id } → 201 { data: WorkspaceDto } (any team writer). */
 export async function POST(request: Request) {
-  // 检查用户权限
   const user = await getSessionUser();
 
   if (!user) {
@@ -86,8 +75,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
-    const { name, description, organization_id } = body;
+    const body = await request.json().catch(() => null);
+    const { name, description, organization_id } = body ?? {};
 
     if (!organization_id) {
       return NextResponse.json(
@@ -95,50 +84,18 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-
-    // 需 org.workspaces.create（owner/admin）或 super_admin
-    const { globalRole, orgRole } = await getUserContext(
-      user.id,
-      organization_id,
-    );
-    if (
-      !isSuperAdmin(globalRole) &&
-      !hasOrgPermission(orgRole, "org.workspaces.create")
-    ) {
-      await logError({
-        userId: user.id,
-        method: "POST",
-        path: "/api/workspaces",
-        status: 403,
-        message: "权限不足: org.workspaces.create",
-        context: { orgRole, organization_id },
-      });
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    if (!isUuid(organization_id)) return NextResponse.json({ error: "组织不存在" }, { status: 404 });
 
     if (!name) {
       return NextResponse.json({ error: "名称不能为空" }, { status: 400 });
     }
 
-    const data = await db
-      .insertInto("workspace")
-      .values({
-        name,
-        description: description || null,
-        organization_id,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
+    const data = await createCollection(await loadActor(db, user.id), organization_id, {
+      name,
+      ...(description ? { description } : {}),
+    });
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
-    console.error("创建 workspace 失败:", error);
-    await logError({
-      method: "POST",
-      path: "/api/workspaces",
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "创建工作空间失败" }, { status: 500 });
+    return failure(error, { method: "POST", path: "/api/workspaces", userId: user.id });
   }
 }

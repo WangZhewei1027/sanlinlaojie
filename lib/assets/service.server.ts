@@ -7,7 +7,6 @@ import {
   type ArchiveAssetResult,
   type AssetDetailDto,
   type AssetDto,
-  type AssetGrantDto,
   type AssetListQuery,
   type AssetOrigin,
   type AssetUsageDto,
@@ -19,19 +18,21 @@ import {
 } from "@/lib/content-model/contracts";
 import {
   ensureAssetUse,
+  loadWorkspaceAccess,
   lockOrgForWrite,
   lockWorkspaceForWrite,
   readableWorkspaceIds,
   requireAssetMaintain,
   requireAssetRead,
   requireOrgRead,
+  requireOrgWrite,
   requireWorkspaceEdit,
   requireWorkspaceRead,
   type Actor,
+  type OrgAccess,
   type WorkspaceAccess,
-  loadWorkspaceAccess,
 } from "@/lib/content-model/access.server";
-import { ContentError, archived, checkLockVersion, forbidden, invalid, notFound } from "@/lib/content-model/errors";
+import { archived, checkLockVersion, deprecated, forbidden, invalid, notFound } from "@/lib/content-model/errors";
 import {
   isRecord,
   optionalEnum,
@@ -48,8 +49,6 @@ import {
   audit,
   claimIdempotency,
   contentTransaction,
-  grantLockKey,
-  lockKeys,
   recordIdempotency,
   requestHash,
   type Trx,
@@ -63,11 +62,13 @@ import {
   type PlacementFields,
 } from "@/lib/placements/core.server";
 import { ASSET_FULL_COLUMNS, buildAssetDtos, loadAssetDto, loadAssetRows, loadVersionDtos } from "./dto.server";
-import { computeImpact, hasDependencies, listGrants } from "./usage.server";
+import { computeImpact, listGrants } from "./usage.server";
 import { appendVersion } from "./versions.server";
 
 const VISIBILITIES: readonly AssetVisibility[] = ["restricted", "organization"];
 const ORIGINS: readonly AssetOrigin[] = ["team_upload", "public_submission", "legacy"];
+/** Team assets are visible to the whole team; the field is descriptive only. */
+const DEFAULT_VISIBILITY: AssetVisibility = "organization";
 
 // ───────────────────────── catalogs ─────────────────────────
 
@@ -88,25 +89,17 @@ export function parseAssetListQuery(params: URLSearchParams): AssetListQuery {
   };
 }
 
-type CatalogScope =
-  | { kind: "workspace"; workspaceId: string }
-  | { kind: "organization"; organizationId: string; view: "shared" | "maintained" | "all"; actorId: string };
-
-async function queryCatalog(actor: Actor, scope: CatalogScope, query: AssetListQuery, usableIn?: WorkspaceAccess): Promise<ApiPage<AssetDto>> {
+/**
+ * The team catalog. `shared` / `maintained` are plain metadata filters
+ * (visibility "organization" / maintained by me), never an access rule.
+ */
+async function queryCatalog(actor: Actor, org: OrgAccess, query: AssetListQuery, usableIn?: WorkspaceAccess): Promise<ApiPage<AssetDto>> {
   const limit = query.limit ?? 50;
   const offset = query.offset ?? 0;
-  let base = db.selectFrom("asset").where("asset.organization_id", "is not", null).where("asset.current_version_id", "is not", null);
-  if (scope.kind === "workspace") {
-    base = base.where((eb) =>
-      eb.exists(
-        eb.selectFrom("asset_workspace_grant as g").select("g.asset_id").whereRef("g.asset_id", "=", "asset.id").where("g.workspace_id", "=", scope.workspaceId),
-      ),
-    );
-  } else {
-    base = base.where("asset.organization_id", "=", scope.organizationId);
-    if (scope.view === "shared") base = base.where("asset.visibility", "=", "organization");
-    if (scope.view === "maintained") base = base.where("asset.maintained_by", "=", scope.actorId);
-  }
+  const view = query.view ?? "all";
+  let base = db.selectFrom("asset").where("asset.organization_id", "=", org.org.id).where("asset.current_version_id", "is not", null);
+  if (view === "shared") base = base.where("asset.visibility", "=", "organization");
+  if (view === "maintained") base = base.where("asset.maintained_by", "=", actor.userId);
   if (query.file_type) base = base.where("asset.file_type", "=", query.file_type);
   else base = base.where("asset.file_type", "not in", [...SPECIAL_ASSET_FILE_TYPES]);
   if (query.origin) base = base.where("asset.origin", "=", query.origin);
@@ -119,36 +112,33 @@ async function queryCatalog(actor: Actor, scope: CatalogScope, query: AssetListQ
     base.select(ASSET_FULL_COLUMNS).orderBy("asset.updated_at", "desc").orderBy("asset.id").limit(limit).offset(offset).execute(),
   ]);
   const typed = rows.flatMap((row) => (row.organization_id ? [{ ...row, organization_id: row.organization_id }] : []));
-  const data = await buildAssetDtos(db, actor, typed, { usableIn });
+  const data = await buildAssetDtos(db, actor, typed, { usableIn, orgAccess: org });
   return { data, page: { limit, offset, total: Number(total) } };
 }
 
-/** Project assets: everything granted to the project (plan §4.1 "项目素材"). */
+/** Legacy collection path: the whole team catalog, with use flags for that collection (no grants). */
 export async function listWorkspaceAssets(actor: Actor, workspaceId: string, query: AssetListQuery): Promise<ApiPage<AssetDto>> {
   const access = await requireWorkspaceRead(db, actor, workspaceId);
-  return queryCatalog(actor, { kind: "workspace", workspaceId }, query, access);
+  return queryCatalog(actor, access, query, access);
 }
 
-/** Organization catalog: shared (default), maintained by me, or all (owner/admin). */
+/** Team catalog: every same-team asset for every member (view/usable_in are optional filters/flags). */
 export async function listOrganizationAssets(actor: Actor, organizationId: string, query: AssetListQuery): Promise<ApiPage<AssetDto>> {
   const org = await requireOrgRead(db, actor, organizationId);
-  const view = query.view ?? "shared";
-  if (view === "all" && !org.canAdminister) throw forbidden("只有组织管理员可以查看全部素材");
   let usableIn: WorkspaceAccess | undefined;
   if (query.usable_in) {
     usableIn = (await loadWorkspaceAccess(db, actor, query.usable_in)) ?? undefined;
-    if (!usableIn?.canRead || usableIn.workspace.organization_id !== organizationId) throw notFound("项目不存在");
+    if (!usableIn?.canRead || usableIn.workspace.organization_id !== organizationId) throw notFound("合集不存在");
   }
-  return queryCatalog(actor, { kind: "organization", organizationId, view, actorId: actor.userId }, query, usableIn);
+  return queryCatalog(actor, org, query, usableIn);
 }
 
 export async function getAssetDetail(actor: Actor, assetId: string): Promise<AssetDetailDto> {
-  const access = await requireAssetRead(db, actor, assetId);
+  await requireAssetRead(db, actor, assetId);
   const asset = await loadAssetDto(db, actor, assetId);
   if (!asset) throw notFound("素材不存在");
   const versionRows = await db.selectFrom("asset_version").select("id").where("asset_id", "=", assetId).orderBy("version_no", "desc").execute();
-  const versions = await loadVersionDtos(db, versionRows.map((v) => v.id));
-  const grants = access.canMaintain || access.canAdminister ? await listGrants(db, actor, assetId) : (await listGrants(db, actor, assetId)).filter((g) => g.workspace_name !== null);
+  const [versions, grants] = await Promise.all([loadVersionDtos(db, versionRows.map((v) => v.id)), listGrants(db, actor, assetId)]);
   return { ...asset, versions: versionRows.flatMap((v) => (versions.has(v.id) ? [versions.get(v.id)!] : [])), grants };
 }
 
@@ -174,26 +164,36 @@ export function parseCreateAsset(body: JsonRecord, opts: { requireKey: boolean; 
     fileType,
     payload: parseAssetPayload(fileType, body.payload),
     resources: parseResourceInputs(fileType, body.resources),
-    visibility: body.visibility === undefined ? "restricted" : requireEnum(body.visibility, "visibility", VISIBILITIES),
+    visibility: body.visibility === undefined ? DEFAULT_VISIBILITY : requireEnum(body.visibility, "visibility", VISIBILITIES),
     idempotencyKey: opts.requireKey ? requireIdempotencyKey(body.idempotencyKey) : undefined,
     placement,
   };
 }
 
-/** Asset identity + v1 + origin grant (+ optional placement) inside an open transaction. */
+/** Where a new team asset is created: always an organization; a collection only as origin / placement target. */
+export interface AssetCreateTarget {
+  org: OrgAccess;
+  workspace?: WorkspaceAccess;
+}
+
+/** Asset identity + v1 (+ optional placement in the origin collection) inside an open transaction. */
 export async function createAssetTx(
   trx: Trx,
   actor: Actor,
-  workspace: WorkspaceAccess,
+  target: AssetCreateTarget,
   input: ParsedCreateAsset,
   opts: { origin?: AssetOrigin; maintainedBy?: string | null; createdBy?: string | null } = {},
 ): Promise<{ assetId: string; versionId: string; placementId: string | null }> {
   const createdBy = opts.createdBy === undefined ? actor.userId : opts.createdBy;
+  const organizationId = target.org.org.id;
+  const workspace = target.workspace;
+  if (input.placement && !workspace) throw invalid("放置素材需要指定合集");
   const asset = await trx
     .insertInto("asset")
     .values({
-      organization_id: workspace.workspace.organization_id,
-      origin_workspace_id: workspace.workspace.id,
+      organization_id: organizationId,
+      origin_workspace_id: workspace?.workspace.id ?? null,
+      // Responsible person (metadata); editing is open to every team writer.
       maintained_by: opts.maintainedBy === undefined ? actor.userId : opts.maintainedBy,
       visibility: input.visibility,
       state: "active",
@@ -202,20 +202,14 @@ export async function createAssetTx(
       name: input.name,
       created_by: createdBy,
     })
-    .returning(["id", "organization_id"])
+    .returning(["id"])
     .executeTakeFirstOrThrow();
-  const organizationId = workspace.workspace.organization_id;
-  await lockKeys(trx, [grantLockKey(asset.id, workspace.workspace.id)]);
-  await trx
-    .insertInto("asset_workspace_grant")
-    .values({ asset_id: asset.id, workspace_id: workspace.workspace.id, organization_id: organizationId, created_by: createdBy })
-    .execute();
   const { versionId } = await appendVersion(trx, actor, { id: asset.id, organization_id: organizationId }, input.payload, input.resources, {
     actorIdForRow: createdBy,
-    useIn: workspace,
+    access: target.org,
   });
   let placementId: string | null = null;
-  if (input.placement) {
+  if (input.placement && workspace) {
     const resolved = await resolveTargetForWrite(trx, actor, workspace, { kind: "asset_version", assetVersionId: versionId });
     placementId = await insertPlacementTx(trx, actor, workspace, resolved, { ...input.placement, name: input.placement.name ?? input.name });
   }
@@ -225,7 +219,7 @@ export async function createAssetTx(
     action: "asset.create",
     objectType: "asset",
     objectId: asset.id,
-    workspaceId: workspace.workspace.id,
+    workspaceId: workspace?.workspace.id ?? null,
     details: { version_id: versionId, placement_id: placementId, origin: opts.origin ?? "team_upload" },
   });
   return { assetId: asset.id, versionId, placementId };
@@ -242,7 +236,20 @@ async function createResult(actor: Actor, assetId: string, versionId: string, pl
   return { asset, version: versions.get(versionId)!, placement, created };
 }
 
-/** POST /api/workspaces/[id]/assets (v2). Replays with the same key return the first result. */
+/** First result of an earlier create command with the same idempotency key. */
+async function replayCreate(trx: Trx, assetId: string, withPlacement: boolean) {
+  const asset = await trx.selectFrom("asset").select(["id", "current_version_id"]).where("id", "=", assetId).executeTakeFirstOrThrow();
+  const firstVersion = await trx.selectFrom("asset_version").select("id").where("asset_id", "=", assetId).where("version_no", "=", 1).executeTakeFirst();
+  const placement = withPlacement
+    ? await trx.selectFrom("placement").select("id").where("asset_id", "=", assetId).orderBy("created_at").limit(1).executeTakeFirst()
+    : undefined;
+  return { assetId: asset.id, versionId: firstVersion?.id ?? asset.current_version_id!, placementId: placement?.id ?? null, created: false };
+}
+
+/**
+ * POST /api/workspaces/[id]/assets (v2): a team asset whose origin is this
+ * collection, optionally placed there. Replays with the same key return the first result.
+ */
 export async function createAssetInWorkspace(actor: Actor, workspaceId: string, body: JsonRecord): Promise<CreateAssetResult> {
   const input = parseCreateAsset(body, { requireKey: true, allowPlacement: true });
   const workspace = await requireWorkspaceEdit(db, actor, workspaceId);
@@ -250,14 +257,25 @@ export async function createAssetInWorkspace(actor: Actor, workspaceId: string, 
   const outcome = await contentTransaction(async (trx) => {
     await lockWorkspaceForWrite(trx, workspace);
     const previous = await claimIdempotency(trx, scope);
-    if (previous) {
-      const asset = await trx.selectFrom("asset").select(["id", "current_version_id"]).where("id", "=", previous).executeTakeFirstOrThrow();
-      const firstVersion = await trx.selectFrom("asset_version").select("id").where("asset_id", "=", previous).where("version_no", "=", 1).executeTakeFirst();
-      const placement = await trx.selectFrom("placement").select("id").where("asset_id", "=", previous).orderBy("created_at").limit(1).executeTakeFirst();
-      return { assetId: asset.id, versionId: firstVersion?.id ?? asset.current_version_id!, placementId: input.placement ? placement?.id ?? null : null, created: false };
-    }
-    const created = await createAssetTx(trx, actor, workspace, input);
+    if (previous) return replayCreate(trx, previous, !!input.placement);
+    const created = await createAssetTx(trx, actor, { org: workspace, workspace }, input);
     await recordIdempotency(trx, scope, workspace.workspace.organization_id, "asset", created.assetId);
+    return { ...created, created: true };
+  });
+  return createResult(actor, outcome.assetId, outcome.versionId, outcome.placementId, outcome.created);
+}
+
+/** POST /api/organizations/[id]/assets: a team asset without any collection (no placement). */
+export async function createAssetInOrganization(actor: Actor, organizationId: string, body: JsonRecord): Promise<CreateAssetResult> {
+  const input = parseCreateAsset(body, { requireKey: true, allowPlacement: false });
+  const org = await requireOrgWrite(db, actor, organizationId);
+  const scope = { actorId: actor.userId, command: "asset.create", key: input.idempotencyKey!, hash: requestHash({ organizationId, ...body }) };
+  const outcome = await contentTransaction(async (trx) => {
+    await lockOrgForWrite(trx, organizationId);
+    const previous = await claimIdempotency(trx, scope);
+    if (previous) return replayCreate(trx, previous, false);
+    const created = await createAssetTx(trx, actor, { org }, input);
+    await recordIdempotency(trx, scope, organizationId, "asset", created.assetId);
     return { ...created, created: true };
   });
   return createResult(actor, outcome.assetId, outcome.versionId, outcome.placementId, outcome.created);
@@ -265,7 +283,7 @@ export async function createAssetInWorkspace(actor: Actor, workspaceId: string, 
 
 // ───────────────────────── versions ─────────────────────────
 
-/** POST /api/assets/[id]/versions: immutable version from upload receipts / existing files. */
+/** POST /api/assets/[id]/versions: immutable version from upload receipts / existing files (any team writer). */
 export async function createAssetVersion(actor: Actor, assetId: string, body: JsonRecord): Promise<CreateVersionResult> {
   rejectUnknown(body, ["payload", "resources", "idempotencyKey", "expectedLockVersion"]);
   const key = requireIdempotencyKey(body.idempotencyKey);
@@ -282,7 +300,7 @@ export async function createAssetVersion(actor: Actor, assetId: string, body: Js
     const access = await requireAssetMaintain(trx, actor, assetId, { forUpdate: true });
     if (expected !== undefined) checkLockVersion(expected, access.asset.lock_version, "素材");
     if (access.asset.state !== "active") throw archived("素材已归档，请先恢复再上传新版本");
-    const { versionId, versionNo } = await appendVersion(trx, actor, access.asset, payload, resources);
+    const { versionId, versionNo } = await appendVersion(trx, actor, access.asset, payload, resources, { access });
     await recordIdempotency(trx, scope, access.asset.organization_id, "asset_version", versionId);
     await audit(trx, {
       organizationId: access.asset.organization_id,
@@ -301,7 +319,7 @@ export async function createAssetVersion(actor: Actor, assetId: string, body: Js
 
 // ───────────────────────── identity maintenance ─────────────────────────
 
-/** PATCH /api/assets/[id] (v2): name / visibility / restore / maintainer, guarded by lock_version. */
+/** PATCH /api/assets/[id] (v2): name / visibility / restore by any team writer; maintainer by owner/admin. */
 export async function updateAssetIdentity(actor: Actor, assetId: string, body: JsonRecord): Promise<AssetDto> {
   rejectUnknown(body, ["expectedLockVersion", "name", "visibility", "state", "maintainedBy"]);
   const expected = body.expectedLockVersion === undefined ? undefined : optionalInt(body.expectedLockVersion, "expectedLockVersion", 0);
@@ -320,7 +338,7 @@ export async function updateAssetIdentity(actor: Actor, assetId: string, body: J
     if (name !== undefined && name !== access.asset.name) changes.name = name;
     if (visibility !== undefined && visibility !== access.asset.visibility) changes.visibility = visibility;
     if (maintainedBy !== undefined && maintainedBy !== access.asset.maintained_by) {
-      if (!access.canTransfer) throw forbidden("只有组织管理员可以转交素材维护者");
+      if (!access.canTransfer) throw forbidden("只有组织拥有者或管理员可以转交素材负责人");
       if (maintainedBy) {
         const member = await trx
           .selectFrom("organization_member")
@@ -328,7 +346,7 @@ export async function updateAssetIdentity(actor: Actor, assetId: string, body: J
           .where("organization_id", "=", access.asset.organization_id)
           .where("user_id", "=", maintainedBy)
           .executeTakeFirst();
-        if (!member || member.role === "viewer") throw invalid("新维护者必须是可写的组织成员");
+        if (!member || member.role === "viewer") throw invalid("新负责人必须是可编辑的组织成员");
       }
       changes.maintained_by = maintainedBy;
     }
@@ -377,26 +395,34 @@ export async function archiveAsset(actor: Actor, assetId: string, expectedLockVe
   return { asset, impact };
 }
 
-/** POST /api/assets/[id]/duplicate: new identity + v1 sharing the physical files. */
+/**
+ * POST /api/assets/[id]/duplicate: new team identity + v1 sharing the
+ * physical files. `targetWorkspaceId` (optional) only records an origin
+ * collection, which must be open and in the same team.
+ */
 export async function duplicateAsset(actor: Actor, assetId: string, body: JsonRecord): Promise<CreateAssetResult> {
   rejectUnknown(body, ["targetWorkspaceId", "name", "sourceVersionId", "idempotencyKey"]);
-  const targetId = requireUuid(body.targetWorkspaceId, "targetWorkspaceId");
+  const targetId = body.targetWorkspaceId === undefined || body.targetWorkspaceId === null ? null : requireUuid(body.targetWorkspaceId, "targetWorkspaceId");
   const key = requireIdempotencyKey(body.idempotencyKey);
   const source = await requireAssetRead(db, actor, assetId);
   const sourceVersionId = body.sourceVersionId === undefined ? source.asset.current_version_id : requireUuid(body.sourceVersionId, "sourceVersionId");
   if (!sourceVersionId) throw invalid("素材没有可复制的版本");
-  const target = await requireWorkspaceEdit(db, actor, targetId);
-  if (target.workspace.organization_id !== source.asset.organization_id) throw invalid("只能在同一组织内另存副本");
+  const organizationId = source.asset.organization_id;
+  const org = await requireOrgWrite(db, actor, organizationId);
+  const workspace = targetId ? await requireWorkspaceEdit(db, actor, targetId) : undefined;
+  if (workspace && workspace.workspace.organization_id !== organizationId) throw invalid("只能在同一组织内另存副本");
+  const target: AssetCreateTarget = workspace ? { org: workspace, workspace } : { org };
   const name = body.name === undefined ? `${source.asset.name ?? "素材"} 副本` : requireString(body.name, "name", { max: 200 });
   const scope = { actorId: actor.userId, command: "asset.duplicate", key, hash: requestHash({ assetId, targetId, name, sourceVersionId }) };
   const outcome = await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, target);
+    if (workspace) await lockWorkspaceForWrite(trx, workspace);
+    else await lockOrgForWrite(trx, organizationId);
     const previous = await claimIdempotency(trx, scope);
     if (previous) {
       const v1 = await trx.selectFrom("asset_version").select("id").where("asset_id", "=", previous).where("version_no", "=", 1).executeTakeFirstOrThrow();
       return { assetId: previous, versionId: v1.id, created: false };
     }
-    await ensureAssetUse(trx, actor, assetId, target);
+    await ensureAssetUse(trx, actor, assetId, target.org);
     const version = await trx
       .selectFrom("asset_version")
       .select(["id", "payload"])
@@ -418,16 +444,16 @@ export async function duplicateAsset(actor: Actor, assetId: string, body: JsonRe
         fromRole: r.role as ResourceRole,
         fromOrdinal: r.ordinal,
       })),
-      visibility: "restricted",
+      visibility: DEFAULT_VISIBILITY,
     });
-    await recordIdempotency(trx, scope, target.workspace.organization_id, "asset", created.assetId);
+    await recordIdempotency(trx, scope, organizationId, "asset", created.assetId);
     await audit(trx, {
-      organizationId: target.workspace.organization_id,
+      organizationId,
       actorId: actor.userId,
       action: "asset.duplicate",
       objectType: "asset",
       objectId: created.assetId,
-      workspaceId: target.workspace.id,
+      workspaceId: workspace?.workspace.id ?? null,
       details: { source_asset_id: assetId, source_version_id: version.id },
     });
     return { assetId: created.assetId, versionId: created.versionId, created: true };
@@ -435,72 +461,24 @@ export async function duplicateAsset(actor: Actor, assetId: string, body: JsonRe
   return createResult(actor, outcome.assetId, outcome.versionId, null, outcome.created);
 }
 
-// ───────────────────────── usage & grants ─────────────────────────
+// ───────────────────────── usage & retired grants ─────────────────────────
 
 export async function getAssetUsage(actor: Actor, assetId: string): Promise<AssetUsageDto> {
   const access = await requireAssetRead(db, actor, assetId);
   const [impact, grants] = await Promise.all([computeImpact(db, actor, assetId), listGrants(db, actor, assetId)]);
-  return {
-    asset_id: assetId,
-    current_version_id: access.asset.current_version_id,
-    impact,
-    grants: grants.filter((g) => g.workspace_name !== null || access.canMaintain),
-  };
+  return { asset_id: assetId, current_version_id: access.asset.current_version_id, impact, grants };
 }
 
-/** POST /api/assets/[id]/workspace-grants: maintainer shares the asset with a same-org project. */
-export async function createAssetGrant(actor: Actor, assetId: string, body: JsonRecord): Promise<AssetGrantDto> {
-  rejectUnknown(body, ["workspaceId"]);
-  const workspaceId = requireUuid(body.workspaceId, "workspaceId");
-  const pre = await requireAssetMaintain(db, actor, assetId);
-  const target = await requireWorkspaceRead(db, actor, workspaceId);
-  if (target.workspace.organization_id !== pre.asset.organization_id) throw invalid("只能授权给同一组织的项目");
-  await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, target);
-    await lockKeys(trx, [grantLockKey(assetId, workspaceId)]);
-    const access = await requireAssetMaintain(trx, actor, assetId, { forUpdate: true });
-    if (access.asset.state !== "active") throw archived("素材已归档，不能新增授权");
-    const inserted = await trx
-      .insertInto("asset_workspace_grant")
-      .values({ asset_id: assetId, workspace_id: workspaceId, organization_id: access.asset.organization_id, created_by: actor.userId })
-      .onConflict((oc) => oc.columns(["asset_id", "workspace_id"]).doNothing())
-      .returning("asset_id")
-      .executeTakeFirst();
-    if (inserted)
-      await audit(trx, { organizationId: access.asset.organization_id, actorId: actor.userId, action: "asset.grant.create", objectType: "asset_grant", objectId: assetId, workspaceId });
-  });
-  const grant = (await listGrants(db, actor, assetId)).find((g) => g.workspace_id === workspaceId);
-  if (!grant) throw new ContentError("INTERNAL", "授权未生效");
-  return grant;
+const GRANTS_RETIRED = "素材授权已停用：团队成员可以直接在任意合集中使用团队素材";
+
+/** POST /api/assets/[id]/workspace-grants: retired (410). Team assets need no grant. */
+export function createAssetGrant(): never {
+  throw deprecated(GRANTS_RETIRED);
 }
 
-/**
- * DELETE /api/assets/[id]/workspace-grants?workspace_id=…  ("从项目移除").
- * The dependency scan runs under the same grant lock new references take,
- * so a concurrent save cannot slip a reference past the check.
- */
-export async function revokeAssetGrant(actor: Actor, assetId: string, workspaceId: string): Promise<{ revoked: true }> {
-  const pre = await requireAssetRead(db, actor, assetId);
-  const project = await loadWorkspaceAccess(db, actor, workspaceId);
-  if (!pre.canMaintain && !project?.canManage) throw forbidden("需要素材维护权或该项目的管理权限");
-  await contentTransaction(async (trx) => {
-    await lockOrgForWrite(trx, pre.asset.organization_id);
-    await lockKeys(trx, [grantLockKey(assetId, workspaceId)]);
-    const grant = await trx
-      .selectFrom("asset_workspace_grant")
-      .select("asset_id")
-      .where("asset_id", "=", assetId)
-      .where("workspace_id", "=", workspaceId)
-      .forUpdate()
-      .executeTakeFirst();
-    if (!grant) throw notFound("该项目没有此素材的授权");
-    const impact = await computeImpact(trx, actor, assetId, workspaceId);
-    if (hasDependencies(impact))
-      throw new ContentError("DEPENDENCY_CONFLICT", "该项目仍有草稿、发布版本或投放使用此素材，不能撤销授权", { impact });
-    await trx.deleteFrom("asset_workspace_grant").where("asset_id", "=", assetId).where("workspace_id", "=", workspaceId).execute();
-    await audit(trx, { organizationId: pre.asset.organization_id, actorId: actor.userId, action: "asset.grant.revoke", objectType: "asset_grant", objectId: assetId, workspaceId });
-  });
-  return { revoked: true };
+/** DELETE /api/assets/[id]/workspace-grants: retired (410). Historical grants stay as read-only rows. */
+export function revokeAssetGrant(): never {
+  throw deprecated(GRANTS_RETIRED);
 }
 
 /** For legacy-path readers: is this id a v2 identity row? */
@@ -509,5 +487,5 @@ export async function isV2Asset(assetId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Ids of projects the caller can read in an organization (null = all). */
+/** Collection ids the caller can read in an organization (null = all). */
 export { readableWorkspaceIds };

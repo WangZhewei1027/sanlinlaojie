@@ -23,16 +23,16 @@
     "updateFailed": "Update failed"
   },
   "workspace": {
-    "selectPlaceholder": "Select project...",
-    "allWorkspaces": "All projects",
+    "selectPlaceholder": "Select collection...",
+    "allWorkspaces": "All collections",
     "qrButton": "Show QR Code",
     "qrTitle": "Scan to enter mini-program",
     "qrLoading": "Generating...",
     "qrError": "Failed to load QR code",
-    "noAssigned": "No project"
+    "noAssigned": "No collection"
   },
   "invite": {
-    "title": "Organization Invitation",
+    "title": "Team Invitation",
     "loading": "Loading invitation…",
     "invalid": "This invitation is invalid or has expired",
     "joinPrompt": "You are invited to join \"{{name}}\"",
@@ -73,7 +73,7 @@
     },
     "scene": {
       "content": "Scene JSON",
-      "contentPlaceholder": "Paste composition JSON referencing model asset IDs in this project"
+      "contentPlaceholder": "Paste composition JSON referencing the team's model asset IDs"
     }
   },
   "onsite": {
@@ -120,7 +120,7 @@
       "title": "Tags",
       "createNew": "New Tag",
       "createTitle": "Create Tag",
-      "createDescription": "Create a new tag for the project",
+      "createDescription": "Create a new tag for the collection",
       "tagName": "Tag Name",
       "tagNamePlaceholder": "Enter tag name...",
       "tagColor": "Tag Color",
@@ -130,9 +130,9 @@
       "selectedCount": "{{count}} tag(s) selected"
     },
     "uploadingTo": "Uploading to",
-    "selectWorkspaceFirst": "Please select a specific project before uploading",
+    "selectWorkspaceFirst": "Please select a specific collection before uploading",
     "selectFromGallery": "Select from Gallery",
-    "readOnly": "You are a read-only member in this organization and cannot upload assets"
+    "readOnly": "You are a read-only member in this team and cannot upload assets"
   },
   "manage": {
     "clickedLocation": {
@@ -202,7 +202,7 @@
       },
       "org": {
         "title": "Team Collaboration",
-        "desc": "Organizations and workspaces with four role levels — everyone works within clear boundaries."
+        "desc": "The team shares every asset and scene, four roles decide who can edit, and map collections decide where content appears."
       }
     },
     "workflow": {
@@ -241,10 +241,10 @@
     }
   },
   "organization": {
-    "selectPlaceholder": "Select organization...",
-    "switchTitle": "Organizations",
-    "searchPlaceholder": "Search organizations",
-    "noResults": "No organizations found",
+    "selectPlaceholder": "Select team...",
+    "switchTitle": "Teams",
+    "searchPlaceholder": "Search teams",
+    "noResults": "No teams found",
     "pinned": "Pinned",
     "pin": "Pin",
     "unpin": "Unpin",
@@ -255,16 +255,16 @@
     "sidebar": {
       "section": "Super Admin",
       "users": "User Management",
-      "organizations": "Organizations",
+      "organizations": "Teams",
       "errorLogs": "Error Logs",
       "settings": "System Settings",
       "cleanup": "Cleanup"
     },
     "orgs": {
-      "title": "Organization Management",
-      "description": "Manage all organizations and set owners",
+      "title": "Team Management",
+      "description": "Manage all teams and set owners",
       "totalOrgs": "Total",
-      "noOrgs": "No organizations",
+      "noOrgs": "No teams",
       "members": "members",
       "noOwner": "No owner",
       "setOwner": "Set Owner",
@@ -274,26 +274,26 @@
       "demoteToMember": "Demote to member",
       "setOwnerHint": "If the user is not a member, they will be added as owner. If already a member, their role will be changed to owner.",
       "setOwnerDialog": {
-        "title": "Set Organization Owner",
+        "title": "Set Team Owner",
         "description": "Manage owners for {{name}}"
       },
-      "createOrg": "New Organization",
+      "createOrg": "New Team",
       "createDialog": {
-        "title": "Create Organization",
-        "description": "You will be set as the owner of this organization.",
+        "title": "Create Team",
+        "description": "You will be set as the owner of this team.",
         "name": "Name",
-        "namePlaceholder": "Organization name",
+        "namePlaceholder": "Team name",
         "desc": "Description",
         "descPlaceholder": "Optional description"
       },
       "deleteDialog": {
-        "title": "Delete Organization",
-        "description": "Are you sure you want to delete \"{{name}}\"? All workspaces, assets and their files under this organization will be deleted as well. This action cannot be undone."
+        "title": "Delete Team",
+        "description": "Are you sure you want to delete \"{{name}}\"? All workspaces, assets and their files under this team will be deleted as well. This action cannot be undone."
       },
-      "details": "Organization Details",
+      "details": "Team Details",
       "saveChanges": "Save Changes",
-      "selectOrgHint": "Click a card to view and edit the organization",
-      "deleteOrg": "Delete Organization",
+      "selectOrgHint": "Click a card to view and edit the team",
+      "deleteOrg": "Delete Team",
       "section": {
         "basicInfo": "Basic Info",
         "mapCenter": "Map Center",
@@ -374,8 +374,8 @@
     "settings": {
       "title": "System Settings",
       "description": "Global default configuration",
-      "defaultFileTypes": "Default File Types for New Organizations",
-      "defaultFileTypesDesc": "File types newly created organizations (including auto-created personal orgs on signup) are allowed to upload by default; existing organizations are unaffected.",
+      "defaultFileTypes": "Default File Types for New Teams",
+      "defaultFileTypesDesc": "File types newly created teams (including auto-created personal teams on signup) are allowed to upload by default; existing teams are unaffected.",
       "saved": "Settings saved"
     }
   },
@@ -383,41 +383,31 @@
     "sidebar": {
       "settings": "Settings",
       "members": "Members",
-      "workspaces": "Projects",
-      "orgSection": "Organization"
+      "workspaces": "Collections",
+      "orgSection": "Team"
     },
     "members": {
       "title": "Members",
       "description": "Manage members of {{name}}",
-      "selectOrgFirst": "Please select an organization first",
+      "selectOrgFirst": "Please select a team first",
       "addMember": "Add Member",
       "selectUser": "Select user...",
       "noMembers": "No members yet",
       "unnamed": "Unnamed user",
-      "assignWorkspace": "Assign Project",
       "removeDialog": {
         "title": "Remove Member",
-        "description": "Are you sure you want to remove {{name}} from this organization?",
+        "description": "Are you sure you want to remove {{name}} from this team?",
         "confirm": "Remove"
-      },
-      "workspaceDialog": {
-        "title": "Manage Project Access",
-        "description": "Assign project access for {{name}}",
-        "addWorkspace": "Add Project",
-        "selectWorkspace": "Select project",
-        "assignedWorkspaces": "Assigned Projects",
-        "noAssignedWorkspaces": "No assigned projects",
-        "close": "Close"
       },
       "searchByEmail": "Search by email or name (≥3 chars)",
       "searchHint": "Type at least 3 characters to search",
       "invite": {
         "button": "Invite Link",
         "title": "Generate Invite Link",
-        "description": "Share the link; the invitee joins this organization automatically after signing in.",
+        "description": "Share the link; the invitee joins this team automatically after signing in.",
         "role": "Role",
-        "workspace": "Project (optional)",
-        "noWorkspace": "Organization only",
+        "workspace": "Collection (optional)",
+        "noWorkspace": "Team only",
         "expiry": "Expires in",
         "expiry1d": "1 day",
         "expiry7d": "7 days",
@@ -428,23 +418,23 @@
       }
     },
     "settings": {
-      "title": "Settings",
-      "description": "Manage organization settings for {{name}}",
-      "selectOrgFirst": "Please select an organization first",
+      "title": "Team settings",
+      "description": "Manage team settings for {{name}}",
+      "selectOrgFirst": "Please select a team first",
       "saved": "Settings saved successfully",
       "dangerZone": "Danger Zone",
-      "deleteWarning": "Deleting an organization will remove all associated data. This action cannot be undone.",
+      "deleteWarning": "Deleting a team will remove all associated data. This action cannot be undone.",
       "confirmDelete": "Type \"{{name}}\" to confirm deletion",
-      "deleteOrg": "Delete Organization",
-      "noPermission": "You don't have permission to manage this organization's settings",
-      "loadFailed": "Failed to load organization info, please refresh"
+      "deleteOrg": "Delete Team",
+      "noPermission": "You don't have permission to manage this team's settings",
+      "loadFailed": "Failed to load team info, please refresh"
     },
     "workspaces": {
-      "selectOrgFirst": "Please select an organization first",
-      "description": "Manage projects under {{name}}"
+      "selectOrgFirst": "Please select a team first",
+      "description": "Manage collections under {{name}}"
     },
     "organization": {
-      "label": "Organization",
+      "label": "Team",
       "roles": {
         "owner": "Owner",
         "admin": "Admin",
@@ -453,24 +443,24 @@
       }
     },
     "workspace": {
-      "create": "Create Project",
-      "noWorkspaces": "No Projects",
-      "noWorkspacesHint": "Click the button above to create your first project",
+      "create": "New collection",
+      "noWorkspaces": "No collections",
+      "noWorkspacesHint": "Click the button above to create your first collection",
       "createdAt": "Created on",
       "formDialog": {
-        "createTitle": "Create Project",
-        "editTitle": "Edit Project",
-        "createDescription": "Create a new project to organize and manage assets",
-        "editDescription": "Modify project name and description",
+        "createTitle": "New collection",
+        "editTitle": "Edit collection",
+        "createDescription": "Create a new map collection",
+        "editDescription": "Change the collection's name and description",
         "name": "Name",
-        "namePlaceholder": "e.g., Sanlin Old Street Project",
+        "namePlaceholder": "e.g., Sanlin night tour",
         "description": "Description",
-        "descriptionPlaceholder": "Optional: Add project description"
+        "descriptionPlaceholder": "Optional: describe the collection"
       }
     },
     "users": {
       "title": "User Management",
-      "description": "Manage user roles and project access permissions",
+      "description": "Manage user roles and teams",
       "totalUsers": "Total Users",
       "noUsers": "No Users",
       "noUsersHint": "Waiting for user registration",
@@ -493,12 +483,12 @@
         "create": "Create",
         "createFailed": "Failed to create user"
       },
-      "workspaceCount": "{{count}} projects",
+      "workspaceCount": "{{count}} collections",
       "neverSignedIn": "Never signed in",
       "columns": {
         "user": "User",
         "role": "Role",
-        "workspaces": "Projects",
+        "workspaces": "Collections",
         "lastSignIn": "Last sign-in",
         "registered": "Registered"
       },
@@ -513,8 +503,8 @@
         "selectRole": "Select role",
         "userRole": "User",
         "superAdminRole": "Super Admin",
-        "userHint": "Users are controlled by organization roles",
-        "superAdminHint": "Super Admins can manage all organizations and users"
+        "userHint": "Users are controlled by team roles",
+        "superAdminHint": "Super Admins can manage all teams and users"
       },
       "deleteUser": "Delete user",
       "deleteDialog": {
@@ -522,8 +512,8 @@
         "description": "Are you sure you want to delete {{name}}? This action cannot be undone.",
         "loadingPreview": "Analyzing impact…",
         "previewFailed": "Failed to load deletion preview",
-        "noOwnedOrgs": "This user does not own any organization; deletion will not affect existing organizations.",
-        "orgDelete": "Will be deleted ({{workspaces}} projects, {{assets}} assets and their files)",
+        "noOwnedOrgs": "This user does not own any team; deletion will not affect existing teams.",
+        "orgDelete": "Will be deleted ({{workspaces}} collections, {{assets}} assets and their files)",
         "orgPromote": "{{name}} will be promoted to owner",
         "orgUnchanged": "Has another owner; unaffected"
       }
@@ -531,9 +521,9 @@
     "clean": {
       "title": "Resource Cleanup",
       "description": "Clean up orphaned resources in database and storage",
-      "selectWorkspaceFirst": "Please select a project first",
+      "selectWorkspaceFirst": "Please select a collection first",
       "confirmMessage": "Are you sure you want to proceed with cleanup?",
-      "willDeleteRows": "- Will delete database records with missing files (current project)",
+      "willDeleteRows": "- Will delete database records with missing files (current collection)",
       "willDeleteFiles": "- Will scan the whole bucket and delete orphan files unreferenced by any record (older than 24h)",
       "irreversible": "This action cannot be undone!"
     }
@@ -603,7 +593,7 @@
   },
   "upload": {
     "title": "Upload Asset",
-    "selectWorkspace": "Please select a project first",
+    "selectWorkspace": "Please select a collection first",
     "pleaseLogin": "Please login first",
     "anchorRequiresLocation": "Matching Point must have a location",
     "anchorRequiresName": "Matching Point must have a name",
@@ -743,7 +733,7 @@
       "none": "Not associated",
       "unnamed": "Unnamed matching point",
       "notAssociated": "No associated matching point",
-      "workspaceRequiredHint": "Select a specific project to link an matching point",
+      "workspaceRequiredHint": "Select a specific collection to link a matching point",
       "loading": "Loading...",
       "fetchFailed": "Failed to fetch matching point list:"
     },
@@ -761,7 +751,7 @@
       "selectOrCreate": "Select an option or create one",
       "createOption": "Create \"{{name}}\"",
       "addPlaceholder": "Add tags",
-      "workspaceRequiredHint": "Select a specific project to edit tags",
+      "workspaceRequiredHint": "Select a specific collection to edit tags",
       "colorSectionTitle": "Color",
       "customColor": "Custom",
       "noResults": "No tags found",
@@ -904,7 +894,7 @@
     "saveChildren": "Save attachments",
     "childrenSaved": "Attachments saved",
     "childrenFailed": "Some attachments could not be saved. Refresh and retry.",
-    "noWorkspace": "Select a specific project to manage attachments.",
+    "noWorkspace": "Select a specific collection to manage attachments.",
     "attach": "Attach",
     "detach": "Detach",
     "status_error": "Feature status unavailable",
@@ -949,9 +939,9 @@
     "unsaved": "Unsaved",
     "saved": "Saved",
     "modelAsset": "Model asset",
-    "noModels": "No models in this project",
+    "noModels": "The team has no models yet",
     "add": "Add instance",
-    "modelsHint": "Use models from the scene’s projects. Up to 8 models and 24 instances; a model can be added more than once.",
+    "modelsHint": "Use the team's model assets. Up to 8 models and 24 instances; a model can be added more than once.",
     "empty": "This scene is empty. Add a model to get started.",
     "remove": "Remove instance",
     "clip": "Model animation",
@@ -960,7 +950,7 @@
     "clipStart": "Start time",
     "loading": "Opening scene…",
     "retry": "Retry",
-    "missingModel": "A referenced model was deleted or moved out of the project. Remove its instances and add an available model.",
+    "missingModel": "A referenced model was deleted or its file is missing. Remove its instances and add an available model.",
     "invalidClip": "A model animation has not loaded or is unavailable. Wait for loading or choose another animation.",
     "assetLimit": "Use up to 8 models. Remove unused instances first.",
     "modelFailed": "Model loading failed. Select the affected object in Hierarchy and remove it in Inspector to retry.",
@@ -976,16 +966,16 @@
     "hierarchy": "Hierarchy",
     "scene": "Scene",
     "objects": "Objects",
-    "library": "Project assets",
+    "library": "Model assets",
     "searchModels": "Search models…",
     "unnamedModel": "Untitled model",
     "addNamed": "Add {{name}}",
     "addModel": "Add to scene",
     "noResults": "No matching models",
-    "noLibraryModels": "No models in this project. Return to assets to upload a GLB.",
+    "noLibraryModels": "The team has no models yet. Upload a GLB from the workbench first.",
     "instanceLimit": "24-instance limit reached",
     "emptyHierarchy": "No scene objects yet",
-    "addFromLibrary": "Add a model from Project assets below.",
+    "addFromLibrary": "Add a model from Model assets below.",
     "inspector": "Inspector",
     "selectObject": "Select an object",
     "inspectorHint": "Select a model in the hierarchy, scene or timeline to edit its transforms and animation.",
@@ -1021,7 +1011,7 @@
     "scaleTool": "Scale",
     "grid": "Show grid",
     "emptyScene": "Start with a model",
-    "emptySceneHint": "Add a model from Project assets, then arrange its movement on the timeline.",
+    "emptySceneHint": "Add a model from Model assets on the left, then arrange its movement on the timeline.",
     "addFirstModel": "Add first model",
     "orbitHint": "Drag to orbit · Right-drag to pan · Scroll to zoom",
     "noSelection": "No selection",
@@ -1053,9 +1043,6 @@
       "actionFailed": "The action didn't complete"
     },
     "badge": {
-      "organization": "Shared with org",
-      "restricted": "Restricted",
-      "inProject": "In this project",
       "archived": "Archived",
       "fileMissing": "File missing",
       "unpublished": "Unpublished",
@@ -1064,21 +1051,6 @@
       "changed": "Unpublished changes",
       "outdated": "Newer version",
       "outdatedNumbered": "v{{number}} available"
-    },
-    "context": {
-      "organization": "Organization",
-      "project": "Project",
-      "noProject": "No project selected"
-    },
-    "role": {
-      "label": "Project role",
-      "manager": "Manager",
-      "editor": "Editor",
-      "viewer": "Viewer",
-      "managerHint": "Manages project members and can edit, publish and place project content.",
-      "editorHint": "Uploads assets, builds and publishes scenes, and manages placements.",
-      "viewerHint": "Can browse project assets and scenes but not change them.",
-      "cappedHint": "This member is an organization viewer, so their project access is view-only."
     },
     "filter": {
       "type": "Type",
@@ -1097,44 +1069,6 @@
         "legacy": "Migrated"
       }
     },
-    "library": {
-      "title": "Asset library",
-      "scopeLabel": "Asset scope",
-      "scope": {
-        "project": "Project assets",
-        "organization": "Shared in org"
-      },
-      "searchPlaceholder": "Search assets by name",
-      "upload": "Upload asset",
-      "uploadNeedsProject": "Choose a project to upload",
-      "uploadNoPermission": "You can view this project but not upload",
-      "projectArchived": "Project archived; content is read-only",
-      "addToProject": "Add to project",
-      "addNamedToProject": "Add to project: “{{name}}”",
-      "browseShared": "Browse shared assets",
-      "fromProject": "From {{name}}",
-      "maintainedBy": "Maintained by {{name}}",
-      "noMaintainer": "Awaiting an admin to assign a maintainer",
-      "noMaintainerShort": "Unassigned",
-      "shown": "Showing {{shown}} of {{total}}",
-      "column": {
-        "asset": "Asset",
-        "maintainer": "Maintainer",
-        "version": "Version",
-        "usage": "Usage",
-        "updated": "Updated"
-      },
-      "empty": {
-        "projectTitle": "This project has no assets yet",
-        "projectBody": "Upload a new asset, or add one shared in your organization, to use it in scenes and placements.",
-        "sharedTitle": "Nothing is shared in this organization yet",
-        "sharedBody": "Maintainers can share an asset with the whole organization from its detail page so other projects can reuse it.",
-        "filteredTitle": "No assets match",
-        "filteredBody": "Try another name, or clear the type, status and source filters.",
-        "noProjectTitle": "Choose a project to see its assets",
-        "noProjectBody": "Project assets are listed per project grant. You can browse shared assets meanwhile."
-      }
-    },
     "usage": {
       "title": "Usage",
       "summary_one": "{{count}} reference",
@@ -1146,13 +1080,13 @@
       "none": "Unused",
       "kind": {
         "published": "Published scenes",
-        "placement": "Direct placements",
+        "placement": "Map placements",
         "draft": "Scene drafts"
       },
-      "restricted_one": "{{count}} more use is in a project you can't view",
-      "restricted_other": "{{count}} more uses are in projects you can't view",
+      "restricted_one": "{{count}} more reference is not listed",
+      "restricted_other": "{{count}} more references are not listed",
       "emptyTitle": "Nothing uses this asset yet",
-      "emptyBody": "When a scene references it or it is placed directly, the project and pinned version appear here.",
+      "emptyBody": "When a scene references it or it is placed in a map collection, it is listed here with its pinned version.",
       "versionUnusedTitle": "Nothing references v{{number}} right now",
       "versionUnusedBody": "Other versions may still be in use. Choose “Show usage of all versions” to see everything.",
       "showMore_one": "Show {{count}} more",
@@ -1175,46 +1109,11 @@
       "uploading": "Uploading",
       "uploadingPercent": "{{percent}}% uploaded"
     },
-    "sharing": {
-      "title": "Sharing",
-      "visibility": "Who can browse and use it",
-      "restricted": "Granted projects only",
-      "restrictedHint": "The maintainer, organization admins and the projects granted below can use it.",
-      "organization": "Whole organization",
-      "organizationHint": "Organization members can browse it; project editors can add it to their projects.",
-      "maintainerOnly": "Only the maintainer or an organization admin can change sharing and project grants.",
-      "projects": "Granted projects",
-      "projectsHint": "These projects can use the asset in scenes and placements. Existing grants stay when you restrict sharing.",
-      "origin": "Origin",
-      "dependencies_one": "{{count}} reference",
-      "dependencies_other": "{{count}} references",
-      "noDependencies": "No references",
-      "noProjects": "No project has been granted yet.",
-      "revoke": "Remove",
-      "revokeNamed": "Remove the grant for {{name}}",
-      "revokeBlocked": "Content in this project still references it, so the grant can't be removed",
-      "revokeConfirm": "{{name}} will no longer be able to choose this asset.",
-      "revokeAction": "Remove grant",
-      "chooseProject": "Choose a project to grant",
-      "grant": "Grant use",
-      "allProjectsGranted": "Every project in the organization already has a grant.",
-      "archivedHint": "Archived assets can't be granted to more projects."
-    },
     "maintenance": {
-      "title": "Maintenance",
-      "roleHint": "The maintainer and organization admins can upload versions, change sharing and archive the asset.",
-      "unassigned": "No maintainer; organization admins are responsible",
-      "transfer": "Transfer",
-      "assign": "Assign maintainer",
-      "transferTitle": "Transfer maintenance",
-      "transferBody": "“{{name}}” is maintained by {{current}}. The new maintainer must be an organization member who can edit.",
-      "newMaintainer": "New maintainer",
-      "choosePerson": "Choose a member",
-      "noCandidates": "No eligible members",
-      "transferAction": "Transfer",
+      "title": "Archive",
       "archive": "Archive asset",
       "archiveHint": "Archived assets keep working where they are used but can't be added anywhere new. You can restore them at any time.",
-      "archivedBody": "This asset is archived. Restore it to let projects choose it again.",
+      "archivedBody": "This asset is archived. Restore it to use it in scenes and map collections again.",
       "restore": "Restore asset",
       "archiveTitle": "Archive “{{name}}”?",
       "archiveBody": "Archiving deletes no versions or files and can be undone.",
@@ -1236,74 +1135,36 @@
       "type": "Type",
       "currentVersion": "Current version",
       "maintainer": "Maintainer",
-      "originProject": "Origin project",
-      "originUnknown": "Not recorded",
       "source": "Source",
       "created": "Created",
-      "useOnlyHint": "You can use this asset in projects you can edit. Changing its files or sharing needs the maintainer or an organization admin.",
+      "useOnlyHint": "You can browse, preview and use this asset. Uploading versions, renaming and archiving need the member role or above.",
       "staleTitle": "Someone else changed this asset",
       "staleBody": "What you see is out of date and your last change wasn't saved. Reload before trying again.",
       "archivedTitle": "This asset is archived",
       "archivedBody": "Existing scenes and placements keep their pinned version; it can't be newly referenced.",
       "fileMissingTitle": "The current version's file is missing",
-      "fileMissingBody": "Content that references this version can't be published. Upload a new version or ask an admin to repair storage."
+      "fileMissingBody": "Content that references this version can't be published. Upload a new version or ask an admin to repair storage.",
+      "updated": "Updated"
     },
     "scene": {
-      "title": "Scenes",
-      "searchPlaceholder": "Search scenes by name",
-      "create": "New scene",
-      "import": "Import JSON",
-      "needsProject": "Choose a project to create a scene",
-      "noPermission": "You can only view this project",
       "name": "Scene name",
       "createTitle": "New scene",
-      "createBody": "The scene belongs to “{{project}}”. The editor opens once it's created.",
+      "createBody": "The scene belongs to the whole team: everyone on the team can view it, and members and above can edit, publish and place it. The editor opens once it's created.",
       "createAction": "Create and open",
       "copy": "Copy",
-      "copyNamed": "Copy “{{name}}”",
       "moreNamed": "More actions for “{{name}}”",
       "copyTitle": "Copy scene",
-      "copyBody": "The copy is a new scene that keeps the same pinned asset versions, without publications or placements.",
+      "copyBody": "The copy is a new team scene that pins the same asset versions, without the original's revisions or placements.",
       "copyDefaultName": "{{name}} copy",
       "copyAction": "Create copy",
-      "targetProject": "Target project",
-      "copySameProjectHint": "The copy stays in this project.",
-      "copyCrossProjectHint": "Copying to another project grants it the assets it needs; restricted assets must be granted by their maintainer first.",
       "archive": "Archive scene",
       "restore": "Restore scene",
       "archiveTitle": "Archive “{{name}}”?",
-      "archiveBody": "Existing placements keep playing their published revision. Archived scenes can't be edited, published or newly placed, and can be restored at any time.",
+      "archiveBody": "Existing placements keep playing their revision. Once archived it can't be edited, published or placed in new collections; you can restore it at any time.",
       "archivePlacements_one": "This scene has {{count}} placement ({{active}} active); it is not affected.",
       "archivePlacements_other": "This scene has {{count}} placements ({{active}} active); they are not affected.",
-      "liveRevision": "Latest revision v{{number}}",
       "placements_one": "{{count}} placement · {{active}} active",
       "placements_other": "{{count}} placements · {{active}} active",
-      "noPlacements": "Not placed",
-      "count_one": "{{count}} scene",
-      "count_other": "{{count}} scenes",
-      "projectArchivedTitle": "Project archived",
-      "projectArchivedBody": "You can browse scenes. Restore the project to edit, publish or copy them.",
-      "column": {
-        "scene": "Scene",
-        "placements": "Placements",
-        "updated": "Last changed"
-      },
-      "filter": {
-        "current": "All except archived",
-        "unpublished": "Unpublished",
-        "published": "Published",
-        "changed": "Unpublished changes",
-        "archived": "Archived"
-      },
-      "empty": {
-        "noProjectTitle": "Choose a project to see its scenes",
-        "noProjectBody": "Scenes belong to a project. Pick one above.",
-        "projectTitle": "This project has no scenes yet",
-        "projectBody": "Create a scene, then add project assets, animate them and publish from the editor.",
-        "readOnlyBody": "Scenes appear here once a project editor creates them.",
-        "filteredTitle": "No scenes match",
-        "filteredBody": "Try another name, or clear the status filter."
-      },
       "placementsTotal_one": "{{count}} placement",
       "placementsTotal_other": "{{count}} placements",
       "archivePlacementsTotal_one": "This scene has {{count}} placement; it is not affected.",
@@ -1347,8 +1208,92 @@
       },
       "sceneRoute": {
         "notFound": "Scene not found or you do not have access.",
-        "back": "Back to scenes"
+        "back": "Back to workbench"
       }
+    },
+    "workbench": {
+      "title": "Workbench",
+      "subtitle": "Every asset and scene of {{team}}. Everyone on the team can view them; members and above can upload and edit.",
+      "upload": "Upload",
+      "createScene": "New scene",
+      "moreCreate": "More ways to create",
+      "importScene": "Import scene JSON",
+      "search": "Search by name",
+      "stateLabel": "Status",
+      "typeLabel": "Content type",
+      "listLabel": "Team content",
+      "types": {
+        "all": "All",
+        "scene": "Scenes",
+        "model": "Models",
+        "image": "Images",
+        "video": "Videos",
+        "audio": "Audio",
+        "text": "Text",
+        "link": "Links",
+        "document": "Documents"
+      },
+      "view": {
+        "label": "View",
+        "grid": "Grid",
+        "list": "List"
+      },
+      "column": {
+        "name": "Name",
+        "type": "Type",
+        "status": "Status",
+        "updated": "Updated"
+      },
+      "readOnlyViewer": "You're a viewer on this team: browse and preview, but no uploads or edits.",
+      "readOnlyFrozen": "The team is migrating; content is read-only for now.",
+      "readOnlyOther": "You can only view this team's content.",
+      "copied": "Copied as “{{name}}”",
+      "empty": {
+        "teamTitle": "Nothing here yet",
+        "teamBody": "Upload images, 3D models, audio and more, or start a scene. Everything you add is visible to the whole team.",
+        "viewerBody": "Assets and scenes appear here once team members add them.",
+        "sceneTitle": "No scenes yet",
+        "sceneBody": "Create a scene, then add models, animate them and publish. Published scenes can go into any map collection.",
+        "typeTitle": "No {{type}} yet",
+        "assetBody": "Uploads appear here and can be used right away in scenes and map collections.",
+        "archivedTitle": "Nothing archived",
+        "archivedBody": "Archived assets and scenes show up here and can be restored at any time.",
+        "filteredTitle": "Nothing matches",
+        "filteredBody": "Try another name, or clear the filters."
+      },
+      "shown": "Showing {{shown}} of {{total}}"
+    },
+    "collections": {
+      "title": "Collections",
+      "subtitle": "A map collection decides which published scenes and assets appear on the map and in the mini-program. One scene can sit in several collections.",
+      "kind": {
+        "map": "Map collection"
+      },
+      "created": "Created {{date}}",
+      "moreNamed": "More actions for “{{name}}”",
+      "edit": "Edit",
+      "archive": "Archive collection",
+      "restore": "Restore collection",
+      "create": "New collection",
+      "createTitle": "New map collection",
+      "createBody": "Open the collection's map afterwards to place team assets and published scenes.",
+      "editTitle": "Edit collection",
+      "editBody": "Changing the name or description doesn't affect placed content or the QR code.",
+      "name": "Name",
+      "description": "Description (optional)",
+      "save": "Save",
+      "createAction": "Create collection",
+      "archiveTitle": "Archive “{{name}}”?",
+      "archiveBody": "Its placements stop showing everywhere and the collection becomes read-only. Team assets and scenes are untouched and can still go into other collections. You can restore it at any time.",
+      "empty": {
+        "title": "No map collections yet",
+        "body": "Create a collection to put the team's published scenes and assets on a map.",
+        "viewerBody": "Collections appear here once team members create them.",
+        "archivedTitle": "No archived collections",
+        "archivedBody": "Archived collections show up here and can be restored at any time."
+      },
+      "count_one": "{{count}} collection",
+      "count_other": "{{count}} collections"
     }
   }
 }

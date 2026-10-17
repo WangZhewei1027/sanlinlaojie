@@ -1,10 +1,8 @@
 import "server-only";
-import { sql } from "@/lib/db";
 import {
-  effectiveProjectRole,
   isSuperAdmin,
   orgRoleCanWrite,
-  projectRoleAtLeast,
+  teamProjectRole,
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
@@ -15,10 +13,16 @@ import type {
   WorkspaceCapabilities,
 } from "./contracts";
 import { ContentError, archived, forbidden, notFound } from "./errors";
-import { audit, grantLockKey, lockKeys, type Executor, type Trx } from "./tx.server";
+import type { Executor, Trx } from "./tx.server";
 
 /**
- * Shared server-side authorization (plan §5.1). Every new and legacy route
+ * Shared server-side authorization (docs/team-workbench-backend-contract.md §1).
+ * The organization (UI: 团队) is the only permission boundary: every member
+ * reads all of its assets, scenes, collections and placements; owner, admin
+ * and member write them; a viewer is read-only; ownership and team
+ * administration stay with owner/admin. Workspace rows are map collections
+ * that own placements. workspace_assignment, asset_workspace_grant, asset
+ * visibility and maintained_by are not permission inputs. Every route
  * resolves access through these helpers; UI capability flags are produced
  * from the same objects, never re-derived on the client.
  */
@@ -48,10 +52,11 @@ export interface OrgInfo {
 export interface OrgAccess {
   org: OrgInfo;
   orgRole: OrgRole | null;
+  /** Any member (or super_admin): reads all team content. */
   canRead: boolean;
-  /** owner/admin (or super_admin): implicit manager of every project. */
+  /** Owner/admin (or super_admin): ownership and team administration. */
   canAdminister: boolean;
-  /** Org role allows content writes at all (viewer is read-only). */
+  /** Owner/admin/member (or super_admin): team content writer; viewer is read-only. */
   canWrite: boolean;
 }
 
@@ -95,6 +100,18 @@ export async function requireOrgRead(exec: Executor, actor: Actor, orgId: string
   const access = await loadOrgAccess(exec, actor, orgId);
   if (!access) throw notFound("组织不存在");
   if (!access.canRead) throw forbidden();
+  return access;
+}
+
+/** Writer role in an open organization; the content-model state is checked by the write transaction. */
+export function assertOrgWritable(access: OrgAccess): void {
+  if (access.org.archived_at) throw archived("组织已归档，内容只读");
+  if (!access.canWrite) throw forbidden("组织查看者只能浏览团队内容");
+}
+
+export async function requireOrgWrite(exec: Executor, actor: Actor, orgId: string): Promise<OrgAccess> {
+  const access = await requireOrgRead(exec, actor, orgId);
+  assertOrgWritable(access);
   return access;
 }
 
@@ -142,7 +159,7 @@ export async function lockOrgForWrite(trx: Trx, orgId: string): Promise<OrgInfo>
   return org;
 }
 
-// ───────────────────────── workspaces (projects) ─────────────────────────
+// ───────────────────────── map collections (workspace rows) ─────────────────────────
 
 export interface WorkspaceInfo {
   id: string;
@@ -155,9 +172,11 @@ export interface WorkspaceInfo {
 
 export interface WorkspaceAccess extends OrgAccess {
   workspace: WorkspaceInfo;
-  assignmentRole: string | null;
+  /** Derived from the team role (owner/admin → manager, member → editor, viewer → viewer). */
   projectRole: ProjectRole | null;
+  /** Team writer, collection and organization open: placements, tags, uploads into it, rename. */
   canEdit: boolean;
+  /** Team writer in an open organization: archive and restore. */
   canManage: boolean;
   capabilities: WorkspaceCapabilities;
 }
@@ -174,7 +193,6 @@ interface WorkspaceRow {
   content_model_changed_at: Date | null;
   org_archived_at: Date | null;
   org_role: string | null;
-  assignment_role: string | null;
 }
 
 function workspaceAccessFrom(actor: Actor, row: WorkspaceRow): WorkspaceAccess {
@@ -185,11 +203,9 @@ function workspaceAccessFrom(actor: Actor, row: WorkspaceRow): WorkspaceAccess {
     content_model_changed_at: row.content_model_changed_at,
     archived_at: row.org_archived_at,
   }, row.org_role);
-  const projectRole: ProjectRole | null = actor.superAdmin ? "manager" : effectiveProjectRole(base.orgRole, row.assignment_role);
-  const open = !row.archived_at && !row.org_archived_at;
-  const writable = actor.superAdmin || orgRoleCanWrite(base.orgRole);
-  const canEdit = open && writable && projectRoleAtLeast(projectRole, "editor");
-  const canManage = open && writable && projectRoleAtLeast(projectRole, "manager");
+  const projectRole: ProjectRole | null = actor.superAdmin ? "manager" : teamProjectRole(base.orgRole);
+  const canManage = base.canWrite && !row.org_archived_at;
+  const canEdit = canManage && !row.archived_at;
   return {
     ...base,
     workspace: {
@@ -200,17 +216,15 @@ function workspaceAccessFrom(actor: Actor, row: WorkspaceRow): WorkspaceAccess {
       create_date: row.create_date,
       archived_at: row.archived_at,
     },
-    assignmentRole: row.assignment_role,
     projectRole,
-    canRead: projectRole !== null,
     canEdit,
     canManage,
     capabilities: {
-      can_read: projectRole !== null,
+      can_read: base.canRead,
       can_edit: canEdit,
-      can_manage_members: canManage,
-      can_assign_manager: canManage && base.canAdminister,
-      can_archive: base.canAdminister && !row.org_archived_at,
+      can_manage_members: false,
+      can_assign_manager: false,
+      can_archive: canManage,
     },
   };
 }
@@ -220,7 +234,6 @@ function workspaceQuery(exec: Executor, actor: Actor) {
     .selectFrom("workspace as w")
     .innerJoin("organization as o", "o.id", "w.organization_id")
     .leftJoin("organization_member as m", (join) => join.onRef("m.organization_id", "=", "o.id").on("m.user_id", "=", actor.userId))
-    .leftJoin("workspace_assignment as a", (join) => join.onRef("a.workspace_id", "=", "w.id").on("a.user_id", "=", actor.userId))
     .select([
       "w.id",
       "w.name",
@@ -233,7 +246,6 @@ function workspaceQuery(exec: Executor, actor: Actor) {
       "o.content_model_changed_at",
       "o.archived_at as org_archived_at",
       "m.role as org_role",
-      "a.role as assignment_role",
     ]);
 }
 
@@ -249,24 +261,27 @@ export async function loadWorkspaceAccessMany(exec: Executor, actor: Actor, work
   return new Map(rows.map((row) => [row.id, workspaceAccessFrom(actor, row)]));
 }
 
-/** Every project of an organization with the caller's access (for org-scope reads). */
+/** Every collection of an organization with the caller's access (newest first). */
 export async function loadOrgWorkspaceAccess(exec: Executor, actor: Actor, orgId: string): Promise<WorkspaceAccess[]> {
-  const rows = await workspaceQuery(exec, actor).where("w.organization_id", "=", orgId).orderBy("w.create_date", "desc").execute();
+  const rows = await workspaceQuery(exec, actor).where("w.organization_id", "=", orgId).orderBy("w.create_date", "desc").orderBy("w.id").execute();
   return rows.map((row) => workspaceAccessFrom(actor, row));
 }
 
+function isWorkspaceAccess(access: OrgAccess): access is WorkspaceAccess {
+  return "workspace" in access;
+}
+
+/** Outside the organization a collection looks missing (no existence oracle). */
 export async function requireWorkspaceRead(exec: Executor, actor: Actor, workspaceId: string): Promise<WorkspaceAccess> {
   const access = await loadWorkspaceAccess(exec, actor, workspaceId);
-  if (!access) throw notFound("项目不存在");
-  // Outside the organization a project looks missing; members lacking an assignment get 403.
-  if (!access.canRead) throw access.orgRole === null ? notFound("项目不存在") : forbidden("无权访问该项目");
+  if (!access?.canRead) throw notFound("合集不存在");
   return access;
 }
 
 function explainEditDenied(access: WorkspaceAccess): never {
   if (access.org.archived_at) throw archived("组织已归档，内容只读");
-  if (access.workspace.archived_at) throw archived("项目已归档，内容只读");
-  throw forbidden("需要该项目的编辑权限");
+  if (access.workspace.archived_at) throw archived("合集已归档，投放只读");
+  throw forbidden("组织查看者只能浏览团队内容");
 }
 
 export async function requireWorkspaceEdit(exec: Executor, actor: Actor, workspaceId: string): Promise<WorkspaceAccess> {
@@ -275,36 +290,32 @@ export async function requireWorkspaceEdit(exec: Executor, actor: Actor, workspa
   return access;
 }
 
+/** Archive/restore rights; unlike requireWorkspaceEdit an archived collection qualifies. */
 export async function requireWorkspaceManage(exec: Executor, actor: Actor, workspaceId: string): Promise<WorkspaceAccess> {
   const access = await requireWorkspaceRead(exec, actor, workspaceId);
   if (!access.canManage) {
-    if (access.workspace.archived_at || access.org.archived_at) explainEditDenied(access);
-    throw forbidden("需要项目管理员权限");
+    // The collection's own archived state is never the reason: restoring it is the point.
+    if (access.org.archived_at) throw archived("组织已归档，内容只读");
+    throw forbidden("组织查看者只能浏览团队内容");
   }
   return access;
 }
 
-/** Inside a write transaction: block concurrent archive of the project and cutover of its org. */
+/** Inside a write transaction: block concurrent archive of the collection and cutover of its org. */
 export async function lockWorkspaceForWrite(trx: Trx, access: WorkspaceAccess): Promise<void> {
   await lockOrgForWrite(trx, access.workspace.organization_id);
   const row = await trx.selectFrom("workspace").select(["archived_at"]).where("id", "=", access.workspace.id).forShare().executeTakeFirst();
-  if (!row) throw notFound("项目不存在");
-  if (row.archived_at) throw archived("项目已归档，内容只读");
+  if (!row) throw notFound("合集不存在");
+  if (row.archived_at) throw archived("合集已归档，投放只读");
 }
 
-/** Workspace ids of an org the caller may read (null = all, for owner/admin/super_admin). */
-export async function readableWorkspaceIds(exec: Executor, actor: Actor, orgAccess: OrgAccess): Promise<string[] | null> {
-  if (orgAccess.canAdminister) return null;
-  if (!orgAccess.orgRole) return [];
-  const rows = await exec
-    .selectFrom("workspace_assignment as a")
-    .innerJoin("workspace as w", "w.id", "a.workspace_id")
-    .select("w.id")
-    .where("a.user_id", "=", actor.userId)
-    .where("w.organization_id", "=", orgAccess.org.id)
-    .where("a.role", "in", ["manager", "editor", "viewer"])
-    .execute();
-  return rows.map((row) => row.id);
+/**
+ * Collection ids of an organization the caller may read: null = every
+ * collection (any member or super_admin), [] for outsiders. Kept for legacy
+ * list queries that filter `asset.workspace_id` arrays.
+ */
+export async function readableWorkspaceIds(_exec: Executor, _actor: Actor, orgAccess: OrgAccess): Promise<string[] | null> {
+  return orgAccess.canRead ? null : [];
 }
 
 // ───────────────────────── assets ─────────────────────────
@@ -326,7 +337,9 @@ export interface AssetIdentity {
 
 export interface AssetAccess extends OrgAccess {
   asset: AssetIdentity;
+  /** Team writer in an open organization: name, versions, archive/restore. */
   canMaintain: boolean;
+  /** Owner/admin: change the responsible maintainer. */
   canTransfer: boolean;
 }
 
@@ -355,29 +368,12 @@ export async function loadAssetIdentity(exec: Executor, assetId: string, opts: {
   return { ...row, organization_id: row.organization_id };
 }
 
-async function hasGrantReadPath(exec: Executor, actor: Actor, assetId: string): Promise<boolean> {
-  const row = await exec
-    .selectFrom("asset_workspace_grant as g")
-    .innerJoin("workspace_assignment as a", "a.workspace_id", "g.workspace_id")
-    .select(sql<number>`1`.as("one"))
-    .where("g.asset_id", "=", assetId)
-    .where("a.user_id", "=", actor.userId)
-    .limit(1)
-    .executeTakeFirst();
-  return !!row;
-}
-
-export function assetAccessFrom(org: OrgAccess, actor: Actor, asset: AssetIdentity, grantRead: boolean): AssetAccess {
-  const member = org.orgRole !== null;
-  const isMaintainer = asset.maintained_by === actor.userId && member;
-  const canRead =
-    org.canAdminister || isMaintainer || (member && asset.visibility === "organization") || (member && grantRead);
+export function assetAccessFrom(org: OrgAccess, asset: AssetIdentity): AssetAccess {
   const open = !org.org.archived_at;
   return {
     ...org,
     asset,
-    canRead,
-    canMaintain: open && (org.canAdminister || (isMaintainer && org.canWrite)),
+    canMaintain: open && org.canWrite,
     canTransfer: open && org.canAdminister,
   };
 }
@@ -391,11 +387,7 @@ export async function loadAssetAccess(
   const asset = await loadAssetIdentity(exec, assetId, opts);
   if (!asset) return null;
   const org = await loadOrgAccess(exec, actor, asset.organization_id);
-  if (!org) return null;
-  const grantRead = !org.canAdminister && org.orgRole !== null && asset.visibility !== "organization"
-    ? await hasGrantReadPath(exec, actor, asset.id)
-    : false;
-  return assetAccessFrom(org, actor, asset, grantRead);
+  return org ? assetAccessFrom(org, asset) : null;
 }
 
 export async function requireAssetRead(exec: Executor, actor: Actor, assetId: string, opts: { forUpdate?: boolean; forShare?: boolean } = {}): Promise<AssetAccess> {
@@ -405,11 +397,12 @@ export async function requireAssetRead(exec: Executor, actor: Actor, assetId: st
   return access;
 }
 
+/** Edit the team asset (name, versions, archive/restore): any team writer, maintained_by is not checked. */
 export async function requireAssetMaintain(exec: Executor, actor: Actor, assetId: string, opts: { forUpdate?: boolean } = {}): Promise<AssetAccess> {
   const access = await requireAssetRead(exec, actor, assetId, opts);
   if (!access.canMaintain) {
     if (access.org.archived_at) throw archived("组织已归档，内容只读");
-    throw forbidden("只有素材维护者或组织管理员可以修改源素材");
+    throw forbidden("组织查看者只能浏览团队内容");
   }
   return access;
 }
@@ -424,52 +417,26 @@ export function assetCapabilities(access: AssetAccess, useInWorkspace?: boolean)
 }
 
 /**
- * Use permission for bringing an asset into a project (plan §4.1, §5.1).
- * Must run inside the write transaction: takes the per-(asset, project) grant
- * lock — the same lock grant revocation takes — re-reads the asset under a
- * share lock and creates the stable grant when it is missing.
+ * Use of a team asset in new content (a scene draft, a placement, a reused
+ * file). Must run inside the write transaction: the caller is a team writer
+ * of the target organization, and the asset is re-read under a share lock —
+ * the lock archiving takes FOR UPDATE — so a concurrent archive cannot slip
+ * a new reference in. Grants are neither required nor created.
  *
- * `existingReference`: the exact version is already referenced by the caller's
- * draft/placement, so archived assets remain usable for that reference.
+ * `existingReference`: the exact version is already referenced by the
+ * caller's draft/placement, so archived assets remain usable for that reference.
  */
 export async function ensureAssetUse(
   trx: Trx,
-  actor: Actor,
+  _actor: Actor,
   assetId: string,
-  target: WorkspaceAccess,
-  opts: { existingReference?: boolean; viaLegacyScope?: boolean } = {},
+  target: OrgAccess,
+  opts: { existingReference?: boolean } = {},
 ): Promise<AssetIdentity> {
-  if (!target.canEdit) explainEditDenied(target);
-  await lockKeys(trx, [grantLockKey(assetId, target.workspace.id)]);
+  assertOrgWritable(target);
+  if (isWorkspaceAccess(target) && !target.canEdit) explainEditDenied(target);
   const asset = await loadAssetIdentity(trx, assetId, { forShare: true });
-  if (!asset || asset.organization_id !== target.workspace.organization_id) throw notFound("素材不存在或不属于该组织");
+  if (!asset || asset.organization_id !== target.org.id) throw notFound("素材不存在或不属于该组织");
   if (asset.state !== "active" && !opts.existingReference) throw archived("素材已归档，不能新增引用");
-  const grant = await trx
-    .selectFrom("asset_workspace_grant")
-    .select("asset_id")
-    .where("asset_id", "=", assetId)
-    .where("workspace_id", "=", target.workspace.id)
-    .executeTakeFirst();
-  if (grant) return asset;
-  // A legacy scope lets the project copy that one fixed placement; it never
-  // becomes a use grant (no catalog access, no reuse in new content).
-  if (opts.viaLegacyScope) return asset;
-  const isMaintainer = asset.maintained_by === actor.userId && target.orgRole !== null && target.canWrite;
-  const mayGrant = asset.visibility === "organization" || target.canAdminister || isMaintainer;
-  if (!mayGrant) throw new ContentError("GRANT_REQUIRED", "该素材未授权给此项目，请联系素材维护者");
-  await trx
-    .insertInto("asset_workspace_grant")
-    .values({ asset_id: assetId, workspace_id: target.workspace.id, organization_id: asset.organization_id, created_by: actor.userId })
-    .onConflict((oc) => oc.columns(["asset_id", "workspace_id"]).doNothing())
-    .execute();
-  await audit(trx, {
-    organizationId: asset.organization_id,
-    actorId: actor.userId,
-    action: "asset.grant.create",
-    objectType: "asset_grant",
-    objectId: assetId,
-    workspaceId: target.workspace.id,
-    details: { reason: "use" },
-  });
   return asset;
 }

@@ -17,8 +17,9 @@ export type OnsiteCapture =
 
 export interface OnsiteTarget {
   organizationId: string | null;
+  /** Map collection (workspace UUID) the capture is placed in. */
   workspaceId: string | null;
-  projectName: string | null;
+  collectionName: string | null;
   canEdit: boolean;
   location: ConfirmedLocation | null;
   tagIds: string[];
@@ -60,7 +61,7 @@ function captureTime() {
  * v2 "upload and place" in one server command. The idempotency key and the
  * upload receipt are kept while the same capture is retried with the same
  * inputs, so a lost response never creates a second asset; any change of
- * capture, project, location, tags or text starts a new intent.
+ * capture, collection, location, tags or text starts a new intent.
  */
 export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
   const [receipt, setReceipt] = useState<OnsiteReceipt | null>(null);
@@ -70,8 +71,8 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
   const uploadRef = useRef<UploadedFile | null>(null);
 
   const submit = useCallback(async (capture: OnsiteCapture) => {
-    const { workspaceId, location, canEdit, tagIds } = target;
-    if (!workspaceId || !location || !canEdit) {
+    const { organizationId, workspaceId, location, canEdit, tagIds } = target;
+    if (!organizationId || !workspaceId || !location || !canEdit) {
       const message = tx("contentModel.integration.onsite.missing");
       setFailure(message);
       throw new Error(message);
@@ -104,7 +105,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
         if (!uploaded || uploaded.source !== capture.source || uploaded.workspaceId !== workspaceId) {
           const file = capture.kind === "image" ? await dataUrlToFile(capture.source) : capture.source;
           const prepared = await prepareFile(file, capture.kind);
-          const version = await uploadFileVersion(prepared, workspaceId);
+          const version = await uploadFileVersion(prepared, { organizationId, workspaceId });
           uploaded = { source: capture.source, workspaceId, fileType: fileTypeOf(prepared.type), payload: version.payload, resources: version.resources };
           uploadRef.current = uploaded;
         }
@@ -124,7 +125,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
       });
       attemptRef.current = null;
       uploadRef.current = null;
-      setReceipt({ result, organizationId: target.organizationId, workspaceId, projectName: target.projectName, submittedLocation: point });
+      setReceipt({ result, organizationId, workspaceId, collectionName: target.collectionName, submittedLocation: point });
     } catch (error) {
       let message = errorMessage(error, tx);
       if (isContentApiError(error) && error.code === "IDEMPOTENCY_CONFLICT") {

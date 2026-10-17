@@ -143,11 +143,12 @@ create table public.organization_invitation (
 );
 create index idx_org_invitation_org on public.organization_invitation (organization_id);
 
+-- History only (team workbench): access to collections comes from the
+-- organization role; these rows are never read for permissions.
 create table public.workspace_assignment (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(user_id) on delete cascade,
   workspace_id uuid not null references public.workspace(id) on delete cascade,
-  -- project role, capped by the organization role at read time (lib/permissions.ts)
   role text not null default 'editor'
     constraint workspace_assignment_role_check
     check (role = any (array['manager'::text, 'editor'::text, 'viewer'::text])),
@@ -307,6 +308,8 @@ create table public.content_migration_map (
 );
 create index content_migration_map_run_idx on public.content_migration_map (run_id);
 
+-- History only (team workbench): team assets are usable in every collection
+-- of their organization; new commands neither require nor create grants.
 create table public.asset_workspace_grant (
   asset_id uuid not null,
   workspace_id uuid not null,
@@ -368,10 +371,11 @@ alter table public.asset
 
 -- Upload receipts: a time-limited lease that binds actor, organization,
 -- object key, hash and purpose (plan §7). Active receipts protect their key.
+-- The collection is optional metadata; deleting it keeps the lease.
 create table public.upload_receipt (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
-  workspace_id uuid not null,
+  workspace_id uuid,
   created_by uuid not null,
   storage_key text not null,
   content_hash text not null,
@@ -385,16 +389,19 @@ create table public.upload_receipt (
   created_at timestamptz not null default now(),
   expires_at timestamptz not null,
   consumed_at timestamptz,
+  constraint upload_receipt_organization_fk foreign key (organization_id)
+    references public.organization(id) on delete cascade,
   constraint upload_receipt_workspace_fk foreign key (workspace_id, organization_id)
-    references public.workspace(id, organization_id) on delete cascade
+    references public.workspace(id, organization_id) on delete set null (workspace_id)
 );
 create index upload_receipt_storage_key_idx on public.upload_receipt (storage_key);
 create index upload_receipt_org_hash_idx on public.upload_receipt (organization_id, content_hash);
 
+-- Team-owned scene; workspace_id is the legacy origin collection (metadata).
 create table public.scene (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
-  workspace_id uuid not null,
+  workspace_id uuid,
   name text not null constraint scene_name_check check (length(btrim(name)) between 1 and 200),
   draft_document jsonb not null constraint scene_draft_document_check check (jsonb_typeof(draft_document) = 'object'),
   lock_version integer not null default 1,
@@ -406,11 +413,16 @@ create table public.scene (
   updated_at timestamptz not null default now(),
   archived_at timestamptz,
   legacy_asset_id uuid,
+  -- direct tenant FK: workspace_id is nullable, so the composite FK alone does
+  -- not protect team scenes from organization deletion
+  constraint scene_organization_fk foreign key (organization_id)
+    references public.organization(id),
   constraint scene_workspace_fk foreign key (workspace_id, organization_id)
     references public.workspace(id, organization_id) on delete restrict,
   constraint scene_id_organization_unique unique (id, organization_id)
 );
 create index scene_workspace_idx on public.scene (workspace_id);
+create index scene_organization_idx on public.scene (organization_id, updated_at desc);
 
 create table public.scene_asset_ref (
   scene_id uuid not null,
@@ -463,7 +475,7 @@ create table public.scene_revision_asset_ref (
 create index scene_revision_asset_ref_asset_idx on public.scene_revision_asset_ref (asset_id);
 create index scene_revision_asset_ref_version_idx on public.scene_revision_asset_ref (asset_version_id);
 
--- ── 9. placements: one owner project, exactly one fixed target ──
+-- ── 9. placements: one owner collection, exactly one fixed target ──
 create table public.placement (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
@@ -499,6 +511,7 @@ create table public.placement (
   constraint placement_id_organization_unique unique (id, organization_id)
 );
 create index placement_workspace_idx on public.placement (workspace_id);
+create index placement_organization_idx on public.placement (organization_id);
 create index placement_asset_version_idx on public.placement (asset_version_id) where asset_version_id is not null;
 create index placement_scene_revision_idx on public.placement (scene_revision_id) where scene_revision_id is not null;
 create index placement_anchor_idx on public.placement (anchor_id) where anchor_id is not null;
@@ -576,8 +589,8 @@ create table public.content_command_idempotency (
 
 -- ───────────────────────── functions ─────────────────────────
 
--- Sign-up initialisation: a public.users row, a personal organization with the
--- caller as owner, and a default workspace. Fires for every auth.users insert,
+-- Sign-up initialisation: a public.users row and a personal v2 team (organization)
+-- with the caller as owner and no collection. Fires for every auth.users insert,
 -- so Better Auth sign-ups, phone sign-ups and admin-created users all get the
 -- same bootstrap.
 create function public.handle_new_user() returns trigger
@@ -602,19 +615,20 @@ begin
   insert into public.users (user_id, name, role, email)
   values (new.id, user_name, 'user', new.email);
 
-  insert into public.organization (name, created_by, allowed_file_types)
+  -- Team workbench: a new personal team starts on the v2 content model with
+  -- zero map collections (content needs none; collections are created on demand).
+  insert into public.organization (name, created_by, allowed_file_types, content_model_state, content_model_changed_at)
   values (
     coalesce(user_name, split_part(new.email, '@', 1)) || '''s Organization',
     new.id,
-    default_types
+    default_types,
+    'v2',
+    now()
   )
   returning id into new_org_id;
 
   insert into public.organization_member (organization_id, user_id, role)
   values (new_org_id, new.id, 'owner');
-
-  insert into public.workspace (name, organization_id)
-  values ('Default Workspace', new_org_id);
 
   return new;
 end;
@@ -771,18 +785,13 @@ begin
     from workspace w
     order by w.create_date desc;
   else
+    -- Team model: organization membership (any role) is the only access path;
+    -- workspace_assignment rows are history and grant nothing.
     return query
-    select distinct w.id, w.name, w.description, w.create_date, w.organization_id
+    select w.id, w.name, w.description, w.create_date, w.organization_id
     from workspace w
     inner join organization_member om on w.organization_id = om.organization_id
     where om.user_id = p_user_id
-      and (
-        om.role in ('owner', 'admin')
-        or exists (
-          select 1 from workspace_assignment wa
-          where wa.workspace_id = w.id and wa.user_id = p_user_id
-        )
-      )
     order by w.create_date desc;
   end if;
 end;
@@ -1380,4 +1389,5 @@ create table public.schema_migrations (
 insert into public.schema_migrations (name) values
   ('schema.sql'),
   -- structures of these migrations are already part of this baseline
-  ('20261015000000_content_model_foundation.sql');
+  ('20261015000000_content_model_foundation.sql'),
+  ('20261017120000_team_workbench.sql');

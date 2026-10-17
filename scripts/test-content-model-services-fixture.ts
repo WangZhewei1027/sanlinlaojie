@@ -4,12 +4,15 @@ import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 import type { SceneDocumentV3Json } from "../lib/content-model/contracts";
 
+/** Dedicated databases on the loopback validation container; never the 55432 development database. */
+export const SERVICES_DATABASES = ["content_services", "team_wb_services"] as const;
+
 export function assertServicesDatabase(): void {
   assert.ok(process.env.DATABASE_URL, "DATABASE_URL must be explicit; this test never loads .env");
   const url = new URL(process.env.DATABASE_URL);
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.port, "55439");
-  assert.equal(url.pathname, "/content_services", "Only the dedicated content_services database is permitted");
+  assert.ok((SERVICES_DATABASES as readonly string[]).includes(url.pathname.slice(1)), `Only the dedicated ${SERVICES_DATABASES.join(" / ")} databases are permitted`);
   assert.equal(url.username, "postgres");
   for (const name of ["OSS_BUCKET", "OSS_REGION", "ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_ACCESS_KEY_SECRET"]) delete process.env[name];
   process.env.NEXT_PUBLIC_MEDIA_BASE_URL = "https://content-services.invalid";
@@ -27,7 +30,8 @@ export function fixtureIds() {
   return {
     run,
     users: { owner: randomUUID(), maintainer: randomUUID(), editor: randomUUID(), viewer: randomUUID(), foreign: randomUUID(), unassigned: randomUUID(), manager: randomUUID() },
-    organizations: { team: randomUUID(), foreign: randomUUID() },
+    // solo: a v2 team with zero collections (team authoring needs no workspace)
+    organizations: { team: randomUUID(), foreign: randomUUID(), solo: randomUUID() },
     workspaces: { a: randomUUID(), b: randomUUID(), secret: randomUUID(), empty: randomUUID(), foreign: randomUUID() },
     assets: { shared: randomUUID(), restricted: randomUUID(), foreign: randomUUID(), audio: randomUUID(), shop: randomUUID() },
     versions: { shared1: randomUUID(), shared2: randomUUID(), restricted: randomUUID(), foreign: randomUUID(), audio: randomUUID(), shop: randomUUID() },
@@ -82,7 +86,7 @@ export async function seedRuntimeProjectionFixture(client: Client, f: ServicesFi
 }
 
 export async function seedServicesFixture(client: Client, f: ServicesFixture): Promise<void> {
-  assert.equal((await client.query("select current_database() database")).rows[0].database, "content_services");
+  assert.ok((SERVICES_DATABASES as readonly string[]).includes((await client.query("select current_database() database")).rows[0].database));
   assert.ok((await client.query("select to_regclass('public.asset_version') relation")).rows[0].relation);
   await client.query("begin");
   try {
@@ -100,6 +104,10 @@ export async function seedServicesFixture(client: Client, f: ServicesFixture): P
       await client.query("insert into organization_member(organization_id,user_id,role) values($1,$2,$3)",
         [name === "foreign" ? f.organizations.foreign : f.organizations.team, id, name === "owner" || name === "foreign" ? "owner" : name === "viewer" ? "viewer" : "member"]);
     }
+    for (const [user, role] of [[f.users.owner, "owner"], [f.users.unassigned, "member"], [f.users.viewer, "viewer"]]) {
+      await client.query("insert into organization_member(organization_id,user_id,role) values($1,$2,$3)", [f.organizations.solo, user, role]);
+    }
+    // Historical assignments: the team model must ignore them (no grant, no limit).
     for (const [user, workspace, role] of [
       [f.users.maintainer, f.workspaces.a, "editor"], [f.users.maintainer, f.workspaces.empty, "editor"],
       [f.users.editor, f.workspaces.b, "editor"], [f.users.editor, f.workspaces.empty, "editor"], [f.users.viewer, f.workspaces.b, "editor"],
@@ -174,7 +182,7 @@ export async function cleanupServicesFixture(client: Client, f: ServicesFixture)
   try {
     await client.query("select set_config('content_model.writer','purge',true)");
     const users = Object.values(f.users);
-    const organizations = [f.organizations.team, f.organizations.foreign, ...(await client.query<{ id: string }>(
+    const organizations = [...Object.values(f.organizations), ...(await client.query<{ id: string }>(
       "select id from organization where created_by=any($1::uuid[])", [users])).rows.map((row) => row.id)];
     const workspaces = (await client.query<{ id: string }>("select id from workspace where organization_id=any($1::uuid[])", [organizations])).rows.map((row) => row.id);
     for (const table of ["legacy_content_map", "legacy_runtime_binding"]) await client.query(`delete from ${table} where organization_id=any($1::uuid[])`, [organizations]);

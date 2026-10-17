@@ -1,13 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ContentModelState, OrganizationContentModelDto, WorkspaceDto } from "@/lib/content-model/contracts";
+import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { useManageStore } from "../store";
 import { ALL_WORKSPACES_ID, isSpecificWorkspaceId } from "../constants";
-import { isContentApiError, isEndpointMissing, organizationApi, workspaceApi } from "./content-api";
+import { collectionApi, isContentApiError, isEndpointMissing, organizationApi, workspaceApi } from "./content-api";
 
-/** Query parameters that pin the organization/project (same names as the WeChat QR deep links). */
+/**
+ * Query parameters that pin the team (organization) and, on legacy links, a
+ * workspace. Same names as the WeChat QR deep links; `workspaceId` is only a
+ * compatibility input that the v2 routes turn into a collection detail URL.
+ */
 export const ORGANIZATION_PARAM = "organizationId";
 export const WORKSPACE_PARAM = "workspaceId";
 
@@ -32,9 +37,104 @@ export function contextHref(path: string, context: { organizationId?: string | n
   return query ? `${path}?${query}` : path;
 }
 
+/** Team-scoped link: the organization only, never a hidden workspace. */
+export function teamHref(path: string, organizationId: string | null | undefined, extra?: Record<string, string>) {
+  return contextHref(path, { organizationId }, extra);
+}
+
+/** Map collection detail; `placementId` focuses one placement after load. */
+export function collectionHref(collectionId: string, organizationId: string | null | undefined, extra?: Record<string, string>) {
+  return teamHref(`/manage/collections/${encodeURIComponent(collectionId)}`, organizationId, extra);
+}
+
 /**
- * Effective organization/project for a content page: an explicit URL value
- * wins over the persisted selector; `__all__` means aggregate browsing only.
+ * Team context for the workbench, collections, asset detail and editor: the
+ * explicit `?organizationId=` wins over the persisted team selector. It never
+ * exposes the persisted workspace selection, so no v2 command can be routed
+ * through a hidden default collection. Must render under Suspense.
+ */
+export function useTeamContext() {
+  const explicit = readExplicitContext(useSearchParams());
+  const storeOrganizationId = useManageStore((state) => state.selectedOrganizationId);
+  const organizations = useManageStore((state) => state.organizations);
+  const loading = useManageStore((state) => state.organizationLoading);
+  const currentUserRole = useManageStore((state) => state.currentUserRole);
+  const organizationId = explicit.organizationId ?? storeOrganizationId;
+  const organization = organizations.find((item) => item.id === organizationId) ?? null;
+  const synced = !explicit.organizationId || explicit.organizationId === storeOrganizationId;
+  return { organizationId, organization, organizations, loading, synced, explicit, currentUserRole };
+}
+
+export type TeamContext = ReturnType<typeof useTeamContext>;
+
+/**
+ * Keeps the header team in step with a resource page (collection, asset,
+ * scene) whose owning team is only known after it loads.
+ *
+ * - Initial resolution: when the URL names no team or another team, the URL
+ *   is rewritten to the owner (`?organizationId=` only); ExplicitContextSync
+ *   then moves the header selector. Nothing actionable renders until the URL
+ *   and the header agree (`settled`), so a page never shows team B's resource
+ *   under team A's header. A super_admin outside the team settles once the
+ *   team list is loaded, since the header cannot show that team.
+ * - After that, a header change away from the owner is an intentional team
+ *   switch: the page leaves for `leavePath` of the new team.
+ */
+export function useResourceTeam(resourceOrganizationId: string | null | undefined, leavePath: string) {
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const storeOrganizationId = useManageStore((state) => state.selectedOrganizationId);
+  const organizations = useManageStore((state) => state.organizations);
+  const loading = useManageStore((state) => state.organizationLoading);
+  const urlOrganizationId = params.get(ORGANIZATION_PARAM);
+  // Header team at the moment the page settled; a later different value is a user switch.
+  const settledRef = useRef<{ store: string | null } | null>(null);
+  const owner = resourceOrganizationId || null;
+  const member = !!owner && organizations.some((item) => item.id === owner);
+  const aligned = !!owner && urlOrganizationId === owner && (storeOrganizationId === owner || (!loading && !member));
+  if (aligned && !settledRef.current) settledRef.current = { store: storeOrganizationId };
+
+  useEffect(() => {
+    if (!owner || loading) return;
+    const settled = settledRef.current;
+    if (settled) {
+      if (storeOrganizationId && storeOrganizationId !== owner && storeOrganizationId !== settled.store) {
+        router.replace(teamHref(leavePath, storeOrganizationId));
+      }
+      return;
+    }
+    if (urlOrganizationId !== owner) {
+      const next = new URLSearchParams(params.toString());
+      next.set(ORGANIZATION_PARAM, owner);
+      next.delete(WORKSPACE_PARAM);
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    }
+  }, [owner, loading, storeOrganizationId, urlOrganizationId, params, pathname, router, leavePath]);
+
+  return { settled: !!settledRef.current };
+}
+
+/**
+ * Whether the signed-in user may create and edit team content. The server
+ * re-checks every command; this only gates controls. A team capability from
+ * the content-model endpoint wins when the backend declares one; otherwise
+ * the current team role (never a project assignment) decides, and viewers
+ * stay read-only. Readonly/legacy organizations never write v2 content.
+ */
+export function teamCanWrite(input: { state: ContentModelState | null; dto: OrganizationContentModelDto | null; orgRole: string | null | undefined; globalRole: string | null | undefined }) {
+  if (input.state !== "v2") return false;
+  // An archived team is read-only for everyone, super_admin included (server rule).
+  if (input.dto?.archived_at) return false;
+  const declared = (input.dto?.capabilities as { can_edit?: boolean } | undefined)?.can_edit;
+  if (typeof declared === "boolean") return declared;
+  return isSuperAdmin(input.globalRole) || hasOrgPermission(input.orgRole, "org.assets.write");
+}
+
+/**
+ * Legacy map context: organization plus the persisted workspace selection.
+ * Only the pre-v2 surfaces (legacy asset map, legacy scene editor, legacy
+ * onsite upload) may read the workspace from here.
  * Must render under a Suspense boundary (useSearchParams).
  */
 export function useContentContext() {
@@ -128,35 +228,45 @@ export function useContentModel(organizationId: string | null): ContentModelInfo
   };
 }
 
-// ───────────────────────── project capabilities ─────────────────────────
+// ───────────────────────── collection capabilities ─────────────────────────
 
-export interface WorkspaceInfo {
+export interface CollectionInfo {
   status: "idle" | "loading" | "ready" | "error";
-  workspace: WorkspaceDto | null;
-  error: string | null;
+  collection: WorkspaceDto | null;
+  error: unknown;
   refresh: () => void;
 }
 
+/** Collection facts; falls back to the workspace route while `/api/collections` is not deployed. */
+async function loadCollection(collectionId: string, signal: AbortSignal) {
+  try {
+    return await collectionApi.get(collectionId, signal);
+  } catch (error) {
+    if (!isEndpointMissing(error)) throw error;
+    return workspaceApi.info(collectionId, signal);
+  }
+}
+
 /**
- * Project role and capabilities from the server. Missing or legacy-shaped
- * responses yield `workspace: null`, which callers treat as "no write rights".
+ * One map collection and its server capabilities. Missing capabilities are
+ * treated as "no write rights"; nothing is derived from assignment roles.
  */
-export function useWorkspaceInfo(workspaceId: string | null): WorkspaceInfo {
-  const [result, setResult] = useState<{ key: string; workspace: WorkspaceDto | null; error: string | null } | null>(null);
+export function useCollectionInfo(collectionId: string | null): CollectionInfo {
+  const [result, setResult] = useState<{ key: string; collection: WorkspaceDto | null; error: unknown } | null>(null);
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!collectionId) return;
     const abort = new AbortController();
-    workspaceApi.info(workspaceId, abort.signal)
-      .then((workspace) => setResult({ key: workspaceId, workspace: workspace && "capabilities" in workspace ? workspace : null, error: null }))
+    loadCollection(collectionId, abort.signal)
+      .then((collection) => setResult({ key: collectionId, collection: collection && "capabilities" in collection ? collection : null, error: null }))
       .catch((error) => {
         if (abort.signal.aborted) return;
-        setResult({ key: workspaceId, workspace: null, error: error instanceof Error ? error.message : String(error) });
+        setResult({ key: collectionId, collection: null, error });
       });
     return () => abort.abort();
-  }, [workspaceId, nonce]);
+  }, [collectionId, nonce]);
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
-  if (!workspaceId) return { status: "idle", workspace: null, error: null, refresh };
-  if (!result || result.key !== workspaceId) return { status: "loading", workspace: null, error: null, refresh };
-  return { status: result.error ? "error" : "ready", workspace: result.workspace, error: result.error, refresh };
+  if (!collectionId) return { status: "idle", collection: null, error: null, refresh };
+  if (!result || result.key !== collectionId) return { status: "loading", collection: null, error: null, refresh };
+  return { status: result.error ? "error" : "ready", collection: result.collection, error: result.error, refresh };
 }

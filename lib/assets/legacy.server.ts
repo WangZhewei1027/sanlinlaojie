@@ -20,10 +20,11 @@ import { isKeyProtected, lockObjectKeys } from "@/lib/storage/retention.server";
 
 /**
  * Legacy asset rows (`asset.workspace_id uuid[]`) behind the old
- * administrative paths. Authorization uses the shared project rules: editing a
- * row needs edit rights in every project it belongs to. Anchors keep their
- * asset identity in every state and get a small dedicated service under the
- * v2 contract (plan §4.4, §8.2).
+ * administrative paths. Authorization uses the shared team rules: editing a
+ * row needs team write rights in every organization its collections belong
+ * to, and every one of those collections open. Anchors keep their asset
+ * identity and collection list in every state and get a small dedicated
+ * service under the v2 contract (plan §4.4, §8.2).
  */
 
 export interface LegacyRow {
@@ -63,18 +64,18 @@ export async function rowOrganizations(exec: Executor, rows: { organization_id: 
   return orgs.map((o) => ({ ...o, content_model_state: o.content_model_state as ContentModelState }));
 }
 
-/** Edit rights in every project of the row (the old cross-org "strictest rule", now per project). */
+/** Team write rights for every collection of the row (the old cross-org "strictest rule"). */
 export async function requireLegacyRowEdit(exec: Executor, actor: Actor, row: { workspace_id: string[] | null }): Promise<WorkspaceAccess[]> {
   if (actor.superAdmin) return [];
   const ids = [...new Set(row.workspace_id ?? [])];
-  // Ids of projects that no longer exist are ignored, as before (plan §8.2 lists them as cleanup items).
+  // Ids of collections that no longer exist are ignored, as before (plan §8.2 lists them as cleanup items).
   const access = ids.length ? await loadWorkspaceAccessMany(exec, actor, ids) : new Map<string, WorkspaceAccess>();
-  if (!access.size) throw forbidden("资产没有有效的项目归属");
-  for (const project of access.values()) {
-    if (!project.canRead) throw forbidden();
-    if (!project.canEdit) {
-      if (project.workspace.archived_at || project.org.archived_at) throw archived("项目已归档，内容只读");
-      throw forbidden("需要资产所在每个项目的编辑权限");
+  if (!access.size) throw forbidden("资产没有有效的合集归属");
+  for (const collection of access.values()) {
+    if (!collection.canRead) throw forbidden();
+    if (!collection.canEdit) {
+      if (collection.workspace.archived_at || collection.org.archived_at) throw archived("合集已归档，内容只读");
+      throw forbidden("需要资产所在每个团队的编辑权限");
     }
   }
   return [...access.values()];
@@ -113,7 +114,7 @@ export async function retireStagedLegacyRow(assetId: string): Promise<void> {
  */
 async function assertReferenceRetained(trx: Executor, fileUrl: string, actor: Actor, organizationId: string): Promise<void> {
   const key = assetKeyFromUrl(fileUrl);
-  if (!key) throw invalid("匹配图片必须来自当前项目的媒体存储");
+  if (!key) throw invalid("匹配图片必须来自本平台的媒体存储");
   const receipt = await trx
     .selectFrom("upload_receipt")
     .select("id")
@@ -250,7 +251,7 @@ export async function deleteAnchorV2(actor: Actor, assetId: string, expected: nu
   return { deleted: true, file_url: pre.file_url };
 }
 
-/** Rows of a legacy list query restricted to projects the caller can read. */
+/** Rows of a legacy list query restricted to the given collections. */
 export function legacyWorkspaceFilter(workspaceIds: string[]) {
   return sql<boolean>`workspace_id && ${workspaceIds}::uuid[]`;
 }

@@ -26,8 +26,9 @@ export interface AssetUsagePanelProps {
 }
 
 /**
- * Reverse dependencies grouped by how they pin the asset. Dependencies in
- * projects the viewer cannot read are only counted, never named.
+ * Reverse dependencies grouped by how they pin the asset: published scenes,
+ * map placements (with their collection) and scene drafts. Anything the
+ * server reports only as a count stays a count.
  */
 export function AssetUsagePanel({ usage, currentVersionNo, status = "ready", onRetry, versionFilterNo, hasMore, loadingMore, onLoadMore }: AssetUsagePanelProps) {
   const { t } = useTranslation();
@@ -91,7 +92,7 @@ function UsageRow({ entry, currentVersionNo }: { entry: AssetUsageEntry; current
         ) : (
           <Text as="span" variant="bodySm" fontWeight="medium">{entry.targetName}</Text>
         )}
-        <Text as="span" variant="bodyXs" tone="subdued" className="ms-2">{entry.projectName}</Text>
+        {entry.collectionName && <Text as="span" variant="bodyXs" tone="subdued" className="ms-2">{entry.collectionName}</Text>}
       </div>
       <div className="flex items-center gap-1.5">
         {entry.placementStatus && entry.placementStatus !== "active" && (

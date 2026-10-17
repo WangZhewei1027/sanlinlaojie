@@ -10,7 +10,7 @@ import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { MatchingPointPanel } from "../AssetEditor/MatchingPointPanel";
 import { useMatchingStatus } from "../AssetEditor/hooks/useMatchingStatus";
 import { placementApi } from "../../lib/content-api";
-import { contextHref } from "../../lib/content-context";
+import { teamHref } from "../../lib/content-context";
 import { errorMessage } from "../../lib/content-errors";
 import { primaryResource } from "../../lib/content-mappers";
 import { isMappable, placementDisplayName, placementFileType } from "../../lib/placement-to-viewer";
@@ -27,7 +27,7 @@ const noop = () => {};
  * Replacing the reference image is a new asset version (asset library).
  */
 export function AnchorPanel({ anchorId }: { anchorId: string }) {
-  const { tx, organizationId, workspaceId, anchors, workspaceCanEdit, canWrite, focusPlacement } = usePlacementMap();
+  const { tx, organizationId, anchors, workspaceCanEdit, canWrite, focusPlacement } = usePlacementMap();
   const placements = usePlacementStore((state) => state.placements);
   const anchor = anchors.find((item) => item.id === anchorId) ?? null;
   const imageUrl = primaryResource(anchor?.current_version)?.url ?? null;
@@ -85,7 +85,7 @@ export function AnchorPanel({ anchorId }: { anchorId: string }) {
             <Text as="p" variant="bodySm" tone="subdued">{tx("contentModel.integration.map.anchors.notOnMap")}</Text>
           )}
           <Button size="sm" variant="ghost" asChild>
-            <Link href={contextHref(`/manage/assets/${anchorId}`, { organizationId, workspaceId })}>
+            <Link href={teamHref(`/manage/assets/${anchorId}`, organizationId)}>
               <ExternalLink className="size-4" aria-hidden />
               {tx("contentModel.integration.map.source.openAsset")}
             </Link>

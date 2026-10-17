@@ -27,8 +27,8 @@ organization has migrated. The approved scope and migration order are in
 | --- | --- |
 | `asset` | One organization-owned identity, maintainer, visibility, current-version pointer and archive state |
 | `asset_version` / `asset_version_resource` | Immutable typed content and every managed file it retains |
-| `asset_workspace_grant` | Stable same-organization project use permission; not source maintenance permission |
-| `scene` / `scene_asset_ref` | Project-owned schema-3 draft and transactionally derived pinned-version references |
+| `asset_workspace_grant` | Historical project-use grants; read-only, not a permission input since the team model (new commands never write it) |
+| `scene` / `scene_asset_ref` | Team-owned schema-3 draft and transactionally derived pinned-version references; nullable workspace records legacy origin only |
 | `scene_revision` / `scene_revision_asset_ref` | Immutable published document and its fixed dependencies |
 | `placement` / `placement_tag` | A geographic/display instance targeting exactly one AssetVersion or SceneRevision |
 | `legacy_runtime_binding` / `legacy_content_map` | Old public IDs and discovery scopes mapped to canonical placements |
@@ -83,8 +83,9 @@ publishing also reuses an existing revision for the same source draft version.
 Publishing can atomically switch selected placements through `updatePlacements`,
 with a separate expected lock for each placement; bare `updatePlacementIds`
 are rejected with 428.
-Grant revocation and new references share advisory locks. Resource reuse,
-version commit and collection share the object-key retention lock protocol.
+Resource lifecycle changes and new references retain their locking protocol;
+grant mutation is retired. Resource reuse, version commit and garbage collection
+share the object-key retention lock protocol.
 
 Scene JSON is the authoring source of truth; reference rows are derived inside
 the same transaction. Runtime compiles published schema-3 documents to playback

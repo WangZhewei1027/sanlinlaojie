@@ -2,7 +2,7 @@ import "server-only";
 import { db, sql } from "@/lib/db";
 import type { AssetVersionDto, ContentModelState } from "@/lib/content-model/contracts";
 import type { Actor } from "@/lib/content-model/access.server";
-import { contentTransaction, audit, lockKeys, grantLockKey, type Executor } from "@/lib/content-model/tx.server";
+import { contentTransaction, audit, type Executor } from "@/lib/content-model/tx.server";
 import { asFileType, loadVersionDtos, primaryResource } from "@/lib/assets/dto.server";
 import { appendVersion } from "@/lib/assets/versions.server";
 import { compileSceneManifest } from "@/lib/scene/compile";
@@ -339,8 +339,9 @@ export class RuntimeUnavailable extends Error {}
 
 /**
  * Anonymous mini-program text for a cut-over organization: a restricted
- * command that creates a public_submission text asset, its v1 and an active
- * (or, without GPS, draft) placement. The caller gets no catalog or editing
+ * command that creates a public_submission team text asset (origin: the
+ * scanned collection), its v1 and an active (or, without GPS, draft)
+ * placement in that collection. The caller gets no catalog or editing
  * rights; field validation and rate limits stay in the route.
  */
 export async function submitAnonymousText(input: { content: string; workspaceId: string; organizationId: string | null; lat: number | null; lng: number | null }) {
@@ -385,8 +386,6 @@ export async function submitAnonymousText(input: { content: string; workspaceId:
       })
       .returning(["id", "create_at"])
       .executeTakeFirstOrThrow();
-    await lockKeys(trx, [grantLockKey(asset.id, workspace.id)]);
-    await trx.insertInto("asset_workspace_grant").values({ asset_id: asset.id, workspace_id: workspace.id, organization_id: workspace.organization_id, created_by: null }).execute();
     await appendVersion(
       trx,
       actor,

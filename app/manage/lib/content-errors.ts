@@ -10,17 +10,18 @@ import { isContentApiError } from "./content-api";
 import type { IntegrationT, IntegrationTexts } from "./integration-text";
 
 export const ERROR_TEXTS: IntegrationTexts = {
-  "contentModel.integration.impact.draft": ["{{project}} · {{scene}}（草稿，v{{version}}）", "{{project}} · {{scene}} (draft, v{{version}})"],
-  "contentModel.integration.impact.revision": ["{{project}} · {{scene}}（发布 #{{revision}}，v{{version}}）", "{{project}} · {{scene}} (revision #{{revision}}, v{{version}})"],
-  "contentModel.integration.impact.placement": ["{{project}} · {{name}}（投放，v{{version}}）", "{{project}} · {{name}} (placement, v{{version}})"],
-  "contentModel.integration.impact.restricted": ["另有 {{count}} 处位于你无权查看的项目", "{{count}} more in projects you cannot view"],
+  "contentModel.integration.impact.draft": ["场景 {{scene}}（草稿，v{{version}}）", "Scene {{scene}} (draft, v{{version}})"],
+  "contentModel.integration.impact.revision": ["场景 {{scene}}（发布 #{{revision}}，v{{version}}）", "Scene {{scene}} (revision #{{revision}}, v{{version}})"],
+  "contentModel.integration.impact.placement": ["{{collection}} · {{name}}（投放，v{{version}}）", "{{collection}} · {{name}} (placement, v{{version}})"],
+  "contentModel.integration.impact.restricted": ["另有 {{count}} 处引用未列出", "{{count}} more not listed"],
+  "contentModel.integration.impact.noCollection": ["地图合集", "Map collection"],
   "contentModel.integration.impact.unnamed": ["未命名投放", "Unnamed placement"],
   "contentModel.integration.error.notEnabled": ["该组织尚未启用新的素材与场景模型。", "This organization has not switched to the new asset and scene model."],
   "contentModel.integration.error.readonly": ["组织正在迁移，内容暂时只读。", "The organization is migrating; content is read-only for now."],
   "contentModel.integration.error.upgradeRequired": ["页面版本过旧，请刷新后重试。", "This page is out of date. Refresh and try again."],
   "contentModel.integration.error.network": ["网络错误，请稍后重试。", "Network error. Try again shortly."],
   "contentModel.integration.error.archived": ["对象已归档，无法新增引用或修改。", "The item is archived and cannot be used or changed."],
-  "contentModel.integration.error.grantRequired": ["目标项目没有该素材的使用授权。", "The target project has no use grant for this asset."],
+  "contentModel.integration.error.grantRequired": ["服务器拒绝使用该素材，请刷新后重试。", "The server refused to use this asset. Refresh and try again."],
   "contentModel.integration.error.lock": ["内容已被他人修改。请重新载入后再操作。", "Someone else changed this. Reload before trying again."],
 };
 
@@ -33,9 +34,13 @@ export function impactLines(impact: DependencyImpact | undefined, tx: Integratio
 }
 
 function impactLine(item: DependencyItem, tx: IntegrationT) {
-  if (item.kind === "scene_draft") return tx("contentModel.integration.impact.draft", { project: item.workspace_name, scene: item.scene_name, version: item.version_no });
-  if (item.kind === "scene_revision") return tx("contentModel.integration.impact.revision", { project: item.workspace_name, scene: item.scene_name, revision: item.revision_no, version: item.version_no });
-  return tx("contentModel.integration.impact.placement", { project: item.workspace_name, name: item.placement_name ?? tx("contentModel.integration.impact.unnamed"), version: item.version_no });
+  if (item.kind === "scene_draft") return tx("contentModel.integration.impact.draft", { scene: item.scene_name, version: item.version_no });
+  if (item.kind === "scene_revision") return tx("contentModel.integration.impact.revision", { scene: item.scene_name, revision: item.revision_no, version: item.version_no });
+  return tx("contentModel.integration.impact.placement", {
+    collection: item.workspace_name || tx("contentModel.integration.impact.noCollection"),
+    name: item.placement_name ?? tx("contentModel.integration.impact.unnamed"),
+    version: item.version_no,
+  });
 }
 
 /** Human message for any thrown value; feature-state codes get product wording. */

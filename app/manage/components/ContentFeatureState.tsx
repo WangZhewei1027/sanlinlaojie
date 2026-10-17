@@ -7,18 +7,18 @@ import type { ContentModelState } from "@/lib/content-model/contracts";
 import { useIntegrationText, type IntegrationTexts } from "../lib/integration-text";
 
 const TEXTS: IntegrationTexts = {
-  "contentModel.integration.feature.legacyTitle": ["该组织仍在使用旧版素材管理", "This organization still uses legacy asset management"],
+  "contentModel.integration.feature.legacyTitle": ["这个团队仍在使用旧版素材管理", "This team still uses legacy asset management"],
   "contentModel.integration.feature.legacyBody": [
-    "素材库、版本与独立场景会在组织完成迁移后启用。当前请继续在投放地图中管理内容。",
-    "The asset library, versions and standalone scenes turn on after the organization migrates. Keep managing content on the placement map for now.",
+    "工作台、地图合集和独立场景会在团队完成迁移后启用。当前请继续在旧版素材地图中管理内容。",
+    "The workbench, map collections and standalone scenes turn on after the team migrates. Keep managing content on the legacy asset map for now.",
   ],
-  "contentModel.integration.feature.preparingTitle": ["组织正在准备迁移", "The organization is preparing to migrate"],
-  "contentModel.integration.feature.readonlyTitle": ["组织迁移中，内容暂时只读", "Migration in progress — content is read-only"],
+  "contentModel.integration.feature.preparingTitle": ["团队正在准备迁移", "The team is preparing to migrate"],
+  "contentModel.integration.feature.readonlyTitle": ["团队迁移中，内容暂时只读", "Migration in progress — content is read-only"],
   "contentModel.integration.feature.readonlyBody": ["切换窗口结束后即可继续编辑。", "Editing resumes when the cutover window ends."],
-  "contentModel.integration.feature.openMap": ["打开投放地图", "Open placement map"],
-  "contentModel.integration.feature.noOrgTitle": ["请选择组织", "Select an organization"],
-  "contentModel.integration.feature.noOrgBody": ["在顶部选择组织和项目后再继续。", "Choose an organization and project at the top to continue."],
-  "contentModel.integration.feature.stateFailed": ["无法读取组织的内容模型状态", "Could not read the organization's content model state"],
+  "contentModel.integration.feature.openMap": ["打开素材地图", "Open asset map"],
+  "contentModel.integration.feature.noOrgTitle": ["请选择团队", "Select a team"],
+  "contentModel.integration.feature.noOrgBody": ["在顶部选择团队后再继续。", "Choose a team at the top to continue."],
+  "contentModel.integration.feature.stateFailed": ["无法读取团队的内容模型状态", "Could not read the team's content model state"],
   "contentModel.action.retry": ["重试", "Retry"],
 };
 

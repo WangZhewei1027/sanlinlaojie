@@ -103,13 +103,14 @@ export class FileUploadService {
    * 上传文件到对象存储（经 /api/upload 中转到 OSS，服务端按内容 hash 做组织内去重）。
    * 相同内容的文件命中同组织已有 file_url 时服务端直接复用、不再写入新对象。
    * @param options.type 上传类型（用于大小校验；缺省按 MIME/扩展名推断）
-   * @param options.workspaceId 目标 workspace，用于组织内去重；缺省则跳过去重
+   * @param options.organizationId 目标团队（组织），用于组织内去重与上传回执；不需要合集
+   * @param options.workspaceId 目标合集（可选，须属于该团队）；两者都缺省则跳过去重
    * @returns 文件公开 URL、内容 hash，以及新上传对象的 key（复用时为 null）
    */
   async uploadToStorage(
     file: File,
     userId: string,
-    options?: { type?: UploadType; workspaceId?: string; purpose?: UploadPurpose },
+    options?: { type?: UploadType; organizationId?: string; workspaceId?: string; purpose?: UploadPurpose },
   ): Promise<StorageUploadResult> {
     void userId; // 上传归属由服务端根据会话决定
     console.log(
@@ -130,6 +131,7 @@ export class FileUploadService {
     const form = new FormData();
     form.set("file", file, file.name);
     form.set("type", uploadType);
+    if (options?.organizationId) form.set("organization_id", options.organizationId);
     if (options?.workspaceId) form.set("workspace_id", options.workspaceId);
     if (options?.purpose) form.set("purpose", options.purpose);
 

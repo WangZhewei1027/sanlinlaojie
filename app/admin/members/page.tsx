@@ -28,14 +28,12 @@ import {
   Users,
   ChevronsUpDown,
   Check,
-  FolderKanban,
   Link2,
 } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { fetchJson } from "@/lib/fetch-json";
 import { displayAccount } from "@/lib/phone-email";
-import { ManageWorkspaceDialog } from "./components/ManageWorkspaceDialog";
 import { InviteLinkDialog } from "./components/InviteLinkDialog";
 import { MembersSkeleton } from "./components/MembersSkeleton";
 import { Text } from "@/components/ui/typography";
@@ -75,9 +73,6 @@ export default function MembersPage() {
   const canManageOwners =
     isSuperAdmin(currentUserRole) ||
     hasOrgPermission(orgRole, "org.members.manageOwners");
-  const canAssignWorkspace =
-    isSuperAdmin(currentUserRole) ||
-    hasOrgPermission(orgRole, "org.workspaces.edit");
 
   const [members, setMembers] = useState<Member[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -89,9 +84,6 @@ export default function MembersPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
-  const [workspaceDialogMember, setWorkspaceDialogMember] =
-    useState<Member | null>(null);
   const [removeMember, setRemoveMember] = useState<Member | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -469,22 +461,6 @@ export default function MembersPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                    {canAssignWorkspace && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setWorkspaceDialogMember(member);
-                          setWorkspaceDialogOpen(true);
-                        }}
-                        title={t(
-                          "admin.members.assignWorkspace",
-                          "Assign Workspace",
-                        )}
-                      >
-                        <FolderKanban className="h-4 w-4" />
-                      </Button>
-                    )}
                     {canRemove &&
                       (member.role !== "owner" || canManageOwners) && (
                         <Button
@@ -492,6 +468,7 @@ export default function MembersPage() {
                           size="icon"
                           onClick={() => setRemoveMember(member)}
                           className="text-muted-foreground hover:text-destructive"
+                          aria-label={t("admin.members.removeDialog.title", "Remove Member")}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -553,22 +530,6 @@ export default function MembersPage() {
         organizationId={selectedOrganization.id}
       />
 
-      {/* Workspace Dialog */}
-      {workspaceDialogMember && (
-        <ManageWorkspaceDialog
-          open={workspaceDialogOpen}
-          onOpenChange={setWorkspaceDialogOpen}
-          organizationId={selectedOrganization.id}
-          user={{
-            user_id: workspaceDialogMember.user_id,
-            name:
-              workspaceDialogMember.users?.name ||
-              displayAccount(workspaceDialogMember.users?.email ?? null) ||
-              null,
-          }}
-          onSuccess={() => fetchData()}
-        />
-      )}
     </div>
   );
 }

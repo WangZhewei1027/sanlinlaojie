@@ -20,7 +20,8 @@ interface ExplicitContextSyncProps {
  * step. A new `?organizationId=&workspaceId=` is applied to the selectors once
  * (URL wins over the persisted store); after that a selector change made by
  * the user is mirrored back into the URL, so pages that read the URL never
- * disagree with the visible selector.
+ * disagree with the visible selector. A team switch only rewrites the team:
+ * the workspace parameter is dropped, never synthesized from the selection.
  */
 export function ExplicitContextSync(props: ExplicitContextSyncProps) {
   const params = useSearchParams();
@@ -72,14 +73,21 @@ export function ExplicitContextSync(props: ExplicitContextSyncProps) {
     const organizationChanged = !!explicit.organizationId && !!selectedOrganizationId && explicit.organizationId !== selectedOrganizationId;
     const workspaceChanged = !!explicit.workspaceId && !!selectedWorkspaceId && explicit.workspaceId !== selectedWorkspaceId;
     if (!organizationChanged && !workspaceChanged) return;
-    // Wait until the project list and selection belong to the newly chosen organization.
-    const consistent = !selectedWorkspaceId || selectedWorkspaceId === ALL_WORKSPACES_ID || workspaces.some((workspace) =>
-      workspace.id === selectedWorkspaceId && (!workspace.organization_id || workspace.organization_id === selectedOrganizationId));
-    if (!consistent) return;
     const next = new URLSearchParams(params.toString());
-    if (selectedOrganizationId) next.set(ORGANIZATION_PARAM, selectedOrganizationId);
-    if (selectedWorkspaceId) next.set(WORKSPACE_PARAM, selectedWorkspaceId);
-    else next.delete(WORKSPACE_PARAM);
+    if (organizationChanged) {
+      // A team switch never writes a workspace into the URL: the persisted pick is
+      // the new team's first collection, and v2 routes read `workspaceId` as an
+      // explicit legacy deep link into that map. Legacy maps fall back to the store.
+      next.set(ORGANIZATION_PARAM, selectedOrganizationId);
+      next.delete(WORKSPACE_PARAM);
+    } else {
+      // Same team, legacy switcher on a URL that already names a workspace.
+      // Wait until the project list and selection belong to this organization.
+      const consistent = selectedWorkspaceId === ALL_WORKSPACES_ID || workspaces.some((workspace) =>
+        workspace.id === selectedWorkspaceId && (!workspace.organization_id || workspace.organization_id === selectedOrganizationId));
+      if (!consistent) return;
+      next.set(WORKSPACE_PARAM, selectedWorkspaceId as string);
+    }
     const nextKey = `${next.get(ORGANIZATION_PARAM) ?? ""}|${next.get(WORKSPACE_PARAM) ?? ""}`;
     appliedKey.current = nextKey;
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });

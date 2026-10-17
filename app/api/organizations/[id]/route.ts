@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sql } from "@/lib/db";
+import { isUuid } from "@/lib/content-model/input";
 import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
@@ -146,7 +147,7 @@ export async function PUT(
   }
 }
 
-// 删除 organization（需 org.delete：owner 或 super_admin，且无 workspace 时）
+// 删除 organization（需 org.delete：owner 或 super_admin；只能删除没有合集、素材、场景和投放的空团队）
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -158,6 +159,8 @@ export async function DELETE(
     if (!user) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
+
+    if (!isUuid(id)) return NextResponse.json({ error: "组织不存在" }, { status: 404 });
 
     const { globalRole, orgRole } = await getUserContext(user.id, id);
 
@@ -173,25 +176,41 @@ export async function DELETE(
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
-    // 检查是否有关联的 workspace
-    const workspace = await db
-      .selectFrom("workspace")
-      .select("id")
-      .where("organization_id", "=", id)
-      .limit(1)
-      .executeTakeFirst();
-
-    if (workspace) {
+    // 只能删除空团队：仍有合集、团队素材、场景或投放时拒绝（409），绝不级联删除团队内容。
+    // 在组织行锁内复核，避免与并发创建内容交错；外键（scene/asset → organization）兜底。
+    const blocked = await db.transaction().execute(async (trx) => {
+      const org = await trx.selectFrom("organization").select("id").where("id", "=", id).forUpdate().executeTakeFirst();
+      if (!org) return null;
+      const { rows } = await sql<{ workspaces: number; assets: number; scenes: number; placements: number }>`
+        select
+          (select count(*) from workspace where organization_id = ${id}::uuid)::int as workspaces,
+          (select count(*) from asset where organization_id = ${id}::uuid)::int as assets,
+          (select count(*) from scene where organization_id = ${id}::uuid)::int as scenes,
+          (select count(*) from placement where organization_id = ${id}::uuid)::int as placements
+      `.execute(trx);
+      const counts = rows[0];
+      if (counts.workspaces + counts.assets + counts.scenes + counts.placements > 0) return counts;
+      await trx.deleteFrom("organization").where("id", "=", id).execute();
+      return false;
+    });
+    if (blocked === null) return NextResponse.json({ error: "组织不存在" }, { status: 404 });
+    if (blocked) {
       return NextResponse.json(
-        { error: "该组织下还有工作空间，请先删除所有工作空间" },
-        { status: 400 },
+        {
+          error: `无法删除：该团队仍保留内容（合集 ${blocked.workspaces}、素材 ${blocked.assets}、场景 ${blocked.scenes}、投放 ${blocked.placements}）。归档内容也会阻止删除。`,
+          code: "DEPENDENCY_CONFLICT",
+          details: { counts: blocked },
+        },
+        { status: 409 },
       );
     }
 
-    await db.deleteFrom("organization").where("id", "=", id).execute();
-
     return NextResponse.json({ success: true });
   } catch (error) {
+    // A concurrent content write that committed first still trips the tenant FKs.
+    if ((error as { code?: string }).code === "23503") {
+      return NextResponse.json({ error: "无法删除：该团队仍保留内容。归档内容也会阻止删除。", code: "DEPENDENCY_CONFLICT" }, { status: 409 });
+    }
     console.error("删除 organization 失败:", error);
     await logError({
       method: "DELETE",

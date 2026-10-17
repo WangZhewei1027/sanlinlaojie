@@ -4,23 +4,23 @@
 
 ## V2 场景
 
-`scene` 是项目拥有的独立作品；`draft_document` 保存 schema 3 编排 JSON。资源别名同时包含 `assetId` 和 `assetVersionId`，实例、变换、GLB 动画及 Theatre 曲线保持现有结构。`scene_asset_ref` 是服务端在同一保存事务中生成的依赖索引，不是另一份可单独编辑的内容。
+`scene` 是团队拥有的独立作品（`workspace_id` 只是可空的旧来源元数据）；`draft_document` 保存 schema 3 编排 JSON。资源别名同时包含 `assetId` 和 `assetVersionId`，实例、变换、GLB 动画及 Theatre 曲线保持现有结构。`scene_asset_ref` 是服务端在同一保存事务中生成的依赖索引，不是另一份可单独编辑的内容。
 
 | 操作 | 实际行为 |
 | --- | --- |
-| 保存 | 项目 editor/manager 提交 `expectedLockVersion`；缺少锁返回 428，过期返回 409，保留本地草稿 |
-| 添加素材 | 检查同组织、项目使用权与固定版本；组织共享素材在事务中建立项目 grant |
+| 保存 | 团队 owner/admin/member 提交 `expectedLockVersion`；缺少锁返回 428，过期返回 409，保留本地草稿 |
+| 添加素材 | 检查同团队与固定版本；团队全部素材都可直接引用，不创建授权 |
 | 升级素材 | 显式改变草稿引用；只升级一个实例时使用新的资源别名，其他实例继续原版本 |
 | 发布 | 锁定草稿，创建不可变 `scene_revision` 与 `scene_revision_asset_ref`；相同草稿版本重复发布复用已有结果 |
-| 投放 | Placement 引用明确 SceneRevision；发布可通过 `updatePlacements: [{ placementId, expectedLockVersion }]` 原子更新选中的投放，每个投放单独校验锁 |
+| 投放 | Placement 引用明确 SceneRevision，同一发布版本可放进多个地图合集；发布可通过 `updatePlacements: [{ placementId, expectedLockVersion }]` 原子更新选中的投放，每个投放单独校验锁 |
 | 归档 | Scene 停止编辑、新发布和新增投放；已有投放继续使用保留版本 |
-| 复制 | 新建独立 Scene，复用固定素材版本；目标项目逐项检查素材授权 |
+| 复制 | 在同一团队新建独立 Scene，复用固定素材版本，不含发布记录与投放 |
 
 实现入口是 `lib/scene/service.server.ts`、`lib/scene/compile.ts`、`lib/assets/` 和 `lib/placements/`。素材归档不会破坏既有草稿引用和发布；新引用被拒绝。发布不追随 Asset.current_version_id。版本中的动画列表已知时，保存/发布检查 clip 名称与序号；未知列表仍由播放器加载时验证。
 
 发布本身不自动更换其他投放。旧请求字段 `updatePlacementIds` 因缺少投放锁返回 428；同一发布请求最多更新 100 个不同投放，任何锁冲突均不提交本次事务。
 
-管理入口为 `/manage/scenes` 和 `/manage/scenes/[id]`。编辑器保留 Three 视口、Theatre 时间轴、层级与属性面板；“本场景使用中”单独解析固定资源，候选素材分页或归档不应让现有对象消失。空场景可保存，不能作为 active Placement 投放。仍限 8 个资源别名、24 个实例、600 秒与 2400 个关键帧。
+管理入口为工作台 `/manage`（“场景”筛选，旧 `/manage/scenes` 重定向到 `?type=scene`）和编辑器 `/manage/scenes/[id]`；新建、导入与复制都不需要合集。编辑器的模型选择器分“本场景”和“团队模型”两栏，场景内上传的模型成为团队素材。发布对话框列出该场景在所有合集中的投放供勾选更新。编辑器保留 Three 视口、Theatre 时间轴、层级与属性面板；“本场景使用中”单独解析固定资源，候选素材分页或归档不应让现有对象消失。空场景可保存，不能作为 active Placement 投放。仍限 8 个资源别名、24 个实例、600 秒与 2400 个关键帧。
 
 播放适配将 schema 3 编译为小程序的 schema 1/2，保留实例和 tracks，资源 URL 从固定版本解析。`manifest.assetId` 回显发现记录的公开 ID；它可以与 Scene ID、Asset ID、管理地图的 Placement ID 不同。普通图片、文字、音视频直接投放 AssetVersion，无需包装为 Scene。未来活动只预留独立业务内容与表现适配边界，当前没有 Topic/Reply 模型。
 
@@ -105,7 +105,7 @@ Legacy 编辑器保存 `schemaVersion: 2`；v2 保存 schema 3，沿用相同 tr
 
 `handles` 为 Theatre 的归一化贝塞尔控制点 `[leftX,leftY,rightX,rightY]`；`connectedRight: false` 保持当前值直到下个关键帧。时间必须严格递增、不超过演出时长，关键帧总数 ≤ 2400。控制点限定在 [0,1]，禁止越界过冲；带曲线的场景必须有有限时长。小程序通过轻量求值器回放，无 Theatre 运行时依赖。
 
-Legacy 服务端在创建或修改 JSON 时验证结构和依赖：模型必须在场景的每个目标工作空间内。V2 改为项目授权与固定版本校验。两种模式均不能嵌套 Scene 或在编排里直接填任意 URL；播放器继续检查模型解码和动画，失败时释放整场已加载资源。模型格式支持范围沿用已有 Three 加载器。
+Legacy 服务端在创建或修改 JSON 时验证结构和依赖：模型必须在场景的每个目标工作空间内。V2 改为同团队与固定版本校验。两种模式均不能嵌套 Scene 或在编排里直接填任意 URL；播放器继续检查模型解码和动画，失败时释放整场已加载资源。模型格式支持范围沿用已有 Three 加载器。
 
 ## Legacy 接口与播放生命周期
 

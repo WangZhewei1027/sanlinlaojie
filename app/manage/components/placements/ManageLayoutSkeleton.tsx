@@ -8,9 +8,10 @@ import { ManageGridLayout } from "./ManageGridLayout";
  * Neutral three-column placeholder shown while the organization's content
  * model state is unknown, so neither the legacy nor the v2 map flashes.
  */
-export function ManageLayoutSkeleton() {
+export function ManageLayoutSkeleton({ fill }: { fill?: boolean } = {}) {
   return (
     <ManageGridLayout
+      fill={fill}
       list={
         <Card className="h-full space-y-3 p-3" aria-busy>
           <Skeleton className="h-8 w-2/3" />

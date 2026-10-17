@@ -41,13 +41,15 @@ interface ManageGridLayoutProps {
   /** Contents of the bordered viewer panel (overlays + ViewerFrame). */
   viewer: ReactNode;
   sidebar: ReactNode;
+  /** Fill the parent's height (collection detail under its header bar) instead of the viewport. */
+  fill?: boolean;
 }
 
 /**
  * The three-column /manage workspace grid shared by the legacy asset map and
  * the v2 placement map, so both keep exactly the same layout and breakpoints.
  */
-export function ManageGridLayout({ list, viewer, sidebar }: ManageGridLayoutProps) {
+export function ManageGridLayout({ list, viewer, sidebar, fill }: ManageGridLayoutProps) {
   const { width, containerRef, mounted } = useContainerWidth();
   const [rowHeight, setRowHeight] = useState(50);
 
@@ -75,7 +77,7 @@ export function ManageGridLayout({ list, viewer, sidebar }: ManageGridLayoutProp
   }, [containerRef, mounted]);
 
   return (
-    <div ref={containerRef} className="w-full h-[calc(100vh-4rem)] overflow-y-auto overflow-x-hidden bg-background">
+    <div ref={containerRef} className={`w-full ${fill ? "h-full" : "h-[calc(100vh-4rem)]"} overflow-y-auto overflow-x-hidden bg-background`}>
       {mounted && (
         <Responsive
           className="layout"

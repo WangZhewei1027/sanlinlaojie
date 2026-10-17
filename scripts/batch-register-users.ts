@@ -2,8 +2,8 @@
  * 批量注册User脚本
  *
  * 直接写入自建数据库：auth.users / auth.account（Better Auth 读取的表），触发器
- * handle_new_user() 同步 public.users 并创建个人组织 / 默认工作区；可选再把用户
- * 加入指定组织和工作区。
+ * handle_new_user() 同步 public.users 并创建个人团队（v2 组织，无合集）；可选再把
+ * 用户加入指定组织（--workspace 已停用：合集没有成员关系）。
  *
  * 用法:
  *   1. 在 .env.local 中配置:
@@ -23,8 +23,8 @@
  *     --file <path>              从 JSON 文件读取User列表 (格式见下方 UserInput)
  *     --org <uuid>               将所有用户加入指定组织
  *     --org-role <role>          组织角色 (owner/admin/member/viewer，默认 member)
- *     --workspace <uuid>         将所有用户分配到指定工作区
- *     --workspace-role <role>    项目角色 manager/editor/viewer（默认 editor；组织 viewer 强制为 viewer）
+ *     --workspace <uuid>         已停用（仅为兼容旧命令保留，会被忽略）：团队成员按组织角色访问全部合集
+ *     --workspace-role <role>    已停用（同上）
  *
  *   示例:
  *     npx tsx --conditions react-server scripts/batch-register-users.ts --dry-run
@@ -43,10 +43,6 @@ type OrgRole = "owner" | "admin" | "member" | "viewer";
 type ProjectRole = "manager" | "editor" | "viewer";
 const PROJECT_ROLES: ProjectRole[] = ["manager", "editor", "viewer"];
 
-/** Same rule as lib/permissions.ts assignmentRoleFor: org viewers are read-only projects. */
-function projectRoleFor(orgRole: OrgRole | null, requested: ProjectRole): ProjectRole {
-  return orgRole === "viewer" ? "viewer" : requested;
-}
 
 interface UserInput {
   email: string;
@@ -177,7 +173,7 @@ async function main() {
   }
   if (globalWorkspaceId) {
     console.log(
-      `   工作区 ID: ${globalWorkspaceId} (角色: ${globalWorkspaceRole})`,
+      `   工作区 ID: ${globalWorkspaceId}（已停用，将被忽略：访问权限只来自组织角色）`,
     );
   }
   if (dryRun) {
@@ -233,7 +229,7 @@ async function main() {
       const tags = [
         `name: ${user.name || "-"}`,
         orgId ? `org: ${orgId} (${orgRole})` : null,
-        workspaceId ? `ws: ${workspaceId} (${projectRoleFor(orgId ? orgRole : null, requestedWorkspaceRole)})` : null,
+        workspaceId ? `ws: ${workspaceId} (已忽略)` : null,
       ]
         .filter(Boolean)
         .join(", ");
@@ -272,33 +268,10 @@ async function main() {
         }
       }
 
-      // ③ 分配工作区（已分配则更新角色）。项目必须属于用户所在的组织，
-      //    角色受组织角色上限约束（组织 viewer → 项目 viewer）。
-      let workspaceAssigned = false;
+      // ③ 工作区分配已停用：团队成员按组织角色访问全部合集，不再写入 workspace_assignment。
+      const workspaceAssigned = false;
       if (workspaceId) {
-        try {
-          const membership = await db
-            .selectFrom("organization_member as m")
-            .innerJoin("workspace as w", "w.organization_id", "m.organization_id")
-            .select("m.role")
-            .where("w.id", "=", workspaceId)
-            .where("m.user_id", "=", userId)
-            .executeTakeFirst();
-          if (!membership) throw new Error("用户不是该项目所属组织的成员（请同时指定 --org）");
-          const workspaceRole = projectRoleFor(membership.role as OrgRole, requestedWorkspaceRole);
-          await db
-            .insertInto("workspace_assignment")
-            .values({ workspace_id: workspaceId, user_id: userId, role: workspaceRole })
-            .onConflict((oc) =>
-              oc.columns(["user_id", "workspace_id"]).doUpdateSet({ role: workspaceRole }),
-            )
-            .execute();
-          workspaceAssigned = true;
-        } catch (wsError) {
-          console.warn(
-            `${index} ⚠️  ${user.email} — 分配工作区失败: ${errorMessage(wsError)}`,
-          );
-        }
+        console.warn(`${index} ℹ️  ${user.email} — 忽略 --workspace：合集没有成员关系，访问权限只来自组织角色`);
       }
 
       const tags = [

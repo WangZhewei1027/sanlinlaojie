@@ -6,25 +6,24 @@
 import type {
   AssetDetailDto,
   AssetDto,
-  AssetGrantDto,
   AssetVersionDto,
   DependencyImpact,
   SceneSummaryDto,
   UserRefDto,
+  WorkspaceDto,
 } from "@/lib/content-model/contracts";
 import type {
   AssetDetailData,
-  AssetLibraryItem,
-  AssetProjectGrant,
   AssetUsageKind,
   AssetUsageSummary,
   AssetVersion,
+  CollectionItem,
   ContentAssetType,
   ContentPerson,
-  SceneListItem,
   SceneStatus,
+  WorkbenchItem,
 } from "@/app/manage/content/types";
-import { contextHref } from "./content-context";
+import { collectionHref, teamHref } from "./content-context";
 
 const CONTENT_TYPES: readonly ContentAssetType[] = ["image", "video", "audio", "model", "text", "link", "document"];
 
@@ -71,42 +70,34 @@ export function isFileMissing(asset: Pick<AssetDto, "file_type" | "current_versi
   return !primaryResource(asset.current_version);
 }
 
-export function toLibraryItem(asset: AssetDto, projectNames: ReadonlyMap<string, string>): AssetLibraryItem {
+export function toWorkbenchAsset(asset: AssetDto, people?: ReadonlyMap<string, ContentPerson>): WorkbenchItem {
+  return {
+    id: asset.id,
+    kind: "asset",
+    name: asset.name || asset.id.slice(0, 8),
+    type: contentType(asset.file_type),
+    thumbnailUrl: thumbnailOf(asset.current_version),
+    textExcerpt: excerptOf(asset.current_version),
+    state: asset.state,
+    updatedAt: asset.updated_at,
+    updatedBy: asset.created_by ? people?.get(asset.created_by) ?? null : null,
+    fileMissing: isFileMissing(asset),
+  };
+}
+
+export function toDetailData(asset: AssetDetailDto): AssetDetailData {
   return {
     id: asset.id,
     name: asset.name || asset.id.slice(0, 8),
     type: contentType(asset.file_type),
     thumbnailUrl: thumbnailOf(asset.current_version),
     textExcerpt: excerptOf(asset.current_version),
-    visibility: asset.visibility,
     state: asset.state,
     origin: asset.origin,
     maintainer: personOf(asset.maintainer),
     currentVersionNo: asset.current_version_no ?? 0,
-    usageCount: asset.usage_count,
-    originProjectName: asset.origin_workspace_id ? projectNames.get(asset.origin_workspace_id) ?? null : null,
     updatedAt: asset.updated_at,
     fileMissing: isFileMissing(asset),
-  };
-}
-
-export function toDetailData(asset: AssetDetailDto, projectNames: ReadonlyMap<string, string>): AssetDetailData {
-  const item = toLibraryItem(asset, projectNames);
-  const originGrant = asset.grants.find((grant) => grant.workspace_id === asset.origin_workspace_id);
-  return {
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    thumbnailUrl: item.thumbnailUrl,
-    textExcerpt: item.textExcerpt,
-    visibility: item.visibility,
-    state: item.state,
-    origin: item.origin,
-    maintainer: item.maintainer,
-    currentVersionNo: item.currentVersionNo,
-    originProjectName: item.originProjectName ?? originGrant?.workspace_name ?? null,
-    updatedAt: item.updatedAt,
-    fileMissing: item.fileMissing,
     createdAt: asset.create_at ?? asset.updated_at,
   };
 }
@@ -128,7 +119,12 @@ export function usageByKind(impact: DependencyImpact | null | undefined): Record
   return { draft: impact?.drafts ?? 0, published: impact?.revisions ?? 0, placement: impact?.placements ?? 0 };
 }
 
-/** Visible dependency rows (optionally narrowed to one version) plus restricted counts. */
+/** Collection name of a dependency; scenes belong to the team and may report none. */
+function collectionNameOf(item: { workspace_name?: string | null }) {
+  return item.workspace_name || null;
+}
+
+/** Dependency rows (optionally narrowed to one version) plus any count-only remainder. */
 export function toUsageSummary(impact: DependencyImpact | null | undefined, organizationId: string, versionId?: string | null): AssetUsageSummary {
   if (!impact) return { entries: [], totalCount: 0, restrictedCount: 0 };
   const items = versionId ? impact.items.filter((item) => item.asset_version_id === versionId) : impact.items;
@@ -137,20 +133,19 @@ export function toUsageSummary(impact: DependencyImpact | null | undefined, orga
       return {
         id: `placement:${item.placement_id}:${index}`,
         kind: "placement" as const,
-        projectName: item.workspace_name,
+        collectionName: collectionNameOf(item),
         targetName: item.placement_name ?? item.placement_id.slice(0, 8),
         versionNo: item.version_no,
         placementStatus: item.status,
-        href: contextHref("/manage", { organizationId, workspaceId: item.workspace_id }, { placementId: item.placement_id }),
+        href: item.workspace_id ? collectionHref(item.workspace_id, organizationId, { placementId: item.placement_id }) : undefined,
       };
     }
     return {
       id: `${item.kind}:${item.scene_id}:${item.resource_alias}:${index}`,
       kind: item.kind === "scene_draft" ? ("draft" as const) : ("published" as const),
-      projectName: item.workspace_name,
       targetName: item.kind === "scene_revision" ? `${item.scene_name} #${item.revision_no}` : item.scene_name,
       versionNo: item.version_no,
-      href: contextHref(`/manage/scenes/${item.scene_id}`, { organizationId, workspaceId: item.workspace_id }),
+      href: teamHref(`/manage/scenes/${item.scene_id}`, organizationId),
     };
   });
   const total = impact.drafts + impact.revisions + impact.placements;
@@ -161,29 +156,34 @@ export function toUsageSummary(impact: DependencyImpact | null | undefined, orga
   };
 }
 
-export function toGrants(grants: AssetGrantDto[], originWorkspaceId: string | null, archived: ReadonlySet<string>): AssetProjectGrant[] {
-  return grants.map((grant) => ({
-    projectId: grant.workspace_id,
-    projectName: grant.workspace_name ?? grant.workspace_id.slice(0, 8),
-    isOrigin: grant.workspace_id === originWorkspaceId,
-    dependencyCount: grant.dependency_count ?? 0,
-    archived: archived.has(grant.workspace_id),
-  }));
-}
-
 export function sceneStatus(scene: Pick<SceneSummaryDto, "publish_status">): SceneStatus {
   return scene.publish_status === "modified" ? "changed" : scene.publish_status;
 }
 
-export function toSceneListItem(scene: SceneSummaryDto, people: ReadonlyMap<string, ContentPerson>): SceneListItem {
+export function toWorkbenchScene(scene: SceneSummaryDto, people: ReadonlyMap<string, ContentPerson>): WorkbenchItem {
   return {
     id: scene.id,
+    kind: "scene",
     name: scene.name,
-    status: sceneStatus(scene),
+    type: "scene",
+    state: scene.state,
+    sceneStatus: sceneStatus(scene),
     latestRevisionNo: scene.latest_revision?.revision_no ?? null,
     placementCount: scene.placement_count,
     // SceneSummaryDto has no active/paused split: leave the active count unknown instead of guessing.
     updatedAt: scene.updated_at,
     updatedBy: scene.updated_by ? people.get(scene.updated_by) ?? null : null,
+  };
+}
+
+export function toCollectionItem(collection: WorkspaceDto): CollectionItem {
+  return {
+    id: collection.id,
+    name: collection.name,
+    description: collection.description,
+    createdAt: collection.create_date,
+    archived: !!collection.archived_at,
+    canEdit: !!collection.capabilities?.can_edit,
+    canArchive: !!collection.capabilities?.can_archive,
   };
 }

@@ -10,7 +10,7 @@ const meta = {
     open: true,
     onOpenChange: noop,
     title: "新建场景",
-    description: "场景属于项目“示例项目 老街导览”。创建后会打开编辑器。",
+    description: "场景属于整个团队：所有成员都能查看，成员及以上角色可以编辑、发布和放进合集。创建后会打开编辑器。",
     submitLabel: "创建并打开",
     onSubmit: ok,
   },

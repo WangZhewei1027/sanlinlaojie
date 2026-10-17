@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContentNotice } from "@/app/manage/content/ContentFeedback";
-import { useContentContext, useContentModel } from "@/app/manage/lib/content-context";
+import { useContentModel, useTeamContext } from "@/app/manage/lib/content-context";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { LegacyOnsiteUpload } from "./components/LegacyOnsiteUpload";
 import { V2OnsiteUpload } from "./components/V2OnsiteUpload";
@@ -25,10 +25,10 @@ export default function UploadOnsitePage() {
  */
 function OnsiteUploadGate() {
   const tx = useIntegrationText(ONSITE_TEXTS);
-  const context = useContentContext();
-  const model = useContentModel(context.organizationId);
+  const team = useTeamContext();
+  const model = useContentModel(team.organizationId);
 
-  if (!context.organizationId) return <LegacyOnsiteUpload />;
+  if (!team.organizationId) return <LegacyOnsiteUpload />;
   if (model.status === "loading") return <OnsiteSkeleton label={tx("contentModel.integration.onsite.checkingState")} />;
   if (model.status === "error") {
     return (
@@ -43,7 +43,7 @@ function OnsiteUploadGate() {
     );
   }
   if (model.state === "v2" || model.state === "readonly") {
-    return <V2OnsiteUpload context={context} frozen={model.state === "readonly"} />;
+    return <V2OnsiteUpload team={team} frozen={model.state === "readonly"} />;
   }
   return <LegacyOnsiteUpload />;
 }

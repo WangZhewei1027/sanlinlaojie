@@ -19,7 +19,7 @@ import type {
   ResourceInput,
   UploadReceiptDto,
 } from "@/lib/content-model/contracts";
-import { uploadReceipt } from "./content-api";
+import { uploadReceipt, type UploadScope } from "./content-api";
 
 export interface PreparedFile {
   file: File;
@@ -97,8 +97,12 @@ export interface UploadedVersionInput {
   receipts: UploadReceiptDto[];
 }
 
-/** Upload the processed file and describe it as a new version body. */
-export async function uploadFileVersion(prepared: PreparedFile, workspaceId: string, signal?: AbortSignal): Promise<UploadedVersionInput> {
-  const receipt = await uploadReceipt(prepared.file, { type: prepared.type, workspaceId, purpose: "asset_version", signal });
+/**
+ * Upload the processed file and describe it as a new version body. Team
+ * content passes only the organization; a collection is added solely for
+ * upload-and-place on the map or onsite.
+ */
+export async function uploadFileVersion(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal): Promise<UploadedVersionInput> {
+  const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset_version", signal });
   return { payload: filePayload(prepared), resources: [{ role: "primary", receiptId: receipt.id }], receipts: [receipt] };
 }

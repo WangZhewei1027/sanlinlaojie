@@ -1,7 +1,7 @@
 import "server-only";
 import { ASSET_PAYLOAD_SCHEMA_VERSION, type AssetVersionPayload, type ResourceInput, type ResourceRole } from "@/lib/content-model/contracts";
-import { ensureAssetUse, loadAssetAccess, type Actor, type AssetIdentity, type WorkspaceAccess } from "@/lib/content-model/access.server";
-import { ContentError, archived, invalid } from "@/lib/content-model/errors";
+import { ensureAssetUse, loadOrgAccess, type Actor, type AssetIdentity, type OrgAccess } from "@/lib/content-model/access.server";
+import { ContentError, invalid } from "@/lib/content-model/errors";
 import type { Trx } from "@/lib/content-model/tx.server";
 import { lockObjectKeys } from "@/lib/storage/retention.server";
 import { loadCommitReceipts, markReceiptsConsumed } from "@/lib/upload/receipts.server";
@@ -18,14 +18,14 @@ interface ResourceRow {
 
 /**
  * Resolve resource inputs into rows. Managed keys only come from this actor's
- * unexpired receipts or from an existing version of the same organization the
- * actor can read (source version ownership check). Object locks are taken
- * before the rows are written, so the collector cannot interleave.
+ * unexpired receipts or from an existing version of the same organization
+ * (source version ownership check). Object locks are taken before the rows
+ * are written, so the collector cannot interleave.
  */
 async function resolveResources(
   trx: Trx,
   actor: Actor,
-  target: { assetId: string; organizationId: string; useIn?: WorkspaceAccess },
+  target: { assetId: string; organizationId: string; access?: OrgAccess },
   inputs: ResourceInput[],
 ): Promise<{ rows: ResourceRow[]; receiptIds: string[] }> {
   const organizationId = target.organizationId;
@@ -40,24 +40,19 @@ async function resolveResources(
         .where("r.asset_version_id", "in", fromVersionIds)
         .execute()
     : [];
-  // Reusing another asset's files is a use of that asset: it must be readable,
-  // active, and usable in the project the new content enters (grant rules).
+  // Reusing another asset's files is a use of that team asset: same
+  // organization, a writer of it, and the source still active (share lock).
   const checkedAssets = new Set<string>();
+  let access = target.access ?? null;
   for (const versionId of fromVersionIds) {
     const owner = sources.find((s) => s.asset_version_id === versionId);
     if (!owner) throw invalid(`来源版本 ${versionId} 不存在或没有文件`);
     if (owner.organization_id !== organizationId) throw new ContentError("FORBIDDEN", "来源版本不属于该组织");
     if (checkedAssets.has(owner.asset_id) || owner.asset_id === target.assetId) continue;
     checkedAssets.add(owner.asset_id);
-    const access = await loadAssetAccess(trx, actor, owner.asset_id);
-    if (!access?.canRead) throw new ContentError("FORBIDDEN", "无权使用来源版本的文件");
-    if (target.useIn) {
-      await ensureAssetUse(trx, actor, owner.asset_id, target.useIn);
-    } else {
-      if (access.asset.state !== "active") throw archived("来源素材已归档，不能复用其文件");
-      if (!access.canMaintain && access.asset.visibility !== "organization")
-        throw new ContentError("GRANT_REQUIRED", "来源素材未共享，不能复用其文件");
-    }
+    access ??= await loadOrgAccess(trx, actor, organizationId);
+    if (!access?.canRead || access.org.id !== organizationId) throw new ContentError("FORBIDDEN", "无权使用来源版本的文件");
+    await ensureAssetUse(trx, actor, owner.asset_id, access);
   }
 
   // Lock every managed key first (sorted inside lockKeys), then validate leases.
@@ -108,7 +103,8 @@ async function resolveResources(
 /**
  * Append an immutable version under the asset's row lock and advance the
  * current pointer. The caller has already locked the asset row FOR UPDATE and
- * checked maintain permission (or is creating the asset in this transaction).
+ * checked write permission (or is creating the asset in this transaction).
+ * `access` is the caller's resolved access to the asset's organization.
  */
 export async function appendVersion(
   trx: Trx,
@@ -116,9 +112,9 @@ export async function appendVersion(
   asset: Pick<AssetIdentity, "id" | "organization_id">,
   payload: AssetVersionPayload,
   inputs: ResourceInput[],
-  opts: { sourceFingerprint?: string; actorIdForRow?: string | null; useIn?: WorkspaceAccess } = {},
+  opts: { sourceFingerprint?: string; actorIdForRow?: string | null; access?: OrgAccess } = {},
 ): Promise<{ versionId: string; versionNo: number }> {
-  const { rows, receiptIds } = await resolveResources(trx, actor, { assetId: asset.id, organizationId: asset.organization_id, useIn: opts.useIn }, inputs);
+  const { rows, receiptIds } = await resolveResources(trx, actor, { assetId: asset.id, organizationId: asset.organization_id, access: opts.access }, inputs);
   const last = await trx
     .selectFrom("asset_version")
     .select(({ fn }) => fn.max("version_no").as("max"))

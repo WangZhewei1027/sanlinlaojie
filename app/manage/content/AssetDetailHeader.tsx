@@ -26,10 +26,11 @@ export function AssetDetailHeader({ asset, canMaintain, onUploadVersion, preview
   const facts: Array<[string, string]> = [
     [t("contentModel.detail.type"), t(`fileTypes.${asset.type}`)],
     [t("contentModel.detail.currentVersion"), `v${asset.currentVersionNo}`],
-    [t("contentModel.detail.maintainer"), asset.maintainer?.name ?? t("contentModel.library.noMaintainerShort")],
-    [t("contentModel.detail.originProject"), asset.originProjectName ?? t("contentModel.detail.originUnknown")],
     [t("contentModel.detail.source"), t(`contentModel.filter.origins.${asset.origin}`)],
     [t("contentModel.detail.created"), format.date(asset.createdAt)],
+    [t("contentModel.detail.updated"), format.date(asset.updatedAt)],
+    // Informational only; it grants nothing.
+    ...(asset.maintainer ? [[t("contentModel.detail.maintainer"), asset.maintainer.name] as [string, string]] : []),
   ];
 
   return (
@@ -39,11 +40,12 @@ export function AssetDetailHeader({ asset, canMaintain, onUploadVersion, preview
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1.5">
             <Text as="h1" variant="headingLg" breakWord>{asset.name}</Text>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <ContentStatusBadge kind={asset.visibility} />
-              {archived && <ContentStatusBadge kind="archived" />}
-              {asset.fileMissing && <ContentStatusBadge kind="fileMissing" />}
-            </div>
+            {(archived || asset.fileMissing) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {archived && <ContentStatusBadge kind="archived" />}
+                {asset.fileMissing && <ContentStatusBadge kind="fileMissing" />}
+              </div>
+            )}
           </div>
           {canMaintain && !archived && (
             <Button onClick={onUploadVersion} className="self-start">

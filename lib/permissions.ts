@@ -5,10 +5,12 @@
  *   - super_admin: Full system access, can CRUD organizations, manage user roles
  *   - user: Normal user, controlled by Tier 2 org roles
  *
- * Tier 2: Organization role (organization_member.role)
- *   - owner: Full org control (settings, members, workspaces, delete)
- *   - admin: Manage members (except owners), workspaces
- *   - member: View only, workspace-scoped access
+ * Tier 2: Organization (team) role (organization_member.role) — the only
+ * content permission boundary. Every member reads all team content.
+ *   - owner: Full org control (settings, members, ownership, delete) + content
+ *   - admin: Manage members (except owners) + content
+ *   - member: Create, edit, version, archive team content and map collections
+ *   - viewer: Read-only
  */
 
 // --- Tier 1: Global roles ---
@@ -31,7 +33,8 @@ export type OrgPermission =
   | "org.workspaces.create"
   | "org.workspaces.edit"
   | "org.workspaces.delete"
-  | "org.assets.write";
+  | "org.assets.write"
+  | "org.collections.manage";
 
 export type GlobalPermission =
   | "global.users.view"
@@ -55,6 +58,7 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.edit",
     "org.workspaces.delete",
     "org.assets.write",
+    "org.collections.manage",
   ],
   admin: [
     "org.view",
@@ -67,12 +71,14 @@ const ORG_PERMISSION_MATRIX: Record<OrgRole, OrgPermission[]> = {
     "org.workspaces.edit",
     "org.workspaces.delete",
     "org.assets.write",
+    "org.collections.manage",
   ],
   member: [
     "org.view",
     "org.members.view",
     "org.workspaces.view",
     "org.assets.write",
+    "org.collections.manage",
   ],
   viewer: ["org.view", "org.workspaces.view"],
 };
@@ -165,13 +171,13 @@ export function isSidebarItemVisible(
   return true;
 }
 
-// --- Tier 3: Project (workspace) roles ---
+// --- Collection (workspace) roles: derived from the team role ---
 //
-// owner/admin are implicit managers of every project in their organization;
-// member gets the explicit workspace_assignment role; an org viewer is capped
-// at viewer even if an assignment says editor. super_admin keeps its global
-// bypass. Pure, so the same rule drives UI hints and server checks
-// (lib/content-model/access.server.ts).
+// Workspace rows are map collections, not an access boundary. Every member of
+// the organization reads every collection; owner/admin/member edit them and
+// an org viewer is read-only. workspace_assignment rows are history only and
+// never change the result. super_admin keeps its global bypass. Pure, so the
+// same rule drives UI hints and server checks (lib/content-model/access.server.ts).
 
 export type ProjectRole = "manager" | "editor" | "viewer";
 
@@ -181,16 +187,23 @@ export function isProjectRole(value: unknown): value is ProjectRole {
   return value === "manager" || value === "editor" || value === "viewer";
 }
 
-/** Effective project role, or null when the caller has no project access. */
+/** Role in every collection of the team, or null for non-members. */
+export function teamProjectRole(orgRole: string | null | undefined): ProjectRole | null {
+  if (orgRole === "owner" || orgRole === "admin") return "manager";
+  if (orgRole === "member") return "editor";
+  if (orgRole === "viewer") return "viewer";
+  return null;
+}
+
+/**
+ * @deprecated Assignments no longer grant or limit access; same as
+ * `teamProjectRole(orgRole)`. The second argument is ignored.
+ */
 export function effectiveProjectRole(
   orgRole: string | null | undefined,
-  assignmentRole: string | null | undefined,
+  _assignmentRole?: string | null,
 ): ProjectRole | null {
-  if (orgRole === "owner" || orgRole === "admin") return "manager";
-  if (orgRole !== "member" && orgRole !== "viewer") return null;
-  if (!isProjectRole(assignmentRole)) return null;
-  if (orgRole === "viewer") return "viewer";
-  return assignmentRole;
+  return teamProjectRole(orgRole);
 }
 
 export function projectRoleAtLeast(role: ProjectRole | null | undefined, required: ProjectRole): boolean {
@@ -202,7 +215,7 @@ export function orgRoleCanWrite(orgRole: string | null | undefined): boolean {
   return orgRole === "owner" || orgRole === "admin" || orgRole === "member";
 }
 
-/** Role stored for a new assignment: org viewers are forced down to viewer. */
+/** @deprecated Assignments are no longer written; kept for callers reading historical rows. */
 export function assignmentRoleFor(orgRole: string | null | undefined, requested: ProjectRole = "editor"): ProjectRole {
   return orgRole === "viewer" ? "viewer" : requested;
 }

@@ -11,7 +11,6 @@ import type {
 } from "@/lib/content-model/contracts";
 import { resolvePlacementContent, type StaticPlacementTarget } from "./content.server";
 import {
-  loadOrgWorkspaceAccess,
   loadWorkspaceAccess,
   lockWorkspaceForWrite,
   requireOrgRead,
@@ -65,7 +64,7 @@ import {
 
 // ───────────────────────── queries ─────────────────────────
 
-/** Own placements plus read-only placements another project shares through a legacy scope. */
+/** Own placements plus read-only placements another collection shares through a legacy scope. */
 export async function listWorkspacePlacements(
   actor: Actor,
   workspaceId: string,
@@ -95,12 +94,10 @@ export async function listWorkspacePlacements(
   return buildPlacementDtos(db, actor, rows, { viewerWorkspaceId: workspaceId });
 }
 
-/** Organization map: placements of every project the caller can read (each listed once). */
+/** Team map: placements of every collection of the organization (each listed once). */
 export async function listOrganizationPlacements(actor: Actor, organizationId: string, opts: { status?: PlacementStatus } = {}): Promise<PlacementDto[]> {
   await requireOrgRead(db, actor, organizationId);
-  const readable = (await loadOrgWorkspaceAccess(db, actor, organizationId)).filter((w) => w.canRead).map((w) => w.workspace.id);
-  if (!readable.length) return [];
-  let query = placementQuery(db).where("p.workspace_id", "in", readable);
+  let query = placementQuery(db).where("p.organization_id", "=", organizationId);
   if (opts.status) query = query.where("p.status", "=", opts.status);
   const rows = await query.orderBy("p.updated_at", "desc").execute();
   return buildPlacementDtos(db, actor, rows);
@@ -120,21 +117,21 @@ async function hasActiveScope(exec: Executor, placementId: string, workspaceId: 
 }
 
 /**
- * Read authorization of one placement: the owning project is readable, or the
- * caller reads `viewerWorkspaceId` (same organization by FK) and that project
- * holds an active legacy scope for the placement. Everything else is 404.
+ * Read authorization of one placement: team membership of its organization
+ * (the owning collection is readable). `viewerWorkspaceId` is a view
+ * context: when it is another collection holding an active legacy scope for
+ * the placement, the placement is shown read-only shared from there; an
+ * unrelated or foreign context is rejected. Everything else is 404.
  */
 async function requirePlacementRead(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<{ row: PlacementRow; viewer: string | undefined }> {
   const [row] = await loadPlacementRows(db, [placementId]);
   if (!row) throw notFound("投放不存在");
-  if (viewerWorkspaceId && viewerWorkspaceId !== row.workspace_id) {
-    if (!(await hasActiveScope(db, row.id, viewerWorkspaceId))) throw notFound("投放不存在");
-    const scopeAccess = await loadWorkspaceAccess(db, actor, viewerWorkspaceId);
-    if (!scopeAccess?.canRead || scopeAccess.workspace.organization_id !== row.organization_id) throw notFound("投放不存在");
-    return { row, viewer: viewerWorkspaceId };
-  }
   const own = await loadWorkspaceAccess(db, actor, row.workspace_id);
   if (!own?.canRead) throw notFound("投放不存在");
+  if (viewerWorkspaceId && viewerWorkspaceId !== row.workspace_id) {
+    if (!(await hasActiveScope(db, row.id, viewerWorkspaceId))) throw notFound("投放不存在");
+    return { row, viewer: viewerWorkspaceId };
+  }
   return { row, viewer: undefined };
 }
 
@@ -206,9 +203,10 @@ async function dto(actor: Actor, id: string): Promise<PlacementDto> {
 }
 
 /**
- * POST /api/workspaces/[id]/placements. Either a fixed target, or the
- * upload-and-place form (`asset` + `idempotencyKey`) that creates Asset, v1,
- * grant and the placement in one transaction.
+ * POST /api/workspaces/[id]/placements. Either a fixed target (any same-team
+ * AssetVersion or SceneRevision), or the upload-and-place form (`asset` +
+ * `idempotencyKey`) that creates the team Asset, v1 and the placement in one
+ * transaction.
  */
 export async function createPlacement(actor: Actor, workspaceId: string, body: JsonRecord): Promise<CreatePlacementResult> {
   if (body.asset !== undefined) {
@@ -282,7 +280,7 @@ async function describeTarget(exec: Executor, row: PlacementRow): Promise<Resolv
   };
 }
 
-/** Owning project of a placement (immutable), read before any lock is taken. */
+/** Owning collection of a placement (immutable), read before any lock is taken. */
 async function placementWorkspace(exec: Executor, placementId: string): Promise<string> {
   const row = await exec.selectFrom("placement").select("workspace_id").where("id", "=", placementId).executeTakeFirst();
   if (!row) throw notFound("投放不存在");
@@ -302,7 +300,8 @@ async function writableWorkspace(trx: Trx, actor: Actor, workspaceId: string, ca
 /**
  * PATCH /api/placements/[id]: location / anchor / render config / status /
  * tags, and upgrade or rollback to another retained version of the same asset
- * or revision of the same scene. Only the owning project may edit.
+ * or revision of the same scene. Edited in its owning collection (open) by a
+ * team writer.
  */
 export async function updatePlacement(actor: Actor, placementId: string, body: JsonRecord): Promise<PlacementDto> {
   rejectUnknown(body, ["expectedLockVersion", "name", "location", "anchorId", "renderConfig", "status", "target", "tagIds"]);
@@ -310,7 +309,7 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
   const fields = parsePlacementFields(body);
   const target = body.target === undefined ? undefined : parseTarget(body.target);
   await contentTransaction(async (trx) => {
-    // Lock order everywhere: organization → project → row.
+    // Lock order everywhere: organization → collection → row.
     const owner = await placementWorkspace(trx, placementId);
     const access = await writableWorkspace(trx, actor, owner, new Map());
     const row = await lockPlacement(trx, placementId);
@@ -373,7 +372,7 @@ export async function archivePlacement(actor: Actor, placementId: string, expect
   return updatePlacement(actor, placementId, { expectedLockVersion, status: "archived" });
 }
 
-/** POST /api/placements/move: all-or-nothing batch, each item lock-checked in its own project. */
+/** POST /api/placements/move: all-or-nothing batch, each item lock-checked in its own collection. */
 export async function movePlacements(actor: Actor, body: JsonRecord): Promise<PlacementDto[]> {
   if (!Array.isArray(body.moves) || body.moves.length === 0 || body.moves.length > 200) throw invalid("moves 必须是 1–200 项的数组");
   const moves = body.moves.map((raw, i) => {
@@ -426,9 +425,9 @@ function offsetPoint(point: GeoPointInput, meters: number): GeoPointInput {
 
 /**
  * POST /api/placements/[id]/copy: an independent placement with its own id
- * and public id, pinned to the same content. Copying into another project
- * through an active legacy scope is the limited right plan §8.3 grants: the
- * same fixed content only, still subject to archive rules.
+ * and public id, pinned to the same content, in any open collection of the
+ * same team (still subject to archive rules). Tags are copied only inside the
+ * same collection; anchors only where the anchor is registered.
  */
 export async function copyPlacement(actor: Actor, placementId: string, body: JsonRecord): Promise<CreatePlacementResult> {
   rejectUnknown(body, ["targetWorkspaceId", "offsetMeters", "location", "name", "idempotencyKey"]);
@@ -443,7 +442,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
   const sourceAccess = await loadWorkspaceAccess(db, actor, source.workspace_id);
   const viaLegacyScope = targetId !== source.workspace_id && (await hasActiveScope(db, source.id, targetId));
   if (!sourceAccess?.canRead && !viaLegacyScope) throw notFound("投放不存在");
-  if (target.workspace.organization_id !== source.organization_id) throw invalid("只能复制到同一组织的项目");
+  if (target.workspace.organization_id !== source.organization_id) throw invalid("只能复制到同一组织的合集");
   const outcome = await contentTransaction(async (trx) => {
     await lockWorkspaceForWrite(trx, target);
     const scope = key ? { actorId: actor.userId, command: "placement.copy", key, hash: requestHash({ placementId, ...body, idempotencyKey: undefined }) } : null;
@@ -457,7 +456,6 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
       actor,
       target,
       row.asset_version_id ? { kind: "asset_version", assetVersionId: row.asset_version_id } : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" },
-      { viaLegacyScope, sameProjectCopy: target.workspace.id === row.workspace_id },
     );
     const sourcePoint = row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, altitude: row.altitude } : null;
     const location = explicitLocation !== undefined ? explicitLocation : sourcePoint ? offsetPoint(sourcePoint, offset) : null;

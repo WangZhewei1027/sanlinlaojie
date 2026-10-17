@@ -8,7 +8,8 @@ import { db, sql } from "@/lib/db";
 // tables Better Auth reads, using the same bcrypt format as lib/auth/server.ts.
 //
 // Inserting into auth.users fires handle_new_user(), which creates the
-// public.users row, the personal organization and the default workspace.
+// public.users row and the personal team (a v2 organization with the user as
+// owner and no map collection).
 
 const BCRYPT_ROUNDS = 10;
 const CREDENTIAL_PROVIDER = "credential";

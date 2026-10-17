@@ -34,19 +34,18 @@
 
 #### 用户端
 - `/` — 首页
-- `/manage` — 地图主界面：v2 管理投放 Placement，尚未切换的组织保留旧素材地图
-- `/manage/assets` — 团队素材库、项目授权、固定版本与使用记录
-- `/manage/scenes` — 项目场景；`/manage/scenes/[id]` 编排、预览与发布
+- `/manage` — 团队工作台：全部素材与场景，按类型筛选；`/manage/assets/[id]` 素材详情（固定版本与使用记录）
+- `/manage/scenes/[id]` — 场景编排、预览与发布（场景属于团队，无需项目）
+- `/manage/collections` — 地图合集；`/manage/collections/[id]` 在地图上放置素材与已发布场景（尚未迁移的团队，`/manage` 仍是旧素材地图）
 - `/auth/*` — 登录 / 注册 / 找回与修改密码
-- `/invite/[token]` — 接受组织邀请链接
+- `/invite/[token]` — 接受团队邀请链接
 - `/settings` — 个人设置
 - `/instructions/{zh,en}` — 使用说明（MDX）；`/403` — 无权限提示页
 
 #### 管理端（`/admin`）
-- Overview — 组织数据概览
-- Members — 成员管理
-- Workspaces — 工作区管理（含 QR 码生成）
-- Settings — 组织设置
+- Settings — 团队设置
+- Members — 成员与团队角色
+- Collections — v2 团队跳转到 `/manage/collections`；尚未迁移的团队保留工作区管理
 
 #### 超级管理员（`/super-admin`）
 - User Management — 全局用户管理
@@ -74,7 +73,7 @@
 #### 权限体系（`lib/permissions.ts`）
 - 全局角色（`users.role`）：超级管理员 super_admin / 普通用户 user
 - 组织角色（`organization_member.role`）：owner / admin / member / viewer
-- 项目角色（`workspace_assignment.role`）：manager / editor / viewer；素材使用权与维护权分开
+- 团队成员共享全部内容与合集：owner/admin/member 可编辑，viewer 只读；项目授权、项目角色与维护者门禁已退役（见 [docs/team-workbench.md](docs/team-workbench.md)）
 - 侧边栏菜单按角色动态过滤；矩阵见 `docs/permissions.md`
 
 ### 目录结构
@@ -82,8 +81,8 @@
 ```
 sanlinlaojie/
 ├─ app/
-│  ├─ admin/          # 组织管理后台
-│  ├─ manage/         # 地图工作区主界面
+│  ├─ admin/          # 团队管理后台
+│  ├─ manage/         # 素材与场景工作台、地图合集
 │  ├─ super-admin/    # 超级管理员控制台
 │  ├─ upload-onsite/  # 现场上传页面
 │  └─ api/            # API Routes
@@ -219,9 +218,9 @@ xr-frame-plant-trees/
 结构以 `db/schema.sql` 为准（含全部函数与触发器）。核心表包括：
 
 - **organization / organization_member** — 团队所有权、组织角色与内容模型切换状态。
-- **workspace / workspace_assignment** — 项目与项目协作角色，保留二维码参数和原 UUID。
+- **workspace** — 地图合集（界面称“合集”），拥有投放；保留二维码参数和原 UUID。`workspace_assignment` 仅作历史记录。
 - **asset / asset_version / asset_version_resource** — 素材身份、不可变内容版本与文件保留清单。
-- **asset_workspace_grant** — 同组织项目使用素材的授权。
+- **asset_workspace_grant** — 旧的项目使用授权，现仅作历史记录，不参与权限。
 - **scene / scene_revision** — 编排草稿、固定发布版本与派生依赖索引。
 - **placement** — 一次空间投放，固定引用素材版本或场景发布版本。
 
@@ -260,7 +259,8 @@ npm run dev
 | [docs/scene-asset.md](docs/scene-asset.md) | 独立场景、固定版本发布与 legacy 场景兼容 |
 | [docs/api.md](docs/api.md) | API 接口说明 |
 | [docs/i18n-guide.md](docs/i18n-guide.md) | 国际化使用指南 |
-| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 投放地图 ID、消息适配与 legacy 素材交互 |
+| [docs/team-workbench.md](docs/team-workbench.md) | 团队工作台、地图合集与兼容链接（前端） |
+| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 合集地图 ID、消息适配与 legacy 素材交互 |
 | [docs/3d-model-preview.md](docs/3d-model-preview.md) | 3D 模型预览方案 |
 | [docs/text-asset-miniapp-style.md](docs/text-asset-miniapp-style.md) | 文本素材小程序样式 |
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
@@ -268,5 +268,5 @@ npm run dev
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
 | [docs/data-layer.md](docs/data-layer.md) | 数据库 / 认证 / 存储模块约定 |
 | [docs/miniapp-api.md](docs/miniapp-api.md) | 小程序匿名接口（`/api/miniapp/*`） |
-| [docs/permissions.md](docs/permissions.md) | 组织/项目角色、素材使用与维护权限 |
+| [docs/permissions.md](docs/permissions.md) | 全局角色与团队角色；合集与素材的权限规则 |
 | [docs/aliyun-migration-plan.md](docs/aliyun-migration-plan.md) | 阿里云迁移方案与执行记录 |

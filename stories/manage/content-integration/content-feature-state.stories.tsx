@@ -6,8 +6,8 @@ const meta = {
 } satisfies Meta<typeof ContentFeatureState>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const LegacyOrganization: Story = {};
+export const LegacyTeam: Story = {};
 export const Preparing: Story = { args: { state: "preparing" } };
 export const ReadOnlyCutover: Story = { args: { state: "readonly" } };
-export const NoOrganization: Story = { args: { state: "no-organization" } };
+export const NoTeam: Story = { args: { state: "no-organization" } };
 export const StateUnavailable: Story = { args: { state: "error", error: "HTTP 500", onRetry: () => {} } };

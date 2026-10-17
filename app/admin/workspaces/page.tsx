@@ -12,9 +12,9 @@ import { WorkspaceFormDialog } from "@/app/admin/workspaces/components/Workspace
 import { DeleteWorkspaceDialog } from "@/app/admin/workspaces/components/DeleteWorkspaceDialog";
 import { WorkspacesSkeleton } from "@/app/admin/workspaces/components/WorkspacesSkeleton";
 import { Text } from "@/components/ui/typography";
-import { useContentModel } from "@/app/manage/lib/content-context";
+import { teamHref, useContentModel } from "@/app/manage/lib/content-context";
+import { RouteRedirect } from "@/app/manage/components/RouteRedirect";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
-import { ProjectMembersDialog } from "@/app/admin/workspaces/components/ProjectMembersDialog";
 import { WorkspaceCard, type WorkspaceCardData } from "@/app/admin/workspaces/components/WorkspaceCard";
 import { WORKSPACE_TEXTS } from "@/app/admin/workspaces/workspace-texts";
 
@@ -43,10 +43,6 @@ export default function WorkspacesPage() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
     null,
   );
-  const [membersWorkspace, setMembersWorkspace] = useState<Workspace | null>(
-    null,
-  );
-  const [membersOpen, setMembersOpen] = useState(false);
   // Server-declared content model state; v2 swaps delete for archive/restore.
   const contentModel = useContentModel(selectedOrganization?.id ?? null);
   const lifecycle =
@@ -97,10 +93,10 @@ export default function WorkspacesPage() {
     setDeleteOpen(true);
   };
 
-  const handleMembers = (workspace: Workspace) => {
-    setMembersWorkspace(workspace);
-    setMembersOpen(true);
-  };
+  // Teams on content model v2 (or frozen) manage map collections in the workbench.
+  if (selectedOrganization && (contentModel.state === "v2" || contentModel.state === "readonly")) {
+    return <RouteRedirect to={teamHref("/manage/collections", selectedOrganization.id)} />;
+  }
 
   if (!selectedOrganization) {
     return (
@@ -177,7 +173,6 @@ export default function WorkspacesPage() {
               createdAtLabel={t("admin.workspace.createdAt", "Created on")}
               onEdit={() => handleEdit(workspace)}
               onDelete={() => handleDelete(workspace)}
-              onMembers={() => handleMembers(workspace)}
               tx={tx}
             />
           ))}
@@ -192,13 +187,6 @@ export default function WorkspacesPage() {
         defaultOrganizationId={selectedOrganization?.id}
         defaultOrganizationName={selectedOrganization?.name}
         onSuccess={fetchWorkspaces}
-      />
-
-      {/* Project members (capabilities come from the server) */}
-      <ProjectMembersDialog
-        workspace={membersWorkspace}
-        open={membersOpen}
-        onOpenChange={setMembersOpen}
       />
 
       {/* Delete Dialog */}

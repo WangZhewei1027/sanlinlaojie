@@ -5,18 +5,15 @@ const meta = {
   title: "Manage/Content/Status Badge",
   component: ContentStatusBadge,
   parameters: { layout: "centered" },
-  args: { kind: "organization" },
+  args: { kind: "published", number: 2 },
   argTypes: {
-    kind: { control: "select", options: ["organization", "restricted", "inProject", "archived", "fileMissing", "unpublished", "published", "changed", "outdated"] },
+    kind: { control: "select", options: ["archived", "fileMissing", "unpublished", "published", "changed", "outdated"] },
   },
 } satisfies Meta<typeof ContentStatusBadge>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
-export const SharedWithOrganization: Story = { args: { kind: "organization" } };
-export const Restricted: Story = { args: { kind: "restricted" } };
-export const InCurrentProject: Story = { args: { kind: "inProject" } };
 export const Archived: Story = { args: { kind: "archived" } };
 export const FileMissing: Story = { args: { kind: "fileMissing" } };
 export const Unpublished: Story = { args: { kind: "unpublished" } };

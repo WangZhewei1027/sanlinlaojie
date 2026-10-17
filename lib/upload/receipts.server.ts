@@ -1,9 +1,10 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import type { UploadPurpose, UploadReceiptDto } from "@/lib/content-model/contracts";
-import { ContentError } from "@/lib/content-model/errors";
+import { ContentError, notFound } from "@/lib/content-model/errors";
+import { isUuid } from "@/lib/content-model/input";
 import { toIsoRequired, type Executor, type Trx } from "@/lib/content-model/tx.server";
-import { readableWorkspaceIds, type Actor, type WorkspaceAccess } from "@/lib/content-model/access.server";
+import { requireOrgWrite, requireWorkspaceEdit, type Actor, type OrgAccess } from "@/lib/content-model/access.server";
 import { publicObjectUrl } from "@/lib/assets/urls";
 import { UPLOAD_RECEIPT_TTL_MS } from "@/lib/storage/retention.server";
 import { assetKeyFromUrl } from "@/lib/storage/oss";
@@ -13,13 +14,14 @@ import { assetKeyFromUrl } from "@/lib/storage/oss";
  * this key for this organization. Versions may only reference managed objects
  * through an unexpired receipt or an existing version of the same
  * organization, never through a bare URL. While unexpired, a receipt is also
- * the lease that keeps the collector away from an in-flight upload.
+ * the lease that keeps the collector away from an in-flight upload. The
+ * collection (`workspace_id`) is optional metadata of where it was uploaded.
  */
 
 export interface ReceiptRow {
   id: string;
   organization_id: string;
-  workspace_id: string;
+  workspace_id: string | null;
   created_by: string;
   storage_key: string;
   content_hash: string;
@@ -31,6 +33,42 @@ export interface ReceiptRow {
   created_at: Date;
   expires_at: Date;
   consumed_at: Date | null;
+}
+
+/** The team (and optional collection) an upload is leased to. */
+export interface UploadScope {
+  org: OrgAccess;
+  workspaceId: string | null;
+}
+
+/**
+ * Resolve `organization_id` / `workspace_id` of an upload or hash probe.
+ * Both are only selectors: the organization and the caller's team role are
+ * read from the database, never trusted from the request. The caller must
+ * be a team writer of an open organization; a given collection must be open
+ * and belong to the given organization (otherwise it looks missing).
+ */
+export async function resolveUploadScope(
+  exec: Executor,
+  actor: Actor,
+  input: { organizationId: string | null; workspaceId: string | null },
+): Promise<UploadScope> {
+  if (input.workspaceId !== null && !isUuid(input.workspaceId)) throw notFound("合集不存在");
+  if (input.organizationId !== null && !isUuid(input.organizationId)) throw notFound("组织不存在");
+  let scope: UploadScope;
+  if (input.workspaceId) {
+    const collection = await requireWorkspaceEdit(exec, actor, input.workspaceId.toLowerCase());
+    if (input.organizationId && collection.workspace.organization_id !== input.organizationId.toLowerCase())
+      throw notFound("合集不存在或不属于该组织");
+    scope = { org: collection, workspaceId: collection.workspace.id };
+  } else if (input.organizationId) {
+    scope = { org: await requireOrgWrite(exec, actor, input.organizationId.toLowerCase()), workspaceId: null };
+  } else {
+    throw new ContentError("VALIDATION_FAILED", "缺少 organization_id 或 workspace_id");
+  }
+  if (scope.org.org.content_model_state === "readonly")
+    throw new ContentError("CONTENT_MODEL_READONLY", "组织正在切换内容模型，暂时只读", { content_model_state: "readonly" });
+  return scope;
 }
 
 export function receiptDto(row: ReceiptRow): UploadReceiptDto {
@@ -53,7 +91,7 @@ export async function issueReceipt(
   trx: Trx,
   input: {
     organizationId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     userId: string;
     storageKey: string;
     contentHash: string;
@@ -124,13 +162,13 @@ export async function findReusableKey(exec: Executor, organizationId: string, co
  * Hash-only probe (`GET /api/assets/by-hash`). Knowing a hash is not proof of
  * possessing the bytes, so — unlike findReusableKey, which runs only after the
  * bytes were actually uploaded — this resolves only to files the caller can
- * already reach: versions of active assets usable in the target project
- * (grant, organization visibility, own maintenance, or org admin), legacy rows
- * in projects the caller can read, or the caller's own unexpired receipts.
- * Never another tenant's or another user's uncommitted upload.
+ * already reach as a member of `org`: versions of active team assets, legacy
+ * rows in the team's collections, or the caller's own unexpired receipts.
+ * Never another tenant's file or another user's uncommitted upload.
  */
-export async function findProbeKey(exec: Executor, actor: Actor, project: WorkspaceAccess, contentHash: string): Promise<string | null> {
-  const organizationId = project.workspace.organization_id;
+export async function findProbeKey(exec: Executor, actor: Actor, org: OrgAccess, contentHash: string): Promise<string | null> {
+  if (!org.canRead) return null;
+  const organizationId = org.org.id;
   const version = await exec
     .selectFrom("asset_version_resource as r")
     .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
@@ -140,43 +178,20 @@ export async function findProbeKey(exec: Executor, actor: Actor, project: Worksp
     .where("r.content_hash", "=", contentHash)
     .where("r.storage_key", "is not", null)
     .where("a.state", "=", "active")
-    .$if(!project.canAdminister, (query) =>
-      query.where((eb) =>
-        eb.or([
-          eb("a.visibility", "=", "organization"),
-          eb("a.maintained_by", "=", actor.userId),
-          eb.exists(
-            eb
-              .selectFrom("asset_workspace_grant as g")
-              .select("g.asset_id")
-              .whereRef("g.asset_id", "=", "a.id")
-              .where("g.workspace_id", "=", project.workspace.id),
-          ),
-        ]),
-      ),
-    )
     .limit(1)
     .executeTakeFirst();
   if (version?.storage_key) return version.storage_key;
 
-  const readable = await readableWorkspaceIds(exec, actor, project);
-  const legacyScope = readable === null
-    ? sql<boolean>`workspace_id && (select coalesce(array_agg(id), '{}'::uuid[]) from workspace where organization_id = ${organizationId}::uuid)`
-    : readable.length
-      ? sql<boolean>`workspace_id && ${readable}::uuid[]`
-      : null;
-  if (legacyScope) {
-    const legacy = await exec
-      .selectFrom("asset")
-      .select("file_url")
-      .where("content_hash", "=", contentHash)
-      .where("file_url", "is not", null)
-      .where(legacyScope)
-      .limit(1)
-      .executeTakeFirst();
-    const legacyKey = legacy?.file_url ? assetKeyFromUrl(legacy.file_url) : null;
-    if (legacyKey) return legacyKey;
-  }
+  const legacy = await exec
+    .selectFrom("asset")
+    .select("file_url")
+    .where("content_hash", "=", contentHash)
+    .where("file_url", "is not", null)
+    .where(sql<boolean>`workspace_id && (select coalesce(array_agg(id), '{}'::uuid[]) from workspace where organization_id = ${organizationId}::uuid)`)
+    .limit(1)
+    .executeTakeFirst();
+  const legacyKey = legacy?.file_url ? assetKeyFromUrl(legacy.file_url) : null;
+  if (legacyKey) return legacyKey;
 
   const receipt = await exec
     .selectFrom("upload_receipt")

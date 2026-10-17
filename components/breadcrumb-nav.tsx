@@ -18,16 +18,22 @@ import { WorkspaceQrButton } from "@/components/workspace-qr-button";
 import { buildBreadcrumbItems } from "@/components/breadcrumb-routes";
 import { useManageStore } from "@/app/manage/store";
 import { WORKSPACE_ROUTES, isPathWithinRoutes } from "@/app/manage/constants";
+import { useContentModel } from "@/app/manage/lib/content-context";
 import { cn } from "@/lib/utils";
 
-// Routes that show the workspace switcher (subset of WORKSPACE_ROUTES)
-const WORKSPACE_SWITCHER_ROUTES = ["/manage", "/upload-onsite"];
+// Legacy teams only: the old asset map and onsite upload still pick a workspace
+// in the header. Teams on content model v2 (or frozen as readonly) have no
+// global workspace; collections are chosen on their own pages.
+const LEGACY_WORKSPACE_SWITCHER_PATHS = ["/manage", "/upload-onsite"];
 
 export function BreadcrumbNav() {
   const { t, i18n } = useTranslation();
   const pathname = usePathname();
 
   const organizations = useManageStore((state) => state.organizations);
+  const selectedOrganizationId = useManageStore(
+    (state) => state.selectedOrganizationId,
+  );
   const organizationLoading = useManageStore(
     (state) => state.organizationLoading,
   );
@@ -37,7 +43,15 @@ export function BreadcrumbNav() {
   // itself would render nothing — otherwise two separators sit side by side.
   const showOrgSwitcher =
     isOrgContextRoute && (organizationLoading || organizations.length > 0);
-  const showWorkspace = isPathWithinRoutes(pathname, WORKSPACE_SWITCHER_ROUTES);
+  const contentModel = useContentModel(
+    isOrgContextRoute ? selectedOrganizationId : null,
+  );
+  const legacyTeam =
+    contentModel.status === "ready" &&
+    contentModel.state !== "v2" &&
+    contentModel.state !== "readonly";
+  const showWorkspace =
+    legacyTeam && LEGACY_WORKSPACE_SWITCHER_PATHS.includes(pathname);
 
   const breadcrumbItems = buildBreadcrumbItems(pathname, t, i18n.language);
 
@@ -100,7 +114,7 @@ export function BreadcrumbNav() {
             );
           })}
 
-          {/* Show workspace switcher for workspace-scoped routes */}
+          {/* Workspace switcher for the legacy map and onsite upload */}
           {showWorkspace && (
             <>
               <BreadcrumbSeparator className="text-muted-foreground/60" />
@@ -112,8 +126,8 @@ export function BreadcrumbNav() {
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* QR code button on the right side, when an org is selected on org-scoped routes */}
-      {isOrgContextRoute && <WorkspaceQrButton />}
+      {/* Legacy teams: workspace QR in the header. v2 teams show it on each collection. */}
+      {isOrgContextRoute && legacyTeam && <WorkspaceQrButton />}
     </div>
   );
 }

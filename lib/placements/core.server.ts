@@ -12,12 +12,11 @@ import type {
 } from "@/lib/content-model/contracts";
 import {
   ensureAssetUse,
-  loadWorkspaceAccess,
   loadWorkspaceAccessMany,
   type Actor,
   type WorkspaceAccess,
 } from "@/lib/content-model/access.server";
-import { ContentError, archived, forbidden, invalid, notFound } from "@/lib/content-model/errors";
+import { ContentError, archived, invalid, notFound } from "@/lib/content-model/errors";
 import { isRecord, isUuid, optionalString, requireNumber, requireUuid } from "@/lib/content-model/input";
 import { parseRenderConfig } from "@/lib/content-model/payload";
 import { toIsoRequired, type Executor, type Trx } from "@/lib/content-model/tx.server";
@@ -75,24 +74,26 @@ export interface ResolvedTarget {
   sceneRevisionId: string | null;
   fileType: AssetFileType | "scene";
   sceneId: string | null;
+  /** The scene's legacy origin collection, if any. */
   sceneWorkspaceId: string | null;
   instanceCount: number;
 }
 
 /**
- * Check a placement target inside the write transaction (plan §4.4):
- * - asset versions: same org, use permission (grant locked/created), active
- *   asset unless the exact version is already this placement's target;
- * - scene revisions: same org; a revision of another project additionally
- *   needs publish (edit) rights there, unless copied through a legacy scope;
- *   archived scenes accept no new placements.
+ * Check a placement target inside the write transaction (plan §4.4, team
+ * workbench contract). The caller is a team writer of the target collection
+ * (`target.canEdit`); any same-team content may be placed there:
+ * - asset versions: same org, asset active (share lock) unless the exact
+ *   version is already this placement's target;
+ * - scene revisions: same org, scene not archived unless unchanged. A scene
+ *   is never copied to be placed into another collection.
  */
 export async function resolveTargetForWrite(
   trx: Trx,
   actor: Actor,
   target: WorkspaceAccess,
   input: PlacementTargetInput,
-  opts: { currentTarget?: { assetVersionId: string | null; sceneRevisionId: string | null }; viaLegacyScope?: boolean; sameProjectCopy?: boolean } = {},
+  opts: { currentTarget?: { assetVersionId: string | null; sceneRevisionId: string | null } } = {},
 ): Promise<ResolvedTarget> {
   if (input.kind === "asset_version") {
     const version = await trx
@@ -103,7 +104,7 @@ export async function resolveTargetForWrite(
       .executeTakeFirst();
     if (!version || version.organization_id !== target.workspace.organization_id) throw notFound("素材版本不存在");
     const unchanged = opts.currentTarget?.assetVersionId === version.id;
-    await ensureAssetUse(trx, actor, version.asset_id, target, { existingReference: unchanged, viaLegacyScope: opts.viaLegacyScope });
+    await ensureAssetUse(trx, actor, version.asset_id, target, { existingReference: unchanged });
     return {
       kind: "asset_version",
       assetId: version.asset_id,
@@ -124,12 +125,8 @@ export async function resolveTargetForWrite(
   if (!revision || revision.organization_id !== target.workspace.organization_id) throw notFound("场景发布版本不存在");
   const unchanged = opts.currentTarget?.sceneRevisionId === revision.id;
   if (!unchanged) {
+    if (!target.canEdit) throw new ContentError("FORBIDDEN", "组织查看者只能浏览团队内容");
     if (revision.state === "archived") throw archived("场景已归档，不能新建或切换投放");
-    // Copying a placement inside its own project reuses an already-authorized revision.
-    if (revision.workspace_id !== target.workspace.id && !opts.viaLegacyScope && !opts.sameProjectCopy) {
-      const source = await loadWorkspaceAccess(trx, actor, revision.workspace_id);
-      if (!source?.canEdit) throw forbidden("跨项目使用场景需要来源项目的发布权限");
-    }
   }
   const content = isRecord(revision.document) && isRecord(revision.document.content) ? revision.document.content : null;
   const instanceCount = Array.isArray(content?.instances) ? content.instances.length : 0;
@@ -154,7 +151,8 @@ export function assertDiscoverable(status: PlacementStatus, location: GeoPointIn
 
 /**
  * Anchors stay legacy asset rows. Same organization alone is not enough: the
- * anchor must belong to the target project (its workspace array).
+ * anchor must belong to the target collection (its workspace array), because
+ * recognition only searches anchors registered in the scanned scope.
  */
 export async function assertAnchorUsable(trx: Executor, anchorId: string, target: WorkspaceAccess): Promise<void> {
   const workspaceId = target.workspace.id;
@@ -163,17 +161,17 @@ export async function assertAnchorUsable(trx: Executor, anchorId: string, target
     .select(["id", "file_type", "organization_id", "workspace_id"])
     .where("id", "=", anchorId)
     .executeTakeFirst();
-  if (!anchor || anchor.file_type !== "anchor") throw invalid("识别目标必须是本项目可用的匹配点");
-  if (anchor.organization_id && anchor.organization_id !== target.workspace.organization_id) throw invalid("识别目标必须是本项目可用的匹配点");
+  if (!anchor || anchor.file_type !== "anchor") throw invalid("识别目标必须是本合集可用的匹配点");
+  if (anchor.organization_id && anchor.organization_id !== target.workspace.organization_id) throw invalid("识别目标必须是本合集可用的匹配点");
   // Recognition (find_nearby_matching_anchors) only searches anchors whose
-  // project list contains the scope, so that is the only usable scope.
-  if (!(anchor.workspace_id ?? []).includes(workspaceId)) throw invalid("识别目标必须是本项目可用的匹配点");
+  // collection list contains the scope, so that is the only usable scope.
+  if (!(anchor.workspace_id ?? []).includes(workspaceId)) throw invalid("识别目标必须是本合集可用的匹配点");
 }
 
 export async function replaceTags(trx: Trx, placementId: string, workspaceId: string, tagIds: string[]): Promise<void> {
   if (tagIds.length) {
     const tags = await trx.selectFrom("tag").select("id").where("id", "in", tagIds).where("workspace_id", "=", workspaceId).execute();
-    if (tags.length !== tagIds.length) throw invalid("标签必须属于投放所在项目");
+    if (tags.length !== tagIds.length) throw invalid("标签必须属于投放所在合集");
   }
   await trx.deleteFrom("placement_tag").where("placement_id", "=", placementId).execute();
   if (tagIds.length)
@@ -304,8 +302,9 @@ export function renderConfigOf(value: unknown): PlacementRenderConfig {
 
 /**
  * Placement DTOs with targets, tags, public ids, legacy scopes and the
- * caller's capabilities. `viewerWorkspaceId` marks placements shown through a
- * legacy scope of another project as read-only shared.
+ * caller's capabilities (team members read every collection; writers edit
+ * placements of open collections). `viewerWorkspaceId` marks placements shown
+ * through a legacy scope of another collection as read-only shared.
  */
 export async function buildPlacementDtos(
   exec: Executor,
@@ -388,7 +387,7 @@ export async function buildPlacementDtos(
         scene_revision_id: row.scene_revision_id ?? "",
         revision_no: r?.revision_no ?? 0,
         scene_name: r?.scene_name ?? "",
-        scene_workspace_id: r?.scene_workspace_id ?? "",
+        scene_workspace_id: r?.scene_workspace_id ?? null,
         scene_state: (r?.scene_state === "archived" ? "archived" : "active") as SceneState,
         latest_revision_id: r?.latest_revision_id ?? null,
         upgrade_available: !!r?.latest_revision_id && r.latest_revision_id !== row.scene_revision_id,
@@ -443,7 +442,8 @@ export async function lockPlacement(trx: Trx, placementId: string): Promise<Plac
 export function assertPlacementWritable(access: WorkspaceAccess | null): asserts access is WorkspaceAccess {
   if (!access?.canRead) throw notFound("投放不存在");
   if (!access.canEdit) {
-    if (access.workspace.archived_at || access.org.archived_at) throw archived("项目已归档，投放只读");
-    throw new ContentError("FORBIDDEN", "需要投放所在项目的编辑权限");
+    if (access.org.archived_at) throw archived("组织已归档，内容只读");
+    if (access.workspace.archived_at) throw archived("合集已归档，投放只读");
+    throw new ContentError("FORBIDDEN", "组织查看者只能浏览团队内容");
   }
 }

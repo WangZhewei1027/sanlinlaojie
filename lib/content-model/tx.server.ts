@@ -29,9 +29,10 @@ export function contentTransaction<T>(fn: (trx: Trx) => Promise<T>, writer: Cont
 // ── advisory locks ──
 // Transaction-scoped and always taken in sorted order to avoid deadlocks.
 // Namespaces:
-//   asset-grant:<assetId>:<workspaceId>  grant revocation vs. new references
 //   object-key:<storageKey>              object reuse/commit vs. garbage collection
 //   idempotency:<actor>:<command>:<key>  concurrent retries of one command
+// (New references and asset archiving serialize on the asset row itself:
+// FOR SHARE in ensureAssetUse, FOR UPDATE when archiving.)
 
 export async function lockKeys(trx: Trx, keys: Iterable<string>): Promise<void> {
   for (const key of [...new Set(keys)].sort()) {
@@ -39,7 +40,6 @@ export async function lockKeys(trx: Trx, keys: Iterable<string>): Promise<void> 
   }
 }
 
-export const grantLockKey = (assetId: string, workspaceId: string) => `asset-grant:${assetId}:${workspaceId}`;
 export const objectLockKey = (storageKey: string) => `object-key:${storageKey}`;
 
 // ── idempotency ──

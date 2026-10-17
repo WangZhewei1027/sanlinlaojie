@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ScenesPage } from "./components/ScenesPage";
+import { WorkbenchAlias } from "../components/WorkbenchAlias";
 
-export const metadata: Metadata = { title: "场景" };
+export const metadata: Metadata = { title: "工作台" };
 
-export default function Page() {
-  return <Suspense><ScenesPage /></Suspense>;
+/** Compatibility alias: scenes live in the team workbench under the 场景 filter. */
+export default function ScenesAlias() {
+  return <Suspense><WorkbenchAlias type="scene" /></Suspense>;
 }

@@ -7,7 +7,7 @@ import { Text } from "@/components/ui/typography";
 import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import { MODEL_DRAG_TYPE } from "@/lib/scene/editor-interactions";
 import type { AssetDto } from "@/lib/content-model/contracts";
-import { newIdempotencyKey, organizationApi, workspaceApi } from "../../lib/content-api";
+import { newIdempotencyKey, organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { primaryResource } from "../../lib/content-mappers";
 import { acceptFor, prepareFile, uploadFileVersion } from "../../lib/content-upload";
@@ -18,8 +18,7 @@ const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
   "contentModel.integration.sceneLibrary.label": ["模型素材", "Model assets"],
   "contentModel.integration.sceneLibrary.views.scene": ["本场景", "In scene"],
-  "contentModel.integration.sceneLibrary.views.project": ["项目", "Project"],
-  "contentModel.integration.sceneLibrary.views.shared": ["组织共享", "Shared"],
+  "contentModel.integration.sceneLibrary.views.team": ["团队模型", "Team models"],
   "contentModel.integration.sceneLibrary.search": ["搜索模型…", "Search models…"],
   "contentModel.integration.sceneLibrary.add": ["添加 {{name}} v{{version}}", "Add {{name}} v{{version}}"],
   "contentModel.integration.sceneLibrary.drag": ["拖入场景，或点击 + 添加；固定为 v{{version}}", "Drag into the scene or click +; pinned to v{{version}}"],
@@ -27,8 +26,7 @@ const TEXTS: IntegrationTexts = {
   "contentModel.integration.sceneLibrary.uploading": ["正在上传…", "Uploading…"],
   "contentModel.integration.sceneLibrary.loadMore": ["加载更多", "Load more"],
   "contentModel.integration.sceneLibrary.emptyScene": ["场景还没有引用模型。", "The scene does not reference any model yet."],
-  "contentModel.integration.sceneLibrary.emptyProject": ["项目中没有可用模型。可上传，或从组织共享中选择。", "No models in this project. Upload one or pick from shared assets."],
-  "contentModel.integration.sceneLibrary.emptyShared": ["组织内没有可用的共享模型。", "No shared models are available in this organization."],
+  "contentModel.integration.sceneLibrary.emptyTeam": ["团队还没有 3D 模型。可直接上传，上传后整个团队都能看到。", "The team has no 3D models yet. Upload one; the whole team will see it."],
   "contentModel.integration.sceneLibrary.noResults": ["没有匹配的模型", "No matching models"],
   "contentModel.integration.sceneLibrary.instances": ["{{count}} 个对象", "{{count}} objects"],
   "contentModel.integration.sceneLibrary.missing": ["文件缺失", "File missing"],
@@ -36,7 +34,7 @@ const TEXTS: IntegrationTexts = {
 };
 
 export interface InSceneEntry { alias: string; resource: SceneResource | undefined; instanceCount: number }
-type View = "scene" | "project" | "shared";
+type View = "scene" | "team";
 const PAGE = 20;
 
 function candidateOf(asset: AssetDto): SceneResource | null {
@@ -50,12 +48,12 @@ function candidateOf(asset: AssetDto): SceneResource | null {
 }
 
 /**
- * v2 model picker. "In scene" lists the pinned references independently of
- * the catalog requests, so paging, filtering or archiving in the project or
- * shared views can never make a referenced model disappear from the viewport.
+ * v2 model picker over the whole team. "In scene" lists the pinned references
+ * independently of the catalog requests, so paging, filtering or archiving in
+ * the team view can never make a referenced model disappear from the viewport.
  */
-export function SceneLibraryPanel({ organizationId, workspaceId, inScene, canAdd, canUpload, onRegister, onAdd, onSelectAlias }: {
-  organizationId: string; workspaceId: string; inScene: InSceneEntry[]; canAdd: boolean; canUpload: boolean;
+export function SceneLibraryPanel({ organizationId, inScene, canAdd, canUpload, onRegister, onAdd, onSelectAlias }: {
+  organizationId: string; inScene: InSceneEntry[]; canAdd: boolean; canUpload: boolean;
   /** Registers a dragged resource; the drop only carries its pinned version id. */
   onRegister: (resource: SceneResource) => void;
   /** Receives the picked resource itself, so the first add never waits for a registration render. */
@@ -76,10 +74,7 @@ export function SceneLibraryPanel({ organizationId, workspaceId, inScene, canAdd
 
   useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
   const load = (offset: number, signal?: AbortSignal) => {
-    const common = { q: search || undefined, file_type: "model" as const, state: "active" as const, limit: PAGE, offset };
-    const request = view === "project"
-      ? workspaceApi.assets(workspaceId, common, signal)
-      : organizationApi.assets(organizationId, { ...common, view: "shared", usable_in: workspaceId }, signal);
+    const request = organizationApi.assets(organizationId, { view: "all", q: search || undefined, file_type: "model", state: "active", limit: PAGE, offset }, signal);
     setStatus(offset ? "more" : "loading");
     return request.then((page) => {
       const usable = page.data.filter((asset) => asset.capabilities.can_use_in_workspace !== false).map(candidateOf).filter((item): item is SceneResource => !!item);
@@ -96,15 +91,16 @@ export function SceneLibraryPanel({ organizationId, workspaceId, inScene, canAdd
     void load(0, abort.signal);
     return () => abort.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load closes over the same view/search/ids
-  }, [view, search, workspaceId, organizationId]);
+  }, [view, search, organizationId]);
 
   const upload = async (file: File) => {
     setUploading(true); setError("");
     try {
       if (uploadKey.current?.file !== file) uploadKey.current = { file, key: newIdempotencyKey() };
       const prepared = await prepareFile(file, "model");
-      const version = await uploadFileVersion(prepared, workspaceId);
-      const created = await workspaceApi.createAsset(workspaceId, { name: file.name.replace(/\.(glb|gltf)$/i, ""), fileType: "model", payload: version.payload, resources: version.resources, idempotencyKey: uploadKey.current.key });
+      // Team asset: no collection; every member can reuse it afterwards.
+      const version = await uploadFileVersion(prepared, { organizationId });
+      const created = await organizationApi.createAsset(organizationId, { name: file.name.replace(/\.(glb|gltf)$/i, ""), fileType: "model", payload: version.payload, resources: version.resources, idempotencyKey: uploadKey.current.key });
       uploadKey.current = null;
       const resource = candidateOf({ ...created.asset, current_version: created.version, current_version_id: created.version.id, current_version_no: created.version.version_no });
       if (resource) onAdd(resource);
@@ -136,7 +132,7 @@ export function SceneLibraryPanel({ organizationId, workspaceId, inScene, canAdd
       <input ref={fileInput} type="file" hidden accept={acceptFor("model")} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
     </div>
     <div className="flex gap-1 px-2 pt-2" role="group" aria-label={tx("contentModel.integration.sceneLibrary.label")}>
-      {(["scene", "project", "shared"] as const).map((value) => <Button key={value} variant={view === value ? "secondary" : "ghost"} size="sm" className="h-7 flex-1 px-2" aria-pressed={view === value} onClick={() => setView(value)}>{tx(`contentModel.integration.sceneLibrary.views.${value}`)}</Button>)}
+      {(["scene", "team"] as const).map((value) => <Button key={value} variant={view === value ? "secondary" : "ghost"} size="sm" className="h-7 flex-1 px-2" aria-pressed={view === value} onClick={() => setView(value)}>{tx(`contentModel.integration.sceneLibrary.views.${value}`)}</Button>)}
     </div>
     {view !== "scene" && <div className="relative m-2"><Search className="pointer-events-none absolute left-2 top-2 size-3.5 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={tx("contentModel.integration.sceneLibrary.search")} placeholder={tx("contentModel.integration.sceneLibrary.search")} className="h-8 pl-7 shadow-none" /></div>}
     {error && <Text as="p" variant="bodySm" tone="critical" role="alert" className="px-3 pt-2">{error}</Text>}
@@ -153,7 +149,7 @@ export function SceneLibraryPanel({ organizationId, workspaceId, inScene, canAdd
       </> : <>
         {status === "loading" && <div className="flex justify-center py-4"><LoaderCircle className="size-4 animate-spin text-muted-foreground" /></div>}
         {items.map((resource) => row(resource, resource.assetVersionId!))}
-        {status === "ready" && !items.length && empty(view === "project" ? "contentModel.integration.sceneLibrary.emptyProject" : "contentModel.integration.sceneLibrary.emptyShared")}
+        {status === "ready" && !items.length && empty("contentModel.integration.sceneLibrary.emptyTeam")}
         {(status === "ready" || status === "more") && loaded < total && <Button variant="ghost" size="sm" className="mt-1 w-full" disabled={status === "more"} onClick={() => void load(loaded)}>{tx("contentModel.integration.sceneLibrary.loadMore")}</Button>}
       </>}
     </div>

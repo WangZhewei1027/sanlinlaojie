@@ -22,7 +22,7 @@ import { EMPTY_LOCATION, parseLocation, useCreatePlacement, type LocationInput }
  * type that may be created without a location (directory-only placement).
  */
 export function ShopPlaceForm() {
-  const { tx, workspaceId } = usePlacementMap();
+  const { tx, organizationId, workspaceId } = usePlacementMap();
   const create = useCreatePlacement();
   // The open editor above owns the primary action; creation steps back to secondary.
   const editorOpen = usePlacementStore((state) => !!(state.selectedPlacementId || state.selectedAnchorId));
@@ -39,7 +39,7 @@ export function ShopPlaceForm() {
     const known = receipts.current.get(file);
     if (known) return known;
     const prepared = await prepareFile(file, "shop");
-    const receipt = await uploadReceipt(prepared.file, { type: "shop", workspaceId: workspaceId! });
+    const receipt = await uploadReceipt(prepared.file, { type: "shop", organizationId, workspaceId });
     receipts.current.set(file, receipt.id);
     return receipt.id;
   };

@@ -85,7 +85,9 @@ export async function POST(request: Request) {
       ? (cfg.value as string[])
       : DEFAULT_UPLOAD_TYPES;
 
-    // 创建 organization，并将创建者设为 owner（同一事务，避免留下无主组织）
+    // 创建 organization（团队），并将创建者设为 owner（同一事务，避免留下无主组织）。
+    // 新团队直接使用 v2 内容模型且没有任何合集：素材与场景不需要合集，合集按需创建。
+    // 列默认值仍为 legacy，已有组织的状态不受影响。
     const org = await db.transaction().execute(async (trx) => {
       const created = await trx
         .insertInto("organization")
@@ -94,6 +96,8 @@ export async function POST(request: Request) {
           description: description || null,
           created_by: user.id,
           allowed_file_types: defaultFileTypes,
+          content_model_state: "v2",
+          content_model_changed_at: sql<Date>`now()`,
         })
         .returningAll()
         .executeTakeFirstOrThrow();

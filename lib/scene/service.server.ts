@@ -12,14 +12,18 @@ import type {
   SceneSummaryDto,
 } from "@/lib/content-model/contracts";
 import {
+  assertOrgWritable,
   ensureAssetUse,
+  loadOrgAccess,
   loadWorkspaceAccess,
-  loadWorkspaceAccessMany,
+  lockOrgForWrite,
   lockWorkspaceForWrite,
+  requireOrgRead,
+  requireOrgWrite,
   requireWorkspaceEdit,
   requireWorkspaceRead,
   type Actor,
-  type WorkspaceAccess,
+  type OrgAccess,
 } from "@/lib/content-model/access.server";
 import { ContentError, archived, checkLockVersion, invalid, notFound } from "@/lib/content-model/errors";
 import {
@@ -50,16 +54,19 @@ import { createBlankSceneDocument, type SceneDocumentV3 } from "./protocol";
 import { validateSceneDocumentV3 } from "./validate";
 
 /**
- * Independent scenes (plan §4.3). The schema-3 draft is the only source of
- * references; scene_asset_ref / scene_revision_asset_ref are derived inside
- * the same transaction and never written by any other API. Publishing pins
- * the referenced versions; it never re-reads an asset's current version.
+ * Independent team scenes (plan §4.3, team workbench contract). A scene
+ * belongs to its organization; `workspace_id` only records a legacy origin
+ * collection. Every team member reads it, team writers edit and publish it.
+ * The schema-3 draft is the only source of references; scene_asset_ref /
+ * scene_revision_asset_ref are derived inside the same transaction and never
+ * written by any other API. Publishing pins the referenced versions; it never
+ * re-reads an asset's current version.
  */
 
 interface SceneRow {
   id: string;
   organization_id: string;
-  workspace_id: string;
+  workspace_id: string | null;
   name: string;
   draft_document: unknown;
   lock_version: number;
@@ -89,13 +96,19 @@ async function loadSceneRow(exec: Executor, sceneId: string, forUpdate = false):
   return (await query.executeTakeFirst()) ?? null;
 }
 
-/** Scene + project access; unreadable scenes are indistinguishable from missing ones. */
-async function requireSceneRead(exec: Executor, actor: Actor, sceneId: string): Promise<{ scene: SceneRow; access: WorkspaceAccess }> {
+/** Scene + team access; scenes of other organizations are indistinguishable from missing ones. */
+async function requireSceneRead(exec: Executor, actor: Actor, sceneId: string): Promise<{ scene: SceneRow; access: OrgAccess }> {
   const scene = await loadSceneRow(exec, sceneId);
   if (!scene) throw notFound("场景不存在");
-  const access = await loadWorkspaceAccess(exec, actor, scene.workspace_id);
+  const access = await loadOrgAccess(exec, actor, scene.organization_id);
   if (!access?.canRead) throw notFound("场景不存在");
   return { scene, access };
+}
+
+async function requireSceneWrite(exec: Executor, actor: Actor, sceneId: string): Promise<{ scene: SceneRow; access: OrgAccess }> {
+  const found = await requireSceneRead(exec, actor, sceneId);
+  assertOrgWritable(found.access);
+  return found;
 }
 
 // ───────────────────────── derived references ─────────────────────────
@@ -116,10 +129,11 @@ function animationsOf(payload: unknown): ModelAnimationInfo[] | undefined {
 /**
  * Validate every alias (version belongs to the named asset, same org, model
  * with a file, clip still present) and rebuild the draft index. New versions
- * go through ensureAssetUse (grant lock + grant); versions already pinned by
- * this draft stay usable even if their asset was archived since.
+ * go through ensureAssetUse (team writer, asset active under a share lock);
+ * versions already pinned by this draft stay usable even if their asset was
+ * archived since.
  */
-async function syncDraftRefs(trx: Trx, actor: Actor, scene: { id: string; organization_id: string }, workspace: WorkspaceAccess, document: SceneDocumentV3): Promise<void> {
+async function syncDraftRefs(trx: Trx, actor: Actor, scene: { id: string; organization_id: string }, writer: OrgAccess, document: SceneDocumentV3): Promise<void> {
   const existing = await trx.selectFrom("scene_asset_ref").select(["asset_version_id"]).where("scene_id", "=", scene.id).execute();
   const pinned = new Set(existing.map((r) => r.asset_version_id));
   const entries = Object.entries(document.content.assets);
@@ -158,7 +172,7 @@ async function syncDraftRefs(trx: Trx, actor: Actor, scene: { id: string; organi
     byAsset.set(assetId, { isNew: (byAsset.get(assetId)?.isNew ?? false) || isNew });
   }
   for (const [assetId, { isNew }] of [...byAsset.entries()].sort(([a], [b]) => a.localeCompare(b)))
-    await ensureAssetUse(trx, actor, assetId, workspace, { existingReference: !isNew });
+    await ensureAssetUse(trx, actor, assetId, writer, { existingReference: !isNew });
 
   const issues: { path: string; message: string }[] = [];
   const animations: Record<string, ModelAnimationInfo[] | undefined> = {};
@@ -199,6 +213,15 @@ function publishStatus(scene: SceneRow, latest: { source_lock_version: number; d
   return JSON.stringify(latest.document) === JSON.stringify(scene.draft_document) ? "published" : "modified";
 }
 
+async function orgAccessMap(exec: Executor, actor: Actor, orgIds: string[]): Promise<Map<string, OrgAccess>> {
+  const out = new Map<string, OrgAccess>();
+  for (const orgId of new Set(orgIds)) {
+    const access = await loadOrgAccess(exec, actor, orgId);
+    if (access) out.set(orgId, access);
+  }
+  return out;
+}
+
 async function buildSceneSummaries(exec: Executor, actor: Actor, scenes: SceneRow[]): Promise<SceneSummaryDto[]> {
   if (!scenes.length) return [];
   const ids = scenes.map((s) => s.id);
@@ -226,15 +249,16 @@ async function buildSceneSummaries(exec: Executor, actor: Actor, scenes: SceneRo
       .where("p.status", "<>", "archived")
       .groupBy("p.scene_revision_id")
       .execute(),
-    loadWorkspaceAccessMany(exec, actor, scenes.map((s) => s.workspace_id)),
+    orgAccessMap(exec, actor, scenes.map((s) => s.organization_id)),
   ]);
   const latestByScene = new Map(latest.map((r) => [r.scene_id, r]));
   const countByScene = new Map(placementCounts.map((r) => [r.scene_id, Number(r.n)]));
   const countByRevision = new Map(revisionPlacements.map((r) => [r.scene_revision_id ?? "", Number(r.n)]));
   return scenes.map((scene) => {
     const rev = latestByScene.get(scene.id);
-    const ws = access.get(scene.workspace_id);
-    const editable = !!ws?.canEdit && scene.state === "active";
+    const org = access.get(scene.organization_id);
+    const writable = !!org?.canWrite && !org.org.archived_at;
+    const editable = writable && scene.state === "active";
     return {
       id: scene.id,
       organization_id: scene.organization_id,
@@ -260,7 +284,7 @@ async function buildSceneSummaries(exec: Executor, actor: Actor, scenes: SceneRo
       updated_by: scene.updated_by,
       created_at: toIsoRequired(scene.created_at),
       updated_at: toIsoRequired(scene.updated_at),
-      capabilities: { can_read: !!ws?.canRead, can_edit: editable, can_publish: editable, can_archive: !!ws?.canEdit },
+      capabilities: { can_read: !!org?.canRead, can_edit: editable, can_publish: editable, can_archive: writable },
     };
   });
 }
@@ -314,13 +338,25 @@ async function buildSceneDetail(exec: Executor, actor: Actor, scene: SceneRow): 
 
 // ───────────────────────── queries ─────────────────────────
 
-export async function listScenes(actor: Actor, workspaceId: string, opts: { state?: "active" | "archived" | "all" } = {}): Promise<SceneSummaryDto[]> {
-  await requireWorkspaceRead(db, actor, workspaceId);
-  let query = db.selectFrom("scene").select(SCENE_COLUMNS).where("workspace_id", "=", workspaceId);
-  const state = opts.state ?? "all";
+export type SceneListState = "active" | "archived" | "all";
+
+async function listTeamScenes(actor: Actor, organizationId: string, state: SceneListState): Promise<SceneSummaryDto[]> {
+  let query = db.selectFrom("scene").select(SCENE_COLUMNS).where("organization_id", "=", organizationId);
   if (state !== "all") query = query.where("state", "=", state);
-  const scenes = await query.orderBy("updated_at", "desc").execute();
+  const scenes = await query.orderBy("updated_at", "desc").orderBy("id").execute();
   return buildSceneSummaries(db, actor, scenes);
+}
+
+/** GET /api/organizations/[id]/scenes: every scene of the team. */
+export async function listOrganizationScenes(actor: Actor, organizationId: string, opts: { state?: SceneListState } = {}): Promise<SceneSummaryDto[]> {
+  await requireOrgRead(db, actor, organizationId);
+  return listTeamScenes(actor, organizationId, opts.state ?? "all");
+}
+
+/** GET /api/workspaces/[id]/scenes (compatibility): the same team list, scenes are not inside collections. */
+export async function listScenes(actor: Actor, workspaceId: string, opts: { state?: SceneListState } = {}): Promise<SceneSummaryDto[]> {
+  const access = await requireWorkspaceRead(db, actor, workspaceId);
+  return listTeamScenes(actor, access.workspace.organization_id, opts.state ?? "all");
 }
 
 export async function getScene(actor: Actor, sceneId: string): Promise<SceneDetailDto> {
@@ -356,11 +392,60 @@ export async function listRevisions(actor: Actor, sceneId: string): Promise<Scen
 
 // ───────────────────────── commands ─────────────────────────
 
-export async function createScene(actor: Actor, workspaceId: string, body: JsonRecord): Promise<SceneDetailDto> {
+function parseCreateScene(body: JsonRecord) {
   rejectUnknown(body, ["name", "document", "idempotencyKey"]);
-  const name = requireString(body.name, "name", { max: 200 });
-  const document = body.document === undefined ? createBlankSceneDocument() : parseDocument(body.document);
-  const key = optionalIdempotencyKey(body.idempotencyKey);
+  return {
+    name: requireString(body.name, "name", { max: 200 }),
+    document: body.document === undefined ? createBlankSceneDocument() : parseDocument(body.document),
+    key: optionalIdempotencyKey(body.idempotencyKey),
+  };
+}
+
+/** Insert a team scene (caller holds the write locks); `workspaceId` is origin metadata only. */
+async function insertSceneTx(
+  trx: Trx,
+  actor: Actor,
+  writer: OrgAccess,
+  input: { name: string; document: SceneDocumentV3; workspaceId: string | null },
+): Promise<string> {
+  const scene = await trx
+    .insertInto("scene")
+    .values({
+      organization_id: writer.org.id,
+      workspace_id: input.workspaceId,
+      name: input.name,
+      draft_document: JSON.stringify(input.document),
+      created_by: actor.userId,
+      updated_by: actor.userId,
+    })
+    .returning(["id", "organization_id"])
+    .executeTakeFirstOrThrow();
+  await syncDraftRefs(trx, actor, scene, writer, input.document);
+  return scene.id;
+}
+
+/** POST /api/organizations/[id]/scenes: a team scene without any collection. */
+export async function createOrganizationScene(actor: Actor, organizationId: string, body: JsonRecord): Promise<SceneDetailDto> {
+  const { name, document, key } = parseCreateScene(body);
+  const org = await requireOrgWrite(db, actor, organizationId);
+  const sceneId = await contentTransaction(async (trx) => {
+    await lockOrgForWrite(trx, organizationId);
+    const scope = key ? { actorId: actor.userId, command: "scene.create", key, hash: requestHash({ organizationId, name, document }) } : null;
+    if (scope) {
+      const previous = await claimIdempotency(trx, scope);
+      if (previous) return previous;
+    }
+    const id = await insertSceneTx(trx, actor, org, { name, document, workspaceId: null });
+    if (scope) await recordIdempotency(trx, scope, organizationId, "scene", id);
+    await audit(trx, { organizationId, actorId: actor.userId, action: "scene.create", objectType: "scene", objectId: id });
+    return id;
+  });
+  return getScene(actor, sceneId);
+}
+
+/** POST /api/workspaces/[id]/scenes (compatibility): a team scene recording this collection as its origin. */
+export async function createScene(actor: Actor, workspaceId: string, body: JsonRecord): Promise<SceneDetailDto> {
+  const { name, document, key } = parseCreateScene(body);
   const workspace = await requireWorkspaceEdit(db, actor, workspaceId);
   const sceneId = await contentTransaction(async (trx) => {
     await lockWorkspaceForWrite(trx, workspace);
@@ -369,22 +454,10 @@ export async function createScene(actor: Actor, workspaceId: string, body: JsonR
       const previous = await claimIdempotency(trx, scope);
       if (previous) return previous;
     }
-    const scene = await trx
-      .insertInto("scene")
-      .values({
-        organization_id: workspace.workspace.organization_id,
-        workspace_id: workspace.workspace.id,
-        name,
-        draft_document: JSON.stringify(document),
-        created_by: actor.userId,
-        updated_by: actor.userId,
-      })
-      .returning(["id", "organization_id"])
-      .executeTakeFirstOrThrow();
-    await syncDraftRefs(trx, actor, scene, workspace, document);
-    if (scope) await recordIdempotency(trx, scope, scene.organization_id, "scene", scene.id);
-    await audit(trx, { organizationId: scene.organization_id, actorId: actor.userId, action: "scene.create", objectType: "scene", objectId: scene.id, workspaceId });
-    return scene.id;
+    const id = await insertSceneTx(trx, actor, workspace, { name, document, workspaceId });
+    if (scope) await recordIdempotency(trx, scope, workspace.workspace.organization_id, "scene", id);
+    await audit(trx, { organizationId: workspace.workspace.organization_id, actorId: actor.userId, action: "scene.create", objectType: "scene", objectId: id, workspaceId });
+    return id;
   });
   return getScene(actor, sceneId);
 }
@@ -401,10 +474,9 @@ export async function saveScene(actor: Actor, sceneId: string, body: JsonRecord)
   const name = body.name === undefined ? undefined : requireString(body.name, "name", { max: 200 });
   const document = body.document === undefined ? undefined : parseDocument(body.document);
   const state = body.state === undefined ? undefined : requireEnum(body.state, "state", ["active", "archived"] as const);
-  const { scene: pre } = await requireSceneRead(db, actor, sceneId);
-  const workspace = await requireWorkspaceEdit(db, actor, pre.workspace_id);
+  const { scene: pre, access } = await requireSceneWrite(db, actor, sceneId);
   await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, workspace);
+    await lockOrgForWrite(trx, pre.organization_id);
     const scene = await loadSceneRow(trx, sceneId, true);
     if (!scene) throw notFound("场景不存在");
     checkLockVersion(expected, scene.lock_version, "场景");
@@ -412,7 +484,7 @@ export async function saveScene(actor: Actor, sceneId: string, body: JsonRecord)
     const archiving = state === "archived" && scene.state !== "archived";
     if (scene.state === "archived" && !restoring) throw archived("场景已归档，请先恢复再编辑");
     if (archiving && (document || name)) throw invalid("归档时不能同时修改内容");
-    if (document) await syncDraftRefs(trx, actor, scene, workspace, document);
+    if (document) await syncDraftRefs(trx, actor, scene, access, document);
     if (!document && name === undefined && !restoring && !archiving) return;
     await trx
       .updateTable("scene")
@@ -454,10 +526,10 @@ export async function publishScene(actor: Actor, sceneId: string, body: JsonReco
   if (body.updatePlacementIds !== undefined)
     throw new ContentError("LOCK_VERSION_REQUIRED", "同时更新投放需要为每个投放提供 expectedLockVersion（updatePlacements）");
   const updates = parsePlacementUpdates(body.updatePlacements);
-  const { scene: pre } = await requireSceneRead(db, actor, sceneId);
-  const workspace = await requireWorkspaceEdit(db, actor, pre.workspace_id);
+  const { scene: pre } = await requireSceneWrite(db, actor, sceneId);
   const outcome = await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, workspace);
+    // Lock order: organization → scene row → placement collections → placement rows.
+    await lockOrgForWrite(trx, pre.organization_id);
     const scene = await loadSceneRow(trx, sceneId, true);
     if (!scene) throw notFound("场景不存在");
     // An archived scene neither publishes nor replays an older publication onto placements.
@@ -538,10 +610,9 @@ export async function publishScene(actor: Actor, sceneId: string, body: JsonReco
       owners.set(placementId, owner.workspace_id);
     }
     for (const workspaceId of [...new Set(owners.values())].sort()) {
-      if (workspaceId === workspace.workspace.id) continue;
-      const other = await loadWorkspaceAccess(trx, actor, workspaceId);
-      assertPlacementWritable(other);
-      await lockWorkspaceForWrite(trx, other);
+      const collection = await loadWorkspaceAccess(trx, actor, workspaceId);
+      assertPlacementWritable(collection);
+      await lockWorkspaceForWrite(trx, collection);
     }
     for (const { placementId, expectedLockVersion } of sortedUpdates) {
       const placement = await lockPlacement(trx, placementId);
@@ -597,17 +668,24 @@ function parsePlacementUpdates(value: unknown): { placementId: string; expectedL
   return updates;
 }
 
-/** POST /api/scenes/[id]/copy: new editable scene; every asset needs use rights in the target project. */
+/**
+ * POST /api/scenes/[id]/copy: new editable team scene in the same
+ * organization, pinned to the same versions (every alias is a new use, so
+ * archived assets block the copy). `targetWorkspaceId` (optional) only
+ * records an origin collection, which must be open and in the same team.
+ */
 export async function copyScene(actor: Actor, sceneId: string, body: JsonRecord): Promise<SceneDetailDto> {
   rejectUnknown(body, ["targetWorkspaceId", "name", "idempotencyKey"]);
-  const targetId = requireUuid(body.targetWorkspaceId, "targetWorkspaceId");
+  const targetId = body.targetWorkspaceId === undefined || body.targetWorkspaceId === null ? null : requireUuid(body.targetWorkspaceId, "targetWorkspaceId");
   const key = optionalIdempotencyKey(body.idempotencyKey);
-  const { scene: source } = await requireSceneRead(db, actor, sceneId);
-  const target = await requireWorkspaceEdit(db, actor, targetId);
-  if (target.workspace.organization_id !== source.organization_id) throw invalid("只能复制到同一组织的项目");
+  const { scene: source, access } = await requireSceneWrite(db, actor, sceneId);
+  const workspace = targetId ? await requireWorkspaceEdit(db, actor, targetId) : null;
+  if (workspace && workspace.workspace.organization_id !== source.organization_id) throw invalid("只能复制到同一组织的合集");
+  const writer: OrgAccess = workspace ?? access;
   const name = body.name === undefined ? `${source.name} 副本` : requireString(body.name, "name", { max: 200 });
   const newId = await contentTransaction(async (trx) => {
-    await lockWorkspaceForWrite(trx, target);
+    if (workspace) await lockWorkspaceForWrite(trx, workspace);
+    else await lockOrgForWrite(trx, source.organization_id);
     const scope = key ? { actorId: actor.userId, command: "scene.copy", key, hash: requestHash({ sceneId, targetId, name }) } : null;
     if (scope) {
       const previous = await claimIdempotency(trx, scope);
@@ -616,30 +694,18 @@ export async function copyScene(actor: Actor, sceneId: string, body: JsonRecord)
     const current = await loadSceneRow(trx, sceneId);
     if (!current) throw notFound("场景不存在");
     const document = parseDocument(current.draft_document);
-    const scene = await trx
-      .insertInto("scene")
-      .values({
-        organization_id: target.workspace.organization_id,
-        workspace_id: target.workspace.id,
-        name,
-        draft_document: JSON.stringify(document),
-        created_by: actor.userId,
-        updated_by: actor.userId,
-      })
-      .returning(["id", "organization_id"])
-      .executeTakeFirstOrThrow();
-    await syncDraftRefs(trx, actor, scene, target, document);
-    if (scope) await recordIdempotency(trx, scope, scene.organization_id, "scene", scene.id);
+    const id = await insertSceneTx(trx, actor, writer, { name, document, workspaceId: targetId });
+    if (scope) await recordIdempotency(trx, scope, source.organization_id, "scene", id);
     await audit(trx, {
-      organizationId: scene.organization_id,
+      organizationId: source.organization_id,
       actorId: actor.userId,
       action: "scene.copy",
       objectType: "scene",
-      objectId: scene.id,
-      workspaceId: target.workspace.id,
+      objectId: id,
+      workspaceId: targetId,
       details: { source_scene_id: sceneId, source_lock_version: current.lock_version },
     });
-    return scene.id;
+    return id;
   });
   return getScene(actor, newId);
 }

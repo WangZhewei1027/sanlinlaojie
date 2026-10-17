@@ -5,10 +5,9 @@ import { useTranslation } from "react-i18next";
 import {
   Map,
   MapPinned,
-  Boxes,
-  Clapperboard,
+  LayoutGrid,
   Camera,
-  Building2,
+  Settings2,
   Shield,
   type LucideIcon,
 } from "lucide-react";
@@ -26,9 +25,9 @@ import {
 
 // Same keys and fallbacks as app/manage/components/ContentNav.tsx.
 const NAV_TEXTS: IntegrationTexts = {
-  "contentModel.integration.nav.assets": ["素材库", "Asset library"],
-  "contentModel.integration.nav.scenes": ["场景", "Scenes"],
-  "contentModel.integration.nav.map": ["投放地图", "Placement map"],
+  "contentModel.integration.nav.workbench": ["工作台", "Workbench"],
+  "contentModel.integration.nav.collections": ["合集", "Collections"],
+  "contentModel.integration.nav.settings": ["团队设置", "Team settings"],
 };
 
 export interface ModuleLink {
@@ -39,12 +38,12 @@ export interface ModuleLink {
 
 /**
  * 登录后导航里的模块入口，按两级权限矩阵门控（仅 UI 显隐，非安全边界）：
- * - /manage/assets、/manage/scenes  已选组织的登录用户（页面自行展示未启用状态）
- * - /manage        所有登录用户（viewer 只读）；组织启用内容模型 v2 后称“投放地图”
- * - /upload-onsite 当前 org 具备 org.assets.write（member 及以上）
- * - /admin         isSidebarItemVisible（org.view）
- * - /super-admin   仅 super_admin
- * orgRole 取自 manage store 当前选中的组织。
+ * - /manage                 工作台：团队全部素材与场景（v2/readonly）；旧模型团队仍是旧版素材地图
+ * - /manage/collections     合集：团队的地图合集（v2/readonly）
+ * - /upload-onsite          现场上传：当前团队具备 org.assets.write（member 及以上）
+ * - /admin                  团队设置：能看到成员或设置页时显示
+ * - /super-admin            仅 super_admin
+ * orgRole 取自 manage store 当前选中的团队。
  */
 export function useModuleLinks(enabled: boolean): ModuleLink[] {
   const { t } = useTranslation();
@@ -79,30 +78,25 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
   if (!enabled) return [];
 
   const superAdmin = isSuperAdmin(globalRole);
+  const teamModel =
+    contentModel.state === "v2" || contentModel.state === "readonly";
   const links: ModuleLink[] = [];
-  if (organizationId) {
-    links.push(
-      {
-        href: "/manage/assets",
-        label: tx("contentModel.integration.nav.assets"),
-        Icon: Boxes,
-      },
-      {
-        href: "/manage/scenes",
-        label: tx("contentModel.integration.nav.scenes"),
-        Icon: Clapperboard,
-      },
-    );
-  }
   links.push(
-    contentModel.state === "v2"
+    teamModel
       ? {
           href: "/manage",
-          label: tx("contentModel.integration.nav.map"),
-          Icon: MapPinned,
+          label: tx("contentModel.integration.nav.workbench"),
+          Icon: LayoutGrid,
         }
       : { href: "/manage", label: t("home.quickLinks.manage.title"), Icon: Map },
   );
+  if (organizationId && teamModel) {
+    links.push({
+      href: "/manage/collections",
+      label: tx("contentModel.integration.nav.collections"),
+      Icon: MapPinned,
+    });
+  }
   if (superAdmin || hasOrgPermission(orgRole, "org.assets.write")) {
     links.push({
       href: "/upload-onsite",
@@ -110,11 +104,14 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
       Icon: Camera,
     });
   }
-  if (isSidebarItemVisible("/admin", globalRole, orgRole)) {
+  if (
+    isSidebarItemVisible("/admin/members", globalRole, orgRole) ||
+    isSidebarItemVisible("/admin/settings", globalRole, orgRole)
+  ) {
     links.push({
       href: "/admin",
-      label: t("home.quickLinks.admin.title"),
-      Icon: Building2,
+      label: tx("contentModel.integration.nav.settings"),
+      Icon: Settings2,
     });
   }
   if (superAdmin) {

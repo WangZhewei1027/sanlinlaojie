@@ -11,7 +11,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Maintainer: Story = {};
-export const UseOnly: Story = { args: { canMaintain: false } };
-export const UnknownOriginNoMaintainer: Story = { args: { asset: { ...assetDetail, maintainer: null, originProjectName: null, origin: "legacy", visibility: "restricted" } } };
+export const TeamMember: Story = {};
+export const Viewer: Story = { args: { canMaintain: false } };
+export const MigratedWithoutMaintainer: Story = { args: { asset: { ...assetDetail, maintainer: null, origin: "legacy" } } };
 export const ArchivedWithMissingFile: Story = { args: { asset: { ...assetDetail, state: "archived", fileMissing: true } } };

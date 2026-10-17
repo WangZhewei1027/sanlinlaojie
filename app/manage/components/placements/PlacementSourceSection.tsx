@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/typography";
 import type { PlacementDto } from "@/lib/content-model/contracts";
 import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import { FieldSection } from "../AssetEditor/FieldSection";
-import { contextHref } from "../../lib/content-context";
+import { teamHref } from "../../lib/content-context";
 import { placementFileType, placementScopeKey } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
@@ -34,8 +34,8 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
   const type = placementFileType(placement);
   const sourceArchived = target.kind === "asset_version" ? target.asset_state === "archived" : target.scene_state === "archived";
   const href = target.kind === "asset_version"
-    ? contextHref(`/manage/assets/${target.asset_id}`, { organizationId, workspaceId: placement.workspace_id })
-    : contextHref(`/manage/scenes/${target.scene_id}`, { organizationId, workspaceId: target.scene_workspace_id });
+    ? teamHref(`/manage/assets/${target.asset_id}`, organizationId)
+    : teamHref(`/manage/scenes/${target.scene_id}`, organizationId);
   const sourceName = (target.kind === "asset_version" ? target.asset_name : target.scene_name) || tx("contentModel.integration.map.source.unnamed");
 
   return (

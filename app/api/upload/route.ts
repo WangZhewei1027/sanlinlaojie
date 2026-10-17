@@ -1,21 +1,20 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db, sql } from "@/lib/db";
-import { loadActor, requireWorkspaceEdit, type Actor } from "@/lib/content-model/access.server";
+import { loadActor, type Actor } from "@/lib/content-model/access.server";
 import type { UploadPurpose, UploadResponse } from "@/lib/content-model/contracts";
 import { ContentError } from "@/lib/content-model/errors";
 import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
-import { isUuid } from "@/lib/content-model/input";
 import { ASSETS_PREFIX, headObject, putObject } from "@/lib/storage/oss";
 import { lockObjectKeys, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
 import { publicObjectUrl } from "@/lib/assets/urls";
-import { findReusableKey, issueReceipt, receiptDto, type ReceiptRow } from "@/lib/upload/receipts.server";
+import { findReusableKey, issueReceipt, receiptDto, resolveUploadScope, type ReceiptRow } from "@/lib/upload/receipts.server";
 import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 
 // Media upload relay: the browser posts the (already compressed) file here and
 // the server writes it to OSS.
 //
-// POST multipart/form-data { file, type?, workspace_id, purpose? }
+// POST multipart/form-data { file, type?, organization_id?, workspace_id?, purpose? }
 //   → { url, contentHash, storagePath, data: UploadReceiptDto }
 //     storagePath is null when identical bytes already exist in the target
 //     organization (dedup: the existing object is reused under its object lock
@@ -23,9 +22,11 @@ import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 //     purpose; it is the only way a v2 version may reference the object, and
 //     while unexpired it keeps the collector away (upload lease). An upload is
 //     not an asset: nothing is created or published here.
-//   Requires edit rights on the project. Callers that still omit workspace_id
-//   (legacy editor re-uploads) get the old behaviour without dedup/receipt,
-//   only if they can edit at least one project.
+//   organization_id and workspace_id only select the team: the caller must be
+//   a team writer (read from the database); a workspace_id must be an open
+//   collection of that organization. No collection is needed for team
+//   content. Callers that send neither (legacy editor re-uploads) get the old
+//   behaviour without dedup/receipt, only if they write in some organization.
 // DELETE ?key=assets/<userId>/<name>
 //   → compensation after a failed follow-up write: ends the caller's own
 //     unconsumed leases on the key and hands it to the retention protocol
@@ -44,7 +45,7 @@ function newObjectKey(userId: string, fileName: string): string {
   return `${ASSETS_PREFIX}${userId}/${name}${ext ? `.${ext}` : ""}`;
 }
 
-async function canEditAnyProject(actor: Actor): Promise<boolean> {
+async function canWriteAnyOrganization(actor: Actor): Promise<boolean> {
   if (actor.superAdmin) return true;
   const row = await db
     .selectFrom("organization_member as m")
@@ -52,26 +53,15 @@ async function canEditAnyProject(actor: Actor): Promise<boolean> {
     .select("m.id")
     .where("m.user_id", "=", actor.userId)
     .where("o.archived_at", "is", null)
-    .where((eb) =>
-      eb.or([
-        eb("m.role", "in", ["owner", "admin"]),
-        eb.and([
-          eb("m.role", "=", "member"),
-          eb.exists(
-            eb
-              .selectFrom("workspace_assignment as a")
-              .innerJoin("workspace as w", "w.id", "a.workspace_id")
-              .select("a.id")
-              .whereRef("w.organization_id", "=", "m.organization_id")
-              .where("a.user_id", "=", actor.userId)
-              .where("a.role", "in", ["manager", "editor"]),
-          ),
-        ]),
-      ]),
-    )
+    .where("m.role", "in", ["owner", "admin", "member"])
     .limit(1)
     .executeTakeFirst();
   return !!row;
+}
+
+function formText(form: FormData | null, name: string): string | null {
+  const value = form?.get(name);
+  return typeof value === "string" && value ? value : null;
 }
 
 export async function POST(request: Request) {
@@ -94,7 +84,8 @@ export async function POST(request: Request) {
     if (type && !ALL_UPLOAD_TYPES.includes(type as UploadType)) {
       return NextResponse.json({ error: "无效的文件类型" }, { status: 400 });
     }
-    const workspaceId = form?.get("workspace_id");
+    const organizationId = formText(form, "organization_id");
+    const workspaceId = formText(form, "workspace_id");
     const requestedPurpose = form?.get("purpose");
     if (requestedPurpose && !PURPOSES.includes(requestedPurpose as UploadPurpose)) {
       return NextResponse.json({ error: "无效的上传用途" }, { status: 400 });
@@ -104,25 +95,21 @@ export async function POST(request: Request) {
     const contentHash = createHash("sha256").update(buffer).digest("hex");
     const mimeType = file.type || "application/octet-stream";
 
-    if (typeof workspaceId !== "string" || !workspaceId) {
-      if (!(await canEditAnyProject(actor))) throw new ContentError("FORBIDDEN", "需要项目编辑权限才能上传");
+    if (!organizationId && !workspaceId) {
+      if (!(await canWriteAnyOrganization(actor))) throw new ContentError("FORBIDDEN", "需要团队编辑权限才能上传");
       const key = newObjectKey(actor.userId, file.name);
       const url = await putObject(key, buffer, { contentType: mimeType });
       const body: UploadResponse = { url, contentHash, storagePath: key };
       return NextResponse.json(body);
     }
-    if (!isUuid(workspaceId)) return NextResponse.json({ error: "工作区不存在" }, { status: 404 });
 
-    const project = await requireWorkspaceEdit(db, actor, workspaceId);
-    if (project.org.content_model_state === "readonly")
-      throw new ContentError("CONTENT_MODEL_READONLY", "组织正在切换内容模型，暂时只读");
-    const organizationId = project.workspace.organization_id;
+    const scope = await resolveUploadScope(db, actor, { organizationId, workspaceId });
     const purpose: UploadPurpose =
       (requestedPurpose as UploadPurpose | null) ??
-      (type === "anchor" ? "anchor_reference" : project.org.content_model_state === "v2" ? "asset_version" : "legacy_asset");
+      (type === "anchor" ? "anchor_reference" : scope.org.org.content_model_state === "v2" ? "asset_version" : "legacy_asset");
     const receiptInput = {
-      organizationId,
-      workspaceId,
+      organizationId: scope.org.org.id,
+      workspaceId: scope.workspaceId,
       userId: actor.userId,
       contentHash,
       mimeType,
@@ -134,7 +121,7 @@ export async function POST(request: Request) {
     // Organization-scoped dedup. The reuse happens under the object lock the
     // collector also takes, and the object's existence is re-verified while
     // the lease is being written; a vanished object falls back to an upload.
-    const existingKey = await findReusableKey(db, organizationId, contentHash);
+    const existingKey = await findReusableKey(db, scope.org.org.id, contentHash);
     if (existingKey) {
       const reused = await db
         .transaction()

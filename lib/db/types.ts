@@ -309,7 +309,7 @@ export interface Scene {
   state: Generated<string>;
   updated_at: Generated<Timestamp>;
   updated_by: string | null;
-  workspace_id: string;
+  workspace_id: string | null;
 }
 
 export interface SceneAssetRef {
@@ -368,7 +368,7 @@ export interface UploadReceipt {
   size_bytes: number;
   storage_key: string;
   upload_type: string | null;
-  workspace_id: string;
+  workspace_id: string | null;
 }
 
 export interface UserOrganizationPin {

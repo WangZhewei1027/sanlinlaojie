@@ -28,7 +28,7 @@ const PLACEABLE: UploadType[] = ["image", "video", "audio", "model", "document",
  */
 export function UploadAndPlaceForm() {
   const { t } = useTranslation();
-  const { tx, workspaceId, allowedUploadTypes } = usePlacementMap();
+  const { tx, organizationId, workspaceId, allowedUploadTypes } = usePlacementMap();
   const types = useMemo(() => PLACEABLE.filter((type) => allowedUploadTypes.includes(type)), [allowedUploadTypes]);
   const create = useCreatePlacement();
   // The open editor above owns the primary action; creation steps back to secondary.
@@ -97,7 +97,7 @@ export function UploadAndPlaceForm() {
       if (type === "text") return { asset: { name: assetName, fileType: "text", payload: textPayload(text.trim()), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (type === "link") return { asset: { name: assetName, fileType: "link", payload: linkPayload(linkState.data!, name.trim() || undefined), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (!uploaded.current || uploaded.current.source !== prepared) {
-        uploaded.current = { source: prepared!, input: await uploadFileVersion(prepared!, workspaceId!) };
+        uploaded.current = { source: prepared!, input: await uploadFileVersion(prepared!, { organizationId, workspaceId }) };
       }
       const { payload, resources } = uploaded.current.input;
       return { asset: { name: assetName, fileType: fileTypeOf(prepared!.type), payload, resources }, name: name.trim() || undefined, location: point, status: "active" };
