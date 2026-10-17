@@ -4,24 +4,33 @@ import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin, type OrgPermission } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
+import { loadActor, requireWorkspaceRead } from "@/lib/content-model/access.server";
+import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
+import { ContentError } from "@/lib/content-model/errors";
 
+/** Project row plus the caller's effective role and capabilities (read access required). */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  let userId: string | null = null;
   try {
-    const { id } = await params;
-
-    const data = await db
-      .selectFrom("workspace")
-      .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirstOrThrow();
-
-    return NextResponse.json({ data });
+    userId = await requireSessionUserId();
+    if (!isUuid(id)) throw new ContentError("NOT_FOUND", "项目不存在");
+    const access = await requireWorkspaceRead(db, await loadActor(db, userId), id);
+    const data = await db.selectFrom("workspace").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
+    return NextResponse.json({
+      data: {
+        ...data,
+        project_role: access.projectRole,
+        content_model_state: access.org.content_model_state,
+        capabilities: access.capabilities,
+      },
+    });
   } catch (error) {
-    console.error("获取 workspace 失败:", error);
-    return NextResponse.json({ error: "获取工作空间失败" }, { status: 500 });
+    return failure(error, { method: "GET", path: `/api/workspaces/${id}`, userId });
   }
 }
 
@@ -127,18 +136,25 @@ export async function DELETE(
     );
     if (!auth.ok) return auth.response;
 
-    // 检查是否有关联的资产
-    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace
-    const { count } = await db
-      .selectFrom("asset")
-      .select(({ fn }) => fn.countAll<number>().as("count"))
-      .where(sql<boolean>`workspace_id @> array[${id}::uuid]`)
-      .executeTakeFirstOrThrow();
-
-    if (count > 0) {
+    // 只有完全空的项目可以硬删除；有任何内容（旧资产行、素材授权、场景、投放、
+    // 旧多项目入口）时默认归档（POST /api/workspaces/[id]/archive），不级联吞掉依赖。
+    const { rows } = await sql<{ assets: number; grants: number; scenes: number; placements: number; scopes: number }>`
+      select
+        (select count(*) from asset where workspace_id @> array[${id}::uuid] or origin_workspace_id = ${id}::uuid) as assets,
+        (select count(*) from asset_workspace_grant where workspace_id = ${id}::uuid) as grants,
+        (select count(*) from scene where workspace_id = ${id}::uuid) as scenes,
+        (select count(*) from placement where workspace_id = ${id}::uuid) as placements,
+        (select count(*) from legacy_content_map where workspace_id = ${id}::uuid) as scopes
+    `.execute(db);
+    const counts = rows[0];
+    const total = counts ? Object.values(counts).reduce((sum, n) => sum + Number(n), 0) : 0;
+    if (total > 0) {
       return NextResponse.json(
-        { error: `无法删除：该工作空间包含 ${count} 个资产` },
-        { status: 400 },
+        {
+          error: `无法删除：该工作空间仍有内容（资产 ${counts.assets}、授权 ${counts.grants}、场景 ${counts.scenes}、投放 ${counts.placements}、旧入口 ${counts.scopes}），请改为归档`,
+          code: "DEPENDENCY_CONFLICT",
+        },
+        { status: 409 },
       );
     }
 

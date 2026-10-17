@@ -5,8 +5,10 @@ import { Text } from "@/components/ui/typography";
 import { MODEL_DRAG_TYPE, type PlacementReader, type ScenePosition } from "@/lib/scene/editor-interactions";
 import type { ModelAsset } from "./types";
 
-export function SceneModelDropZone({ children, models, enabled, placementRef, onAdd }: {
+export function SceneModelDropZone({ children, models, canDrop, enabled, placementRef, onAdd }: {
   children: ReactNode; models: ModelAsset[]; enabled: boolean; placementRef: RefObject<PlacementReader | null>;
+  /** Overrides the `models` lookup, e.g. when drag ids are pinned version ids. */
+  canDrop?: (id: string) => boolean;
   onAdd: (id: string, position: ScenePosition) => void;
 }) {
   const { t } = useTranslation();
@@ -32,7 +34,7 @@ export function SceneModelDropZone({ children, models, enabled, placementRef, on
       event.preventDefault(); event.stopPropagation(); setOver(null);
       const id = event.dataTransfer.getData(MODEL_DRAG_TYPE);
       const position = enabled ? placementRef.current?.(event.clientX, event.clientY) : null;
-      if (position && models.some((model) => model.id === id && model.file_url)) onAdd(id, position);
+      if (position && (canDrop ? canDrop(id) : models.some((model) => model.id === id && model.file_url))) onAdd(id, position);
     }}>
     {children}
     {over && <><div className="scene-drop-message" role="status"><Text as="span" variant="bodySm">{t(!enabled ? "sceneEditor.dropUnavailable" : over.valid ? "sceneEditor.dropModel" : "sceneEditor.dropOnGround")}</Text></div>{over.valid && <div className="scene-drop-target" style={{ left: over.x, top: over.y }} aria-hidden="true" />}</>}

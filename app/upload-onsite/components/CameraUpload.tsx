@@ -82,6 +82,8 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
       if (galleryInputRef.current) {
         galleryInputRef.current.value = "";
       }
+    } catch {
+      // The page shows the error; keep the photo so the user can retry.
     } finally {
       setUploading(false);
     }

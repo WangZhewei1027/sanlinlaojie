@@ -19,6 +19,12 @@ export async function GET(
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
+    // 仅组织成员（或 super_admin）可读组织详情
+    const { globalRole, orgRole } = await getUserContext(user.id, id);
+    if (!isSuperAdmin(globalRole) && !orgRole) {
+      return NextResponse.json({ error: "权限不足" }, { status: 403 });
+    }
+
     const data = await db
       .selectFrom("organization")
       .selectAll()

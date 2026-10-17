@@ -8,18 +8,21 @@ interface ManageSidebarProps {
   onUpload: () => void;
   onUpdateAsset?: (assetId: string, updates: Partial<Asset>) => Promise<Asset>;
   onDeleteAsset?: (assetId: string) => Promise<void>;
+  /** Organization frozen for migration (content model `readonly`): same as the viewer role. */
+  readOnly?: boolean;
 }
 
 export function ManageSidebar({
   onUpload,
   onUpdateAsset,
   onDeleteAsset,
+  readOnly = false,
 }: ManageSidebarProps) {
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
   const orgRole = selectedOrganization?.role ?? null;
-  const isViewer = orgRole === "viewer";
+  const isViewer = orgRole === "viewer" || readOnly;
 
   return (
     <div className="h-full w-full overflow-hidden bg-background">

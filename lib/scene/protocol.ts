@@ -1,9 +1,21 @@
-/** Composition JSON stored in a scene asset's text_content. No publication layer. */
+/**
+ * Composition JSON. Schema 1/2 is the mini-program playback protocol (and the
+ * legacy scene asset's text_content); schema 3 is the internal document of an
+ * independent Scene whose aliases pin explicit asset versions. Schema 3 is
+ * compiled to 2 for playback (lib/scene/compile.ts).
+ */
 export const SCENE_SCHEMA_VERSION = 2 as const;
+export const SCENE_DOCUMENT_VERSION = 3 as const;
 export const MAX_SCENE_BYTES = 256 * 1024;
 
 export interface CompositionAssetRef {
   assetId: string;
+}
+
+/** Schema 3 alias: identity for upgrade UI + the version that decides content. */
+export interface VersionedAssetRef {
+  assetId: string;
+  assetVersionId: string;
 }
 
 export interface InstanceAnimation {
@@ -36,19 +48,29 @@ export interface TransformKeyframe {
   connectedRight: boolean;
 }
 
-export interface CompositionContent {
+export interface CompositionContent<Ref = CompositionAssetRef> {
   kind: "composition";
   units: "meters";
   /** Finite positive, or null when no instance has an animation (static scene, never ends). */
   durationSeconds: number | null;
   loop: boolean;
-  assets: Record<string, CompositionAssetRef>;
+  assets: Record<string, Ref>;
   instances: CompositionInstance[];
 }
 
 export interface SceneDefinition {
   schemaVersion: 1 | 2;
   content: CompositionContent;
+}
+
+export interface SceneDocumentV3 {
+  schemaVersion: typeof SCENE_DOCUMENT_VERSION;
+  content: CompositionContent<VersionedAssetRef>;
+}
+
+/** Anything with a composition timeline: authoring helpers accept every schema. */
+export interface SceneDocumentLike {
+  content: { durationSeconds: number | null; instances: CompositionInstance[] };
 }
 
 export const COMPOSITION_LIMITS = {
@@ -64,6 +86,11 @@ export function createBlankScene(): SceneDefinition {
   return { schemaVersion: SCENE_SCHEMA_VERSION, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false, assets: {}, instances: [] } };
 }
 
+/** Server factory for a new independent Scene draft (10 s, no loop, empty). */
+export function createBlankSceneDocument(): SceneDocumentV3 {
+  return { schemaVersion: SCENE_DOCUMENT_VERSION, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false, assets: {}, instances: [] } };
+}
+
 export interface ValidationIssue {
   path: string;
   message: string;
@@ -75,7 +102,11 @@ export interface ValidationResult {
   issues: ValidationIssue[];
 }
 
-/** Resolved on demand from current model assets; never a persistent file reference. */
+/**
+ * Playback manifest returned to the mini-program. Legacy organizations resolve
+ * it from current model rows; cut-over organizations compile it from a fixed
+ * SceneRevision. `assetId` always echoes the requested discovery id.
+ */
 export interface SceneAssetManifest extends SceneDefinition {
   assetId: string;
   resources: Record<string, { assetId: string; url: string }>;

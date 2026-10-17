@@ -12,13 +12,15 @@ import type { Asset } from "../types";
 interface MapSelectionBarProps {
   /** 清除 viewer 端的选中高亮 */
   clearViewerSelection: () => void;
+  /** Organization frozen for migration (content model `readonly`): hide write actions. */
+  readOnly?: boolean;
 }
 
 /**
  * 地图选中操作条：框选/多选后浮在 viewer 面板上方，提供复制 / 删除 / 取消。
  * viewer 角色（只读）不显示写操作。
  */
-export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) {
+export function MapSelectionBar({ clearViewerSelection, readOnly = false }: MapSelectionBarProps) {
   const { t } = useTranslation();
   const selectedAssetIds = useManageStore((state) => state.selectedAssetIds);
   const clearSelectedAssetIds = useManageStore(
@@ -34,7 +36,7 @@ export function MapSelectionBar({ clearViewerSelection }: MapSelectionBarProps) 
   const [copying, setCopying] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const isViewer = (selectedOrganization?.role ?? null) === "viewer";
+  const isViewer = (selectedOrganization?.role ?? null) === "viewer" || readOnly;
   const count = selectedAssetIds.length;
 
   if (count === 0) return null;

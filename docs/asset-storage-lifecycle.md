@@ -1,151 +1,76 @@
-# Asset 存储生命周期：内容 hash 去重与删除机制
+# 素材版本与文件保留生命周期
 
-本文档描述 OSS `assets/` 前缀下文件的完整生命周期：内容 hash 去重（组织级；历史数据曾为全局）如何让多个资产共享同一个存储对象，以及在这种共享关系下，各删除路径如何保证"不误删仍被引用的文件、不留下指向已删文件的死链"。
+本文描述 `lib/storage/retention.server.ts`、`lib/upload/receipts.server.ts` 和素材版本服务的保留协议。组织迁移状态与单写源见 [数据层](data-layer.md)，上传入口见 [Asset Pipeline](asset-pipeline.md)。代码落地不表示生产组织已迁移或已开启物理删除。
 
-上传链路的类型配置与处理流程见 [asset-pipeline.md](./asset-pipeline.md)。
+## 素材身份、版本与文件
 
----
+Asset 是组织拥有的素材身份；AssetVersion 是不可变内容；`asset_version_resource` 是该版本实际保留的文件清单。主文件、封面、Shop 打卡图、兼容音频等分别登记 role。多个版本或素材可引用相同物理 key，不能因为 hash 相同就合并业务身份。
 
-## 1. 内容 hash 去重机制
+- 新上传媒体使用受管 key，文件内容不原地覆盖。替换文件创建新版本，旧场景和投放继续引用原版本。
+- `current_version_id` 是目录默认版本，不决定历史引用是否保留。
+- 本站 OSS URL 必须识别为受管文件，不能作为外站地址绕过保留；新提交通过 receipt 或有权限的来源版本引用文件。
+- 外站文件只固定 URL，无法保证远端字节不变，不进入 OSS 删除流程。
+- 归档 Asset、Scene 或 Placement 不删除版本和文件。当前没有自动版本过期或任意删除历史版本的用户入口。
 
-### 1.1 原理
+## 上传回执与组织内去重
 
-**文件：** `lib/upload/service.ts`、`app/api/upload/route.ts`（`app/api/assets/by-hash/route.ts` 是旧的客户端查询接口，上传链路已不再调用）
+文件上传按处理后的最终字节计算 SHA-256。去重以组织为范围；来源包括同组织版本资源、legacy 素材与有效的上传回执。字节复用仍需验证对象存在并遵守对象锁协议。
 
-上传文件时，`POST /api/upload` 对**处理/压缩后的最终字节**计算 SHA-256（十六进制串），存入 `asset.content_hash` 列（`db/schema.sql`，索引 `asset_content_hash_idx`；link/text 等无文件类型为 NULL）。
+`upload_receipt` 绑定 user、organization、workspace、storage_key、hash、大小、用途和过期时间。`asset_version` 提交校验回执的操作者、组织、有效期与 `asset_version` 用途。回执有效期为 24 小时；`consumed_at` 记录提交，不代表可以立即删除该文件。
 
-上传流程：
+回执同时保护上传成功但业务事务尚未提交的文件。上传失败、用户取消、命令重试由幂等与租约处理；不要因为某次客户端创建失败，就直接删除可能被另一请求引用的对象。
 
-```
-processFile（压缩/提元数据）
-  → POST /api/upload { file, type, workspace_id }
-      服务端计算 SHA-256，在目标 workspace 所属组织内查 content_hash
-      命中 → 返回已有 file_url（storagePath 为 null），不写入新对象
-      未命中 → 写入 OSS assets/{userId}/{时间戳-随机串}.{ext}，返回新 URL
-  → POST /api/workspaces/[id]/assets 创建 asset 行（file_url + content_hash）
-```
+物理路径仍可能是首个上传者的 `assets/{userId}/…`。路径不能推导素材所有权，删除用户也不能按目录删除团队文件。
 
-### 1.2 去重以组织为边界（历史数据可能跨组织共享）
+## 全局保留集合
 
-去重查询**限定在目标工作区所属的组织内**：调用方必须传 `workspace_id`，`/api/upload` 解析其组织并校验成员身份，只匹配同组织资产的 `content_hash`。没有工作区上下文时（如 AssetEditor 的图片替换）直接跳过去重、上传新对象——宁可多存一份，不做错误匹配。
+`isKeyProtected` 检查单个 key，`collectProtectedKeys` 为清扫提供全局候选过滤。保留来源包括：
 
-历史上去重曾是全局的（跨组织无边界），因此存量数据中仍存在跨组织共享同一存储对象的资产行。删除路径的引用计数**必须保持全局**（见 §1.3、§3），不得随去重一起收窄，否则会误删历史共享文件。
+| 来源 | 必须保留的内容 |
+| --- | --- |
+| `asset_version_resource` | 所有保留版本的 storage_key，不只 current 或当前上线版本 |
+| `upload_receipt` | 未过期的上传租约 |
+| Legacy Asset | file_url、metadata.checkin_url，以及 metadata/config/text 中仍保存的受管文件引用 |
+| Anchor | anchor_embedding.image_url |
+| 音频兼容文件 | 同名 `.webm` / `.m4a` 互相保护；回填时登记实际派生资源 |
 
-由此产生三个必须时刻记住的事实：
+去重虽然已收口到组织内，历史跨组织素材可能仍共享同一个物理文件，所以保留集合必须始终覆盖所有组织。发布依赖通过外键保留 AssetVersion；文件保留由其 resource 清单继续承担。
 
-1. **多个 asset 行（历史数据可能属于不同组织）共享同一个存储对象。** 复制素材（`/api/assets/copy`）同样复用源的 `file_url`/`content_hash`，进一步放大共享。
-2. **文件物理上存放在首个上传者的 `{userId}/` 目录下**，与后续引用它的资产属于谁无关。目录结构不能推断归属。
-3. **同一存储对象可能被两种字段引用：** 普通资产的 `file_url`，以及 shop 素材的 `metadata.checkin_url`（打卡图也走同一条去重上传链路）。判断"文件是否还有人用"必须同时检查两处。
+## 回收协议与默认开关
 
-### 1.3 引用计数
+实际删除默认关闭。只有 `app_config` 中 `managed_object_deletion` 的值明确为 `{ "enabled": true }` 时，回收器才删除无引用对象；其他情况报告 `candidates`。不能把启用删除视为数据库迁移的自动步骤。
 
-**文件：** `lib/storage-cleanup.server.ts`
+复用、版本提交和回收遵守同一协议：
 
-删除存储文件前的唯一判据是引用计数：
+1. 在数据库事务中取得 `object-key:<storageKey>` advisory lock。
+2. 复用/提交方在锁内建立 receipt 或 resource；回收方在锁内重新检查全部保留来源和上传租约。
+3. 回收方保持锁直到 OSS 删除结束，复用方在提交前确认对象仍可用。
+4. 失败记录日志并返回 `failed`，不会把存储错误当作对象不存在。
 
-- `countFileReferences(url)`：一条 `count(*)` 查询统计 `file_url = url OR metadata->>'checkin_url' = url` 的行数。只取数量，不拉行。
-- `removeStorageFileIfUnreferenced(url, ctx)`：计数为 0 才调 `deleteObjects`（OSS）；失败不抛错，记入 `error_log` 后返回 `"failed"`，残留文件交给全局清扫兜底（见 §3）。
+单独延迟、仅在删除前 count 一次、只检查当前 Asset 或只检查当前组织都不满足这个协议。批量清扫先做快照过滤，但每个候选仍经过锁内复核。
 
-批量场景（整组织清除）不逐个 count，而是用批量 `in` 查询（`findStillReferencedUrls`，`lib/user-deletion.server.ts`）一次拉出仍被引用的 URL，语义等价。**任何新的删除代码都不得绕过这套引用计数直接删文件。**
+所有文件释放入口都必须调用统一保留层：单素材文件替换/删除的 legacy 包装、上传补偿删除、管理员清扫、用户/组织清除，以及转码派生文件操作。禁止在这些调用点绕过保留层直接 `deleteObjects`。
 
----
+## 数据删除与迁移
 
-## 2. 删除机制
+逻辑修改/删除先完成并提交，之后才尝试释放不再保留的文件。这样存储失败最多留下孤儿文件，不能先删除文件再尝试修改数据库。
 
-### 2.1 总原则：先删行、后删文件
+V2 的草稿、发布依赖及 Placement 对版本使用引用约束。撤项目 grant 时有历史发布依赖仍会被阻止；归档不释放依赖。组织/用户硬删除需要完整 deletion plan，包含跨项目投放、旧公开 ID 绑定、版本和旧兼容行，不能继续仅按 legacy workspace 数组包含关系清除。
 
-所有删除路径统一遵守这个顺序，理由是两个失败方向的严重性完全不对称：
+Legacy 模式仍保留当前 Asset 字段和旧文件去重关系。这些旧字段是迁移保护来源，不能在回填后、公开路由切换前提前清空。跨组织拆分素材身份可以复用物理文件，不能顺便收窄回收范围。
 
-| 失败方向 | 后果 | 可恢复性 |
-|----------|------|----------|
-| 行删了、文件删失败 | 孤儿文件（无行引用、用户不可见） | 可由全局清扫兜底删除 |
-| 文件删了、行删失败 | 死链行（用户可见的坏数据，且文件不可恢复） | 不可恢复 |
+Legacy/preparing 期间显式删除已被回填版本或投放引用的旧行时，兼容服务移除其旧项目与标签成员关系，让它退出旧展示面；暂存身份、版本及文件继续保留。迁移工具须识别该源数据变化并重新处理，删除请求不猜测级联关系，也不立即回收文件。
 
-因此永远让失败落在"孤儿文件"一侧。存储删除失败一律**不阻断主流程**，只记 `error_log`。
+迁移窗口只报告回收候选。死链检查遇到 HEAD 请求失败时报告错误；确认缺文件也不能自动删除仍被场景或投放引用的身份/版本，应列出修复项。恢复回收前必须核对全部写入者都使用同一协议；发布和部署状态以实际验证记录为准。
 
-### 2.2 各删除路径一览
+## 代码入口
 
-| 路径 | 入口 | 行为 |
-|------|------|------|
-| 单资产删除 | `DELETE /api/assets/[id]` | 鉴权（资产横跨的每个 org 都需 `org.assets.write`）→ 删行 → 对 `file_url` 与 `metadata.checkin_url` 各做引用计数清理 |
-| 换文件回收 | `PATCH /api/assets/[id]` | 更新行后，若 `file_url` / `metadata.checkin_url` 被替换，对旧 URL 做引用计数清理 |
-| 删 workspace | `DELETE /api/workspaces/[id]` | **不碰存储**。仍有资产引用该 workspace 时直接拒绝（400），必须先删资产 |
-| 删组织（普通） | `DELETE /api/organizations/[id]` | **不碰存储**。仍有 workspace 时直接拒绝（400） |
-| 整组织清除 | `purgeOrganizations`（`lib/user-deletion.server.ts`） | 见 §2.3 |
-| 兜底清扫 | `POST /api/admin/clean` | 见 §3 |
-
-`purgeOrganizations` 有三个调用方：
-
-- super-admin 删组织（`app/super-admin/organizations/actions.ts` 的 `deleteOrganization`）；
-- 删用户（`DELETE /api/users/[id]`）：用户是某组织唯一成员时级联整删该组织（预览与执行共用 `computeUserDeletionPlan`）；
-- 存量迁移 `20260714000001_cleanup_orphan_orgs.sql`（纯 SQL 直调 RPC，不删存储，文件残留靠清扫兜底）。
-
-### 2.3 整组织清除的资产语义
-
-`asset.workspace_id` 是 `uuid[]`（资产可横跨多个 workspace/组织，无外键），所以整删组织时必须区分两类资产：
-
-- **完全包含**（`workspace_id` 非空且 ⊆ 被删 workspace 集合）→ 删行；
-- **跨组织**（数组与被删集合有交集但不被包含）→ 只从数组里剥离被删的 workspace id，行保留。
-
-流程（`purgeOrganizations`）：
-
-```
-1. 收集候选文件 URL：完全包含资产的 file_url + checkin_url
-   （先拉全量——行删掉后就查不到了，必须先收集）
-2. 函数 purge_organizations：单事务原子删除 包含资产行 / workspace / 组织，
-   剥离跨组织资产的 workspace id（SQL 见 db/schema.sql）
-3. 行删完后，对候选 URL 做 findStillReferencedUrls：
-   仍被任何剩余行引用（= 外部组织在用）的 URL 保留，其余批量删除存储文件
-```
-
-第 3 步在行删除**之后**做引用检查，是刻意的：此时"仍被引用"天然等于"外部在用"，无需再维护"包含集合内/外"的差集逻辑，正确性只依赖引用计数一条规则。
-
-### 2.4 历史缺陷（已修复，防止回归）
-
-以下问题已在 2026-07 修复，列出以防同类代码再次出现：
-
-1. **引用查询无分页**：旧 `collectDeletableFilePaths` 用 `.in("file_url", batch)` 不分页，命中行数超 1000 时 PostgREST 静默截断，外部引用落在截断尾部会被漏判 → 误删其他组织仍在用的共享文件。**教训：任何拉行做集合判断的查询必须拉全量（当时靠 `fetchAllRows` 分页；现在直连 Postgres 没有 1000 行截断）；只需要数量就用 count 模式。**
-2. **先删文件后删行**：反向失败会留死链。
-3. **只按 `file_url` 计数**：漏掉 `metadata.checkin_url` 的引用，可能误删仍被 shop 素材使用的打卡图。
-4. **换文件不回收旧文件**：编辑器重传图片只改 `file_url`，旧文件永久泄漏。
-5. **清扫器路径错配**：旧 clean-files 按 `{workspaceId}/` 列目录，实际文件在 `{userId}/` 下，清扫器从未真正工作；且只对比本 workspace 的引用，若命中会误删跨组织共享文件。
-
----
-
-## 3. 兜底：全局清扫器
-
-**文件：** `app/api/admin/clean/route.ts`，页面 `/super-admin/clean`（仅 super_admin）
-
-清扫器是 §2.1 "存储失败不阻断" 策略的配套兜底，两种模式：
-
-### clean-rows（死链行清理，按 workspace）
-
-拉取所选 workspace 下所有带 `file_url` 的资产，逐个用 `headObject` 确认存储对象是否存在；文件确实不存在的行删除。注意：**headObject 出错 ≠ 文件不存在**——OSS 瞬时故障时跳过该资产并记入 errors，绝不能把查询失败当成文件缺失而误删行。
-
-### clean-files（孤儿文件清理，全桶）
-
-```
-列出 OSS 桶 assets/ 前缀下全部对象（listObjects）
-  − 全表引用集合（所有行的 file_url + metadata.checkin_url 解析出的桶内路径）
-  − 24 小时内的新文件（上传先于行落库，可能是进行中的上传）
-  = 孤儿文件 → 删除
-```
-
-必须全桶、全表对比：hash 去重让文件可被任意组织的资产引用，任何缩小对比范围的"优化"都会重新引入误删。
-
-### 孤儿文件的正常来源
-
-- 各删除路径中 `deleteObjects` 失败（已记 `error_log`）；
-- 行删除成功后进程中断，文件清理未执行；
-- `cleanup_orphan_orgs` 这类纯 SQL 清理（SQL 删不了 OSS 对象）；
-- 客户端上传成功但创建 asset 行失败/放弃。
-
-孤儿文件不可见、无害，定期跑一次 clean-files 即可回收。
-
----
-
-## 4. 已知边界
-
-- **TOCTOU 竞态**：引用计数与 `deleteObjects` 之间没有事务保护。极端情况下，删除进行中恰有用户 by-hash 命中同一文件（跳过实际上传），新行会指向刚被删除的文件。窗口为毫秒级，实际风险低；彻底解决需要 DB 级锁或独立去重表，目前评估复杂度收益不成比例，接受此风险。clean-files 的 24 小时保护窗已挡住清扫一侧的同类竞态。
-- **去重已收敛到组织级**（2026-08）：去重（`/api/upload`）按 `workspace_id` 解析组织并校验成员身份后才匹配,不再是跨租户探测通道。若未来做私有桶,此前提已满足;但存量的跨组织共享对象仍需全局引用计数保护（见 §1.2）。
-- **计费归属模糊**：文件存放在首个上传者目录下，后来者零成本引用。若未来按存储量计费，需要另行设计归属模型。
+| 模块 | 职责 |
+| --- | --- |
+| `lib/storage/retention.server.ts` | 全局保留、对象锁、删除开关、候选报告 |
+| `lib/upload/receipts.server.ts` | 回执、组织内去重、提交身份校验 |
+| `lib/assets/versions.server.ts` | 解析文件来源，追加不可变版本与 resource |
+| `lib/storage-cleanup.server.ts` | 旧调用方的文件清理入口，需服从统一保留协议 |
+| `app/api/admin/clean/route.ts` | 管理员检查和清扫入口 |
+| `lib/user-deletion.server.ts` | 用户/组织删除预览与执行 |
+| `scripts/transcode-webm-to-m4a.ts` | 音频兼容文件处理 |

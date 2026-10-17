@@ -41,9 +41,17 @@ export async function getSceneAsset(assetId: string, workspaceId: string | null,
   if (!workspaceId && !organizationId) throw new SceneAssetError("缺少工作空间或组织");
   const asset = await db.selectFrom("asset").select(["id", "text_content", "workspace_id"]).where("id", "=", assetId).where("file_type", "=", "scene").executeTakeFirst();
   if (!asset?.workspace_id?.length) throw new SceneAssetError("场景素材不存在", 404);
-  let query = db.selectFrom("workspace").select("id").where("id", "in", asset.workspace_id);
-  if (workspaceId) query = query.where("id", "=", workspaceId);
-  if (organizationId) query = query.where("organization_id", "=", organizationId);
+  // Legacy organizations only, open scopes only (cut-over ones resolve fixed revisions).
+  let query = db
+    .selectFrom("workspace")
+    .innerJoin("organization", "organization.id", "workspace.organization_id")
+    .select("workspace.id")
+    .where("workspace.id", "in", asset.workspace_id)
+    .where("workspace.archived_at", "is", null)
+    .where("organization.archived_at", "is", null)
+    .where("organization.content_model_state", "<>", "v2");
+  if (workspaceId) query = query.where("workspace.id", "=", workspaceId);
+  if (organizationId) query = query.where("workspace.organization_id", "=", organizationId);
   const scope = await query.execute();
   if (!scope.length) throw new SceneAssetError("场景素材不存在", 404);
   return { assetId, ...await resolveSceneAsset(asset.text_content, scope.map((row) => row.id)) };

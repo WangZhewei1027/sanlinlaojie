@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 const WORKSPACE_SWITCHER_ROUTES = ["/manage", "/upload-onsite"];
 
 export function BreadcrumbNav() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const pathname = usePathname();
 
   const organizations = useManageStore((state) => state.organizations);
@@ -39,7 +39,7 @@ export function BreadcrumbNav() {
     isOrgContextRoute && (organizationLoading || organizations.length > 0);
   const showWorkspace = isPathWithinRoutes(pathname, WORKSPACE_SWITCHER_ROUTES);
 
-  const breadcrumbItems = buildBreadcrumbItems(pathname, t);
+  const breadcrumbItems = buildBreadcrumbItems(pathname, t, i18n.language);
 
   return (
     <div className="flex min-w-0 flex-1 items-center">

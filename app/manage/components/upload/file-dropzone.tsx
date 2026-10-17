@@ -14,6 +14,30 @@ interface FileDropzoneProps {
   disabled?: boolean;
 }
 
+/** Extensions whose files often arrive without a usable MIME type. */
+const EXTENSION_MIME: Record<string, string> = {
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
+};
+
+/**
+ * Convert an `<input accept>` string (MIME types and/or `.ext` tokens, as in
+ * FILE_TYPE_CONFIGS) into react-dropzone's `{ mime: [exts] }` shape. Extension
+ * tokens must be listed under a MIME key, never used as keys themselves.
+ */
+export function toDropzoneAccept(accept: string): Record<string, string[]> | undefined {
+  const tokens = accept.split(",").map((token) => token.trim()).filter(Boolean);
+  // `*/*` is not a MIME type react-dropzone accepts; no restriction is expressed as `undefined`.
+  if (!tokens.length || tokens.includes("*/*")) return undefined;
+  const mimes = tokens.filter((token) => token.includes("/"));
+  const result: Record<string, string[]> = Object.fromEntries(mimes.map((mime) => [mime, []]));
+  for (const ext of tokens.filter((token) => token.startsWith("."))) {
+    const key = EXTENSION_MIME[ext.toLowerCase()] ?? mimes[0] ?? "application/octet-stream";
+    (result[key] ??= []).push(ext);
+  }
+  return result;
+}
+
 export function FileDropzone({
   file,
   onFileSelect,
@@ -34,9 +58,7 @@ export function FileDropzone({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: accept
-      .split(",")
-      .reduce((acc, type) => ({ ...acc, [type.trim()]: [] }), {}),
+    accept: toDropzoneAccept(accept),
     multiple: false,
     disabled,
   });

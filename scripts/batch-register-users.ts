@@ -24,7 +24,7 @@
  *     --org <uuid>               将所有用户加入指定组织
  *     --org-role <role>          组织角色 (owner/admin/member/viewer，默认 member)
  *     --workspace <uuid>         将所有用户分配到指定工作区
- *     --workspace-role <role>    工作区角色 (默认 member)
+ *     --workspace-role <role>    项目角色 manager/editor/viewer（默认 editor；组织 viewer 强制为 viewer）
  *
  *   示例:
  *     npx tsx --conditions react-server scripts/batch-register-users.ts --dry-run
@@ -40,6 +40,13 @@ import { loadEnvFile } from "./lib/env";
 // ─── 类型定义 ────────────────────────────────────────────
 
 type OrgRole = "owner" | "admin" | "member" | "viewer";
+type ProjectRole = "manager" | "editor" | "viewer";
+const PROJECT_ROLES: ProjectRole[] = ["manager", "editor", "viewer"];
+
+/** Same rule as lib/permissions.ts assignmentRoleFor: org viewers are read-only projects. */
+function projectRoleFor(orgRole: OrgRole | null, requested: ProjectRole): ProjectRole {
+  return orgRole === "viewer" ? "viewer" : requested;
+}
 
 interface UserInput {
   email: string;
@@ -54,8 +61,8 @@ interface UserInput {
   orgRole?: OrgRole;
   /** 覆盖全局 --workspace（可选） */
   workspaceId?: string;
-  /** 覆盖全局 --workspace-role（可选） */
-  workspaceRole?: string;
+  /** 覆盖全局 --workspace-role（可选）：manager / editor / viewer */
+  workspaceRole?: ProjectRole;
 }
 
 interface Result {
@@ -114,12 +121,18 @@ async function main() {
   const globalOrgId = getArg(args, "--org");
   const globalOrgRole = (getArg(args, "--org-role") ?? "member") as OrgRole;
   const globalWorkspaceId = getArg(args, "--workspace");
-  const globalWorkspaceRole = getArg(args, "--workspace-role") ?? "member";
+  const globalWorkspaceRole = (getArg(args, "--workspace-role") ?? "editor") as ProjectRole;
 
   const validOrgRoles: OrgRole[] = ["owner", "admin", "member", "viewer"];
   if (!validOrgRoles.includes(globalOrgRole)) {
     console.error(
       `❌ 无效的 --org-role: "${globalOrgRole}"，允许值: ${validOrgRoles.join(", ")}`,
+    );
+    process.exit(1);
+  }
+  if (!PROJECT_ROLES.includes(globalWorkspaceRole)) {
+    console.error(
+      `❌ 无效的 --workspace-role: "${globalWorkspaceRole}"，允许值: ${PROJECT_ROLES.join(", ")}`,
     );
     process.exit(1);
   }
@@ -185,7 +198,13 @@ async function main() {
     const orgId = user.orgId ?? globalOrgId;
     const orgRole = (user.orgRole ?? globalOrgRole) as OrgRole;
     const workspaceId = user.workspaceId ?? globalWorkspaceId;
-    const workspaceRole = user.workspaceRole ?? globalWorkspaceRole;
+    const requestedWorkspaceRole = user.workspaceRole ?? globalWorkspaceRole;
+    if (!PROJECT_ROLES.includes(requestedWorkspaceRole)) {
+      console.log(`${index} ⏭️  跳过 ${user.email}: 无效的 workspaceRole "${requestedWorkspaceRole}"`);
+      results.push({ email: user.email || "(empty)", success: false, error: "无效的 workspaceRole" });
+      failCount++;
+      continue;
+    }
 
     // 基本验证
     if (!user.email || !user.password) {
@@ -214,7 +233,7 @@ async function main() {
       const tags = [
         `name: ${user.name || "-"}`,
         orgId ? `org: ${orgId} (${orgRole})` : null,
-        workspaceId ? `ws: ${workspaceId} (${workspaceRole})` : null,
+        workspaceId ? `ws: ${workspaceId} (${projectRoleFor(orgId ? orgRole : null, requestedWorkspaceRole)})` : null,
       ]
         .filter(Boolean)
         .join(", ");
@@ -253,10 +272,20 @@ async function main() {
         }
       }
 
-      // ③ 分配工作区（已分配则更新角色）
+      // ③ 分配工作区（已分配则更新角色）。项目必须属于用户所在的组织，
+      //    角色受组织角色上限约束（组织 viewer → 项目 viewer）。
       let workspaceAssigned = false;
       if (workspaceId) {
         try {
+          const membership = await db
+            .selectFrom("organization_member as m")
+            .innerJoin("workspace as w", "w.organization_id", "m.organization_id")
+            .select("m.role")
+            .where("w.id", "=", workspaceId)
+            .where("m.user_id", "=", userId)
+            .executeTakeFirst();
+          if (!membership) throw new Error("用户不是该项目所属组织的成员（请同时指定 --org）");
+          const workspaceRole = projectRoleFor(membership.role as OrgRole, requestedWorkspaceRole);
           await db
             .insertInto("workspace_assignment")
             .values({ workspace_id: workspaceId, user_id: userId, role: workspaceRole })

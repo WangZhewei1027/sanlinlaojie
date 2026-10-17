@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -16,12 +17,15 @@ interface GPSStatusCardProps {
   gpsPosition: GPSPosition | null;
   gpsError: string | null;
   gpsLoading: boolean;
+  /** Optional footer, e.g. the explicit location confirmation of the v2 path. */
+  children?: ReactNode;
 }
 
 export function GPSStatusCard({
   gpsPosition,
   gpsError,
   gpsLoading,
+  children,
 }: GPSStatusCardProps) {
   const { t } = useTranslation();
 
@@ -99,6 +103,7 @@ export function GPSStatusCard({
           )}
         </div>
       </div>
+      {children}
     </Card>
   );
 }

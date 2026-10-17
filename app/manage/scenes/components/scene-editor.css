@@ -1,5 +1,5 @@
 /* Scoped to the scene workbench; global management tokens remain authoritative. */
-body:has(.scene-workspace) > nav, body:has(.scene-workspace) #theatrejs-studio-root { display: none; }
+body:has(.scene-workspace) > nav, body:has(.scene-workspace) #theatrejs-studio-root, body:has(.scene-editor-status) #theatrejs-studio-root { display: none; }
 .scene-workspace { --scene-left-width: var(--scene-left-custom, 232px); --scene-right-width: var(--scene-right-custom, 284px); position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; overflow: hidden; color: hsl(var(--foreground)); background: hsl(var(--background)); color-scheme: light; }
 .scene-workspace *, .scene-workspace *::before, .scene-workspace *::after { box-sizing: border-box; }
 .scene-workspace ::selection { background: hsl(var(--primary) / .18); color: hsl(var(--foreground)); }
@@ -88,7 +88,7 @@ body:has(.scene-workspace) > nav, body:has(.scene-workspace) #theatrejs-studio-r
 /* Existing react-grid-layout GridItem supplies resize gestures; the dock contract supplies geometry. */
 .scene-docks { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .scene-docks .scene-dock { position: absolute; transition: none; }
-.scene-dock > .scene-left, .scene-dock > .scene-stage, .scene-dock > .scene-inspector, .scene-dock > .scene-timeline { width: 100%; height: 100%; }
+.scene-dock > .scene-left, .scene-dock > .scene-stage, .scene-dock > .scene-inspector, .scene-dock > fieldset > .scene-inspector, .scene-dock > .scene-timeline { width: 100%; height: 100%; }
 .scene-docks .scene-resizer { position: absolute; z-index: 10; padding: 0; background-image: none; touch-action: none; transform: none; }
 .scene-docks .scene-resizer.is-vertical { top: 0; bottom: 0; width: 8px; height: 100%; cursor: col-resize; }
 .scene-docks .scene-resize-e { right: -4px; }

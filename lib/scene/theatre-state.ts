@@ -1,5 +1,5 @@
 import { Euler, Quaternion } from "three";
-import { TRANSFORM_CHANNELS, type CompositionInstance, type SceneDefinition } from "./protocol";
+import { TRANSFORM_CHANNELS, type CompositionInstance, type SceneDocumentLike } from "./protocol";
 
 export function instanceValues(instance: CompositionInstance) {
   const rotation = new Euler().setFromQuaternion(new Quaternion(...instance.quaternion), "XYZ");
@@ -12,7 +12,7 @@ export function instanceValues(instance: CompositionInstance) {
 export type TransformValues = ReturnType<typeof instanceValues>;
 
 /** Imports both legacy layouts and version 2 timelines without requiring editor metadata. */
-export function stateFromDefinition(definition: SceneDefinition) {
+export function stateFromDefinition(definition: SceneDocumentLike) {
   const byObject: Record<string, unknown> = {};
   const tracksByObject: Record<string, unknown> = {};
   for (const instance of definition.content.instances) {

@@ -34,7 +34,9 @@
 
 #### 用户端
 - `/` — 首页
-- `/manage` — 地图工作区主界面：在交互式地图上查看/管理 AR 素材点位
+- `/manage` — 地图主界面：v2 管理投放 Placement，尚未切换的组织保留旧素材地图
+- `/manage/assets` — 团队素材库、项目授权、固定版本与使用记录
+- `/manage/scenes` — 项目场景；`/manage/scenes/[id]` 编排、预览与发布
 - `/auth/*` — 登录 / 注册 / 找回与修改密码
 - `/invite/[token]` — 接受组织邀请链接
 - `/settings` — 个人设置
@@ -72,6 +74,7 @@
 #### 权限体系（`lib/permissions.ts`）
 - 全局角色（`users.role`）：超级管理员 super_admin / 普通用户 user
 - 组织角色（`organization_member.role`）：owner / admin / member / viewer
+- 项目角色（`workspace_assignment.role`）：manager / editor / viewer；素材使用权与维护权分开
 - 侧边栏菜单按角色动态过滤；矩阵见 `docs/permissions.md`
 
 ### 目录结构
@@ -215,13 +218,14 @@ xr-frame-plant-trees/
 
 结构以 `db/schema.sql` 为准（含全部函数与触发器）。核心表包括：
 
-- **organizations** — 组织（对应一个物理场景/街区）
-- **workspaces** — 工作区（组织下的子空间，通过 QR 码区分）
-- **assets** — 素材点位（含 PostGIS 地理坐标、文件类型、元数据）
-- **members** — 组织成员与角色
-- **danmaku** — 弹幕记录
+- **organization / organization_member** — 团队所有权、组织角色与内容模型切换状态。
+- **workspace / workspace_assignment** — 项目与项目协作角色，保留二维码参数和原 UUID。
+- **asset / asset_version / asset_version_resource** — 素材身份、不可变内容版本与文件保留清单。
+- **asset_workspace_grant** — 同组织项目使用素材的授权。
+- **scene / scene_revision** — 编排草稿、固定发布版本与派生依赖索引。
+- **placement** — 一次空间投放，固定引用素材版本或场景发布版本。
 
-> 表名实际为单数（`organization`、`workspace`、`asset`、`organization_member`），以 `db/schema.sql` 与 `lib/db/types.ts` 为准，不要以本文档为准。
+这些是 v2 模型。组织状态为 `legacy/preparing` 时保留旧 Asset 写入，`readonly` 为切换窗口，`v2` 才启用新写源。数据库迁移不会自动切换业务；旧匿名文字、Anchor、Shop 和公开 ID 通过兼容层处理。见 [数据层](docs/data-layer.md)。
 
 ---
 
@@ -250,9 +254,13 @@ npm run dev
 
 | 文档 | 说明 |
 |---|---|
+| [docs/team-assets-scenes-refactor-plan.md](docs/team-assets-scenes-refactor-plan.md) | 团队素材复用与场景管理改造方案：目标、迁移顺序与验收依据；实现说明见下列专题文档 |
+| [docs/content-model-validation.md](docs/content-model-validation.md) | 首期实现结果、隔离环境验证与上线边界 |
+| [docs/content-model-migration-runbook.md](docs/content-model-migration-runbook.md) | 旧数据审计、回填、核验、切换和回退操作手册 |
+| [docs/scene-asset.md](docs/scene-asset.md) | 独立场景、固定版本发布与 legacy 场景兼容 |
 | [docs/api.md](docs/api.md) | API 接口说明 |
 | [docs/i18n-guide.md](docs/i18n-guide.md) | 国际化使用指南 |
-| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 地图素材交互逻辑 |
+| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 投放地图 ID、消息适配与 legacy 素材交互 |
 | [docs/3d-model-preview.md](docs/3d-model-preview.md) | 3D 模型预览方案 |
 | [docs/text-asset-miniapp-style.md](docs/text-asset-miniapp-style.md) | 文本素材小程序样式 |
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
@@ -260,5 +268,5 @@ npm run dev
 | [lib/upload/README.md](lib/upload/README.md) | 文件上传模块文档 |
 | [docs/data-layer.md](docs/data-layer.md) | 数据库 / 认证 / 存储模块约定 |
 | [docs/miniapp-api.md](docs/miniapp-api.md) | 小程序匿名接口（`/api/miniapp/*`） |
-| [docs/permissions.md](docs/permissions.md) | 两层权限模型与矩阵 |
+| [docs/permissions.md](docs/permissions.md) | 组织/项目角色、素材使用与维护权限 |
 | [docs/aliyun-migration-plan.md](docs/aliyun-migration-plan.md) | 阿里云迁移方案与执行记录 |

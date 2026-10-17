@@ -23,13 +23,13 @@
     "updateFailed": "更新失败"
   },
   "workspace": {
-    "selectPlaceholder": "选择工作空间...",
-    "allWorkspaces": "所有工作空间",
+    "selectPlaceholder": "选择项目...",
+    "allWorkspaces": "所有项目",
     "qrButton": "显示二维码",
     "qrTitle": "扫码进入小程序",
     "qrLoading": "生成中…",
     "qrError": "二维码加载失败",
-    "noAssigned": "暂无工作空间"
+    "noAssigned": "暂无项目"
   },
   "invite": {
     "title": "组织邀请",
@@ -73,7 +73,7 @@
     },
     "scene": {
       "content": "场景 JSON",
-      "contentPlaceholder": "粘贴 composition 场景 JSON，引用本工作空间的模型素材 ID"
+      "contentPlaceholder": "粘贴 composition 场景 JSON，引用本项目的模型素材 ID"
     }
   },
   "onsite": {
@@ -120,7 +120,7 @@
       "title": "标签",
       "createNew": "新建标签",
       "createTitle": "创建标签",
-      "createDescription": "为工作空间创建新标签",
+      "createDescription": "为项目创建新标签",
       "tagName": "标签名称",
       "tagNamePlaceholder": "输入标签名称...",
       "tagColor": "标签颜色",
@@ -130,7 +130,7 @@
       "selectedCount": "已选择 {{count}} 个标签"
     },
     "uploadingTo": "将上传到",
-    "selectWorkspaceFirst": "请先选择具体的工作区再上传",
+    "selectWorkspaceFirst": "请先选择具体的项目再上传",
     "selectFromGallery": "从相册选择",
     "readOnly": "你在此组织为只读角色，无法上传资产"
   },
@@ -383,7 +383,7 @@
     "sidebar": {
       "settings": "设置",
       "members": "成员",
-      "workspaces": "工作空间",
+      "workspaces": "项目",
       "orgSection": "组织"
     },
     "members": {
@@ -394,19 +394,19 @@
       "selectUser": "选择用户...",
       "noMembers": "暂无成员",
       "unnamed": "未命名用户",
-      "assignWorkspace": "分配工作空间",
+      "assignWorkspace": "分配项目",
       "removeDialog": {
         "title": "移除成员",
         "description": "确定要将 {{name}} 从该组织中移除吗？",
         "confirm": "移除"
       },
       "workspaceDialog": {
-        "title": "管理工作空间访问",
-        "description": "为 {{name}} 分配工作空间访问权限",
-        "addWorkspace": "添加工作空间",
-        "selectWorkspace": "选择工作空间",
-        "assignedWorkspaces": "已分配的工作空间",
-        "noAssignedWorkspaces": "暂无分配的工作空间",
+        "title": "管理项目访问",
+        "description": "为 {{name}} 分配项目访问权限",
+        "addWorkspace": "添加项目",
+        "selectWorkspace": "选择项目",
+        "assignedWorkspaces": "已分配的项目",
+        "noAssignedWorkspaces": "暂无分配的项目",
         "close": "关闭"
       },
       "searchByEmail": "按邮箱或姓名搜索（≥3 字符）",
@@ -416,7 +416,7 @@
         "title": "生成邀请链接",
         "description": "分享链接，对方登录后自动加入本组织。",
         "role": "角色",
-        "workspace": "工作区（可选）",
+        "workspace": "项目（可选）",
         "noWorkspace": "仅加入组织",
         "expiry": "有效期",
         "expiry1d": "1 天",
@@ -441,7 +441,7 @@
     },
     "workspaces": {
       "selectOrgFirst": "请先选择一个组织",
-      "description": "管理 {{name}} 下的工作空间"
+      "description": "管理 {{name}} 下的项目"
     },
     "organization": {
       "label": "所属组织",
@@ -453,24 +453,24 @@
       }
     },
     "workspace": {
-      "create": "创建工作空间",
-      "noWorkspaces": "暂无工作空间",
-      "noWorkspacesHint": "点击上方按钮创建第一个工作空间",
+      "create": "创建项目",
+      "noWorkspaces": "暂无项目",
+      "noWorkspacesHint": "点击上方按钮创建第一个项目",
       "createdAt": "创建于",
       "formDialog": {
-        "createTitle": "创建工作空间",
-        "editTitle": "编辑工作空间",
-        "createDescription": "创建一个新的工作空间，用于组织和管理资产",
-        "editDescription": "修改工作空间的名称和描述",
+        "createTitle": "创建项目",
+        "editTitle": "编辑项目",
+        "createDescription": "创建一个新的项目，用于组织和管理资产",
+        "editDescription": "修改项目的名称和描述",
         "name": "名称",
         "namePlaceholder": "例如：三林老街项目",
         "description": "描述",
-        "descriptionPlaceholder": "可选：添加工作空间的描述"
+        "descriptionPlaceholder": "可选：添加项目的描述"
       }
     },
     "users": {
       "title": "用户管理",
-      "description": "管理用户角色和工作空间访问权限",
+      "description": "管理用户角色和项目访问权限",
       "totalUsers": "总用户数",
       "noUsers": "暂无用户",
       "noUsersHint": "等待用户注册",
@@ -493,12 +493,12 @@
         "create": "创建",
         "createFailed": "创建失败"
       },
-      "workspaceCount": "{{count}} 个工作空间",
+      "workspaceCount": "{{count}} 个项目",
       "neverSignedIn": "从未登录",
       "columns": {
         "user": "用户",
         "role": "角色",
-        "workspaces": "工作空间",
+        "workspaces": "项目",
         "lastSignIn": "最近登录",
         "registered": "注册时间"
       },
@@ -523,7 +523,7 @@
         "loadingPreview": "正在分析影响…",
         "previewFailed": "获取删除预览失败",
         "noOwnedOrgs": "该用户不是任何组织的拥有者，删除不影响现有组织。",
-        "orgDelete": "将被删除（{{workspaces}} 个工作空间、{{assets}} 个资产及其文件）",
+        "orgDelete": "将被删除（{{workspaces}} 个项目、{{assets}} 个资产及其文件）",
         "orgPromote": "{{name}} 将被晋升为拥有者",
         "orgUnchanged": "已有其他拥有者，不受影响"
       }
@@ -531,9 +531,9 @@
     "clean": {
       "title": "资源清理",
       "description": "清理数据库和存储桶中的孤立资源",
-      "selectWorkspaceFirst": "请先选择工作空间",
+      "selectWorkspaceFirst": "请先选择项目",
       "confirmMessage": "确定要执行清理操作吗？",
-      "willDeleteRows": "- 将删除文件不存在的数据库记录（当前工作空间）",
+      "willDeleteRows": "- 将删除文件不存在的数据库记录（当前项目）",
       "willDeleteFiles": "- 将全局扫描存储桶，删除没有任何记录引用、且已存在超过 24 小时的孤儿文件",
       "irreversible": "此操作不可逆！"
     }
@@ -603,7 +603,7 @@
   },
   "upload": {
     "title": "上传资源",
-    "selectWorkspace": "请先选择工作空间",
+    "selectWorkspace": "请先选择项目",
     "pleaseLogin": "请先登录",
     "anchorRequiresLocation": "匹配点必须指定位置",
     "anchorRequiresName": "匹配点必须输入名称",
@@ -743,7 +743,7 @@
       "none": "不关联",
       "unnamed": "未命名匹配点",
       "notAssociated": "未关联匹配点",
-      "workspaceRequiredHint": "选择具体工作区后可关联匹配点",
+      "workspaceRequiredHint": "选择具体项目后可关联匹配点",
       "loading": "加载中...",
       "fetchFailed": "获取匹配点列表失败:"
     },
@@ -761,7 +761,7 @@
       "selectOrCreate": "选择或创建一个标签",
       "createOption": "创建 \"{{name}}\"",
       "addPlaceholder": "添加标签",
-      "workspaceRequiredHint": "选择具体工作区后可编辑标签",
+      "workspaceRequiredHint": "选择具体项目后可编辑标签",
       "colorSectionTitle": "颜色",
       "customColor": "自定义",
       "noResults": "无匹配标签",
@@ -904,7 +904,7 @@
     "saveChildren": "保存挂载关系",
     "childrenSaved": "挂载关系已保存",
     "childrenFailed": "部分挂载操作失败，请刷新后重试",
-    "noWorkspace": "请先选择具体工作空间以管理挂载素材。",
+    "noWorkspace": "请先选择具体项目以管理挂载素材。",
     "attach": "挂载",
     "detach": "取消挂载",
     "status_error": "无法确认特征状态",
@@ -949,9 +949,9 @@
     "unsaved": "未保存",
     "saved": "已保存",
     "modelAsset": "模型素材",
-    "noModels": "当前工作空间还没有模型",
+    "noModels": "当前项目还没有模型",
     "add": "添加实例",
-    "modelsHint": "使用场景所在工作空间的模型。最多 8 种模型、24 个实例；同一模型可重复添加。",
+    "modelsHint": "使用场景所在项目的模型。最多 8 种模型、24 个实例；同一模型可重复添加。",
     "empty": "场景为空。添加第一个模型开始编排。",
     "remove": "移除实例",
     "clip": "模型动画",
@@ -960,7 +960,7 @@
     "clipStart": "开始时间",
     "loading": "正在打开场景…",
     "retry": "重试",
-    "missingModel": "场景引用的模型已删除或移出工作空间。请移除对应实例，再添加可用模型。",
+    "missingModel": "场景引用的模型已删除或移出项目。请移除对应实例，再添加可用模型。",
     "invalidClip": "模型动画尚未加载或已失效。请等待加载完成，或重新选择动画。",
     "assetLimit": "最多使用 8 种模型，请先移除不需要的实例。",
     "modelFailed": "模型加载失败。可在层级中选中有问题的对象，在属性中移除后重试。",
@@ -982,7 +982,7 @@
     "addNamed": "添加 {{name}}",
     "addModel": "添加到场景",
     "noResults": "没有匹配的模型",
-    "noLibraryModels": "此工作空间还没有模型，请先返回资源管理上传 GLB。",
+    "noLibraryModels": "此项目还没有模型，请先返回资源管理上传 GLB。",
     "instanceLimit": "已达到 24 个实例上限",
     "emptyHierarchy": "还没有场景对象",
     "addFromLibrary": "从下方项目素材添加模型。",
@@ -1034,5 +1034,306 @@
     "dropModel": "松手放置模型",
     "dropOnGround": "请拖到场景地面内",
     "dropUnavailable": "当前无法添加模型"
+  },
+  "contentModel": {
+    "action": {
+      "cancel": "取消",
+      "retry": "重试",
+      "reload": "重新载入",
+      "clearFilters": "清除筛选",
+      "clearSearch": "清除搜索",
+      "loadMore": "加载更多"
+    },
+    "state": {
+      "loading": "正在加载",
+      "loadFailed": "没能加载内容",
+      "loadFailedHint": "请检查网络后重试。已有内容不会受影响。",
+      "conflict": "内容已被他人更新",
+      "forbidden": "没有执行此操作的权限",
+      "actionFailed": "操作没有完成"
+    },
+    "badge": {
+      "organization": "组织共享",
+      "restricted": "受限",
+      "inProject": "已在本项目",
+      "archived": "已归档",
+      "fileMissing": "文件缺失",
+      "unpublished": "未发布",
+      "published": "已发布",
+      "publishedNumbered": "已发布 v{{number}}",
+      "changed": "有未发布修改",
+      "outdated": "有新版本",
+      "outdatedNumbered": "可升级到 v{{number}}"
+    },
+    "context": {
+      "organization": "组织",
+      "project": "项目",
+      "noProject": "未选择项目"
+    },
+    "role": {
+      "label": "项目角色",
+      "manager": "项目管理者",
+      "editor": "编辑者",
+      "viewer": "查看者",
+      "managerHint": "可管理项目成员，并编辑、发布和投放项目内容。",
+      "editorHint": "可上传素材、编排和发布场景、管理投放。",
+      "viewerHint": "只能浏览项目素材和场景，不能修改。",
+      "cappedHint": "此成员的组织角色是查看者，项目内最多只能查看。"
+    },
+    "filter": {
+      "type": "类型",
+      "allTypes": "全部类型",
+      "state": "状态",
+      "origin": "来源",
+      "states": {
+        "active": "未归档",
+        "archived": "已归档",
+        "all": "全部状态"
+      },
+      "origins": {
+        "all": "全部来源",
+        "team_upload": "团队上传",
+        "public_submission": "公众投稿",
+        "legacy": "历史迁移"
+      }
+    },
+    "library": {
+      "title": "素材库",
+      "scopeLabel": "素材范围",
+      "scope": {
+        "project": "项目素材",
+        "organization": "组织共享"
+      },
+      "searchPlaceholder": "按名称搜索素材",
+      "upload": "上传素材",
+      "uploadNeedsProject": "选择一个项目后才能上传",
+      "uploadNoPermission": "你在此项目只能查看，不能上传",
+      "projectArchived": "项目已归档，内容只读",
+      "addToProject": "加入本项目",
+      "addNamedToProject": "加入本项目：“{{name}}”",
+      "browseShared": "浏览组织共享素材",
+      "fromProject": "来自 {{name}}",
+      "maintainedBy": "维护者 {{name}}",
+      "noMaintainer": "待管理员指定维护者",
+      "noMaintainerShort": "未指定",
+      "shown": "显示 {{shown}} 个，共 {{total}} 个",
+      "column": {
+        "asset": "素材",
+        "maintainer": "维护者",
+        "version": "版本",
+        "usage": "使用",
+        "updated": "更新"
+      },
+      "empty": {
+        "projectTitle": "这个项目还没有素材",
+        "projectBody": "上传新素材，或把组织共享的素材加入本项目后即可在场景和投放中使用。",
+        "sharedTitle": "组织内还没有共享素材",
+        "sharedBody": "维护者可在素材详情中把素材共享给整个组织，其他项目随后就能复用。",
+        "filteredTitle": "没有符合条件的素材",
+        "filteredBody": "试试其他名称，或清除类型、状态和来源筛选。",
+        "noProjectTitle": "选择一个项目查看项目素材",
+        "noProjectBody": "项目素材按项目授权显示。也可以先浏览组织共享素材。"
+      }
+    },
+    "usage": {
+      "title": "使用记录",
+      "summary": "共 {{count}} 处引用",
+      "filteredTo": "v{{number}} 共 {{count}} 处引用",
+      "count": "{{count}} 处使用",
+      "none": "未使用",
+      "kind": {
+        "published": "已发布场景",
+        "placement": "直接投放",
+        "draft": "场景草稿"
+      },
+      "restricted": "另有 {{count}} 处使用位于你无权查看的项目",
+      "showMore": "显示其余 {{count}} 处",
+      "emptyTitle": "还没有地方使用这个素材",
+      "emptyBody": "场景引用或直接投放后，会在这里列出所在项目和固定版本。",
+      "versionUnusedTitle": "v{{number}} 目前没有被引用",
+      "versionUnusedBody": "其他版本可能仍在使用。选择“显示全部版本的使用”查看完整记录。"
+    },
+    "version": {
+      "title": "版本历史",
+      "pinnedHint": "每处引用都固定在某个版本。选择版本可查看引用它的位置。",
+      "current": "当前",
+      "showAllUsage": "显示全部版本的使用",
+      "upload": "上传新版本",
+      "uploadTitle": "上传 v{{number}}",
+      "uploadBody": "新版本会成为“{{name}}”的当前版本。已有场景草稿、发布和投放继续使用原版本，使用方需要主动升级。",
+      "file": "新文件",
+      "text": "新的文字内容",
+      "url": "新的链接地址",
+      "note": "版本说明（可选）",
+      "notePlaceholder": "例如：修正贴图、缩短动画",
+      "create": "创建 v{{number}}",
+      "uploading": "正在上传",
+      "uploadingPercent": "已上传 {{percent}}%"
+    },
+    "sharing": {
+      "title": "共享范围",
+      "visibility": "谁可以浏览和选用",
+      "restricted": "仅授权项目",
+      "restrictedHint": "维护者、组织管理员和下方已授权的项目可以使用。",
+      "organization": "整个组织",
+      "organizationHint": "组织成员都能浏览；项目编辑者可以把它加入自己的项目。",
+      "maintainerOnly": "只有维护者或组织管理员可以修改共享范围和项目授权。",
+      "projects": "已授权项目",
+      "projectsHint": "这些项目可以在场景和投放中使用此素材。改为仅授权项目时，已有授权保留。",
+      "origin": "来源项目",
+      "dependencies": "{{count}} 处引用",
+      "noDependencies": "无引用",
+      "noProjects": "还没有项目获得授权。",
+      "revoke": "移除",
+      "revokeNamed": "移除 {{name}} 的使用授权",
+      "revokeBlocked": "项目内仍有引用，不能移除授权",
+      "revokeConfirm": "移除后，{{name}} 不能再选用此素材。",
+      "revokeAction": "移除授权",
+      "chooseProject": "选择要授权的项目",
+      "grant": "授权使用",
+      "allProjectsGranted": "组织内的项目都已获得授权。",
+      "archivedHint": "素材已归档，不能新增项目授权。"
+    },
+    "maintenance": {
+      "title": "维护",
+      "roleHint": "维护者和组织管理员可以上传新版本、修改共享范围和归档素材。",
+      "unassigned": "暂无维护者，由组织管理员接管",
+      "transfer": "转交维护",
+      "assign": "指定维护者",
+      "transferTitle": "转交维护责任",
+      "transferBody": "“{{name}}”当前由 {{current}} 维护。新维护者需要是可编辑的组织成员。",
+      "newMaintainer": "新维护者",
+      "choosePerson": "选择组织成员",
+      "noCandidates": "没有可选的组织成员",
+      "transferAction": "确认转交",
+      "archive": "归档素材",
+      "archiveHint": "归档后，已有引用继续工作，但不能再新增使用。可以随时恢复。",
+      "archivedBody": "此素材已归档。恢复后，项目可以再次选用。",
+      "restore": "恢复素材",
+      "archiveTitle": "归档“{{name}}”？",
+      "archiveBody": "归档不会删除任何版本或文件，可以随时恢复。",
+      "keepsWorking": "继续工作",
+      "impact": {
+        "published": "{{count}} 个已发布场景",
+        "placement": "{{count}} 处直接投放",
+        "draft": "{{count}} 个场景草稿中的相同引用"
+      },
+      "noImpact": "目前没有任何引用。",
+      "stops": "停止",
+      "stopsBody": "素材从选择器中隐藏，不能新增引用、投放或复制为新草稿的引用。",
+      "archiveAction": "归档"
+    },
+    "detail": {
+      "type": "类型",
+      "currentVersion": "当前版本",
+      "maintainer": "维护者",
+      "originProject": "来源项目",
+      "originUnknown": "未记录",
+      "source": "来源",
+      "created": "创建于",
+      "useOnlyHint": "你可以在有权限的项目中使用此素材；修改源文件和共享范围需要维护者或组织管理员。",
+      "staleTitle": "素材已被他人修改",
+      "staleBody": "你看到的信息已过期，刚才的修改没有保存。重新载入后再操作。",
+      "archivedTitle": "此素材已归档",
+      "archivedBody": "已有场景和投放继续使用固定版本；不能新增引用。",
+      "fileMissingTitle": "当前版本的文件缺失",
+      "fileMissingBody": "引用此版本的内容不能发布。请上传新版本，或联系管理员修复存储。"
+    },
+    "scene": {
+      "title": "场景",
+      "searchPlaceholder": "按名称搜索场景",
+      "create": "新建场景",
+      "import": "导入 JSON",
+      "needsProject": "选择一个项目后才能新建场景",
+      "noPermission": "你在此项目只能查看",
+      "name": "场景名称",
+      "createTitle": "新建场景",
+      "createBody": "场景属于项目“{{project}}”。创建后会打开编辑器。",
+      "createAction": "创建并打开",
+      "copy": "复制",
+      "copyNamed": "复制“{{name}}”",
+      "moreNamed": "“{{name}}”的更多操作",
+      "copyTitle": "复制场景",
+      "copyBody": "副本是一个新场景，沿用原场景引用的固定素材版本，不包含发布记录和投放。",
+      "copyDefaultName": "{{name}} 副本",
+      "copyAction": "创建副本",
+      "targetProject": "目标项目",
+      "copySameProjectHint": "副本保存在当前项目。",
+      "copyCrossProjectHint": "复制到其他项目时，会为目标项目取得所需素材的使用授权；受限素材需要维护者先授权。",
+      "archive": "归档场景",
+      "restore": "恢复场景",
+      "archiveTitle": "归档“{{name}}”？",
+      "archiveBody": "已有投放继续播放保留的发布版本。归档后不能编辑、发布或新建投放，可以随时恢复。",
+      "archivePlacements": "此场景有 {{count}} 处投放（{{active}} 处启用），它们不受影响。",
+      "liveRevision": "最新发布 v{{number}}",
+      "placements": "{{count}} 处投放 · {{active}} 处启用",
+      "noPlacements": "未投放",
+      "count": "共 {{count}} 个场景",
+      "projectArchivedTitle": "项目已归档",
+      "projectArchivedBody": "可以浏览场景；恢复项目后才能编辑、发布或复制。",
+      "column": {
+        "scene": "场景",
+        "placements": "投放",
+        "updated": "最近修改"
+      },
+      "filter": {
+        "current": "全部（不含归档）",
+        "unpublished": "未发布",
+        "published": "已发布",
+        "changed": "有未发布修改",
+        "archived": "已归档"
+      },
+      "empty": {
+        "noProjectTitle": "选择一个项目查看场景",
+        "noProjectBody": "场景属于具体项目。请在上方选择项目。",
+        "projectTitle": "这个项目还没有场景",
+        "projectBody": "新建场景后，在编辑器中添加项目素材、编排动画并发布。",
+        "readOnlyBody": "项目编辑者创建场景后会显示在这里。",
+        "filteredTitle": "没有符合条件的场景",
+        "filteredBody": "试试其他名称，或清除状态筛选。"
+      },
+      "placementsTotal": "{{count}} 处投放",
+      "archivePlacementsTotal": "此场景有 {{count}} 处投放，它们不受影响。"
+    },
+    "upgrade": {
+      "title": "升级“{{name}}”",
+      "upToDate": "已是最新版本 v{{number}}",
+      "pinned": "使用 v{{number}}",
+      "hint": "升级只修改当前草稿，已发布版本和投放保持不变。",
+      "scope": "升级范围",
+      "scopes": {
+        "instance": "仅当前对象",
+        "alias": "本场景中共用此引用的全部 {{count}} 个对象"
+      },
+      "preview": "预览 v{{number}}",
+      "action": "升级到 v{{number}}",
+      "archived": "素材已归档，不能升级到新版本；现有版本继续可用。",
+      "missingClip": "v{{number}} 中没有动画“{{clip}}”。请先为此对象换用其他动画再升级。"
+    },
+    "placement": {
+      "version": "投放的素材版本",
+      "revision": "投放的场景发布版本",
+      "choose": "选择版本",
+      "latest": "最新",
+      "pinnedHint": "投放固定在所选版本，“{{name}}”的新版本不会自动替换它。",
+      "newerAvailable": "“{{name}}”已有 v{{number}}，需要时可切换。",
+      "noVersions": "此素材还没有可投放的版本。",
+      "noRevisions": "此场景还没有发布，发布后才能投放。",
+      "status": {
+        "draft": "草稿",
+        "active": "启用",
+        "paused": "已暂停",
+        "archived": "已归档"
+      }
+    },
+    "integration": {
+      "publish": {
+        "refreshed": "投放已被他人修改，列表已刷新为最新状态。确认勾选后重试。"
+      },
+      "sceneRoute": {
+        "notFound": "场景不存在或你没有访问权限。",
+        "back": "返回场景列表"
+      }
+    }
   }
 }

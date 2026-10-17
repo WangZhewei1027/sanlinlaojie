@@ -53,7 +53,7 @@ export function DeleteWorkspaceDialog({
             确认删除
           </DialogTitle>
           <DialogDescription>
-            你确定要删除工作空间 <strong>{workspace.name}</strong> 吗？
+            你确定要删除项目 <strong>{workspace.name}</strong> 吗？
             此操作无法撤销。
           </DialogDescription>
         </DialogHeader>

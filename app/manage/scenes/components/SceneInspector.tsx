@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Diamond, Film, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,13 +15,16 @@ export interface SceneInspectorProps {
   time: number; duration: number; record: boolean; playing: boolean;
   onTransform: (channel: TransformChannel, value: number) => void;
   onKey: (group: TransformGroup) => void; onAnimation: (animation: CompositionInstance["animation"]) => void; onRemove: () => void;
+  /** Source facts for the selected object, e.g. its pinned asset version and upgrade (v2 scenes). */
+  source?: ReactNode;
 }
-export function SceneInspector({ instance, name, values, clips, time, duration, record, playing, onTransform, onKey, onAnimation, onRemove }: SceneInspectorProps) {
+export function SceneInspector({ instance, name, values, clips, time, duration, record, playing, onTransform, onKey, onAnimation, onRemove, source }: SceneInspectorProps) {
   const { t } = useTranslation();
   return <aside className="scene-inspector" aria-label={t("sceneEditor.inspector")}>
     <div className="scene-panel-heading"><SlidersHorizontal className="size-3.5" /><Text as="h2" variant="bodyXs" fontWeight="semibold">{t("sceneEditor.inspector")}</Text></div>
     {!instance || !values ? <div className="space-y-4 p-5"><Box className="size-7 text-muted-foreground" /><Text as="h3" variant="bodySm" fontWeight="semibold">{t("sceneEditor.selectObject")}</Text><Text as="p" variant="bodySm" tone="subdued">{t("sceneEditor.inspectorHint")}</Text></div> : <div className="scene-scroll">
       <div className="flex items-center gap-3 border-b px-4 py-4"><Box className="size-6 shrink-0 text-muted-foreground" /><div className="min-w-0"><Text as="h3" variant="bodySm" fontWeight="semibold" truncate title={name}>{name}</Text><Text as="p" variant="bodyXs" tone="subdued">{t("sceneEditor.modelInstance")}</Text></div></div>
+      {source && <section className="border-b p-3">{source}</section>}
       <section className="border-b p-3">
         <div className="mb-4 flex items-center justify-between"><Text as="h3" variant="bodyXs" fontWeight="semibold">{t("sceneEditor.transform")}</Text><Text as="span" variant="bodyXs" tone={record ? "critical" : "subdued"}>{record ? t("sceneEditor.recording") : `${time.toFixed(2)} s`}</Text></div>
         <div className="space-y-4">{TRANSFORM_GROUPS.map((group) => {

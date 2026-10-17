@@ -16,11 +16,91 @@ used to move every route off supabase-js.
 | Media | `lib/storage/oss.ts`, `lib/storage/public-url.ts` | `supabase.storage.from()` |
 | Uploads | `POST /api/upload` (relay) | browser direct upload to the bucket |
 
+## Team content model and cutover
+
+The current code contains a versioned content model alongside the legacy Asset
+model. These notes describe the code contract, not a claim that any production
+organization has migrated. The approved scope and migration order are in
+[team-assets-scenes-refactor-plan.md](team-assets-scenes-refactor-plan.md).
+
+| Entity | Responsibility |
+| --- | --- |
+| `asset` | One organization-owned identity, maintainer, visibility, current-version pointer and archive state |
+| `asset_version` / `asset_version_resource` | Immutable typed content and every managed file it retains |
+| `asset_workspace_grant` | Stable same-organization project use permission; not source maintenance permission |
+| `scene` / `scene_asset_ref` | Project-owned schema-3 draft and transactionally derived pinned-version references |
+| `scene_revision` / `scene_revision_asset_ref` | Immutable published document and its fixed dependencies |
+| `placement` / `placement_tag` | A geographic/display instance targeting exactly one AssetVersion or SceneRevision |
+| `legacy_runtime_binding` / `legacy_content_map` | Old public IDs and discovery scopes mapped to canonical placements |
+| `upload_receipt` | Actor/organization-bound upload proof and an expiring retention lease |
+
+The organization, not the workspace, selects the write model:
+
+| `organization.content_model_state` | Write source and UI |
+| --- | --- |
+| `legacy` | Legacy Asset writes and legacy map |
+| `preparing` | Legacy remains the write source while migration data is prepared |
+| `readonly` | Cutover window; administrative writes are rejected, UI becomes read-only |
+| `v2` | Asset/Scene/Placement domain services are the only content write source |
+
+Running DDL creates the structure; it does not authorize a cutover. Related
+organizations sharing legacy rows are audited together. Migration tools under
+`scripts/migrate/content-model/` own audit/backfill/verify/cutover; do not replace
+that workflow with an ad hoc state update. After v2 writes exist, rolling back
+the UI does not make an old writer safe.
+
+The content-model PUT is restricted to super-admin initialization of an
+organization with no legacy Asset rows (`legacy` → `v2`). It checks
+`expectedState` and permits a same-state no-op; migration state changes and
+rollback use the migration scripts.
+
+`lib/content-model/access.server.ts` resolves actor, organization, project and
+asset permissions. `assertV2Writable` rejects unopened organizations, readonly
+windows and archived organizations. `legacyPathMode` requires the explicit
+`X-Content-Model: 2` administrative contract on reused legacy paths after cutover
+and refuses ambiguous mixed scopes. The header is not authentication.
+
+`lib/content-model/contracts.ts` defines client-safe DTOs and error codes. Use
+the services in `lib/assets/`, `lib/scene/service.server.ts` and
+`lib/placements/`; do not reproduce their authorization in each route. New
+success envelopes use `{ data }` with optional pagination, failures use
+`{ error, code, details? }`. An unreadable asset is returned as not found to
+avoid disclosing another organization's identities.
+
+Content transactions use `contentTransaction` from
+`lib/content-model/tx.server.ts`, which declares the transaction-local writer
+through `content_model.writer`. The database `guard_legacy_asset_write` rejects
+undeclared legacy Asset writes for readonly/v2 organizations. This declaration
+is an internal write guard, not a substitute for application authorization.
+Do not dual-write old and new models. Legacy fields retained on an Asset are
+compatibility data, not a second editable source.
+
+Identity/draft/placement updates validate `expectedLockVersion` (missing 428,
+stale 409). Appending an AssetVersion is serialized under the Asset row lock;
+an optional supplied expected version is checked. Create commands use scoped
+idempotency keys; the same key with different input is a conflict. Scene
+publishing also reuses an existing revision for the same source draft version.
+Publishing can atomically switch selected placements through `updatePlacements`,
+with a separate expected lock for each placement; bare `updatePlacementIds`
+are rejected with 428.
+Grant revocation and new references share advisory locks. Resource reuse,
+version commit and collection share the object-key retention lock protocol.
+
+Scene JSON is the authoring source of truth; reference rows are derived inside
+the same transaction. Runtime compiles published schema-3 documents to playback
+schema 1/2 and never substitutes an Asset's current version. Ordinary media can
+be placed directly. Activity/topic/reply models are not implemented; future
+business content stays outside static Asset and Scene documents.
+
 Schema: `db/schema.sql` (baseline), `db/migrations/*.sql` (incremental),
 applied with `npm run db:migrate`. Types: `lib/db/types.ts`, regenerated with
 `npm run db:codegen` against a database that has the schema (`DATABASE_URL`).
 
-## Route handler shape
+## Legacy/general route handler shape
+
+This example illustrates authentication and SQL conventions for existing route
+families. For content-model writes, call the domain service and shared content
+HTTP helpers instead; an organization permission alone is insufficient.
 
 ```ts
 import { NextResponse } from "next/server";
@@ -155,7 +235,12 @@ import { putObject, deleteObjects, headObject, listObjects, mediaUrl, assetKeyFr
 - The database stores full public URLs (`NEXT_PUBLIC_MEDIA_BASE_URL` + key).
   `assetKeyFromUrl(url)` → key or null; `storagePathFromUrl` in
   `lib/storage-cleanup.server.ts` is the same thing.
-- Reference counting before deleting shared files is unchanged:
-  `removeStorageFileIfUnreferenced(url, ctx)`.
-- Browser uploads: `FileUploadService.uploadToStorage()` posts to
-  `/api/upload`, which dedups by content hash and writes to OSS.
+- Managed-file retention is centralized in `lib/storage/retention.server.ts`.
+  It protects version resources, legacy references, Anchor images, audio
+  compatibility siblings and unexpired receipts across all organizations.
+  Physical deletion is opt-in via `app_config.managed_object_deletion` and
+  performs its final check under the same object lock used by commit/reuse.
+- V2 versions accept upload receipts or authorized source-version resources,
+  not arbitrary managed URLs. Dedup is organization-scoped; identity and
+  ownership are independent of a shared physical file. See
+  [asset-storage-lifecycle.md](asset-storage-lifecycle.md).

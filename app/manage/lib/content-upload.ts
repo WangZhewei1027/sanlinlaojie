@@ -1,0 +1,104 @@
+/**
+ * Client adapter between the existing browser preprocessing (FILE_TYPE_CONFIGS
+ * compression and EXIF/audio metadata via FileUploadService.processFile) and
+ * the v2 commands, which accept upload receipts instead of URLs.
+ *
+ * Capture GPS goes into `payload.capture` as provenance only; a placement is
+ * created solely from an explicit location the caller passes.
+ */
+import { FileUploadService } from "@/lib/upload/service";
+import { FILE_TYPE_CONFIGS, getEffectiveMaxSizeMB, validateFileSize } from "@/lib/upload/config";
+import type { UploadType } from "@/lib/upload/types";
+import type { LinkAssetData } from "@/lib/link-asset";
+import type {
+  AssetFileType,
+  AssetVersionPayload,
+  CaptureMetadata,
+  ModelAnimationInfo,
+  PayloadAttributes,
+  ResourceInput,
+  UploadReceiptDto,
+} from "@/lib/content-model/contracts";
+import { uploadReceipt } from "./content-api";
+
+export interface PreparedFile {
+  file: File;
+  type: UploadType;
+  capture?: CaptureMetadata;
+  animations?: ModelAnimationInfo[];
+}
+
+/** Upload types that become an asset version in the generic library. */
+export const LIBRARY_UPLOAD_TYPES = ["model", "image", "video", "audio", "document"] as const;
+export type LibraryUploadType = (typeof LIBRARY_UPLOAD_TYPES)[number];
+
+export function acceptFor(type: UploadType) {
+  return FILE_TYPE_CONFIGS[type]?.accept;
+}
+
+export function maxSizeFor(type: UploadType) {
+  return getEffectiveMaxSizeMB(type);
+}
+
+/** Compress/inspect in the browser exactly as the legacy upload panel does. */
+export async function prepareFile(file: File, type?: UploadType): Promise<PreparedFile> {
+  if (type === "model") {
+    if (!validateFileSize(file, getEffectiveMaxSizeMB("model"))) throw new Error(`> ${getEffectiveMaxSizeMB("model")} MB`);
+    return { file, type: "model", animations: await readModelAnimations(file) };
+  }
+  const processed = await new FileUploadService().processFile(file, type);
+  const gps = processed.gpsSource;
+  const capture: CaptureMetadata | undefined = gps
+    ? { latitude: gps.location.latitude, longitude: gps.location.longitude, altitude: gps.location.height, source: gps.type, captured_at: gps.timestamp }
+    : undefined;
+  return { file: processed.file, type: processed.type, capture };
+}
+
+/** Best-effort clip list for the version payload; the server stays authoritative. */
+export async function readModelAnimations(file: File): Promise<ModelAnimationInfo[] | undefined> {
+  try {
+    const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
+      import("three/examples/jsm/loaders/GLTFLoader.js"),
+      import("three/examples/jsm/loaders/DRACOLoader.js"),
+    ]);
+    const loader = new GLTFLoader();
+    const media = process.env.NEXT_PUBLIC_MEDIA_BASE_URL;
+    if (media) loader.setDRACOLoader(new DRACOLoader().setDecoderPath(`${media.replace(/\/+$/, "")}/static/draco/gltf/`));
+    const gltf = await loader.parseAsync(await file.arrayBuffer(), "");
+    return gltf.animations.map((clip, index) => ({ index, name: clip.name, duration_seconds: clip.duration }));
+  } catch {
+    return undefined;
+  }
+}
+
+export function fileTypeOf(type: UploadType): AssetFileType {
+  return type === "scene" ? "document" : type;
+}
+
+export function filePayload(prepared: PreparedFile): AssetVersionPayload {
+  const kind = fileTypeOf(prepared.type);
+  const base = prepared.capture ? { capture: prepared.capture } : {};
+  if (kind === "model") return { ...base, kind, ...(prepared.animations ? { animations: prepared.animations } : {}) };
+  if (kind === "text" || kind === "link") throw new Error(`${kind} has no file payload`);
+  return { ...base, kind } as AssetVersionPayload;
+}
+
+export function textPayload(text: string, attributes?: PayloadAttributes, capture?: CaptureMetadata): AssetVersionPayload {
+  return { kind: "text", text, ...(attributes ? { attributes } : {}), ...(capture ? { capture } : {}) };
+}
+
+export function linkPayload(link: LinkAssetData, title?: string): AssetVersionPayload {
+  return { kind: "link", url: link.originalUrl, ...(title ? { title } : {}), preview: { preview_url: link.previewUrl, link_type: link.linkType } };
+}
+
+export interface UploadedVersionInput {
+  payload: AssetVersionPayload;
+  resources: ResourceInput[];
+  receipts: UploadReceiptDto[];
+}
+
+/** Upload the processed file and describe it as a new version body. */
+export async function uploadFileVersion(prepared: PreparedFile, workspaceId: string, signal?: AbortSignal): Promise<UploadedVersionInput> {
+  const receipt = await uploadReceipt(prepared.file, { type: prepared.type, workspaceId, purpose: "asset_version", signal });
+  return { payload: filePayload(prepared), resources: [{ role: "primary", receiptId: receipt.id }], receipts: [receipt] };
+}

@@ -1,72 +1,64 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/server";
-import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
-import { isSuperAdmin } from "@/lib/permissions";
+import { loadActor, requireWorkspaceEdit } from "@/lib/content-model/access.server";
+import { failure, requireSessionUserId } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
+import { publicObjectUrl } from "@/lib/assets/urls";
+import { lockObjectKeys } from "@/lib/storage/retention.server";
+import { headObject } from "@/lib/storage/oss";
+import { findProbeKey, issueReceipt } from "@/lib/upload/receipts.server";
 
 /**
  * 按内容 hash 查已存在的文件 URL，用于上传前去重。
- * 去重按组织隔离：必须携带目标 workspace_id，服务端解析其所属组织，
- * 只匹配同组织 workspace 下的资产——避免跨组织共享存储对象
- * （否则删除 A 组织的资产可能清掉 B 组织仍在引用的文件）。
- * 命中则复用返回的 file_url、跳过重复存储上传；未命中返回 { file_url: null }。
+ * 必须携带目标 workspace_id，且调用者需有该项目的编辑权限。只凭 hash 不能证明
+ * 持有文件字节，所以只匹配调用者本就能读取/使用的内容（findProbeKey）：可在该
+ * 项目使用的素材版本、可读项目中的旧行、或调用者自己的有效上传回执；绝不返回
+ * 受限素材或他人未提交的上传。真实字节上传的去重仍走 /api/upload。
+ * 命中时在对象 key 锁内复核仍可达并登记一张 legacy_asset 用途的租约，使后续
+ * 旧行写入之前文件不会被回收；该租约不能用于创建 v2 版本。
+ * 未命中返回 { file_url: null }。
  */
 export async function GET(request: Request) {
-  const user = await getSessionUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "未授权" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const hash = searchParams.get("hash");
-  const workspaceId = searchParams.get("workspace_id");
-
-  if (!hash) {
-    return NextResponse.json({ error: "缺少 hash" }, { status: 400 });
-  }
-
-  if (!workspaceId) {
-    return NextResponse.json({ error: "缺少 workspace_id" }, { status: 400 });
-  }
-
-  // 解析目标 workspace 所属组织；不存在则拒绝
-  const orgId = await getWorkspaceOrgId(workspaceId);
-  if (!orgId) {
-    return NextResponse.json({ error: "工作区不存在" }, { status: 404 });
-  }
-
-  // 鉴权：super_admin 放行；否则必须是该组织成员
-  const { globalRole, orgRole } = await getUserContext(user.id, orgId);
-  if (!isSuperAdmin(globalRole ?? undefined) && !orgRole) {
-    return NextResponse.json({ error: "权限不足" }, { status: 403 });
-  }
-
+  let userId: string | null = null;
   try {
-    // 组织内去重：只匹配 workspace_id 与本组织 workspace 集合有交集的资产
-    const wsRows = await db
-      .selectFrom("workspace")
-      .select("id")
-      .where("organization_id", "=", orgId)
-      .execute();
-
-    const orgWorkspaceIds = wsRows.map((w) => w.id);
-    if (orgWorkspaceIds.length === 0) {
-      return NextResponse.json({ file_url: null });
+    userId = await requireSessionUserId();
+    const { searchParams } = new URL(request.url);
+    const hash = searchParams.get("hash");
+    const workspaceId = searchParams.get("workspace_id");
+    if (!hash || !/^[a-f0-9]{64}$/i.test(hash)) {
+      return NextResponse.json({ error: "缺少 hash" }, { status: 400 });
     }
+    if (!workspaceId) {
+      return NextResponse.json({ error: "缺少 workspace_id" }, { status: 400 });
+    }
+    if (!isUuid(workspaceId)) return NextResponse.json({ error: "工作区不存在" }, { status: 404 });
 
-    const data = await db
-      .selectFrom("asset")
-      .select("file_url")
-      .where("content_hash", "=", hash)
-      .where("file_url", "is not", null)
-      .where("workspace_id", "&&", orgWorkspaceIds)
-      .limit(1)
-      .executeTakeFirst();
+    const actor = await loadActor(db, userId);
+    const project = await requireWorkspaceEdit(db, actor, workspaceId);
+    const key = await findProbeKey(db, actor, project, hash.toLowerCase());
+    if (!key) return NextResponse.json({ file_url: null });
 
-    return NextResponse.json({ file_url: data?.file_url ?? null });
+    const exists = await db.transaction().execute(async (trx) => {
+      await lockObjectKeys(trx, [key]);
+      // Re-check reachability under the lock (the source may have changed), then existence.
+      if ((await findProbeKey(trx, actor, project, hash.toLowerCase())) !== key) return false;
+      if (!(await headObject(key))) return false;
+      await issueReceipt(trx, {
+        organizationId: project.workspace.organization_id,
+        workspaceId,
+        userId: actor.userId,
+        storageKey: key,
+        contentHash: hash.toLowerCase(),
+        mimeType: null,
+        sizeBytes: 0,
+        uploadType: null,
+        purpose: "legacy_asset",
+        reused: true,
+      });
+      return true;
+    });
+    return NextResponse.json({ file_url: exists ? publicObjectUrl(key) : null });
   } catch (error) {
-    console.error("by-hash 查询失败:", error);
-    return NextResponse.json({ error: "查询失败" }, { status: 500 });
+    return failure(error, { method: "GET", path: "/api/assets/by-hash", userId });
   }
 }

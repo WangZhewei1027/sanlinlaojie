@@ -22,7 +22,7 @@ import {
   waitForHealthyWebgl,
   recoverFromFatal,
 } from "./src/managers/recoveryManager.js";
-import { setupMessageListener } from "./src/managers/messageHandler.js";
+import { setupMessageListener, sendMessageToParent } from "./src/managers/messageHandler.js";
 import { setupClickHandler } from "./src/managers/clickHandler.js";
 import {
   setupInteraction,
@@ -55,6 +55,9 @@ async function init() {
 
     // 3.5 设置拖动/框选交互
     setupInteraction();
+    // WebGL recovery can delay initialization beyond the iframe load event.
+    // Ask the parent to replay the latest origin, assets and queued focus.
+    sendMessageToParent("VIEWER_READY", {});
 
     // 4. 加载地形：移动端显存有限，不加载 b3dm，只用卫星底图
     if (IS_MOBILE) {

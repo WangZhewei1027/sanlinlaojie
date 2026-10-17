@@ -10,6 +10,7 @@ import {
 import { embedImage } from "./embedding.server";
 import type { ModelTelemetry } from "./model-telemetry";
 import { loadReferenceVectors, readReferenceMeta } from "./reference-cache.server";
+import { anchorPlacements, scopeState } from "@/lib/placements/runtime.server";
 
 // Shared cap for everyone recognizing in one workspace (database counter, so
 // it holds across processes). Set just above what the model service can serve
@@ -204,17 +205,22 @@ export async function recognizeAnchor(
     return empty("reference_changed");
   let assets;
   try {
-    assets = await db
-      .selectFrom("asset")
-      .select([
-        "id", "name", "file_type", "file_url", "text_content", "anchor_id",
-        "tag_ids", "metadata", "is_huge", "config",
-      ])
-      .where("anchor_id", "=", candidate.id)
-      .where("file_type", "<>", "anchor")
-      .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
-      .orderBy("id")
-      .execute();
+    // Cut-over organizations attach content through placements (anchor_id),
+    // projected into the same row shape under the public id.
+    const scope = await scopeState({ workspaceId, organizationId: null });
+    assets = scope?.state === "v2"
+      ? await anchorPlacements(workspaceId, candidate.id)
+      : await db
+          .selectFrom("asset")
+          .select([
+            "id", "name", "file_type", "file_url", "text_content", "anchor_id",
+            "tag_ids", "metadata", "is_huge", "config",
+          ])
+          .where("anchor_id", "=", candidate.id)
+          .where("file_type", "<>", "anchor")
+          .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
+          .orderBy("id")
+          .execute();
   } catch {
     throw new MatchingError("无法读取挂载素材", 503);
   }

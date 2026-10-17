@@ -16,6 +16,7 @@ import {
 import { parseSceneText } from "@/lib/scene/validate";
 import { createBlankScene } from "@/lib/scene/protocol";
 import type { LinkAssetData } from "@/lib/link-asset";
+import type { UploadPurpose, UploadReceiptDto, UploadResponse } from "@/lib/content-model/contracts";
 
 /**
  * uploadToStorage 的返回：storagePath 仅在本次真正上传了新对象时非 null；
@@ -25,6 +26,11 @@ export interface StorageUploadResult {
   url: string;
   contentHash: string;
   storagePath: string | null;
+  /**
+   * Upload receipt (present whenever a workspace was given). Content-model v2
+   * versions reference files only through `receipt.id`.
+   */
+  receipt?: UploadReceiptDto;
 }
 
 /**
@@ -103,7 +109,7 @@ export class FileUploadService {
   async uploadToStorage(
     file: File,
     userId: string,
-    options?: { type?: UploadType; workspaceId?: string },
+    options?: { type?: UploadType; workspaceId?: string; purpose?: UploadPurpose },
   ): Promise<StorageUploadResult> {
     void userId; // 上传归属由服务端根据会话决定
     console.log(
@@ -125,14 +131,10 @@ export class FileUploadService {
     form.set("file", file, file.name);
     form.set("type", uploadType);
     if (options?.workspaceId) form.set("workspace_id", options.workspaceId);
+    if (options?.purpose) form.set("purpose", options.purpose);
 
     const res = await fetch("/api/upload", { method: "POST", body: form });
-    const body = (await res.json().catch(() => ({}))) as {
-      url?: string;
-      contentHash?: string;
-      storagePath?: string | null;
-      error?: string;
-    };
+    const body = (await res.json().catch(() => ({}))) as Partial<UploadResponse> & { error?: string };
     if (!res.ok || !body.url || !body.contentHash) {
       console.error("上传错误:", body.error);
       throw new Error(body.error || "上传失败");
@@ -147,6 +149,7 @@ export class FileUploadService {
       url: body.url,
       contentHash: body.contentHash,
       storagePath: body.storagePath ?? null,
+      ...(body.data ? { receipt: body.data } : {}),
     };
   }
 

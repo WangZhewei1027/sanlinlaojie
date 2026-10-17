@@ -20,7 +20,7 @@ npm run db:codegen   # regenerate lib/db/types.ts from DATABASE_URL (run after s
 npm run deploy       # scripts/deploy.sh — build image, ship over SSH, docker compose up
 ```
 
-There is no test suite. `npm run build` is the closest thing to a full correctness gate (TS is `strict`). Path alias: `@/*` → repo root.
+Validation uses `npm run check` (typecheck, lint, build and Storybook), plus focused scripts under `scripts/test-*.ts`. Content-model scripts cover contracts, services, HTTP and migration behavior; read their fixture/environment requirements before running database tests. Passing a build does not establish migration or runtime correctness. Path alias: `@/*` → repo root.
 
 Local database: `docker run -d --name sanlin-dev-db --platform linux/amd64 -e POSTGRES_PASSWORD=sanlin -e POSTGRES_DB=sanlin -p 55432:5432 postgis/postgis:17-3.5`, then `npm run db:migrate` (`.env.local` already points `DATABASE_URL` at it).
 
@@ -47,7 +47,7 @@ There is one database connection with full access. **Every permission decision i
 
 User ids are the same UUIDs as before the migration (`public.users.user_id` → `auth.users.id`). Creating a row in `auth.users` fires `handle_new_user()` (public.users row, personal organization, owner membership, default workspace), so every sign-up path gets the same bootstrap.
 
-### Two-tier permission system
+### Organization, project and asset permissions
 
 Read `lib/permissions.ts` before touching any access-control code.
 
@@ -55,7 +55,9 @@ Read `lib/permissions.ts` before touching any access-control code.
 - **Tier 2 — org role** (`organization_member.role`): `owner` | `admin` | `member` | `viewer`, resolved per-organization.
 - `lib/permissions.ts` is a **pure, client-safe** permission matrix (`hasOrgPermission`, `hasGlobalPermission`, `isSuperAdmin`, `isSidebarItemVisible`). No DB access — safe to import in Client Components for UI gating.
 - `lib/permissions.server.ts` does the **DB lookups** (`getUserContext(userId, orgId?)`, `getWorkspaceOrgId(s)`). Server-only.
-- Standard API-route pattern: `getSessionUser()` → 401 if none → `getUserContext()` → gate with `isSuperAdmin` / `hasOrgPermission`. See `app/api/assets/move/route.ts` for the canonical example (also shows batching writes into one SQL function call to avoid N requests).
+- Project role (`workspace_assignment.role`): `manager` | `editor` | `viewer`. Org owner/admin are implicit managers; org viewer is a read-only cap. An org member without an assignment has no project access. `effectiveProjectRole` in `lib/permissions.ts` is the pure rule.
+- Content authorization lives in `lib/content-model/access.server.ts`: `loadActor`, `requireWorkspaceRead/Edit/Manage`, `requireAssetRead/Maintain`, and transactional `ensureAssetUse`. Use these with the domain services; `org.assets.write` alone is not enough for project access or source-asset maintenance. Capability flags come from the same server rules.
+- Asset use is granted through `asset_workspace_grant`; maintenance belongs to `maintained_by` or org owner/admin. Never infer ownership or use permission from upload paths, `created_by`, or `origin_workspace_id`.
 
 UI gating (sidebar, buttons) uses the pure matrix; **it is not a security boundary** — every mutating API route must re-check server-side. `proxy.ts` (the Next.js middleware — the file is named `proxy.ts`, not `middleware.ts`) only checks for a session cookie and redirects logged-out visitors to `/auth/login`; public prefixes: `/`, `/auth`, `/login`, `/invite`, `/instructions`, `/api/auth`, `/api/errors`, `/api/miniapp`, plus the public `/api/assets/[id]/matching` endpoint.
 
@@ -65,7 +67,7 @@ UI gating (sidebar, buttons) uses the pure matrix; **it is not a security bounda
 
 - **React side** owns state and chrome. `app/manage/store.ts` is a persisted Zustand store holding the selected organization/workspace, asset list, filtered assets, clicked location, and multi-select set.
 - **The 3D map itself is NOT React.** It's a standalone vanilla-JS app under `public/js/viewer/` (served statically) loaded in an `<iframe>` via `app/manage/components/ViewerFrame.tsx`. The iframe URL carries `?media=` (object-storage base) and optionally `?tdt=` (天地图 key); `src/utils/config.js` reads them. The Cesium build lives on OSS at `static/cesium/<version>/`, the 2.6 GB tileset at `tiles/terra_b3dms/` (the copy under `public/js/viewer/terra_b3dms` is only a local-dev fallback and is excluded from the Docker image).
-- React ↔ iframe communicate over **`postMessage`**, bridged in `app/manage/hooks/useViewerMessaging.ts`. React posts `SET_ORIGIN` (org `map_center`) and the asset list down; the viewer posts back map clicks, asset selection/box-select, and drag-move coordinates. When changing map behavior, decide which side owns it — editing `public/js/viewer/` (plain JS/Cesium) vs. the React hooks/store.
+- React ↔ iframe communicate over **`postMessage`**. Legacy mode uses `useViewerMessaging.ts` and Asset IDs. V2 uses `usePlacementViewer.ts`, `placement-store.ts`, and `placement-to-viewer.ts`; legacy message names remain, but every map `id` / returned `assetId` is a **Placement ID**. V2 drags call the placement service with lock versions. Never send these IDs to legacy Asset move/delete handlers.
 
 `ALL_WORKSPACES_ID = "__all__"` (`app/manage/constants.ts`) is a sentinel distinguishing "user cleared the workspace filter (operate at org scope)" from `null` ("no choice yet — auto-pick first"). Use `isSpecificWorkspaceId()` to test for a real workspace UUID.
 
@@ -73,18 +75,22 @@ UI gating (sidebar, buttons) uses the pure matrix; **it is not a security bounda
 
 Config-driven, extensible. `FILE_TYPE_CONFIGS` (`config.ts`) maps each `UploadType` (image/video/audio/document/link/text/anchor/shop/model) to accept rules, max size, and optional `process` / `extractMetadata` hooks. `FileUploadService` (`service.ts`) processes in the browser (images → JPEG via `lib/image-compression.ts` + EXIF GPS via `lib/exif-reader.ts`; audio metadata via `lib/audio-compression.ts` — its Opus/WebM compression is currently disabled in `config.ts`), posts the file to `/api/upload` (server writes to OSS under `assets/{userId}/…`, reusing an existing object when the content hash already exists in the organization), then creates the asset row through `/api/workspaces/[id]/assets`. Location priority: EXIF GPS > user map-click. To add a file type, extend `types.ts` + `config.ts` (see `lib/upload/README.md`).
 
+That direct Asset-write flow is the legacy adapter. V2 creates an Asset identity, immutable AssetVersion, file-resource rows and a project grant; optional placement is a separate record in the same command. Files are committed using actor/org-bound upload receipts or authorized source-version resources, never arbitrary managed URLs. See `lib/assets/`, `lib/upload/receipts.server.ts`, and `docs/asset-pipeline.md`. All collection paths must use `lib/storage/retention.server.ts`; physical deletion is disabled unless `app_config.managed_object_deletion.enabled` is explicitly true.
+
 ### Other subsystems
 
 - **i18n**: `react-i18next`, initialized in `lib/i18n/config.ts`. Default `zh`, fallback `en`; language persisted in `localStorage`. Strings live in `locales/zh.json` / `locales/en.json`. Long-form instruction pages use MDX under `app/instructions/{zh,en}` (`@next/mdx`, `mdx-components.tsx`).
 - **Error logging**: `lib/log-error.ts` — `logError`/`logErrorSafe` are **fire-and-forget, never throw**; they insert into the `error_log` table. API catch-blocks call these. Surfaced at `/super-admin/error-logs`.
 - **SMS / phone auth**: `lib/auth/sms.ts` uses Alibaba Cloud Dypnsapi (号码认证服务) for phone register/login/reset. Phone users are email/password accounts under a virtual email (`lib/phone-email.ts`). Credentials come from the RAM user `sanlin-app` (`ALIBABA_CLOUD_ACCESS_KEY_*`, shared with OSS).
-- **Scene assets**: `asset.file_type = "scene"`, composition JSON in `text_content`; see `docs/scene-asset.md`. Uses ordinary asset CRUD, permissions, placement and cleanup. `lib/scene/` validates model references within the asset workspace; `/api/miniapp/assets/scene` resolves current model URLs on demand. No scene tables, workspace mode switch, publication or file snapshots.
+- **Scenes**: v2 uses `scene` for schema-3 drafts with pinned AssetVersion references; `scene_revision` freezes published documents and dependency rows. `lib/scene/service.server.ts` owns saving/publishing, and `compile.ts` produces playback schema 1/2 with the public discovery ID. Legacy organizations still use `asset.file_type="scene"` and `text_content`; see `docs/scene-asset.md`. Do not resolve a v2 revision from an Asset's current URL.
+- **Content cutover**: `organization.content_model_state` is `legacy | preparing | readonly | v2`. Legacy/preparing keep the old write source, readonly freezes writes, and v2 uses domain services. `contentTransaction` declares the writer; database guards reject stale legacy writers after cutover. Administrative legacy paths require `X-Content-Model: 2` for v2 contracts. Do not bypass this gate, dual-write models, or set v2 merely because a migration file ran. The content-model PUT only initializes an organization with no legacy Asset rows from legacy to v2; other transitions and rollback use `scripts/migrate/content-model/`. The approved plan is `docs/team-assets-scenes-refactor-plan.md`.
+- **Activity extension**: static placement content resolves AssetVersion or SceneRevision. Activity/topic/reply/reward storage and a generic rule engine are not implemented; keep future business content outside Asset and Scene documents.
 - **Anchor matching**: `lib/anchor/*` + PAI-EAS (`SAGE_EAS_*`); reference images must live on our media host (`lib/anchor/reference.server.ts`).
 - **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`.
 
 ### Database
 
-PostgreSQL 17 + **PostGIS** in a Docker container next to the app (assets carry geo coordinates). `db/schema.sql` is the baseline and the single source of truth for tables, functions and triggers; incremental changes go in `db/migrations/<timestamp>_<name>.sql` and are applied by `npm run db:migrate` (recorded in `schema_migrations`). After a schema change run `npm run db:codegen`. Table names are **singular** (`asset`, `workspace`, `organization_member`) except `users`. Batch operations are Postgres functions (e.g. `move_assets`, `purge_organizations`) invoked with `sql` from API routes rather than raw table writes.
+PostgreSQL 17 + **PostGIS** in a Docker container next to the app. V2 geo coordinates belong to Placement; legacy Asset coordinates remain for compatibility. `db/schema.sql` is the baseline and the single source of truth for tables, functions and triggers; incremental changes go in `db/migrations/<timestamp>_<name>.sql` and are applied by `npm run db:migrate` (recorded in `schema_migrations`). After a schema change run `npm run db:codegen`. Table names are **singular** (`asset`, `workspace`, `organization_member`) except `users`. V2 commands use Kysely transactions in domain services; legacy batch functions must not bypass writer guards, reference checks or retention.
 
 ### Deployment
 
@@ -103,7 +109,7 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app (assets carry 
 
 ## Route map
 
-`/` home · `/manage` map workspace (main app) · `/admin/*` org console (members / workspaces / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
+`/` home · `/manage` map (v2 placements or legacy assets) · `/manage/assets` team asset library · `/manage/scenes` scenes · `/manage/scenes/[id]` editor · `/admin/*` org console (members / projects / settings) · `/super-admin/*` global console (users / organizations / error-logs / clean / settings) · `/auth/*` auth flows · `/invite/[token]` org invitations · `/upload-onsite` on-site capture · `/settings` profile · `/instructions/{zh,en}` MDX guides · `/403`. API under `app/api/` (`/api/auth/*` is Better Auth).
 
 ## Reference docs
 

@@ -1,0 +1,113 @@
+import "server-only";
+import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth/server";
+import { logError } from "@/lib/log-error";
+import { CONTENT_MODEL_HEADER, CONTENT_MODEL_VERSION, type ApiErrorBody } from "./contracts";
+import { db } from "@/lib/db";
+import { loadActor, type Actor } from "./access.server";
+import { ContentError } from "./errors";
+import { isRecord, type JsonRecord } from "./input";
+
+const NO_STORE = { "Cache-Control": "no-store" };
+
+export function ok<T>(data: T, status = 200, extra?: Record<string, unknown>): NextResponse {
+  return NextResponse.json({ ...extra, data }, { status, headers: NO_STORE });
+}
+
+export function errorJson(error: ContentError): NextResponse {
+  const body: ApiErrorBody = { error: error.message, code: error.code, ...(error.details ? { details: error.details } : {}) };
+  return NextResponse.json(body, { status: error.status, headers: NO_STORE });
+}
+
+/** True when the caller speaks the v2 administrative contract. */
+export function hasContentModelHeader(request: Request): boolean {
+  return request.headers.get(CONTENT_MODEL_HEADER) === CONTENT_MODEL_VERSION;
+}
+
+export async function readJsonBody(request: Request): Promise<JsonRecord> {
+  const body: unknown = await request.json().catch(() => undefined);
+  if (!isRecord(body)) throw new ContentError("VALIDATION_FAILED", "请求体必须是 JSON 对象");
+  return body;
+}
+
+export async function requireSessionUserId(): Promise<string> {
+  const user = await getSessionUser();
+  if (!user) throw new ContentError("UNAUTHENTICATED", "未授权");
+  return user.id;
+}
+
+interface PgError {
+  code?: string;
+  message?: string;
+  constraint?: string;
+}
+
+/** Database errors that are client conflicts rather than server faults. */
+export function mapDatabaseError(error: unknown): ContentError | null {
+  if (!error || typeof error !== "object") return null;
+  const pg = error as PgError;
+  const message = typeof pg.message === "string" ? pg.message : "";
+  if (pg.code === "55000" && message.startsWith("CONTENT_MODEL_UPGRADE_REQUIRED"))
+    return new ContentError("CONTENT_MODEL_UPGRADE_REQUIRED", "该组织已切换到新内容模型，请刷新页面或升级客户端");
+  if (pg.code === "55000" && message.includes("immutable")) return new ContentError("VALIDATION_FAILED", "已发布版本不可修改");
+  if (pg.code === "23503") return new ContentError("DEPENDENCY_CONFLICT", "仍有内容依赖该对象，操作被拒绝");
+  if (pg.code === "23505") return new ContentError("LOCK_VERSION_CONFLICT", "内容已被并发修改，请重新载入后重试");
+  if (pg.code === "40001" || pg.code === "40P01") return new ContentError("LOCK_VERSION_CONFLICT", "并发冲突，请重试");
+  if (pg.code === "23514" || pg.code === "22P02" || pg.code === "22023") return new ContentError("VALIDATION_FAILED", "数据不符合约束");
+  return null;
+}
+
+export interface RouteContext {
+  method: string;
+  path: string;
+  userId?: string | null;
+}
+
+/** Map any failure to the shared error envelope; unexpected ones are logged as 500. */
+export async function failure(error: unknown, ctx: RouteContext): Promise<NextResponse> {
+  const known = error instanceof ContentError ? error : mapDatabaseError(error);
+  if (known) {
+    if (known.status === 403 && ctx.userId)
+      await logError({ userId: ctx.userId, method: ctx.method, path: ctx.path, status: 403, message: known.message });
+    return errorJson(known);
+  }
+  console.error(`[${ctx.method} ${ctx.path}]`, error);
+  await logError({
+    userId: ctx.userId ?? null,
+    method: ctx.method,
+    path: ctx.path,
+    status: 500,
+    message: error instanceof Error ? error.message : String(error),
+  });
+  return errorJson(new ContentError("INTERNAL", "服务器错误"));
+}
+
+/**
+ * Standard v2 route body: session → handler → `{ data }`, errors mapped.
+ * The handler returns either data (wrapped with `status`) or a NextResponse.
+ */
+export async function handleRoute<T>(
+  request: Request,
+  path: string,
+  handler: (userId: string) => Promise<T | NextResponse>,
+  status = 200,
+): Promise<NextResponse> {
+  let userId: string | null = null;
+  try {
+    userId = await requireSessionUserId();
+    const result = await handler(userId);
+    return result instanceof NextResponse ? result : ok(result, status);
+  } catch (error) {
+    return failure(error, { method: request.method, path, userId });
+  }
+}
+
+/** handleRoute + the caller's global role resolved once. */
+export async function handleActorRoute<T>(
+  request: Request,
+  path: string,
+  handler: (actor: Actor) => Promise<T | NextResponse>,
+  status = 200,
+): Promise<NextResponse> {
+  return handleRoute(request, path, async (userId) => handler(await loadActor(db, userId)), status);
+}

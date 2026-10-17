@@ -1,23 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useManageStore } from "../store";
 import { WORKSPACE_ROUTES, isPathWithinRoutes } from "../constants";
+import { readExplicitContext } from "../lib/content-context";
+import { ExplicitContextSync } from "./ExplicitContextSync";
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const shouldShowWorkspace = isPathWithinRoutes(pathname, WORKSPACE_ROUTES);
 
-  // Read persisted selections from the Zustand store at mount time only.
-  // `persist` middleware hydrates the store synchronously on client, so these
-  // values will already reflect the last user choice on the first render.
-  const [initialOrgId] = useState(
-    () => useManageStore.getState().selectedOrganizationId,
+  // Initial selection: an explicit `?organizationId=&workspaceId=` in the URL
+  // wins over the persisted store (shared links, other tabs). Otherwise read
+  // the persisted choice; `persist` hydrates synchronously on the client.
+  const [initialExplicit] = useState(() =>
+    typeof window === "undefined"
+      ? { organizationId: null, workspaceId: null }
+      : readExplicitContext(new URLSearchParams(window.location.search)),
   );
-  const [initialWorkspaceId] = useState(
-    () => useManageStore.getState().selectedWorkspaceId,
+  const [initialOrgId] = useState(
+    () =>
+      initialExplicit.organizationId ??
+      useManageStore.getState().selectedOrganizationId,
+  );
+  const [initialWorkspaceId] = useState(() =>
+    initialExplicit.organizationId &&
+    initialExplicit.organizationId !==
+      useManageStore.getState().selectedOrganizationId
+      ? initialExplicit.workspaceId
+      : (initialExplicit.workspaceId ??
+        useManageStore.getState().selectedWorkspaceId),
   );
 
   const {
@@ -164,5 +178,25 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loading, setStoreWorkspaceLoading, shouldShowWorkspace]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {shouldShowWorkspace && (
+        <Suspense fallback={null}>
+          <ExplicitContextSync
+            loading={loading}
+            organizations={organizations}
+            workspaces={workspaces}
+            selectedOrganizationId={selectedOrganizationId}
+            selectedWorkspaceId={selectedWorkspaceId}
+            changeOrganization={handleOrganizationChange}
+            changeWorkspace={(id) => {
+              setPreferredWorkspaceId(id);
+              setHookSelectedWorkspaceId(id);
+            }}
+          />
+        </Suspense>
+      )}
+      {children}
+    </>
+  );
 }

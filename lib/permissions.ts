@@ -164,3 +164,45 @@ export function isSidebarItemVisible(
 
   return true;
 }
+
+// --- Tier 3: Project (workspace) roles ---
+//
+// owner/admin are implicit managers of every project in their organization;
+// member gets the explicit workspace_assignment role; an org viewer is capped
+// at viewer even if an assignment says editor. super_admin keeps its global
+// bypass. Pure, so the same rule drives UI hints and server checks
+// (lib/content-model/access.server.ts).
+
+export type ProjectRole = "manager" | "editor" | "viewer";
+
+const PROJECT_ROLE_RANK: Record<ProjectRole, number> = { viewer: 1, editor: 2, manager: 3 };
+
+export function isProjectRole(value: unknown): value is ProjectRole {
+  return value === "manager" || value === "editor" || value === "viewer";
+}
+
+/** Effective project role, or null when the caller has no project access. */
+export function effectiveProjectRole(
+  orgRole: string | null | undefined,
+  assignmentRole: string | null | undefined,
+): ProjectRole | null {
+  if (orgRole === "owner" || orgRole === "admin") return "manager";
+  if (orgRole !== "member" && orgRole !== "viewer") return null;
+  if (!isProjectRole(assignmentRole)) return null;
+  if (orgRole === "viewer") return "viewer";
+  return assignmentRole;
+}
+
+export function projectRoleAtLeast(role: ProjectRole | null | undefined, required: ProjectRole): boolean {
+  return !!role && PROJECT_ROLE_RANK[role] >= PROJECT_ROLE_RANK[required];
+}
+
+/** Org roles allowed to write content at all (viewer is a read-only cap). */
+export function orgRoleCanWrite(orgRole: string | null | undefined): boolean {
+  return orgRole === "owner" || orgRole === "admin" || orgRole === "member";
+}
+
+/** Role stored for a new assignment: org viewers are forced down to viewer. */
+export function assignmentRoleFor(orgRole: string | null | undefined, requested: ProjectRole = "editor"): ProjectRole {
+  return orgRole === "viewer" ? "viewer" : requested;
+}

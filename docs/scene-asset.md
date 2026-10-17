@@ -1,6 +1,32 @@
-# Scene 是一种素材
+# Scene：独立作品与 Legacy 素材兼容
 
-`scene` 与 `model`、`image`、`text` 并列，使用现有 `asset` 表。此次实现不需要数据库迁移。
+本文区分组织已切换的 v2 内容模型与尚未切换的 legacy 模型。部署代码或应用表结构不会自动迁移组织；状态门禁、单写源与模型总览见 [数据层](data-layer.md)，目标与迁移顺序见 [改造方案](team-assets-scenes-refactor-plan.md)。
+
+## V2 场景
+
+`scene` 是项目拥有的独立作品；`draft_document` 保存 schema 3 编排 JSON。资源别名同时包含 `assetId` 和 `assetVersionId`，实例、变换、GLB 动画及 Theatre 曲线保持现有结构。`scene_asset_ref` 是服务端在同一保存事务中生成的依赖索引，不是另一份可单独编辑的内容。
+
+| 操作 | 实际行为 |
+| --- | --- |
+| 保存 | 项目 editor/manager 提交 `expectedLockVersion`；缺少锁返回 428，过期返回 409，保留本地草稿 |
+| 添加素材 | 检查同组织、项目使用权与固定版本；组织共享素材在事务中建立项目 grant |
+| 升级素材 | 显式改变草稿引用；只升级一个实例时使用新的资源别名，其他实例继续原版本 |
+| 发布 | 锁定草稿，创建不可变 `scene_revision` 与 `scene_revision_asset_ref`；相同草稿版本重复发布复用已有结果 |
+| 投放 | Placement 引用明确 SceneRevision；发布可通过 `updatePlacements: [{ placementId, expectedLockVersion }]` 原子更新选中的投放，每个投放单独校验锁 |
+| 归档 | Scene 停止编辑、新发布和新增投放；已有投放继续使用保留版本 |
+| 复制 | 新建独立 Scene，复用固定素材版本；目标项目逐项检查素材授权 |
+
+实现入口是 `lib/scene/service.server.ts`、`lib/scene/compile.ts`、`lib/assets/` 和 `lib/placements/`。素材归档不会破坏既有草稿引用和发布；新引用被拒绝。发布不追随 Asset.current_version_id。版本中的动画列表已知时，保存/发布检查 clip 名称与序号；未知列表仍由播放器加载时验证。
+
+发布本身不自动更换其他投放。旧请求字段 `updatePlacementIds` 因缺少投放锁返回 428；同一发布请求最多更新 100 个不同投放，任何锁冲突均不提交本次事务。
+
+管理入口为 `/manage/scenes` 和 `/manage/scenes/[id]`。编辑器保留 Three 视口、Theatre 时间轴、层级与属性面板；“本场景使用中”单独解析固定资源，候选素材分页或归档不应让现有对象消失。空场景可保存，不能作为 active Placement 投放。仍限 8 个资源别名、24 个实例、600 秒与 2400 个关键帧。
+
+播放适配将 schema 3 编译为小程序的 schema 1/2，保留实例和 tracks，资源 URL 从固定版本解析。`manifest.assetId` 回显发现记录的公开 ID；它可以与 Scene ID、Asset ID、管理地图的 Placement ID 不同。普通图片、文字、音视频直接投放 AssetVersion，无需包装为 Scene。未来活动只预留独立业务内容与表现适配边界，当前没有 Topic/Reply 模型。
+
+## Legacy 场景存储
+
+以下字段和后续标为 legacy 的流程仅适用于尚未切换组织的旧写入源。旧 `scene` 与 `model`、`image`、`text` 并列，使用 `asset` 表。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -10,9 +36,9 @@
 | `workspace_id` / `location` / `metadata` | 沿用素材的工作空间、地图位置与坐标 |
 | `anchor_id` / `tag_ids` / `name` | 沿用匹配点关联、标签和名称 |
 
-场景只负责多个模型实例的布局和动画时间。普通图片、文字、音视频仍直接作为素材展示，不包装成 single_asset 场景。不建立 scene、revision、资源快照或旧素材转换表，也不切换工作空间展示模式。
+Legacy 场景只负责多个模型实例的布局和动画时间，普通图片、文字、音视频仍直接作为素材展示。旧行不自动成为发布版本；迁移由组织切换流程处理。
 
-## 创建与编辑
+## Legacy 创建与编辑及共享编辑器行为
 
 1. 在组织设置中开启“场景”和“模型”上传类型。
 2. 在素材上传面板选择“场景”，只填标题即可创建。JSON 导入和地图位置均可选。
@@ -23,11 +49,11 @@
 7. Space 播放/暂停，F 聚焦全部模型；“预览”隐藏编排面板和辅助网格。窄屏通过“场景 / 对象 / 属性 / 时间轴”切换工作区，支持预览和基础编辑。
 8. Ctrl/⌘+Z 撤销、Shift+Z 重做（最多 100 步），Ctrl/⌘+S 保存。输入框保留文本编辑快捷键。关闭未保存页面会提示，播放和选择不改变保存状态。管理页另有“位置与标签”入口。
 
-Theatre.js 0.7.2 仅在独立编辑页加载。编辑器以可移植场景文档维护历史，Theatre 负责变换曲线求值与播放，GLB AnimationMixer 跟随同一播放头。没有第二份持久化项目状态或新表。修改/移动关键帧保留已有贝塞尔控制点与 hold 属性；不持久化面板位置、选中项或游标。
+Theatre.js 0.7.2 仅在独立编辑页加载。编辑器以可移植场景文档维护历史，Theatre 负责变换曲线求值与播放，GLB AnimationMixer 跟随同一播放头。Theatre 本身不另存第二份项目状态；v2 的持久内容由独立 Scene 服务保存。修改/移动关键帧保留已有贝塞尔控制点与 hold 属性；不持久化面板位置、选中项或游标。
 
 Theatre 的浮动 Studio UI 不再显示。0.7.2 没有公开的运行中替换状态接口，`lib/scene/theatre-authoring.ts` 将唯一内部适配边界限制为 sheet 状态导入；依赖固定为 0.7.2，升级必须验证该适配器及生产浏览器中的加载、修改、撤销、播放和重开。其他组件不接触 Theatre 内部状态。生产构建使用 Webpack：当前 Next 16.0.7 的 SWC 二次压缩 Theatre Studio 0.7.2 自带的已压缩颜色选择器代码时会生成重复的局部变量声明（`let r,r`），导致整个编辑页无法初始化。Webpack 配置仅将 Studio 分入独立 chunk，跳过这份已压缩依赖的二次压缩，其他代码正常优化。`npm run build` 末尾解析全部浏览器 chunk，防止“构建通过、浏览器语法错误”再次漏检；开发服务器仍用原有构建配置。快捷键在捕获阶段接管撤销，避免隐藏的 Studio 重复处理。
 
-新增 `GET /api/assets/[id]` 仅供场景编辑页使用，要求与保存相同的所有所属组织的写权限。返回场景、可选模型和 `scene_revision` 内容指纹。保存携带该指纹；过期返回 409，保留页面上的未保存内容，避免两个标签页互相覆盖。已有普通素材 PATCH 调用无需携带此字段。
+Legacy 编辑器从 `GET /api/assets/[id]` 读取旧场景与候选模型，使用 `scene_revision` 内容指纹。这个 MD5 字段不是 v2 的 SceneRevision。V2 编辑器改用独立 Scene API 和数值 `lock_version`；切换后的旧管理写入必须经过明确的兼容契约，不能直接修改旧行。
 
 旧版布局仍可导入：
 
@@ -66,7 +92,7 @@ Theatre 的浮动 Studio UI 不再显示。0.7.2 没有公开的运行中替换�
 
 最多 8 个资源别名、24 个实例、600 秒；位置分量绝对值 ≤ 100 米，缩放分量在 (0, 100]，四元数必须归一化。实例 ID 唯一。`animation` 必须显式写对象或 `null`，`clipIndex` / `clipName` 二选一；只有所有实例都没有动画时，`durationSeconds` 才能为 `null`（静态场景）。未知字段和协议版本拒绝保存。空 `assets` / `instances` 是合法草稿，小程序跳过空场景放置。
 
-编辑器保存 `schemaVersion: 2`，实例可增加 `tracks`，只允许 `position.x/y/z`、`rotation.x/y/z` 和 `scale.x/y/z` 九个数字通道：
+Legacy 编辑器保存 `schemaVersion: 2`；v2 保存 schema 3，沿用相同 tracks 结构。实例只允许 `position.x/y/z`、`rotation.x/y/z` 和 `scale.x/y/z` 九个数字通道：
 
 ```json
 "tracks": {
@@ -79,11 +105,11 @@ Theatre 的浮动 Studio UI 不再显示。0.7.2 没有公开的运行中替换�
 
 `handles` 为 Theatre 的归一化贝塞尔控制点 `[leftX,leftY,rightX,rightY]`；`connectedRight: false` 保持当前值直到下个关键帧。时间必须严格递增、不超过演出时长，关键帧总数 ≤ 2400。控制点限定在 [0,1]，禁止越界过冲；带曲线的场景必须有有限时长。小程序通过轻量求值器回放，无 Theatre 运行时依赖。
 
-服务端在创建或修改 JSON 时验证结构和依赖：只允许模型 asset ID，模型必须在场景的每个目标工作空间内，不能嵌套 scene 或直接填任意 URL。动画片段存在性、重名、模型解码能力在小程序实际加载时检查；失败则释放整场已加载资源并报错，不显示残缺场景。模型格式支持范围沿用已有 Three 加载器。
+Legacy 服务端在创建或修改 JSON 时验证结构和依赖：模型必须在场景的每个目标工作空间内。V2 改为项目授权与固定版本校验。两种模式均不能嵌套 Scene 或在编排里直接填任意 URL；播放器继续检查模型解码和动画，失败时释放整场已加载资源。模型格式支持范围沿用已有 Three 加载器。
 
-## 接口与生命周期
+## Legacy 接口与播放生命周期
 
-管理端沿用 `POST /api/workspaces/[id]/assets`、`PATCH /api/assets/[id]`、`DELETE /api/assets/[id]`，写入权限仍是既有 `org.assets.write`。
+Legacy 管理端沿用 `POST /api/workspaces/[id]/assets`、`PATCH /api/assets/[id]`、`DELETE /api/assets/[id]`。服务端必须同时检查项目范围与迁移门禁，不能只靠 `org.assets.write`。
 
 小程序继续用附近素材与匹配点关联素材列表发现 scene。实际进入素材放置队列时调用：
 
@@ -96,11 +122,11 @@ POST /api/miniapp/assets/scene
 
 场景是 `nodeList` 的一个条目，复用串行队列、内容代次、点击和统一清理。已有容量引擎增加 `scene` 桶（最多 1 场）；整场替换/释放，不单独驱逐子模型。放在加载完成时相机前方 2 米、相机下方 1.4 米，整体朝向跟随当时相机水平朝向，内部按 JSON 米制布局，不归一化模型、不参与斥力。点击暂停/继续，结束后点击重播。切换 GPS/匹配、隐藏页面、退出或替换场景时释放全部实例句柄，迟到结果不挂载。
 
-场景引用的是当前素材，不持有文件副本：替换模型后下次加载使用新 URL；删除或移走模型后场景加载失败。场景删除不删除模型。文件引用计数、用户删除和存储清扫保持原逻辑。模型源素材有 GPS 或匹配点位置时仍会独立展示；仅作场景内部资源的模型应不设置独立展示位置。
+Legacy 场景引用当前素材：替换模型后下次加载使用新 URL；删除或移走模型后可能加载失败。这是旧模型行为，不能套用到 v2。旧模型源素材有 GPS 或匹配点位置时仍会独立展示；v2 是否展示由 Placement 决定。两种模式的文件回收均须纳入 [统一文件保留](asset-storage-lifecycle.md)，不能仅检查当前 Asset 文件。
 
 跨空间移动/复制继续使用现有素材操作；目标空间需要同时有被引用的模型，否则场景不能加载。没有自动复制依赖或旧素材批量转换。
 
-已存在的实验 scene 表/记录不会自动删除或迁移，新代码不再读写它们。原工作区代码已另行备份，实验数据应按需要单独导出或处理。
+历史实验 Scene 表/记录须先预检、导出和核对，不能因为与新表同名便忽略结构差异或删除。新模型的创建、回填与切换按组织迁移记录执行。
 
 ## 验证
 

@@ -7,91 +7,76 @@ import { MatchingError, finiteNumber } from "@/lib/anchor-matching";
 import { NextResponse } from "next/server";
 import type { Insertable } from "kysely";
 import { db, sql, type DB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/server";
-import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
-import { logError } from "@/lib/log-error";
+import { legacyPathMode, loadActor, requireWorkspaceEdit, requireWorkspaceRead } from "@/lib/content-model/access.server";
+import { ContentError } from "@/lib/content-model/errors";
+import { failure, hasContentModelHeader, ok, readJsonBody, requireSessionUserId } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
+import { createAssetInWorkspace, listWorkspaceAssets, parseAssetListQuery } from "@/lib/assets/service.server";
+import { createAnchorV2 } from "@/lib/assets/legacy.server";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // 获取当前用户
-  const user = await getSessionUser();
+type Context = { params: Promise<{ id: string }> };
 
-  if (!user) {
-    return NextResponse.json({ error: "未授权" }, { status: 401 });
-  }
-
+/**
+ * GET — requires read access to the project.
+ *   X-Content-Model: 2 → project assets via grants: ApiPage<AssetDto>
+ *     (?q=&file_type=&origin=&state=&limit=&offset=)
+ *   otherwise          → v1 projection: legacy rows of this workspace
+ *     (?type=&requireLocation=true), frozen read-only after cutover.
+ */
+export async function GET(request: Request, { params }: Context) {
+  const { id: workspaceId } = await params;
+  let userId: string | null = null;
   try {
-    const { id: workspaceId } = await params;
-
-    // 获取查询参数
+    userId = await requireSessionUserId();
+    if (!isUuid(workspaceId)) throw new ContentError("NOT_FOUND", "项目不存在");
+    const actor = await loadActor(db, userId);
     const { searchParams } = new URL(request.url);
+    if (hasContentModelHeader(request)) {
+      const page = await listWorkspaceAssets(actor, workspaceId, parseAssetListQuery(searchParams));
+      return NextResponse.json(page, { headers: { "Cache-Control": "no-store" } });
+    }
+    await requireWorkspaceRead(db, actor, workspaceId);
+
     const type = searchParams.get("type"); // 特定类型过滤（如 "anchor"）
     const requireLocation = searchParams.get("requireLocation") === "true"; // 是否只返回有坐标的
 
-    // 查询该 workspace 下的 assets
-    // 使用 @> 运算符检查 workspace_id 数组是否包含当前 workspace。
-    // 直连 Postgres 没有 PostgREST 的 1000 行上限，一次拉全量即可。
+    // @> 检查 workspace_id 数组是否包含当前 workspace；一次拉全量。
     let query = db
       .selectFrom("asset")
       .selectAll()
       .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`);
+    if (type) query = query.where("file_type", "=", type);
+    if (requireLocation) query = query.where("location", "is not", null);
 
-    // 如果需要，过滤特定类型
-    if (type) {
-      query = query.where("file_type", "=", type);
-    }
-
-    // 如果需要，只返回有坐标的资源
-    if (requireLocation) {
-      query = query.where("location", "is not", null);
-    }
-
-    const data = await query.execute();
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: await query.execute() });
   } catch (error) {
-    if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error("获取 assets 失败:", error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return failure(error, { method: "GET", path: `/api/workspaces/${workspaceId}/assets`, userId });
   }
 }
 
-// 创建资产（需对该 workspace 所属 org 有 org.assets.write；viewer 被拒）
-// 承接原 lib/upload/service.ts 的前端直连插入，把 DB 写入移到服务端做鉴权。
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/**
+ * POST — requires edit rights on the project.
+ *   Cut-over organization + X-Content-Model: 2 → CreateAssetRequest: Asset +
+ *     immutable v1 + origin grant (+ optional placement), idempotent; anchors
+ *     keep the legacy field shape and their dedicated service.
+ *   Legacy organization → unchanged legacy row insert.
+ *   Cut-over organization without the header → 409 CONTENT_MODEL_UPGRADE_REQUIRED.
+ */
+export async function POST(request: Request, { params }: Context) {
   const { id: workspaceId } = await params;
-  const user = await getSessionUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "未授权" }, { status: 401 });
-  }
-
+  let userId: string | null = null;
   try {
-    const orgId = await getWorkspaceOrgId(workspaceId);
-    if (!orgId) {
-      return NextResponse.json({ error: "工作空间不存在" }, { status: 404 });
-    }
+    userId = await requireSessionUserId();
+    if (!isUuid(workspaceId)) throw new ContentError("NOT_FOUND", "工作空间不存在");
+    const actor = await loadActor(db, userId);
+    const project = await requireWorkspaceEdit(db, actor, workspaceId);
+    const mode = legacyPathMode([project.org], hasContentModelHeader(request));
 
-    const { globalRole, orgRole } = await getUserContext(user.id, orgId);
-    if (
-      !isSuperAdmin(globalRole) &&
-      !hasOrgPermission(orgRole, "org.assets.write")
-    ) {
-      await logError({
-        userId: user.id,
-        method: "POST",
-        path: `/api/workspaces/${workspaceId}/assets`,
-        status: 403,
-        message: "权限不足: org.assets.write",
-        context: { orgRole, orgId },
-      });
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
+    if (mode === "v2") {
+      const body = await readJsonBody(request);
+      if (body.file_type === "anchor") return ok(await createAnchorV2(actor, workspaceId, body), 201);
+      const result = await createAssetInWorkspace(actor, workspaceId, body);
+      return ok(result, result.created ? 201 : 200);
     }
 
     const body = await request.json();
@@ -128,7 +113,7 @@ export async function POST(
     // 白名单字段；workspace_id / created_by 由服务端定，不信任 body
     const insertPayload: Insertable<DB["asset"]> = {
       workspace_id: [workspaceId],
-      created_by: user.id,
+      created_by: actor.userId,
       file_type,
     };
     if (name !== undefined) insertPayload.name = name;
@@ -157,13 +142,6 @@ export async function POST(
   } catch (error) {
     if (error instanceof SceneAssetError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error("创建资产失败:", error);
-    await logError({
-      method: "POST",
-      path: `/api/workspaces/${workspaceId}/assets`,
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "创建资源失败" }, { status: 500 });
+    return failure(error, { method: "POST", path: `/api/workspaces/${workspaceId}/assets`, userId });
   }
 }

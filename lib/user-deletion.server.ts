@@ -1,11 +1,14 @@
 import "server-only";
 import { db, sql } from "@/lib/db";
-import { logError } from "@/lib/log-error";
-import { deleteObjects } from "@/lib/storage/oss";
 import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
+import { releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
 
 /**
  * 删除用户的服务端编排（仅服务端）。
+ *
+ * 用户删除只影响身份与维护责任：维护者字段随 users 外键置空，团队文件绝不按
+ * OSS 路径删除。只有整组织清除时，组织自有的版本文件、回执和旧行文件才成为
+ * 回收候选，并且逐个经过 retention 协议的加锁复核（迁移期默认只报告）。
  *
  * 策略：用户是某组织唯一 owner 时——
  * - 组织还有其他成员 → 晋升最合适的成员为 owner（admin 优先，其次加入最早）；
@@ -33,6 +36,9 @@ export interface OrgDeletionPlanItem {
   };
   workspaceCount?: number;
   assetCount?: number;
+  /** Content model rows removed with the organization (preview only). */
+  sceneCount?: number;
+  placementCount?: number;
 }
 
 export interface UserDeletionPlan {
@@ -145,8 +151,16 @@ export async function computeUserDeletionPlan(
         .map((w) => w.id);
       const item = orgs.find((o) => o.id === orgId)!;
       item.workspaceCount = wsIds.length;
-      item.assetCount =
-        wsIds.length === 0 ? 0 : (await fetchContainedAssets(wsIds)).length;
+      const legacyAssets = wsIds.length === 0 ? [] : await fetchContainedAssets(wsIds);
+      const legacyIds = new Set(legacyAssets.map((a) => a.id));
+      const v2Assets = await db.selectFrom("asset").select("id").where("organization_id", "=", orgId).execute();
+      item.assetCount = legacyIds.size + v2Assets.filter((a) => !legacyIds.has(a.id)).length;
+      const [scenes, placements] = await Promise.all([
+        db.selectFrom("scene").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
+        db.selectFrom("placement").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
+      ]);
+      item.sceneCount = Number(scenes.n);
+      item.placementCount = Number(placements.n);
     }
   }
 
@@ -185,44 +199,13 @@ async function fetchContainedAssets(
     }));
 }
 
-/**
- * 行删除之后，查这批 URL 里仍被剩余资产（file_url 或 metadata.checkin_url）
- * 引用的子集——它们属于外部组织的共享文件，必须保留。每批 100 个 URL。
- */
-async function findStillReferencedUrls(urls: string[]): Promise<Set<string>> {
-  const referenced = new Set<string>();
-  const BATCH = 100;
-  for (let i = 0; i < urls.length; i += BATCH) {
-    const batch = urls.slice(i, i + BATCH);
-    if (batch.length === 0) continue;
-
-    const rows = await db
-      .selectFrom("asset")
-      .select([
-        "file_url",
-        sql<string | null>`metadata->>'checkin_url'`.as("checkin_url"),
-      ])
-      .where((eb) =>
-        eb.or([
-          eb("file_url", "in", batch),
-          eb(sql<string>`metadata->>'checkin_url'`, "in", batch),
-        ]),
-      )
-      .execute();
-
-    for (const row of rows) {
-      if (row.file_url) referenced.add(row.file_url);
-      if (row.checkin_url) referenced.add(row.checkin_url);
-    }
-  }
-  return referenced;
-}
-
 export interface PurgeResult {
   deletedAssets: number;
   deletedWorkspaces: number;
   deletedOrgs: number;
   deletedFiles: number;
+  /** Unreferenced keys left for the collector while object deletion is disabled. */
+  deferredFiles: number;
 }
 
 /**
@@ -232,7 +215,7 @@ export interface PurgeResult {
  */
 export async function purgeOrganizations(orgIds: string[]): Promise<PurgeResult> {
   if (orgIds.length === 0) {
-    return { deletedAssets: 0, deletedWorkspaces: 0, deletedOrgs: 0, deletedFiles: 0 };
+    return { deletedAssets: 0, deletedWorkspaces: 0, deletedOrgs: 0, deletedFiles: 0, deferredFiles: 0 };
   }
 
   const wsRows = await db
@@ -243,57 +226,43 @@ export async function purgeOrganizations(orgIds: string[]): Promise<PurgeResult>
 
   const wsIds = wsRows.map((w) => w.id);
 
-  // 行删除后就查不到这些资产了，先收集候选文件 URL（file_url + checkin_url）
-  let candidateUrls: string[] = [];
+  // 行删除后就查不到这些对象了，先收集候选 key：旧行 file_url + checkin_url、
+  // 组织自有版本的资源文件、组织的上传回执。
+  const candidateKeys = new Set<string>();
   if (wsIds.length > 0) {
-    const contained = await fetchContainedAssets(wsIds);
-    candidateUrls = [
-      ...new Set(
-        contained
-          .flatMap((a) => [a.file_url, a.checkin_url])
-          .filter((u): u is string => !!u),
-      ),
-    ];
+    for (const asset of await fetchContainedAssets(wsIds)) {
+      for (const url of [asset.file_url, asset.checkin_url]) {
+        const key = url ? storagePathFromUrl(url) : null;
+        if (key) candidateKeys.add(key);
+      }
+    }
   }
+  const [resources, receipts] = await Promise.all([
+    db
+      .selectFrom("asset_version_resource as r")
+      .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
+      .select("r.storage_key")
+      .where("v.organization_id", "in", orgIds)
+      .where("r.storage_key", "is not", null)
+      .execute(),
+    db.selectFrom("upload_receipt").select("storage_key").where("organization_id", "in", orgIds).execute(),
+  ]);
+  for (const row of resources) if (row.storage_key) candidateKeys.add(row.storage_key);
+  for (const row of receipts) candidateKeys.add(row.storage_key);
 
   const { rows: purgedRows } = await sql<{
     v: Record<string, number> | null;
   }>`select public.purge_organizations(${orgIds}::uuid[]) as v`.execute(db);
 
-  // 行已删完：候选 URL 里仍被引用的属于外部组织的共享文件，保留；其余删除
-  let deletedFiles = 0;
-  if (candidateUrls.length > 0) {
-    const referenced = await findStillReferencedUrls(candidateUrls);
-    const keys = candidateUrls
-      .filter((u) => !referenced.has(u))
-      .map(storagePathFromUrl)
-      .filter((p): p is string => !!p);
-
-    const BATCH = 100;
-    for (let i = 0; i < keys.length; i += BATCH) {
-      const batch = keys.slice(i, i + BATCH);
-      try {
-        await deleteObjects(batch);
-        deletedFiles += batch.length;
-      } catch (error) {
-        // 存储失败不阻断：孤儿文件由 /api/admin/clean 全局清扫兜底
-        console.warn("删除存储文件失败:", error);
-        await logError({
-          method: "PURGE",
-          path: "purgeOrganizations",
-          status: 500,
-          message: `storage remove failed: ${error instanceof Error ? error.message : String(error)}`,
-          context: { batch: batch.slice(0, 20), orgIds },
-        });
-      }
-    }
-  }
+  // 行已删完：逐个 key 加锁复核；仍被任一来源（含其他组织）引用的保留。
+  const report = await releaseObjectsIfUnreferenced(candidateKeys, { method: "PURGE", path: "purgeOrganizations" });
 
   const counts = purgedRows[0]?.v ?? {};
   return {
     deletedAssets: counts.deleted_assets ?? 0,
     deletedWorkspaces: counts.deleted_workspaces ?? 0,
     deletedOrgs: counts.deleted_orgs ?? 0,
-    deletedFiles,
+    deletedFiles: report.removed.length,
+    deferredFiles: report.candidates.length,
   };
 }

@@ -50,21 +50,62 @@ export interface AppConfig {
 
 export interface Asset {
   anchor_id: string | null;
+  archived_at: Timestamp | null;
+  archived_by: string | null;
   config: Generated<Json>;
   content_hash: string | null;
   create_at: Generated<Timestamp | null>;
   created_by: string | null;
+  current_version_id: string | null;
   file_type: string;
   file_url: string | null;
   id: Generated<string>;
   is_huge: Generated<boolean>;
   location: string | null;
+  lock_version: Generated<number>;
+  maintained_by: string | null;
   metadata: Generated<Json | null>;
   name: string | null;
+  organization_id: string | null;
+  origin: Generated<string>;
+  origin_workspace_id: string | null;
+  state: Generated<string>;
   tag_ids: Generated<string[] | null>;
   text_content: string | null;
   updated_at: Generated<Timestamp>;
+  visibility: Generated<string>;
   workspace_id: Generated<string[] | null>;
+}
+
+export interface AssetVersion {
+  asset_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: Generated<string>;
+  organization_id: string;
+  payload: Json;
+  payload_schema_version: Generated<number>;
+  source_fingerprint: string | null;
+  version_no: number;
+}
+
+export interface AssetVersionResource {
+  asset_version_id: string;
+  content_hash: string | null;
+  external_url: string | null;
+  mime_type: string | null;
+  ordinal: Generated<number>;
+  role: string;
+  size_bytes: number | null;
+  storage_key: string | null;
+}
+
+export interface AssetWorkspaceGrant {
+  asset_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  organization_id: string;
+  workspace_id: string;
 }
 
 export interface AuthAccount {
@@ -113,6 +154,56 @@ export interface AuthVerification {
   value: string;
 }
 
+export interface ContentAuditLog {
+  action: string;
+  actor_id: string | null;
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: Generated<string>;
+  object_id: string | null;
+  object_type: string;
+  organization_id: string | null;
+  workspace_id: string | null;
+}
+
+export interface ContentCommandIdempotency {
+  actor_id: string;
+  command: string;
+  created_at: Generated<Timestamp>;
+  idempotency_key: string;
+  organization_id: string;
+  request_hash: string;
+  result_id: string;
+  result_type: string;
+}
+
+export interface ContentMigrationMap {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  reason: string | null;
+  run_id: string | null;
+  source_id: string;
+  source_kind: string;
+  source_row_hash: string;
+  source_workspace_id: string | null;
+  status: string;
+  target_id: string | null;
+  target_kind: string | null;
+  target_organization_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ContentMigrationRun {
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  finished_at: Timestamp | null;
+  id: Generated<string>;
+  notes: Generated<Json>;
+  organization_ids: Generated<string[]>;
+  phase: string;
+  status: Generated<string>;
+}
+
 export interface ErrorLog {
   context: Json | null;
   created_at: Generated<Timestamp | null>;
@@ -125,29 +216,31 @@ export interface ErrorLog {
   user_id: string | null;
 }
 
-export interface GeographyColumns {
-  coord_dimension: number | null;
-  f_geography_column: string | null;
-  f_table_catalog: string | null;
-  f_table_name: string | null;
-  f_table_schema: string | null;
-  srid: number | null;
-  type: string | null;
+export interface LegacyContentMap {
+  active: Generated<boolean>;
+  binding_id: string;
+  created_at: Generated<Timestamp>;
+  organization_id: string;
+  public_id: string;
+  tag_ids: Generated<string[]>;
+  workspace_id: string;
 }
 
-export interface GeometryColumns {
-  coord_dimension: number | null;
-  f_geometry_column: string | null;
-  f_table_catalog: string | null;
-  f_table_name: string | null;
-  f_table_schema: string | null;
-  srid: number | null;
-  type: string | null;
+export interface LegacyRuntimeBinding {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  legacy_asset_id: string | null;
+  organization_id: string;
+  placement_id: string;
+  public_id: string;
 }
 
 export interface Organization {
   allowed_file_types: string[] | null;
+  archived_at: Timestamp | null;
   config: Generated<Json>;
+  content_model_changed_at: Timestamp | null;
+  content_model_state: Generated<string>;
   created_at: Generated<Timestamp | null>;
   created_by: string | null;
   description: string | null;
@@ -177,6 +270,76 @@ export interface OrganizationMember {
   user_id: string;
 }
 
+export interface Placement {
+  altitude: number | null;
+  anchor_id: string | null;
+  asset_id: string | null;
+  asset_version_id: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: Generated<string>;
+  location: string | null;
+  lock_version: Generated<number>;
+  name: string | null;
+  organization_id: string;
+  render_config: Generated<Json>;
+  scene_revision_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  workspace_id: string;
+}
+
+export interface PlacementTag {
+  placement_id: string;
+  tag_id: string;
+  workspace_id: string;
+}
+
+export interface Scene {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  draft_document: Json;
+  id: Generated<string>;
+  legacy_asset_id: string | null;
+  lock_version: Generated<number>;
+  name: string;
+  organization_id: string;
+  state: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  workspace_id: string;
+}
+
+export interface SceneAssetRef {
+  asset_id: string;
+  asset_version_id: string;
+  organization_id: string;
+  resource_alias: string;
+  scene_id: string;
+}
+
+export interface SceneRevision {
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  document: Json;
+  id: Generated<string>;
+  name: string;
+  organization_id: string;
+  revision_no: number;
+  scene_id: string;
+  source_lock_version: number;
+}
+
+export interface SceneRevisionAssetRef {
+  asset_id: string;
+  asset_version_id: string;
+  organization_id: string;
+  resource_alias: string;
+  scene_revision_id: string;
+}
+
 export interface SchemaMigrations {
   applied_at: Generated<Timestamp>;
   name: string;
@@ -188,6 +351,23 @@ export interface Tag {
   created_by: string | null;
   id: Generated<string>;
   name: string;
+  workspace_id: string;
+}
+
+export interface UploadReceipt {
+  consumed_at: Timestamp | null;
+  content_hash: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  expires_at: Timestamp;
+  id: Generated<string>;
+  mime_type: string | null;
+  organization_id: string;
+  purpose: string;
+  reused: Generated<boolean>;
+  size_bytes: number;
+  storage_key: string;
+  upload_type: string | null;
   workspace_id: string;
 }
 
@@ -207,6 +387,8 @@ export interface Users {
 }
 
 export interface Workspace {
+  archived_at: Timestamp | null;
+  archived_by: string | null;
   create_date: Generated<Timestamp | null>;
   description: string | null;
   id: Generated<string>;
@@ -217,6 +399,7 @@ export interface Workspace {
 export interface WorkspaceAssignment {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  legacy_role: string | null;
   role: Generated<string>;
   user_id: string;
   workspace_id: string;
@@ -227,18 +410,32 @@ export interface DB {
   anchor_match_rate_limit: AnchorMatchRateLimit;
   app_config: AppConfig;
   asset: Asset;
+  asset_version: AssetVersion;
+  asset_version_resource: AssetVersionResource;
+  asset_workspace_grant: AssetWorkspaceGrant;
   "auth.account": AuthAccount;
   "auth.session": AuthSession;
   "auth.users": AuthUsers;
   "auth.verification": AuthVerification;
+  content_audit_log: ContentAuditLog;
+  content_command_idempotency: ContentCommandIdempotency;
+  content_migration_map: ContentMigrationMap;
+  content_migration_run: ContentMigrationRun;
   error_log: ErrorLog;
-  geography_columns: GeographyColumns;
-  geometry_columns: GeometryColumns;
+  legacy_content_map: LegacyContentMap;
+  legacy_runtime_binding: LegacyRuntimeBinding;
   organization: Organization;
   organization_invitation: OrganizationInvitation;
   organization_member: OrganizationMember;
+  placement: Placement;
+  placement_tag: PlacementTag;
+  scene: Scene;
+  scene_asset_ref: SceneAssetRef;
+  scene_revision: SceneRevision;
+  scene_revision_asset_ref: SceneRevisionAssetRef;
   schema_migrations: SchemaMigrations;
   tag: Tag;
+  upload_receipt: UploadReceipt;
   user_organization_pin: UserOrganizationPin;
   users: Users;
   workspace: Workspace;

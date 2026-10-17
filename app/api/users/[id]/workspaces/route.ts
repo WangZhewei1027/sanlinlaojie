@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db, jsonObjectFrom } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext, getWorkspaceOrgId } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
+import { assignmentRoleFor, hasOrgPermission, isProjectRole, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
 
 /** Orgs where the caller is owner/admin (i.e. can manage workspace assignments). */
@@ -93,10 +93,13 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { workspace_id, role = "member" } = body;
+    const { workspace_id, role = "editor" } = body;
 
     if (!workspace_id) {
       return NextResponse.json({ error: "缺少 workspace_id" }, { status: 400 });
+    }
+    if (!isProjectRole(role)) {
+      return NextResponse.json({ error: "项目角色必须是 manager / editor / viewer" }, { status: 400 });
     }
 
     const orgId = await getWorkspaceOrgId(workspace_id);
@@ -120,10 +123,21 @@ export async function POST(
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
+    // 只能分配本组织成员；组织 viewer 强制为项目 viewer
+    const target = await db
+      .selectFrom("organization_member")
+      .select("role")
+      .where("organization_id", "=", orgId)
+      .where("user_id", "=", id)
+      .executeTakeFirst();
+    if (!target) {
+      return NextResponse.json({ error: "该用户不是此组织的成员" }, { status: 400 });
+    }
+
     // 幂等插入（唯一约束 workspace_assignment(user_id,workspace_id)）；已存在时返回 null
     const data = await db
       .insertInto("workspace_assignment")
-      .values({ user_id: id, workspace_id, role })
+      .values({ user_id: id, workspace_id, role: assignmentRoleFor(target.role, role) })
       .onConflict((oc) => oc.columns(["user_id", "workspace_id"]).doNothing())
       .returningAll()
       .executeTakeFirst();

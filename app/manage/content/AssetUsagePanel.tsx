@@ -1,0 +1,105 @@
+"use client";
+
+import Link from "next/link";
+import { useTranslation } from "react-i18next";
+import { Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/typography";
+import { ContentEmptyState, ContentErrorState, ContentListSkeleton } from "./ContentFeedback";
+import { ContentSection } from "./ContentSection";
+import { ContentStatusBadge } from "./ContentStatusBadge";
+import type { AssetUsageEntry, AssetUsageKind, AssetUsageSummary, ContentLoadStatus } from "./types";
+
+const KIND_ORDER: AssetUsageKind[] = ["published", "placement", "draft"];
+
+export interface AssetUsagePanelProps {
+  usage: AssetUsageSummary;
+  currentVersionNo: number;
+  status?: ContentLoadStatus;
+  onRetry?: () => void;
+  /** Shown when the list is narrowed to one version. */
+  versionFilterNo?: number | null;
+  /** Visible entries may be paged; request the next page. */
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+}
+
+/**
+ * Reverse dependencies grouped by how they pin the asset. Dependencies in
+ * projects the viewer cannot read are only counted, never named.
+ */
+export function AssetUsagePanel({ usage, currentVersionNo, status = "ready", onRetry, versionFilterNo, hasMore, loadingMore, onLoadMore }: AssetUsagePanelProps) {
+  const { t } = useTranslation();
+  const groups = KIND_ORDER.map((kind) => ({ kind, entries: usage.entries.filter((entry) => entry.kind === kind) })).filter((group) => group.entries.length);
+  const description = versionFilterNo != null
+    ? t("contentModel.usage.filteredTo", { number: versionFilterNo, count: usage.totalCount })
+    : t("contentModel.usage.summary", { count: usage.totalCount });
+
+  return (
+    <ContentSection title={t("contentModel.usage.title")} description={status === "ready" ? description : undefined}>
+      {status === "loading" && <ContentListSkeleton rows={3} label={t("contentModel.state.loading")} />}
+      {status === "error" && <ContentErrorState onRetry={onRetry} />}
+      {status === "ready" && usage.totalCount === 0 && (
+        versionFilterNo != null ? (
+          <ContentEmptyState title={t("contentModel.usage.versionUnusedTitle", { number: versionFilterNo })} description={t("contentModel.usage.versionUnusedBody")} />
+        ) : (
+          <ContentEmptyState title={t("contentModel.usage.emptyTitle")} description={t("contentModel.usage.emptyBody")} />
+        )
+      )}
+      {status === "ready" && usage.totalCount > 0 && (
+        <div className="divide-y">
+          {groups.map((group) => (
+            <div key={group.kind} className="px-4 py-3">
+              <Text as="h3" variant="bodyXs" fontWeight="semibold" tone="subdued" className="mb-1.5">
+                {t(`contentModel.usage.kind.${group.kind}`)}
+              </Text>
+              <ul className="space-y-1">
+                {group.entries.map((entry) => <UsageRow key={entry.id} entry={entry} currentVersionNo={currentVersionNo} />)}
+              </ul>
+            </div>
+          ))}
+          {usage.restrictedCount > 0 && (
+            <div className="flex items-center gap-2 px-4 py-3">
+              <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <Text as="p" variant="bodySm" tone="subdued">{t("contentModel.usage.restricted", { count: usage.restrictedCount })}</Text>
+            </div>
+          )}
+          {hasMore && onLoadMore && (
+            <div className="px-4 py-3">
+              <Button variant="outline" size="sm" onClick={onLoadMore} disabled={loadingMore}>
+                {loadingMore ? t("contentModel.state.loading") : t("contentModel.usage.showMore", { count: usage.totalCount - usage.restrictedCount - usage.entries.length })}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </ContentSection>
+  );
+}
+
+function UsageRow({ entry, currentVersionNo }: { entry: AssetUsageEntry; currentVersionNo: number }) {
+  const { t } = useTranslation();
+  const outdated = entry.versionNo < currentVersionNo;
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
+      <div className="min-w-0 flex-1 basis-48">
+        {entry.href ? (
+          <Link href={entry.href} className="text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            {entry.targetName}
+          </Link>
+        ) : (
+          <Text as="span" variant="bodySm" fontWeight="medium">{entry.targetName}</Text>
+        )}
+        <Text as="span" variant="bodyXs" tone="subdued" className="ms-2">{entry.projectName}</Text>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {entry.placementStatus && entry.placementStatus !== "active" && (
+          <Text as="span" variant="bodyXs" tone="subdued">{t(`contentModel.placement.status.${entry.placementStatus}`)}</Text>
+        )}
+        <Text as="span" variant="bodyXs" className="tabular-nums">v{entry.versionNo}</Text>
+        {outdated && <ContentStatusBadge kind="outdated" number={currentVersionNo} />}
+      </div>
+    </li>
+  );
+}

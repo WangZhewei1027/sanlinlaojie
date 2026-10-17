@@ -1,66 +1,50 @@
 import { NextResponse } from "next/server";
 import { db, sql } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/server";
-import { logErrorSafe } from "@/lib/log-error";
+import { loadActor, readableWorkspaceIds, requireOrgRead } from "@/lib/content-model/access.server";
+import { ContentError } from "@/lib/content-model/errors";
+import { failure, hasContentModelHeader, requireSessionUserId } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
+import { listOrganizationAssets, parseAssetListQuery } from "@/lib/assets/service.server";
 
-// 获取 organization 下所有 workspace 的 assets（用于 "All workspaces" 视图）
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/**
+ * GET /api/organizations/[id]/assets — caller must be an org member (or super_admin).
+ *   X-Content-Model: 2 → organization catalog by real ownership and visibility:
+ *     ApiPage<AssetDto> (?view=shared|maintained|all&usable_in=&q=&file_type=&origin=&state=&limit=&offset=)
+ *   otherwise → v1 projection for the "All workspaces" map: legacy rows of the
+ *     projects the caller can read (owner/admin: every project).
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: organizationId } = await params;
+  let userId: string | null = null;
   try {
-    const { id: organizationId } = await params;
-
-    const user = await getSessionUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+    userId = await requireSessionUserId();
+    if (!isUuid(organizationId)) throw new ContentError("NOT_FOUND", "组织不存在");
+    const actor = await loadActor(db, userId);
+    const { searchParams } = new URL(request.url);
+    if (hasContentModelHeader(request)) {
+      const page = await listOrganizationAssets(actor, organizationId, parseAssetListQuery(searchParams));
+      return NextResponse.json(page, { headers: { "Cache-Control": "no-store" } });
     }
 
-    // 解析查询参数（与 /api/workspaces/[id]/assets 保持一致）
-    const { searchParams } = new URL(request.url);
+    const org = await requireOrgRead(db, actor, organizationId);
     const type = searchParams.get("type");
     const requireLocation = searchParams.get("requireLocation") === "true";
 
-    // 先查出该 organization 下的所有 workspace IDs
-    const workspaceRows = await db
-      .selectFrom("workspace")
-      .select("id")
-      .where("organization_id", "=", organizationId)
-      .execute();
+    const readable = await readableWorkspaceIds(db, actor, org);
+    const workspaceIds =
+      readable ?? (await db.selectFrom("workspace").select("id").where("organization_id", "=", organizationId).execute()).map((w) => w.id);
+    if (workspaceIds.length === 0) return NextResponse.json({ data: [] });
 
-    const workspaceIds = workspaceRows.map((w) => w.id);
-
-    if (workspaceIds.length === 0) {
-      return NextResponse.json({ data: [] });
-    }
-
-    // asset.workspace_id 是数组，用 && 判断是否与本组织的任一 workspace 相交。
-    // 直连 Postgres 无行数上限，一次拉全量（派生的 file_type 选项与列表都依赖完整集合）。
+    // asset.workspace_id 是数组，用 && 判断是否与可读项目相交；一次拉全量。
     let query = db
       .selectFrom("asset")
       .selectAll()
       .where(sql<boolean>`workspace_id && ${workspaceIds}::uuid[]`);
+    if (type) query = query.where("file_type", "=", type);
+    if (requireLocation) query = query.where("location", "is not", null);
 
-    if (type) {
-      query = query.where("file_type", "=", type);
-    }
-
-    if (requireLocation) {
-      query = query.where("location", "is not", null);
-    }
-
-    const data = await query.execute();
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: await query.execute() });
   } catch (error) {
-    console.error("获取 organization assets 失败:", error);
-    await logErrorSafe({
-      method: "GET",
-      path: "/api/organizations/[id]/assets",
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return failure(error, { method: "GET", path: `/api/organizations/${organizationId}/assets`, userId });
   }
 }

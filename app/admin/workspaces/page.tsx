@@ -5,31 +5,24 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  FolderKanban,
-  FolderOpen,
-  Calendar,
-  Edit,
-  Trash2,
-} from "lucide-react";
+import { Plus, FolderKanban, FolderOpen } from "lucide-react";
 import { useManageStore } from "@/app/manage/store";
 import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { WorkspaceFormDialog } from "@/app/admin/workspaces/components/WorkspaceFormDialog";
 import { DeleteWorkspaceDialog } from "@/app/admin/workspaces/components/DeleteWorkspaceDialog";
 import { WorkspacesSkeleton } from "@/app/admin/workspaces/components/WorkspacesSkeleton";
 import { Text } from "@/components/ui/typography";
+import { useContentModel } from "@/app/manage/lib/content-context";
+import { useIntegrationText } from "@/app/manage/lib/integration-text";
+import { ProjectMembersDialog } from "@/app/admin/workspaces/components/ProjectMembersDialog";
+import { WorkspaceCard, type WorkspaceCardData } from "@/app/admin/workspaces/components/WorkspaceCard";
+import { WORKSPACE_TEXTS } from "@/app/admin/workspaces/workspace-texts";
 
-interface Workspace {
-  id: string;
-  name: string;
-  description: string | null;
-  create_date: string | null;
-  organization_id?: string;
-}
+type Workspace = WorkspaceCardData;
 
 export default function WorkspacesPage() {
   const { t } = useTranslation();
+  const tx = useIntegrationText(WORKSPACE_TEXTS);
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
@@ -50,6 +43,18 @@ export default function WorkspacesPage() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
     null,
   );
+  const [membersWorkspace, setMembersWorkspace] = useState<Workspace | null>(
+    null,
+  );
+  const [membersOpen, setMembersOpen] = useState(false);
+  // Server-declared content model state; v2 swaps delete for archive/restore.
+  const contentModel = useContentModel(selectedOrganization?.id ?? null);
+  const lifecycle =
+    contentModel.status !== "ready"
+      ? "unknown"
+      : contentModel.state === "v2"
+        ? "v2"
+        : "legacy";
 
   const fetchWorkspaces = async () => {
     if (!selectedOrganization?.id) return;
@@ -90,6 +95,11 @@ export default function WorkspacesPage() {
   const handleDelete = (workspace: Workspace) => {
     setSelectedWorkspace(workspace);
     setDeleteOpen(true);
+  };
+
+  const handleMembers = (workspace: Workspace) => {
+    setMembersWorkspace(workspace);
+    setMembersOpen(true);
   };
 
   if (!selectedOrganization) {
@@ -158,60 +168,18 @@ export default function WorkspacesPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {workspaces.map((workspace) => (
-            <Card
+            <WorkspaceCard
               key={workspace.id}
-              className="p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex flex-col h-full">
-                <div className="flex-1 min-w-0 mb-4">
-                  <Text as="h3" variant="headingMd" className="mb-1" truncate>
-                    {workspace.name}
-                  </Text>
-                  {workspace.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {workspace.description}
-                    </p>
-                  )}
-                </div>
-
-                {workspace.create_date && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      {t("admin.workspace.createdAt", "Created on")}{" "}
-                      {new Date(workspace.create_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-
-                {(canEdit || canDelete) && (
-                  <div className="flex items-center gap-2 pt-4 border-t">
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(workspace)}
-                        className="flex-1"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        {t("common.edit", "Edit")}
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(workspace)}
-                        className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        {t("common.delete", "Delete")}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
+              workspace={workspace}
+              lifecycle={lifecycle}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              createdAtLabel={t("admin.workspace.createdAt", "Created on")}
+              onEdit={() => handleEdit(workspace)}
+              onDelete={() => handleDelete(workspace)}
+              onMembers={() => handleMembers(workspace)}
+              tx={tx}
+            />
           ))}
         </div>
       )}
@@ -224,6 +192,13 @@ export default function WorkspacesPage() {
         defaultOrganizationId={selectedOrganization?.id}
         defaultOrganizationName={selectedOrganization?.name}
         onSuccess={fetchWorkspaces}
+      />
+
+      {/* Project members (capabilities come from the server) */}
+      <ProjectMembersDialog
+        workspace={membersWorkspace}
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
       />
 
       {/* Delete Dialog */}

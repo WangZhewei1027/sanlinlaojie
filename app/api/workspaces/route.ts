@@ -4,6 +4,22 @@ import { getSessionUser } from "@/lib/auth/server";
 import { getUserContext } from "@/lib/permissions.server";
 import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
+import { loadActor, loadWorkspaceAccessMany } from "@/lib/content-model/access.server";
+
+/** Adds the caller's effective project role, capability flags and archive/cutover state. */
+async function withCapabilities<T extends { id: string }>(userId: string, rows: T[]) {
+  const access = await loadWorkspaceAccessMany(db, await loadActor(db, userId), rows.map((r) => r.id));
+  return rows.map((row) => {
+    const a = access.get(row.id);
+    return {
+      ...row,
+      archived_at: a?.workspace.archived_at ?? null,
+      project_role: a?.projectRole ?? null,
+      content_model_state: a?.org.content_model_state ?? "legacy",
+      capabilities: a?.capabilities ?? null,
+    };
+  });
+}
 
 /** public.get_user_workspaces(p_user_id) 的返回行 */
 interface UserWorkspaceRow {
@@ -41,7 +57,7 @@ export async function GET(request: Request) {
         query = query.where("organization_id", "=", organizationId);
       }
       const allWorkspaces = await query.execute();
-      return NextResponse.json({ data: allWorkspaces });
+      return NextResponse.json({ data: await withCapabilities(user.id, allWorkspaces) });
     }
 
     // 使用数据库函数一次性获取所有数据
@@ -54,7 +70,7 @@ export async function GET(request: Request) {
       ? data.filter((w) => w.organization_id === organizationId)
       : data;
 
-    return NextResponse.json({ data: filtered });
+    return NextResponse.json({ data: await withCapabilities(user.id, filtered) });
   } catch (error) {
     console.error("获取 workspace 失败:", error);
     return NextResponse.json({ error: "获取工作空间失败" }, { status: 500 });

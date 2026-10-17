@@ -10,6 +10,8 @@ export interface BreadcrumbCrumb {
 // dynamic segments (UUIDs, tokens) simply never match.
 const PATH_LABELS: Record<string, string> = {
   "/manage": "nav.manage",
+  "/manage/assets": "contentModel.integration.nav.assets",
+  "/manage/scenes": "contentModel.integration.nav.scenes",
   "/upload-onsite": "nav.upload",
   "/settings": "settings.title",
   "/admin": "nav.admin",
@@ -24,15 +26,25 @@ const PATH_LABELS: Record<string, string> = {
   "/super-admin/settings": "superAdmin.sidebar.settings",
 };
 
+// zh/en fallbacks for label keys the locale files may not carry yet.
+// Same keys and wording as app/manage/components/ContentNav.tsx.
+const LABEL_FALLBACKS: Record<string, readonly [zh: string, en: string]> = {
+  "contentModel.integration.nav.assets": ["素材库", "Asset library"],
+  "contentModel.integration.nav.scenes": ["场景", "Scenes"],
+};
+
 /**
  * Builds the breadcrumb trail for a pathname: always starts with Home,
  * then one crumb per mapped path prefix. Every crumb carries its href;
- * the renderer decides which one is the current page.
+ * the renderer decides which one is the current page. `language` picks
+ * the zh/en fallback for keys that are missing from the locale files.
  */
 export function buildBreadcrumbItems(
   pathname: string,
   t: TFunction,
+  language?: string,
 ): BreadcrumbCrumb[] {
+  const english = language?.startsWith("en") ?? false;
   const items: BreadcrumbCrumb[] = [{ label: t("nav.home"), href: "/" }];
 
   let currentPath = "";
@@ -40,7 +52,11 @@ export function buildBreadcrumbItems(
     currentPath += `/${segment}`;
     const labelKey = PATH_LABELS[currentPath];
     if (labelKey) {
-      items.push({ label: t(labelKey, segment), href: currentPath });
+      const fallback = LABEL_FALLBACKS[labelKey];
+      const label = fallback
+        ? t(labelKey, { defaultValue: fallback[english ? 1 : 0] })
+        : t(labelKey, segment);
+      items.push({ label, href: currentPath });
     }
   }
 

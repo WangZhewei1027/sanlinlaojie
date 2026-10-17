@@ -1,10 +1,35 @@
 ---
 title: 地图与素材列表双向联动
 created: 2026-05-10
-updated: 2026-10-09
+updated: 2026-10-15
 ---
 
-# 地图与素材列表双向联动
+# 投放地图与 Legacy 素材地图
+
+`/manage` 先读取组织内容模型状态：v2 使用 Placement 地图，legacy/preparing 保留旧 Asset 地图，readonly 冻结写入。状态未确定时不抢先显示可编辑界面，读取失败时保守进入只读。组织/项目 URL 上下文优先于持久化选择；`__all__` 仅用于聚合浏览，新建和复制需明确目标项目。
+
+## V2：地图操作的是 Placement
+
+| 边界 | 实现与约定 |
+| --- | --- |
+| 数据与选中状态 | `app/manage/lib/placement-store.ts`；与素材目录状态分开 |
+| iframe 转换 | `app/manage/lib/placement-to-viewer.ts`；唯一的 Placement → 旧 viewer 数据适配 |
+| 消息桥 | `app/manage/hooks/usePlacementViewer.ts`；继续使用 SET_ASSETS、ASSET_CLICKED、ASSETS_MOVED 等名字 |
+| 移动保存 | `POST /api/placements/move`，逐项发送 placementId 和 expectedLockVersion，批次原子处理 |
+| 固定内容 | 从目标 AssetVersion / SceneRevision 解析；不读取素材 current 版本来替换投放内容 |
+
+管理地图通过 `GET /api/placements/[id]/content?workspace_id=…` 读取固定内容。
+预览缓存按当前项目范围和投放目标校验，切换项目时清除并中止旧请求；源素材详情另行鉴权，只有成功读取后才显示目录与版本操作。共享投放不再依赖源素材目录的访问权限才能显示内容。
+
+发给 viewer 的 `id` 是 Placement ID，返回的 `assetId` 也解释为 Placement ID。`sourceAssetId/assetVersionId/sceneRevisionId` 作为独立信息保留；不得再调用 Asset 移动/删除接口。小程序旧公开 ID 通过运行时绑定解析，不是管理地图 ID。
+
+同一素材的两个投放可独立选中、移动、暂停、复制和升级。归档投放不会删除源素材；旧多项目 scope 显示为带来源项目的只读共享投放。地图按 capability 禁止无权限拖动；拒绝或保存失败时重发 SET_ASSETS 恢复位置，冲突时重新加载并提示用户。
+
+列表可包含无坐标的目录型 Shop，但它不会进入地图。Anchor 继续使用专用业务适配。旧消息协议仍可复用，语义由当前模式决定，不能仅根据字段名 `assetId` 推断它属于 Asset。
+
+## Legacy 交互参考
+
+以下是旧地图 `useViewerMessaging` / `useManageStore` 的数据链路和消息说明；其 ID 才是旧 Asset ID。v2 共用 viewer 消息格式，不共用旧写入路径。
 
 ## 功能概述
 

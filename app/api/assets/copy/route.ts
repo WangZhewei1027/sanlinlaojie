@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/server";
-import { getWorkspaceOrgIds } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
-import { logError } from "@/lib/log-error";
+import { legacyPathMode, loadActor } from "@/lib/content-model/access.server";
+import { ContentError } from "@/lib/content-model/errors";
+import { failure, hasContentModelHeader, ok, readJsonBody, requireSessionUserId } from "@/lib/content-model/http.server";
+import { isUuid, requireUuidList } from "@/lib/content-model/input";
+import { requireLegacyRowEdit, requireRowMembership, rowOrganizations } from "@/lib/assets/legacy.server";
+import { copyPlacement } from "@/lib/placements/service.server";
+import type { CreatePlacementResult } from "@/lib/content-model/contracts";
 
 interface SourceAsset {
   id: string;
@@ -17,6 +20,7 @@ interface SourceAsset {
   is_huge: boolean | null;
   config: Record<string, unknown> | null;
   workspace_id: string[] | null;
+  organization_id: string | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -32,23 +36,42 @@ const SELECT_COLUMNS = [
   "is_huge",
   "config",
   "workspace_id",
+  "organization_id",
   "metadata",
 ] as const;
 
 /**
- * 复制单个/多个素材。新素材复用源的 file_url / content_hash（不重复上传存储，
- * 天然满足全局去重），坐标在原位置上加一个小偏移；多选复制套用同一偏移，保持相对布局。
+ * 复制。
+ *
+ * - 旧组织：复制素材行。新行复用源的 file_url / content_hash（不重复上传），
+ *   坐标加一个小偏移；鉴权为源行所在每个项目的编辑权。
+ * - 已切换组织：仅接受 X-Content-Model: 2 且 `action: "placement.copy"`，
+ *   逐个调用投放复制（独立 ID 与公开 ID，固定同一内容）。
  */
 export async function POST(request: Request) {
-  const user = await getSessionUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "未授权" }, { status: 401 });
-  }
-
+  let userId: string | null = null;
   try {
-    const body = await request.json().catch(() => ({}));
-    const ids: string[] = Array.isArray(body?.ids) ? body.ids : [];
+    userId = await requireSessionUserId();
+    const actor = await loadActor(db, userId);
+    const body = await readJsonBody(request).catch(() => ({}) as Record<string, unknown>);
+
+    if (hasContentModelHeader(request) && body.action === "placement.copy") {
+      const ids = requireUuidList(body.placementIds, "placementIds", 50);
+      const results: CreatePlacementResult[] = [];
+      for (const id of ids) {
+        results.push(
+          await copyPlacement(actor, id, {
+            ...(body.targetWorkspaceId !== undefined ? { targetWorkspaceId: body.targetWorkspaceId } : {}),
+            ...(body.offsetMeters !== undefined ? { offsetMeters: body.offsetMeters } : {}),
+            // Per-item key: a retried batch replays committed copies instead of duplicating them.
+            ...(typeof body.idempotencyKey === "string" ? { idempotencyKey: `${body.idempotencyKey}:${id}` } : {}),
+          }),
+        );
+      }
+      return ok(results, 201);
+    }
+
+    const ids: string[] = Array.isArray(body?.ids) ? (body.ids as unknown[]).filter(isUuid) : [];
     const offsetMeters: number =
       typeof body?.offsetMeters === "number" && body.offsetMeters > 0
         ? body.offsetMeters
@@ -69,52 +92,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "资源不存在" }, { status: 404 });
     }
 
-    // 鉴权：super_admin 放行；否则要求对涉及的每个 org 都有 org.assets.write。
-    const userData = await db
-      .selectFrom("users")
-      .select("role")
-      .where("user_id", "=", user.id)
-      .executeTakeFirst();
-
-    if (!isSuperAdmin(userData?.role)) {
-      const allWorkspaceIds = Array.from(
-        new Set(sources.flatMap((a) => a.workspace_id ?? [])),
-      );
-      const orgIds = await getWorkspaceOrgIds(allWorkspaceIds);
-
-      const deny = async (msg: string) => {
-        await logError({
-          userId: user.id,
-          method: "POST",
-          path: "/api/assets/copy",
-          status: 403,
-          message: msg,
-          context: { orgIds },
-        });
-        return NextResponse.json({ error: "权限不足" }, { status: 403 });
-      };
-
-      if (orgIds.length === 0) {
-        return deny("权限不足: 资产无有效 org 归属");
-      }
-
-      const memberships = await db
-        .selectFrom("organization_member")
-        .select(["organization_id", "role"])
-        .where("user_id", "=", user.id)
-        .where("organization_id", "in", orgIds)
-        .execute();
-
-      const roleByOrg = new Map(
-        memberships.map((m) => [m.organization_id, m.role] as const),
-      );
-
-      for (const orgId of orgIds) {
-        if (!hasOrgPermission(roleByOrg.get(orgId), "org.assets.write")) {
-          return deny("权限不足: org.assets.write");
-        }
-      }
-    }
+    const orgs = await rowOrganizations(db, sources);
+    await requireRowMembership(db, actor, orgs);
+    const mode = legacyPathMode(orgs, hasContentModelHeader(request));
+    if (mode === "v2") throw new ContentError("VALIDATION_FAILED", "新内容模型只能复制投放：请使用 action \"placement.copy\" 与 placementIds");
+    for (const source of sources) await requireLegacyRowEdit(db, actor, source);
 
     // 用第一个带坐标素材的纬度算一次偏移量（度），所有副本套用同一偏移，保持相对布局。
     const refLat =
@@ -139,7 +121,7 @@ export async function POST(request: Request) {
 
       return {
         workspace_id: src.workspace_id ?? [],
-        created_by: user.id,
+        created_by: actor.userId,
         file_type: src.file_type,
         file_url: src.file_url,
         content_hash: src.content_hash,
@@ -177,13 +159,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
-    console.error("复制资产失败:", error);
-    await logError({
-      method: "POST",
-      path: "/api/assets/copy",
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "复制资源失败" }, { status: 500 });
+    return failure(error, { method: "POST", path: "/api/assets/copy", userId });
   }
 }

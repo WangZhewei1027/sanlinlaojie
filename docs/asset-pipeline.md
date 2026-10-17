@@ -2,7 +2,35 @@
 
 > 2026-09-08：anchor 已改为「匹配点」，增加一张参考图片和独立特征存储，挂载关系继续使用 anchor_id。具体新流程优先参考 [匹配点与小程序混合识别](./anchor-matching.md)，下文 anchor 的无文件旧流程已被替代。
 
-本文档描述 sanlinlaojie 管理端中任意类型资源（Asset）从配置到上传、编辑、预览的完整处理链路。
+本文档区分 v2 团队素材流程和 legacy 上传面板。是否启用 v2 由组织 `content_model_state` 决定，见 [数据层](data-layer.md)；`readonly` 禁止提交，`legacy/preparing` 仍使用旧写源。
+
+## V2：上传、素材版本与投放
+
+新流程保留文件预处理能力，提交逻辑使用 `lib/assets/service.server.ts` 与 `lib/assets/versions.server.ts`：
+
+```text
+选择/处理文件 → 上传取得 receipt
+  → 校验操作者、组织、有效期与用途
+  → Asset + AssetVersion + resource 文件清单 + 来源项目 grant
+  → 可选：同事务创建指向固定版本的 Placement
+```
+
+上传完成只代表文件可供提交，不表示素材或投放已创建。`lib/upload/receipts.server.ts` 的回执绑定操作者、组织、项目、key、hash 与用途；有效期内也保护在途文件。版本资源可引用同组织可读取的已有版本文件，以复用物理存储。新版本不会改动已有草稿、发布或投放。
+
+| 入口 | 写入结果 |
+| --- | --- |
+| 素材库上传 | Asset、v1、项目 grant，不默认投放 |
+| 场景内上传并添加 | 创建素材后，草稿固定引用所选版本 |
+| 上传新版本 | 追加不可变内容、推进 current 指针；使用方主动升级 |
+| 现场上传并放置 | 一次组合命令创建素材、版本与 Placement；无需创建 Scene |
+
+素材固有信息与投放参数分开：内容、尺寸、时长、动画列表进入 version payload；文件进入 `asset_version_resource`；位置、Anchor、比例/朝向与局部展示参数进入 Placement。EXIF GPS 是采集信息，只有明确的投放操作才用于展示位置。上传和创建命令使用幂等键与回执重试，失败后的文件由 [统一回收](asset-storage-lifecycle.md) 处理。
+
+通用素材目录与 Scene 入口分开。Anchor 和 Shop 仍有专用兼容业务；未来活动附件应继承活动内容的访问范围，不自动成为组织共享素材。
+
+## Legacy 上传面板参考
+
+下文的 `file_url/text_content/metadata` 直写链路仅适用于旧模型。v2 页面和命令不能通过这些旧字段创建第二个写源；文件类型配置和预处理工具可继续复用。
 
 ---
 
@@ -22,7 +50,7 @@ type UploadType =
 
 ### `Asset`
 
-数据库实体，核心字段：
+Legacy 数据库实体，核心字段：
 
 | 字段 | 说明 |
 |------|------|
@@ -249,7 +277,7 @@ getAssetConfig(file_type)
 
 ## 7. 新增 Asset 类型检查清单
 
-需要新增一种 `file_type` 时，依次检查以下位置：
+新增媒体类型时，v2 先检查 `lib/content-model/contracts.ts`、`payload.ts` 的类型、资源 role 与 payload 校验，版本 DTO、素材库展示和运行时适配。以下是 legacy 面板与共用上传工具的清单；Activity/Topic 不作为媒体类型加入。
 
 - [ ] `lib/upload/types.ts` — 加入 `UploadType` 联合类型与 `ALL_UPLOAD_TYPES`；按需加入 `DEFAULT_UPLOAD_TYPES`
 - [ ] `lib/upload/config.ts` — 在 `FILE_TYPE_CONFIGS` 添加配置项

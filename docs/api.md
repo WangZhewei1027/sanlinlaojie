@@ -6,7 +6,122 @@
 
 ## Overview
 
-This document describes the user and workspace routes in detail. Other route groups under `app/api/` are not documented here: `admin/{app-config,clean,organizations}`, `assets/{[id],[id]/matching,by-hash,copy,move}`, `auth/[...all]` (Better Auth) and `auth/role`, `errors` and `errors/logs`, `invitations/[token]`, `miniapp/*` (see `docs/miniapp-api.md`), `organizations`, `organizations/[id]` and `organizations/[id]/{assets,invitations,members}`, `organizations/pin`, `tags` and `tags/[id]`, `upload`, `users/{[id]/deletion-preview,by-ids,me,search}`.
+This document covers the content-model APIs and the existing user/workspace routes.
+Anonymous playback is documented in [miniapp-api.md](miniapp-api.md); data and
+cutover boundaries are in [data-layer.md](data-layer.md). TypeScript request and
+response definitions live in `lib/content-model/contracts.ts`; the corresponding
+Route Handlers call the shared domain services rather than duplicating writes.
+
+## Content-model V2 APIs
+
+These routes require a session and server-side organization/project/asset
+authorization. V2 content writes require an open organization in state `v2`;
+`legacy/preparing` retain the old write source, and `readonly` rejects writes.
+Applying the schema does not automatically switch an organization. See
+[permissions.md](permissions.md) for use versus maintenance rights.
+
+- Requests use camelCase fields; response DTOs use snake_case and server-computed `capabilities`.
+- Success is `{ data }`, catalog pages also include `page`; errors are `{ error, code, details? }`.
+- Identity/draft/placement changes require `expectedLockVersion`: missing returns 428, stale returns 409. Version append is serialized and accepts an optional expected identity lock.
+- Creation commands that accept `idempotencyKey` reuse the first result for the same input; key reuse with different input returns 409. Whether the key is required is declared on the request type.
+- AssetVersion and SceneRevision are immutable. `DELETE` on v2 Asset/Placement means archive; it does not delete retained versions or shared files.
+
+| Method and path | Behavior / request type |
+| --- | --- |
+| `GET /api/organizations/[id]/assets` with `X-Content-Model: 2` | Organization catalog: view=shared (default), maintained, or all (admin only); supports q/file_type/origin/state/usable_in/limit/offset |
+| `GET/POST /api/workspaces/[id]/assets` with `X-Content-Model: 2` | Grant-based project catalog / CreateAssetRequest; creates Asset + v1 + grant and optional Placement |
+| `GET/PATCH /api/assets/[id]` with `X-Content-Model: 2` | Detail with retained versions/grants / identity maintenance using expectedLockVersion |
+| `DELETE /api/assets/[id]?expectedLockVersion=N` with `X-Content-Model: 2` | Archive Asset and return dependency impact; Anchor uses its dedicated compatibility service |
+| `GET /api/assets/[id]/versions` | Versions, newest first; requires Asset read access |
+| `POST /api/upload` | Multipart file, workspace_id, optional type/purpose; project edit permission; returns legacy url/contentHash/storagePath plus data: UploadReceiptDto |
+| `DELETE /api/upload?key=…` | End this uploader's unused lease and request protected cleanup; may return removed=false, reason=deferred |
+| `POST /api/assets/[id]/versions` | `CreateAssetVersionRequest`: payload, resources, idempotencyKey, optional expectedLockVersion; source maintainer/admin only |
+| `GET /api/assets/[id]/usage` | Visible dependencies and restricted counts |
+| `POST /api/assets/[id]/duplicate` | `DuplicateAssetRequest`: targetWorkspaceId, optional sourceVersionId/name, idempotencyKey; new Asset identity |
+| `POST /api/assets/[id]/workspace-grants` | `{ workspaceId }`, same-organization use grant |
+| `DELETE /api/assets/[id]/workspace-grants?workspace_id=…` | Revoke only without retained dependencies; otherwise 409 with impact |
+| `GET/POST /api/workspaces/[id]/scenes` | List (`state=active|archived|all`) / create project Scene; import document must be schema 3 |
+| `GET/PATCH /api/scenes/[id]` | Draft and pinned resources / `SaveSceneRequest` with mandatory expectedLockVersion |
+| `POST /api/scenes/[id]/publish` | `{ expectedLockVersion, updatePlacements?: [{ placementId, expectedLockVersion }] }`; freezes the requested draft and optionally updates selected existing placements |
+| `GET /api/scenes/[id]/revisions` | Retained published versions, newest first |
+| `POST /api/scenes/[id]/copy` | New editable Scene; checks target-project access and each source Asset grant |
+| `GET/POST /api/workspaces/[id]/placements` | List or create fixed target; `include_shared=false` hides legacy shared scopes; optional status filter |
+| `GET /api/organizations/[id]/placements` | Aggregation restricted to readable projects |
+| `GET/PATCH /api/placements/[id]` | Read or edit Placement; optional GET workspace_id supplies shared viewer context |
+| `GET /api/placements/[id]/content?workspace_id=…` | PlacementContentDto: only the pinned playable AssetVersion or SceneRevision; authorized through the placement, without source catalog/history access |
+| `DELETE /api/placements/[id]?expectedLockVersion=N` | Archive this placement |
+| `POST /api/placements/move` | Atomic batch of `{ placementId, expectedLockVersion, longitude, latitude, altitude? }` |
+| `POST /api/placements/[id]/copy` | New independent placement; optional targetWorkspaceId, location/offset and idempotencyKey |
+| `GET/PUT/DELETE /api/workspaces/[id]/members` | Project members; PUT `{ userId, role }`, DELETE `?user_id=…`; managers cannot grant manager |
+| `POST/DELETE /api/workspaces/[id]/archive` | Archive/restore project; owner/admin only |
+| `GET /api/organizations/[id]/content-model` | State, legacy count and capabilities |
+| `PUT /api/organizations/[id]/content-model` | Super-admin initialization with `{ state, expectedState, note? }`; only legacy → v2 for an organization with no legacy Asset rows |
+
+Publishing with placement updates requires a lock version for the Scene and
+each selected Placement; all changes commit together. The former
+`updatePlacementIds` field is rejected with 428 `LOCK_VERSION_REQUIRED`, even
+when the Scene lock is present. At most 100 distinct placements may be updated.
+
+The content-model PUT checks `expectedState` and permits a same-state no-op.
+It cannot switch an organization with legacy data, enter preparing/readonly,
+or roll back a v2 organization. Those operations use the audited migration
+scripts under `scripts/migrate/content-model/`.
+
+An explicit placement viewer project must be its owning project or a readable,
+active legacy scope in the same organization. Source-project access does not
+make an unrelated viewer context valid. The fixed-content endpoint exposes no
+current-version hints, grants, source drafts or version history.
+
+`GET /api/assets/by-hash?workspace_id=…&hash=…` requires target-project edit
+permission. Its hash-only probe resolves only usable active asset versions,
+readable legacy sources or the caller's own unexpired receipts. Actual-byte
+upload dedup remains organization-scoped; knowing a hash alone does not grant
+access to someone else's restricted file or pending upload.
+
+Placement target is a discriminated union:
+
+```json
+{ "kind": "asset_version", "assetVersionId": "<uuid>" }
+```
+
+or `{ "kind": "scene_revision", "sceneRevisionId": "<uuid>" }`. A placement
+never targets a draft or a mutable current pointer. Active non-Shop placements
+need a supported GPS/Anchor discovery path; an empty Scene cannot become an
+active placement. Requests that create an Asset and its Placement are committed
+as one command.
+
+Version resource inputs use `receiptId`, authorized `fromVersionId/fromRole`,
+or a validated external URL. Arbitrary managed file URLs are rejected. Receipts
+bind the uploader, organization, key and purpose, and protect in-flight files.
+See [asset-storage-lifecycle.md](asset-storage-lifecycle.md).
+
+The upload response is intentionally compatible with the old top-level fields.
+V2 callers must supply a project and keep `data.id` as the receipt reference.
+The legacy no-workspace upload fallback does not issue a receipt and cannot
+feed a v2 version; it requires edit access to an available project. Upload
+defaults to purpose `asset_version` for v2, `legacy_asset` for legacy, and
+`anchor_reference` for Anchor files. The server retains its 5 MiB hard cap.
+
+The shared legacy-path contract uses `X-Content-Model: 2` for v2 administrative
+calls to reused paths such as Asset CRUD and project catalogs. New paths above
+are v2 by definition. Catalog GETs without the header retain a permission-filtered
+legacy projection; after cutover it is compatibility data, not an editable v2
+catalog. The header never grants permission or switches an organization; stale
+legacy writers receive an upgrade error after cutover. Anchor retains its
+dedicated field shape and service instead of becoming a generic media version.
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `LOCK_VERSION_REQUIRED` / `LOCK_VERSION_CONFLICT` | 428 / 409 | Missing or stale edit version |
+| `CONTENT_MODEL_NOT_ENABLED` / `CONTENT_MODEL_UPGRADE_REQUIRED` | 409 | Organization not switched / caller uses old administrative contract |
+| `CONTENT_MODEL_READONLY` | 423 | Cutover write freeze |
+| `DEPENDENCY_CONFLICT` / `ARCHIVED` | 409 | Referenced or archived content prevents the requested operation |
+| `GRANT_REQUIRED` | 403 | Target project lacks Asset use authorization |
+| `RECEIPT_INVALID` / `UNMANAGED_URL` | 400 | Invalid upload proof or managed URL submitted without authorization |
+
+Legacy user/workspace route details below remain useful for the old request
+shape. The legacy Asset array and direct-location fields do not describe v2
+ownership or placement.
 
 ---
 
@@ -124,9 +239,10 @@ This document describes the user and workspace routes in detail. Other route gro
     ```json
     {
       "workspace_id": "uuid",
-      "role": "member" // optional, defaults to "member"
+      "role": "editor"
     }
     ```
+- `role` is optional and defaults to `editor`; accepted project roles are `manager/editor/viewer`. The target must already belong to the organization. An organization viewer always receives project viewer access, even if a higher project role was requested.
 - **Response Format**:
   ```json
   {
@@ -297,10 +413,10 @@ This document describes the user and workspace routes in detail. Other route gro
   - `403`: Forbidden (insufficient permission)
   - `500`: Server error
 
-### Get Workspace Assets
+### Get Workspace Assets (legacy shape)
 - **Route**: `/api/workspaces/[id]/assets`
 - **Method**: `GET`
-- **Description**: Get all assets in a workspace. `POST` on the same route creates an asset (requires `org.assets.write`; this is how `lib/upload/service.ts` writes rows)
+- **Description**: Legacy project assets used by the old map/upload adapter. Server-side project permission and the organization's content-model gate apply; v2 catalog and creation semantics use versioned contracts.
 - **Authentication**: Required
 - **Request Parameters**:
   - `id` (path): Workspace ID (UUID)
@@ -319,7 +435,7 @@ This document describes the user and workspace routes in detail. Other route gro
     ]
   }
   ```
-- **Note**: Assets can belong to multiple workspaces. The `workspace_id` field is an array of UUIDs.
+- **Note**: Legacy Asset rows may contain multiple workspace IDs. This is compatibility data; v2 ownership is a single organization, project use is a grant, and location belongs to Placement.
 - **Error Handling**:
   - `401`: Unauthorized
   - `500`: Server error
@@ -329,8 +445,8 @@ This document describes the user and workspace routes in detail. Other route gro
 ## Notes
 
 - All authenticated endpoints require a valid Better Auth session (`getSessionUser()` in `lib/auth/server.ts`; `proxy.ts` only checks for the cookie)
-- super_admin endpoints require `users.role = 'super_admin'`; organization-scoped endpoints check `organization_member.role` (`owner | admin | member | viewer`) against the matrix in `lib/permissions.ts` (see `docs/permissions.md`)
+- super_admin endpoints require `users.role = 'super_admin'`; content endpoints also enforce project roles, Asset use/maintenance rights and organization write gates (see `docs/permissions.md`)
 - All timestamps are in UTC with timezone (timestamptz)
 - UUIDs follow RFC 4122 standard
-- Assets with `location IS NULL` are included by the workspace assets endpoint unless `requireLocation=true` is passed
-- **Asset Multi-Workspace Support**: The `workspace_id` field in the `asset` table is an array of UUIDs, allowing a single asset to belong to multiple workspaces. When creating assets, pass `workspace_id` as `[uuid]`.
+- In the legacy response, Assets with `location IS NULL` are included unless `requireLocation=true` is passed. V2 geographic filtering belongs to Placement queries.
+- Never send `workspace_id: [uuid]` to establish v2 ownership; the server derives organization and origin from the authorized project and creates grants through the domain command.

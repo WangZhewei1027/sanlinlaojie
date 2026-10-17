@@ -3,6 +3,10 @@ import type { Updateable } from "kysely";
 import { db, type DB } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import { logErrorSafe } from "@/lib/log-error";
+import { loadActor, requireWorkspaceEdit } from "@/lib/content-model/access.server";
+import { ContentError } from "@/lib/content-model/errors";
+import { errorJson } from "@/lib/content-model/http.server";
+import { isUuid } from "@/lib/content-model/input";
 
 // PATCH /api/tags/[id] - 更新标签
 export async function PATCH(
@@ -19,16 +23,19 @@ export async function PATCH(
   try {
     const { id: tagId } = await params;
 
-    // 获取标签信息
-    const tag = await db
-      .selectFrom("tag")
-      .select("id")
-      .where("id", "=", tagId)
-      .executeTakeFirst();
+    // 获取标签信息；修改需要标签所在项目的编辑权限
+    const tag = isUuid(tagId)
+      ? await db
+          .selectFrom("tag")
+          .select(["id", "workspace_id"])
+          .where("id", "=", tagId)
+          .executeTakeFirst()
+      : undefined;
 
     if (!tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
     }
+    await requireWorkspaceEdit(db, await loadActor(db, user.id), tag.workspace_id);
 
     // 解析请求体
     const body = await request.json();
@@ -60,6 +67,7 @@ export async function PATCH(
 
     return NextResponse.json({ tag: updatedTag });
   } catch (error) {
+    if (error instanceof ContentError) return errorJson(error);
     console.error("更新标签失败:", error);
     // 唯一约束冲突（tag_name_workspace_id_key）
     if ((error as { code?: string }).code === "23505") {
@@ -93,22 +101,26 @@ export async function DELETE(
   try {
     const { id: tagId } = await params;
 
-    // 获取标签信息
-    const tag = await db
-      .selectFrom("tag")
-      .select("id")
-      .where("id", "=", tagId)
-      .executeTakeFirst();
+    // 获取标签信息；修改需要标签所在项目的编辑权限
+    const tag = isUuid(tagId)
+      ? await db
+          .selectFrom("tag")
+          .select(["id", "workspace_id"])
+          .where("id", "=", tagId)
+          .executeTakeFirst()
+      : undefined;
 
     if (!tag) {
       return NextResponse.json({ error: "标签不存在" }, { status: 404 });
     }
+    await requireWorkspaceEdit(db, await loadActor(db, user.id), tag.workspace_id);
 
     // 删除标签
     await db.deleteFrom("tag").where("id", "=", tagId).execute();
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ContentError) return errorJson(error);
     console.error("删除标签失败:", error);
     await logErrorSafe({
       method: "DELETE",

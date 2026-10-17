@@ -3,6 +3,7 @@ import { db, sql, jsonObjectFrom } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
 import { getWorkspaceOrgId } from "@/lib/permissions.server";
 import { logError } from "@/lib/log-error";
+import { assignmentRoleFor } from "@/lib/permissions";
 
 interface InvitationRow {
   id: string;
@@ -113,13 +114,24 @@ export async function POST(
       )
       .execute();
 
-    // ② workspace 可选：复核归属后分配（幂等）
+    // ② workspace 可选：复核归属后分配（幂等）。新项目授权默认为 editor；
+    //    组织 viewer 收口为 viewer。已是成员时以实际组织角色为准。
     if (invitation.workspace_id) {
       const wsOrg = await getWorkspaceOrgId(invitation.workspace_id);
       if (wsOrg === invitation.organization_id) {
+        const membership = await db
+          .selectFrom("organization_member")
+          .select("role")
+          .where("organization_id", "=", invitation.organization_id)
+          .where("user_id", "=", user.id)
+          .executeTakeFirst();
         await db
           .insertInto("workspace_assignment")
-          .values({ user_id: user.id, workspace_id: invitation.workspace_id })
+          .values({
+            user_id: user.id,
+            workspace_id: invitation.workspace_id,
+            role: assignmentRoleFor(membership?.role ?? invitation.role),
+          })
           .onConflict((oc) =>
             oc.columns(["workspace_id", "user_id"]).doNothing(),
           )

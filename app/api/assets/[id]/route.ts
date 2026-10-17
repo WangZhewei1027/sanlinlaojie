@@ -7,19 +7,15 @@ import { NextResponse } from "next/server";
 import type { Updateable } from "kysely";
 import { db, sql, type DB } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
-import { getWorkspaceOrgIds } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
 import { logError } from "@/lib/log-error";
 import { removeStorageFileIfUnreferenced } from "@/lib/storage-cleanup.server";
 import { UUID_RE } from "@/lib/scene/validate-utils";
-
-interface AssetRow {
-  id: string;
-  file_type: string;
-  workspace_id: string[] | null;
-  file_url: string | null;
-  metadata: Record<string, unknown> | null;
-}
+import { legacyPathMode, loadActor, type Actor } from "@/lib/content-model/access.server";
+import { ContentError } from "@/lib/content-model/errors";
+import { errorJson, failure, hasContentModelHeader, ok, readJsonBody } from "@/lib/content-model/http.server";
+import { archiveAsset, getAssetDetail, updateAssetIdentity } from "@/lib/assets/service.server";
+import { deleteAnchorV2, loadLegacyRow, requireLegacyRowEdit, requireRowMembership, retireStagedLegacyRow, rowOrganizations, updateAnchorV2, type LegacyRow } from "@/lib/assets/legacy.server";
+import { parseArchiveLock } from "@/lib/placements/service.server";
 
 // PATCH 返回的列（与原 PostgREST select 列表一致）
 const PATCH_RETURN_COLUMNS = [
@@ -37,98 +33,70 @@ const PATCH_RETURN_COLUMNS = [
 ] as const;
 
 /**
- * Gate an asset write (edit/delete). Requires super_admin, or `org.assets.write`
- * in EVERY organization the asset's workspaces belong to (an asset's
- * workspace_id is an array and may span workspaces/orgs — the strictest rule
- * prevents using a cross-org asset to sidestep a missing permission).
+ * One administrative path, two models (plan §7):
+ * - legacy / preparing organizations keep the old row behaviour, now gated by
+ *   edit rights in every project of the row;
+ * - cut-over organizations require `X-Content-Model: 2`. Then GET/PATCH/DELETE
+ *   mean asset-identity detail / maintenance / archive, and anchors use their
+ *   dedicated service. Old mixed edits (source content + map placement in one
+ *   PATCH, DELETE meaning "remove from map") are refused, never guessed.
  */
-async function authorizeAssetWrite(
-  assetId: string,
-  userId: string,
-  method: string,
-): Promise<
-  { ok: true; asset: AssetRow } | { ok: false; response: NextResponse }
-> {
-  const row = await db
-    .selectFrom("asset")
-    .select(["id", "file_type", "file_url", "metadata", "workspace_id"])
-    .where("id", "=", assetId)
-    .executeTakeFirst();
+type Resolved =
+  | { mode: "legacy"; actor: Actor; row: LegacyRow }
+  | { mode: "v2"; actor: Actor; row: LegacyRow };
 
-  if (!row) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "资源不存在" }, { status: 404 }),
-    };
-  }
+async function resolveRequest(request: Request, assetId: string, userId: string, forRead = false): Promise<Resolved> {
+  if (!UUID_RE.test(assetId)) throw new ContentError("VALIDATION_FAILED", "素材 ID 无效");
+  const actor = await loadActor(db, userId);
+  const row = await loadLegacyRow(db, assetId);
+  if (!row) throw new ContentError("NOT_FOUND", "资源不存在");
+  const orgs = await rowOrganizations(db, [row]);
+  await requireRowMembership(db, actor, orgs);
+  // Reads are not frozen by readonly/archive; only the model choice applies.
+  const mode = forRead
+    ? legacyPathMode(orgs.map((o) => ({ ...o, archived_at: null, content_model_state: o.content_model_state === "readonly" ? "preparing" : o.content_model_state })), hasContentModelHeader(request))
+    : legacyPathMode(orgs, hasContentModelHeader(request));
+  return { mode, actor, row };
+}
 
-  // metadata 为 jsonb，读出来已是解析后的对象
-  const asset: AssetRow = {
-    ...row,
-    metadata: row.metadata as Record<string, unknown> | null,
-  };
-
-  const userData = await db
-    .selectFrom("users")
-    .select("role")
-    .where("user_id", "=", userId)
-    .executeTakeFirst();
-
-  if (isSuperAdmin(userData?.role)) {
-    return { ok: true, asset };
-  }
-
-  const workspaceIds = asset.workspace_id ?? [];
-  const orgIds = await getWorkspaceOrgIds(workspaceIds);
-
-  const deny = async (msg: string) => {
-    await logError({
-      userId,
-      method,
-      path: `/api/assets/${assetId}`,
-      status: 403,
-      message: msg,
-      context: { orgIds },
-    });
-    return {
-      ok: false as const,
-      response: NextResponse.json({ error: "权限不足" }, { status: 403 }),
-    };
-  };
-
-  if (orgIds.length === 0) {
-    return deny("权限不足: 资产无有效 org 归属");
-  }
-
-  const memberships = await db
-    .selectFrom("organization_member")
-    .select(["organization_id", "role"])
-    .where("user_id", "=", userId)
-    .where("organization_id", "in", orgIds)
-    .execute();
-
-  const roleByOrg = new Map(
-    memberships.map((m) => [m.organization_id, m.role] as const),
-  );
-
-  for (const orgId of orgIds) {
-    if (!hasOrgPermission(roleByOrg.get(orgId), "org.assets.write")) {
-      return deny("权限不足: org.assets.write");
+/** Legacy behaviour: edit rights in every project of the row. Returns a 4xx response on denial. */
+async function authorizeLegacy(resolved: Resolved, method: string): Promise<NextResponse | null> {
+  try {
+    await requireLegacyRowEdit(db, resolved.actor, resolved.row);
+    return null;
+  } catch (error) {
+    if (error instanceof ContentError) {
+      await logError({ userId: resolved.actor.userId, method, path: `/api/assets/${resolved.row.id}`, status: error.status, message: error.message });
+      return errorJson(error);
     }
+    throw error;
   }
+}
 
-  return { ok: true, asset };
+/** v2 rows that are neither identities nor anchors are frozen legacy projections. */
+function frozenLegacy(): never {
+  throw new ContentError("LEGACY_AMBIGUOUS", "该旧记录在新内容模型中只读；请在素材库或投放中操作");
 }
 
 /** Dedicated editor data; requires the same permissions as saving the asset. */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "未授权" }, { status: 401 });
   if (!UUID_RE.test(id)) return NextResponse.json({ error: "素材 ID 无效" }, { status: 400 });
   try {
-    const auth = await authorizeAssetWrite(id, user.id, "GET");
-    if (!auth.ok) return auth.response;
+    const resolved = await resolveRequest(request, id, user.id, true);
+    if (resolved.mode === "v2") {
+      if (resolved.row.file_type === "anchor") {
+        await requireLegacyRowEdit(db, resolved.actor, resolved.row);
+        return ok(await db.selectFrom("asset").selectAll().where("id", "=", id).executeTakeFirstOrThrow());
+      }
+      if (!resolved.row.organization_id) frozenLegacy();
+      return ok(await getAssetDetail(resolved.actor, id));
+    }
+    const denied = await authorizeLegacy(resolved, "GET");
+    if (denied) return denied;
+    const auth = { asset: resolved.row };
     if (auth.asset.file_type !== "scene") return NextResponse.json({ error: "不是场景素材" }, { status: 400 });
     const data = await db.selectFrom("asset").select(PATCH_RETURN_COLUMNS).select(sceneRevision.as("scene_revision")).where("id", "=", id).executeTakeFirstOrThrow();
     const workspaceIds = auth.asset.workspace_id ?? [];
@@ -137,8 +105,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .where("file_url", "is not", null).where(sql<boolean>`workspace_id @> ${workspaceIds}::uuid[]`).orderBy("name").execute() : [];
     return NextResponse.json({ data, models }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    await logError({ userId: user.id, method: "GET", path: `/api/assets/${id}`, status: 500, message: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "场景加载失败" }, { status: 500 });
+    return failure(error, { method: "GET", path: `/api/assets/${id}`, userId: user.id });
   }
 }
 
@@ -154,8 +121,16 @@ export async function PATCH(
   }
 
   try {
-    const auth = await authorizeAssetWrite(assetId, user.id, "PATCH");
-    if (!auth.ok) return auth.response;
+    const resolved = await resolveRequest(request, assetId, user.id);
+    if (resolved.mode === "v2") {
+      const v2Body = await readJsonBody(request);
+      if (resolved.row.file_type === "anchor") return ok(await updateAnchorV2(resolved.actor, assetId, v2Body));
+      if (!resolved.row.organization_id) frozenLegacy();
+      return ok(await updateAssetIdentity(resolved.actor, assetId, v2Body));
+    }
+    const denied = await authorizeLegacy(resolved, "PATCH");
+    if (denied) return denied;
+    const auth = { asset: resolved.row };
 
     // 解析请求体
     const body = await request.json();
@@ -184,6 +159,8 @@ export async function PATCH(
 
     if (auth.asset.file_type === "scene") {
       if (name !== undefined && (typeof name !== "string" || !name.trim())) throw new SceneAssetError("场景必须输入标题");
+      // Compatibility writers cannot bypass the edit fingerprint (plan §4.3).
+      if (text_content !== undefined && body.scene_revision === undefined) throw new SceneAssetError("保存场景内容需要提供 scene_revision", 428);
       if (body.scene_revision !== undefined && (typeof body.scene_revision !== "string" || !/^[a-f0-9]{32}$/.test(body.scene_revision))) throw new SceneAssetError("场景版本无效");
       if (file_url || is_huge) throw new SceneAssetError("场景使用 JSON 内容，不支持文件地址或大型模型标记");
       if (text_content !== undefined) await resolveSceneAsset(text_content, auth.asset.workspace_id ?? []);
@@ -307,14 +284,7 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof SceneAssetError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error("更新资源失败:", error);
-    await logError({
-      method: "PATCH",
-      path: `/api/assets/${assetId}`,
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return failure(error, { method: "PATCH", path: `/api/assets/${assetId}`, userId: user.id });
   }
 }
 
@@ -330,14 +300,36 @@ export async function DELETE(
   }
 
   try {
-    const auth = await authorizeAssetWrite(assetId, user.id, "DELETE");
-    if (!auth.ok) return auth.response;
-    const asset = auth.asset;
+    const resolved = await resolveRequest(request, assetId, user.id);
+    if (resolved.mode === "v2") {
+      const expected = parseArchiveLock(new URL(request.url).searchParams);
+      if (resolved.row.file_type === "anchor") {
+        const deleted = await deleteAnchorV2(resolved.actor, assetId, expected);
+        if (deleted.file_url) await removeStorageFileIfUnreferenced(deleted.file_url, { userId: user.id, method: "DELETE", path: `/api/assets/${assetId}` });
+        return ok({ deleted: true });
+      }
+      if (!resolved.row.organization_id) frozenLegacy();
+      return ok(await archiveAsset(resolved.actor, assetId, expected));
+    }
+    const denied = await authorizeLegacy(resolved, "DELETE");
+    if (denied) return denied;
+    const asset = resolved.row;
 
     // 先删行、后删文件：行删掉后再按引用计数清理存储（复制/hash 去重会让多个
     // asset 共用同一文件），失败方向只留孤儿文件（由 admin/clean 全局清扫兜底），
     // 不会出现"行还在但文件没了"的死链。
-    await db.deleteFrom("asset").where("id", "=", assetId).execute();
+    try {
+      await db.deleteFrom("asset").where("id", "=", assetId).execute();
+    } catch (error) {
+      // Staged by the migration (versions/grants/placements reference the
+      // identity): leave the legacy surfaces instead of failing; the shadow
+      // stays for the migrator to retire explicitly. Files stay retained.
+      if ((error as { code?: string }).code === "23503" && asset.organization_id) {
+        await retireStagedLegacyRow(assetId);
+        return NextResponse.json({ success: true, message: "资源已删除" });
+      }
+      throw error;
+    }
 
     const checkinUrl = asset.metadata?.checkin_url;
     const fileUrls = new Set(
@@ -356,13 +348,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: "资源已删除" });
   } catch (error) {
     if (error instanceof MatchingError) return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error("删除资源失败:", error);
-    await logError({
-      method: "DELETE",
-      path: `/api/assets/${assetId}`,
-      status: 500,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return failure(error, { method: "DELETE", path: `/api/assets/${assetId}`, userId: user.id });
   }
 }

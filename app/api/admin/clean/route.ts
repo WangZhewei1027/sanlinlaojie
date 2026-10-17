@@ -5,28 +5,22 @@ import { getUserContext } from "@/lib/permissions.server";
 import { isSuperAdmin } from "@/lib/permissions";
 import { logErrorSafe } from "@/lib/log-error";
 import { storagePathFromUrl } from "@/lib/storage-cleanup.server";
-import {
-  ASSETS_PREFIX,
-  deleteObjects,
-  headObject,
-  listObjects,
-} from "@/lib/storage/oss";
+import { ASSETS_PREFIX, headObject, listObjects } from "@/lib/storage/oss";
+import { collectProtectedKeys, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
 
 /**
  * 存储/数据库一致性清扫（仅 super_admin）：
  *
- * - clean-rows：按 workspace 扫描资产行，删除其 file_url 指向的存储对象已不存在
- *   的死链行（需要 workspaceId）。
- * - clean-files：遍历 OSS 上 assets/ 前缀下的全部对象，对比全表引用（file_url +
- *   metadata.checkin_url），删除没有任何行引用的孤儿文件。这是所有删除路径
- *   "先删行、后删文件，存储失败不阻断"策略的兜底清扫，必须全局对比——
- *   内容 hash 去重会让文件被任意 workspace/组织的资产共享，按单 workspace
- *   对比会误删共享文件。刚上传、行可能尚未落库的新文件（24 小时内）跳过。
+ * - clean-rows：按 workspace 检查旧资产行与该项目已授权素材的版本文件，报告
+ *   存储对象已不存在的记录（需要 workspaceId）。只报告、不删行：缺文件的版本
+ *   不可发布，素材身份与引用必须保留，由维护者上传新版本修复。
+ * - clean-files：遍历 OSS assets/ 下全部对象，与全局保留集合（版本资源、旧行
+ *   引用、匹配点参考图、有效上传回执、.webm↔.m4a 派生文件）对比；候选逐个在
+ *   对象 key 锁内复核后才回收。迁移期间实际删除关闭
+ *   （app_config.managed_object_deletion），只返回候选。24 小时内的新对象跳过。
  */
 
 const ORPHAN_FILE_MIN_AGE_MS = 24 * 60 * 60 * 1000;
-/** 每批删除的对象数（OSS 单次 deleteMulti 上限），按批记录成功/失败 */
-const DELETE_BATCH_SIZE = 1000;
 
 interface CleanResult {
   orphanedRows: {
@@ -41,27 +35,35 @@ interface CleanResult {
   deletedRows: string[];
   deletedFiles: string[];
   errors: string[];
+  deletionEnabled?: boolean;
 }
 
-/** 全表引用集合：所有 file_url 与 metadata.checkin_url 能解析出的对象 key。 */
-async function fetchReferencedPaths(): Promise<Set<string>> {
-  const rows = await db
+/** Managed objects a project depends on: legacy rows + files of granted asset versions. */
+async function workspaceObjects(workspaceId: string): Promise<{ id: string; url: string; key: string; reason: string }[]> {
+  const legacy = await db
     .selectFrom("asset")
-    .select([
-      "file_url",
-      sql<string | null>`metadata->>'checkin_url'`.as("checkin_url"),
-    ])
+    .select(["id", "file_url"])
+    .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
+    .where("file_url", "is not", null)
+    .orderBy("id", "asc")
     .execute();
-
-  const referenced = new Set<string>();
-  for (const row of rows) {
-    for (const url of [row.file_url, row.checkin_url]) {
-      if (!url) continue;
-      const path = storagePathFromUrl(url);
-      if (path) referenced.add(path);
-    }
+  const versions = await db
+    .selectFrom("asset_workspace_grant as g")
+    .innerJoin("asset_version as v", "v.asset_id", "g.asset_id")
+    .innerJoin("asset_version_resource as r", "r.asset_version_id", "v.id")
+    .select(["v.id", "r.storage_key", "r.role", "v.version_no"])
+    .where("g.workspace_id", "=", workspaceId)
+    .where("r.storage_key", "is not", null)
+    .execute();
+  const out: { id: string; url: string; key: string; reason: string }[] = [];
+  for (const row of legacy) {
+    const key = row.file_url ? storagePathFromUrl(row.file_url) : null;
+    if (key && row.file_url) out.push({ id: row.id, url: row.file_url, key, reason: "Storage 中文件不存在" });
   }
-  return referenced;
+  for (const row of versions) {
+    if (row.storage_key) out.push({ id: row.id, url: row.storage_key, key: row.storage_key, reason: `版本 v${row.version_no} 的 ${row.role} 文件不存在（不可发布，请上传新版本）` });
+  }
+  return out;
 }
 
 export async function POST(request: Request) {
@@ -105,124 +107,60 @@ export async function POST(request: Request) {
       errors: [],
     };
 
-    // 1. 检查并清理数据库中文件不存在的记录（按 workspace）
+    // 1. 报告文件已不存在的记录（按 workspace；不删行）
     if (wantRows) {
       try {
-        let assets: { id: string; file_url: string | null }[] = [];
-        try {
-          assets = await db
-            .selectFrom("asset")
-            .select(["id", "file_url"])
-            .where(sql<boolean>`workspace_id @> array[${workspaceId}::uuid]`)
-            .where("file_url", "is not", null)
-            .orderBy("id", "asc")
-            .execute();
-        } catch (fetchError) {
-          result.errors.push(
-            `查询资产失败: ${
-              fetchError instanceof Error ? fetchError.message : "未知错误"
-            }`,
-          );
-        }
-
-        for (const asset of assets) {
-          if (!asset.file_url) continue;
-
-          const filePath = storagePathFromUrl(asset.file_url);
-          if (!filePath) continue; // 非本站 OSS URL（外链等），不检查
-
+        for (const item of await workspaceObjects(workspaceId)) {
           try {
             // headObject 仅在对象确实不存在时返回 null，其余故障抛错
-            let exists: boolean;
-            try {
-              exists = (await headObject(filePath)) !== null;
-            } catch (headError) {
-              // 查询失败 ≠ 文件不存在：跳过，避免瞬时故障误删行
-              result.errors.push(
-                `检查文件 ${filePath} 失败: ${
-                  headError instanceof Error ? headError.message : "未知错误"
-                }`,
-              );
-              continue;
+            if ((await headObject(item.key)) === null) {
+              result.orphanedRows.push({ id: item.id, file_url: item.url, reason: item.reason });
             }
-
-            if (!exists) {
-              result.orphanedRows.push({
-                id: asset.id,
-                file_url: asset.file_url,
-                reason: "Storage 中文件不存在",
-              });
-
-              try {
-                await db.deleteFrom("asset").where("id", "=", asset.id).execute();
-                result.deletedRows.push(asset.id);
-              } catch (deleteError) {
-                result.errors.push(
-                  `删除记录 ${asset.id} 失败: ${
-                    deleteError instanceof Error
-                      ? deleteError.message
-                      : "未知错误"
-                  }`,
-                );
-              }
-            }
-          } catch (err) {
+          } catch (headError) {
+            // 查询失败 ≠ 文件不存在
             result.errors.push(
-              `处理资产 ${asset.id} 时出错: ${
-                err instanceof Error ? err.message : "未知错误"
-              }`,
+              `检查文件 ${item.key} 失败: ${headError instanceof Error ? headError.message : "未知错误"}`,
             );
           }
         }
       } catch (err) {
         result.errors.push(
-          `清理数据库记录时出错: ${
-            err instanceof Error ? err.message : "未知错误"
-          }`,
+          `检查数据库记录时出错: ${err instanceof Error ? err.message : "未知错误"}`,
         );
       }
     }
 
-    // 2. 全桶清扫没有任何行引用的孤儿文件（全局对比，与 workspace 无关）
+    // 2. 全桶清扫：快照预筛 + 逐个加锁复核（删除关闭时只报告候选）
     if (wantFiles) {
       try {
-        // 先列对象、后取引用：引用快照越接近删除时刻，列表期间新落库的行被漏判的窗口越小
+        // 先列对象、后取保留集合；最终判定在 retention 的对象锁内完成
         const files: { key: string; lastModified: Date }[] = [];
         for await (const obj of listObjects(ASSETS_PREFIX)) {
           files.push({ key: obj.key, lastModified: obj.lastModified });
         }
-        const referencedPaths = await fetchReferencedPaths();
+        const protectedKeys = await collectProtectedKeys();
 
         const now = Date.now();
-        const orphanKeys: string[] = [];
+        const candidates: string[] = [];
         for (const file of files) {
-          if (referencedPaths.has(file.key)) continue;
-
-          // 新文件跳过：上传先于行落库，可能是进行中的上传
-          //（对象只写一次，lastModified 即上传时间）
+          if (protectedKeys.has(file.key)) continue;
+          // 新文件跳过：可能是进行中的上传（对象只写一次，lastModified 即上传时间）
           const age = now - file.lastModified.getTime();
           if (Number.isFinite(age) && age < ORPHAN_FILE_MIN_AGE_MS) continue;
-
-          result.orphanedFiles.push({
-            path: file.key,
-            name: file.key.split("/").pop() ?? file.key,
-          });
-          orphanKeys.push(file.key);
+          candidates.push(file.key);
         }
 
-        for (let i = 0; i < orphanKeys.length; i += DELETE_BATCH_SIZE) {
-          const batch = orphanKeys.slice(i, i + DELETE_BATCH_SIZE);
-          try {
-            await deleteObjects(batch);
-            result.deletedFiles.push(...batch);
-          } catch (deleteError) {
-            const message =
-              deleteError instanceof Error ? deleteError.message : "未知错误";
-            for (const key of batch) {
-              result.errors.push(`删除文件 ${key} 失败: ${message}`);
-            }
-          }
+        const report = await releaseObjectsIfUnreferenced(candidates, {
+          userId: user.id,
+          method: "POST",
+          path: "/api/admin/clean",
+        });
+        result.deletionEnabled = report.deletionEnabled;
+        for (const key of [...report.removed, ...report.candidates]) {
+          result.orphanedFiles.push({ path: key, name: key.split("/").pop() ?? key });
         }
+        result.deletedFiles.push(...report.removed);
+        for (const key of report.failed) result.errors.push(`回收文件 ${key} 失败`);
       } catch (err) {
         result.errors.push(
           `清理存储文件时出错: ${

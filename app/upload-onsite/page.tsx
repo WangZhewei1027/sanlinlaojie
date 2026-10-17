@@ -1,306 +1,63 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { FileUploadService } from "@/lib/upload/service";
-import { LocationData } from "@/lib/upload/types";
-import { authClient } from "@/lib/auth/client";
-import { GPSStatusCard } from "./components/GPSStatusCard";
-import { ModeSelector } from "./components/ModeSelector";
-import { CameraUpload } from "./components/CameraUpload";
-import { TextUpload } from "./components/TextUpload";
-import { AudioRecorder } from "./components/AudioRecorder";
-import { StatusMessages } from "./components/StatusMessages";
-import { TagSelector } from "./components/TagSelector";
-import { WorkspaceContextCard } from "./components/WorkspaceContextCard";
-import { useGPS } from "./hooks/useGPS";
-import { useManageStore } from "../manage/store";
-import { isSpecificWorkspaceId } from "../manage/constants";
-import { isSuperAdmin } from "@/lib/permissions";
-import { Text } from "@/components/ui/typography";
-
-type UploadMode = "camera" | "text" | "audio";
+import { Suspense } from "react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ContentNotice } from "@/app/manage/content/ContentFeedback";
+import { useContentContext, useContentModel } from "@/app/manage/lib/content-context";
+import { useIntegrationText } from "@/app/manage/lib/integration-text";
+import { LegacyOnsiteUpload } from "./components/LegacyOnsiteUpload";
+import { V2OnsiteUpload } from "./components/V2OnsiteUpload";
+import { ONSITE_TEXTS } from "./onsite-texts";
 
 export default function UploadOnsitePage() {
-  const { t } = useTranslation();
-  const uploadService = new FileUploadService();
-  const { gpsPosition, gpsError, gpsLoading } = useGPS();
-
-  // 从 store 获取 workspace 信息（将 "All workspaces" 哨兵视为未选择）
-  const storeWorkspaceId = useManageStore((state) => state.selectedWorkspaceId);
-  const selectedWorkspaceId = isSpecificWorkspaceId(storeWorkspaceId)
-    ? storeWorkspaceId
-    : null;
-
-  // viewer 纯只读：不能上传资产（服务端亦会拒绝，这里隐藏入口避免困惑）
-  const selectedOrganization = useManageStore((s) => s.selectedOrganization);
-  const currentUserRole = useManageStore((s) => s.currentUserRole);
-  const isReadOnly =
-    !isSuperAdmin(currentUserRole) &&
-    selectedOrganization?.role === "viewer";
-
-  const [mode, setMode] = useState<UploadMode>("camera");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-
-  // 上传拍摄的照片
-  const handlePhotoUpload = async (
-    capturedImage: string,
-    title?: string,
-    description?: string,
-  ) => {
-    if (!gpsPosition || !selectedWorkspaceId) {
-      setError(t("onsite.missingInfo"));
-      throw new Error(t("onsite.missingInfo"));
-    }
-
-    setError(null);
-
-    try {
-      const { data: session } = await authClient.getSession();
-      const user = session?.user;
-
-      if (!user) {
-        throw new Error(t("onsite.pleaseLogin") || "请先登录");
-      }
-
-      const blob = await (await fetch(capturedImage)).blob();
-      const originalFile = new File([blob], `onsite-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
-
-      console.log(
-        `原始文件大小: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB`,
-      );
-
-      // 使用 FileUploadService 处理文件（自动压缩）
-      const processedFileData = await uploadService.processFile(originalFile);
-
-      console.log(
-        `压缩后文件大小: ${(processedFileData.file.size / 1024 / 1024).toFixed(
-          2,
-        )}MB`,
-      );
-
-      // 上传到 Storage
-      const uploaded = await uploadService.uploadToStorage(
-        processedFileData.file,
-        user.id,
-        { type: processedFileData.type, workspaceId: selectedWorkspaceId },
-      );
-
-      const location: LocationData = {
-        latitude: gpsPosition.latitude,
-        longitude: gpsPosition.longitude,
-        height: gpsPosition.altitude || 0,
-      };
-
-      try {
-        // 保存到数据库，包含标题和描述
-        await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
-          fileType: processedFileData.type,
-          fileUrl: uploaded.url,
-          contentHash: uploaded.contentHash,
-          location,
-          gpsSource: "device_gps",
-          tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
-          name: title,
-          textContent: description,
-        });
-      } catch (dbErr) {
-        // DB 写入失败：补偿删除刚上传的新存储对象（尽力而为，不掩盖原始错误）
-        await uploadService.cleanupUploadedFile(uploaded);
-        throw dbErr;
-      }
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      const errorMsg = t("onsite.uploadFailed") + (err as Error).message;
-      setError(errorMsg);
-      throw new Error(errorMsg);
-    }
-  };
-
-  // 上传文本
-  const handleTextUpload = async (textContent: string) => {
-    if (!gpsPosition || !selectedWorkspaceId) {
-      setError(t("onsite.missingInfo"));
-      throw new Error(t("onsite.missingInfo"));
-    }
-
-    setError(null);
-
-    try {
-      const { data: session } = await authClient.getSession();
-      const user = session?.user;
-
-      if (!user) {
-        throw new Error(t("onsite.pleaseLogin") || "请先登录");
-      }
-
-      const location: LocationData = {
-        latitude: gpsPosition.latitude,
-        longitude: gpsPosition.longitude,
-        height: gpsPosition.altitude || 0,
-      };
-
-      // 使用 FileUploadService 保存文本
-      await uploadService.saveText(
-        selectedWorkspaceId,
-        user.id,
-        textContent,
-        location,
-        selectedTagIds.length > 0 ? selectedTagIds : undefined,
-      );
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      const errorMsg = t("onsite.uploadFailed") + (err as Error).message;
-      setError(errorMsg);
-      throw new Error(errorMsg);
-    }
-  };
-
-  // 上传录音
-  const handleAudioUpload = async (
-    audioFile: File,
-    title?: string,
-    description?: string,
-  ) => {
-    if (!gpsPosition || !selectedWorkspaceId) {
-      setError(t("onsite.missingInfo"));
-      throw new Error(t("onsite.missingInfo"));
-    }
-
-    setError(null);
-
-    try {
-      const { data: session } = await authClient.getSession();
-      const user = session?.user;
-
-      if (!user) {
-        throw new Error(t("onsite.pleaseLogin") || "请先登录");
-      }
-
-      console.log(
-        `音频文件大小: ${(audioFile.size / 1024 / 1024).toFixed(2)}MB`,
-      );
-
-      // 使用 FileUploadService 处理音频文件（支持压缩）
-      const processedFileData = await uploadService.processFile(audioFile);
-
-      console.log(
-        `处理后文件大小: ${(processedFileData.file.size / 1024 / 1024).toFixed(
-          2,
-        )}MB`,
-      );
-
-      // 上传到 Storage
-      const uploaded = await uploadService.uploadToStorage(
-        processedFileData.file,
-        user.id,
-        { type: processedFileData.type, workspaceId: selectedWorkspaceId },
-      );
-
-      const location: LocationData = {
-        latitude: gpsPosition.latitude,
-        longitude: gpsPosition.longitude,
-        height: gpsPosition.altitude || 0,
-      };
-
-      try {
-        // 保存到数据库，包含标题和描述
-        await uploadService.saveToDatabase(selectedWorkspaceId, user.id, {
-          fileType: processedFileData.type,
-          fileUrl: uploaded.url,
-          contentHash: uploaded.contentHash,
-          location,
-          gpsSource: "device_gps",
-          tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
-          name: title,
-          textContent: description,
-        });
-      } catch (dbErr) {
-        // DB 写入失败：补偿删除刚上传的新存储对象（尽力而为，不掩盖原始错误）
-        await uploadService.cleanupUploadedFile(uploaded);
-        throw dbErr;
-      }
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      const errorMsg = t("onsite.uploadFailed") + (err as Error).message;
-      setError(errorMsg);
-      throw new Error(errorMsg);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
-      <div className="mx-auto max-w-2xl space-y-5">
-        <header className="space-y-1">
-          <Text as="h1" variant="headingLg" fontWeight="bold" className="sm:text-3xl">
-            {t("onsite.title")}
-          </Text>
-          <p className="text-sm text-muted-foreground">
-            {t("onsite.subtitle")}
-          </p>
-        </header>
+    <Suspense fallback={<OnsiteSkeleton />}>
+      <OnsiteUploadGate />
+    </Suspense>
+  );
+}
 
-        {/* 上传上下文：目标工作区、定位、标签 */}
-        <section className="space-y-3">
-          <WorkspaceContextCard workspaceId={selectedWorkspaceId} />
+/**
+ * Chooses the upload path from the organization's server-declared content
+ * model state: `v2` uses the one-step upload-and-place command, `readonly`
+ * shows the frozen state, everything else keeps the legacy path unchanged.
+ */
+function OnsiteUploadGate() {
+  const tx = useIntegrationText(ONSITE_TEXTS);
+  const context = useContentContext();
+  const model = useContentModel(context.organizationId);
 
-          <GPSStatusCard
-            gpsPosition={gpsPosition}
-            gpsError={gpsError}
-            gpsLoading={gpsLoading}
-          />
-
-          <TagSelector
-            workspaceId={selectedWorkspaceId}
-            selectedTagIds={selectedTagIds}
-            onTagIdsChange={setSelectedTagIds}
-          />
-        </section>
-
-        {/* 采集方式与上传（viewer 只读，隐藏） */}
-        {isReadOnly ? (
-          <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
-            {t("onsite.readOnly", "你在此组织为只读角色，无法上传资产")}
-          </div>
-        ) : (
-          <section className="space-y-3">
-            <ModeSelector mode={mode} onModeChange={setMode} />
-
-            {mode === "camera" && (
-              <CameraUpload
-                onUpload={handlePhotoUpload}
-                disabled={!gpsPosition || !selectedWorkspaceId}
-              />
-            )}
-
-            {mode === "text" && (
-              <TextUpload
-                onUpload={handleTextUpload}
-                disabled={!gpsPosition || !selectedWorkspaceId}
-              />
-            )}
-
-            {mode === "audio" && (
-              <AudioRecorder
-                onUpload={handleAudioUpload}
-                disabled={!gpsPosition || !selectedWorkspaceId}
-              />
-            )}
-          </section>
-        )}
-
-        <StatusMessages error={error} success={success} />
+  if (!context.organizationId) return <LegacyOnsiteUpload />;
+  if (model.status === "loading") return <OnsiteSkeleton label={tx("contentModel.integration.onsite.checkingState")} />;
+  if (model.status === "error") {
+    return (
+      <div className="mx-auto max-w-2xl px-4 pt-5">
+        <ContentNotice
+          tone="critical"
+          title={tx("contentModel.integration.onsite.stateError")}
+          description={model.error ?? undefined}
+          action={<Button variant="outline" size="sm" onClick={model.refresh}>{tx("contentModel.action.retry")}</Button>}
+        />
       </div>
+    );
+  }
+  if (model.state === "v2" || model.state === "readonly") {
+    return <V2OnsiteUpload context={context} frozen={model.state === "readonly"} />;
+  }
+  return <LegacyOnsiteUpload />;
+}
+
+function OnsiteSkeleton({ label }: { label?: string }) {
+  return (
+    <div role="status" aria-label={label} className="mx-auto max-w-2xl space-y-5 px-4 pt-5">
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-48 w-full" />
     </div>
   );
 }

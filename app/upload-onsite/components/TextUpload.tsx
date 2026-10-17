@@ -23,6 +23,8 @@ export function TextUpload({ onUpload, disabled }: TextUploadProps) {
     try {
       await onUpload(textContent);
       setTextContent("");
+    } catch {
+      // The page shows the error; keep the text so the user can retry.
     } finally {
       setUploading(false);
     }

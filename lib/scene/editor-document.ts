@@ -1,5 +1,5 @@
 import { Euler, Quaternion } from "three";
-import { TRANSFORM_CHANNELS, type CompositionInstance, type SceneDefinition, type TransformChannel } from "./protocol";
+import { TRANSFORM_CHANNELS, type CompositionInstance, type SceneDocumentLike, type TransformChannel } from "./protocol";
 import { instanceValues, type TransformValues } from "./theatre-state";
 
 export type TransformGroup = keyof TransformValues;
@@ -57,6 +57,6 @@ export function deleteKeys(instance: CompositionInstance, group: TransformGroup,
   return { ...instance, tracks };
 }
 
-export function minimumDuration(definition: SceneDefinition) {
+export function minimumDuration(definition: SceneDocumentLike) {
   return Math.max(0.1, ...definition.content.instances.flatMap((instance) => [...keyTimes(instance), instance.animation?.startSeconds ?? 0]));
 }

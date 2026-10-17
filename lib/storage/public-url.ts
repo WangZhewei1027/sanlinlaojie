@@ -23,18 +23,43 @@ export function mediaUrl(key: string): string {
   return `${MEDIA_BASE_URL}/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-/** Object key of a URL under our media host; null for any other URL. */
+/**
+ * Object key of a URL under our media host; null for any other URL.
+ * Canonical comparison: host case-insensitive, scheme and port ignored (the
+ * same host can never be "external"), query and fragment ignored, and the
+ * path must sit under the base path segment by segment.
+ */
 export function mediaKeyFromUrl(url: string): string | null {
   if (!MEDIA_BASE_URL) return null;
-  if (!url.startsWith(`${MEDIA_BASE_URL}/`)) return null;
+  let parsed: URL;
+  let base: URL;
   try {
-    const path = new URL(url).pathname.replace(/^\/+/, "");
-    const base = new URL(MEDIA_BASE_URL).pathname.replace(/^\/+|\/+$/g, "");
-    const key = base && path.startsWith(`${base}/`) ? path.slice(base.length + 1) : path;
-    return key ? decodeURIComponent(key) : null;
+    parsed = new URL(url);
+    base = new URL(MEDIA_BASE_URL);
   } catch {
     return null;
   }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  if (parsed.hostname.toLowerCase() !== base.hostname.toLowerCase()) return null;
+  const basePath = base.pathname.replace(/\/+$/, "");
+  if (basePath && !parsed.pathname.startsWith(`${basePath}/`)) return null;
+  const rest = parsed.pathname.slice(basePath.length).replace(/^\/+/, "");
+  if (!rest) return null;
+  try {
+    return decodeURIComponent(rest);
+  } catch {
+    return null;
+  }
+}
+
+/** Every managed object key mentioned anywhere inside free text. */
+export function mediaKeysInText(text: string): string[] {
+  const keys: string[] = [];
+  for (const match of text.match(/https?:\/\/[^\s"'<>()\[\]{}]+/gi) ?? []) {
+    const key = mediaKeyFromUrl(match);
+    if (key) keys.push(key);
+  }
+  return keys;
 }
 
 /** Key of an uploaded media file (assets/…), or null if the URL is not one of ours. */

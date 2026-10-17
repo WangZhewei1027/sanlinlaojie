@@ -7,7 +7,7 @@ import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useTranslation } from "react-i18next";
 import type { CompositionInstance } from "@/lib/scene/protocol";
 import type { TheatreSession, TransformObject } from "./theatre-session";
-import type { ClipInfo, ModelAsset } from "./types";
+import type { ClipInfo } from "./types";
 import type { TransformValues } from "@/lib/scene/theatre-state";
 import { groundPlacement, type PlacementReader } from "@/lib/scene/editor-interactions";
 const decoder = process.env.NEXT_PUBLIC_MEDIA_BASE_URL ? `${process.env.NEXT_PUBLIC_MEDIA_BASE_URL.replace(/\/+$/, "")}/static/draco/gltf/` : undefined;
@@ -83,7 +83,7 @@ function PlacementController({ placementRef }: { placementRef: React.RefObject<P
   return null;
 }
 
-export function SceneViewport({ session, instances, models, assets, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; models: ModelAsset[]; assets: Record<string, { assetId: string }>; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
+export function SceneViewport({ session, instances, resolveUrl, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; /** URL per instance: resolved by pinned version (v2) or asset (legacy); a preview may override one instance. */ resolveUrl: (instance: CompositionInstance) => string | null | undefined; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
   const { t } = useTranslation();
   const roots = useMemo(() => new Map<string, Group>(), []);
   const onReady = useMemo(() => () => { requestAnimationFrame(() => fitRef.current?.()); }, [fitRef]);
@@ -93,7 +93,7 @@ export function SceneViewport({ session, instances, models, assets, onClips, fit
     {grid && <><Grid args={[20, 20]} cellSize={1} sectionSize={5} fadeDistance={80} infiniteGrid cellColor="hsl(0, 0%, 80%)" sectionColor="hsl(0, 0%, 65%)" /><axesHelper args={[1]} /></>}
     <OrbitControls makeDefault target={[0, 1, 0]} />
     <Bounds margin={1.5}><FitController fitRef={fitRef} roots={roots} />{instances.map((instance) => {
-      const url = models.find((model) => model.id === assets[instance.asset]?.assetId)?.file_url;
+      const url = resolveUrl(instance);
       const object = session.objects.get(instance.id);
       return url && object ? <Suspense key={instance.id} fallback={<Html center><span className="rounded bg-background p-2 text-sm">{t("sceneEditor.loadingModel")}</span></Html>}><Model url={url} instance={instance} object={object} session={session} onClips={onClips} onSelect={() => onSelect(instance.id)} selected={instance.id === selectedId} editable={editable} tool={tool} onTransform={onTransform} roots={roots} onReady={onReady} /></Suspense> : null;
     })}</Bounds>

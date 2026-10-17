@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Layers3, Plus, Search, ChevronRight, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,10 @@ import { MODEL_DRAG_TYPE } from "@/lib/scene/editor-interactions";
 export interface SceneModelsProps {
   models: ModelAsset[]; instances: CompositionInstance[]; names: Record<string, string>; selectedId: string | null;
   canAdd: boolean; onAdd: (id: string) => void; onSelect: (id: string | null) => void;
+  /** Replaces the built-in project model list (v2 scenes: in-scene / project / shared views). */
+  library?: ReactNode;
 }
-export function SceneModels({ models, instances, names, selectedId, canAdd, onAdd, onSelect }: SceneModelsProps) {
+export function SceneModels({ models, instances, names, selectedId, canAdd, onAdd, onSelect, library }: SceneModelsProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const filtered = models.filter((model) => (model.name ?? "").toLowerCase().includes(query.toLowerCase()));
@@ -26,7 +28,7 @@ export function SceneModels({ models, instances, names, selectedId, canAdd, onAd
         {!instances.length && <div className="space-y-2 px-4 py-5"><Text as="p" variant="bodySm" tone="subdued">{t("sceneEditor.emptyHierarchy")}</Text><Text as="p" variant="bodySm" tone="subdued">{t("sceneEditor.addFromLibrary")}</Text></div>}
       </div>
     </section>
-    <section className="scene-library" aria-label={t("sceneEditor.library")}>
+    {library ?? <section className="scene-library" aria-label={t("sceneEditor.library")}>
       <div className="scene-panel-heading"><Box className="size-3.5" /><Text as="h2" variant="bodyXs" fontWeight="semibold">{t("sceneEditor.library")}</Text><Text as="span" variant="bodyXs" tone="subdued" className="ml-auto">GLB</Text></div>
       <div className="relative m-2"><Search className="pointer-events-none absolute left-2 top-2 size-3.5 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("sceneEditor.searchModels")} placeholder={t("sceneEditor.searchModels")} className="h-8 pl-7 shadow-none" /></div>
       <div className="scene-scroll px-2 pb-2">
@@ -37,6 +39,6 @@ export function SceneModels({ models, instances, names, selectedId, canAdd, onAd
         {!filtered.length && <Text as="p" variant="bodySm" tone="subdued" className="px-2 py-3">{t(query ? "sceneEditor.noResults" : "sceneEditor.noLibraryModels")}</Text>}
       </div>
       {!canAdd && <Text as="p" variant="bodySm" tone="warning" className="px-3 pb-3">{t("sceneEditor.instanceLimit")}</Text>}
-    </section>
+    </section>}
   </aside>;
 }

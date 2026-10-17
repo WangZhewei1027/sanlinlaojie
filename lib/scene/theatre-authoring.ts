@@ -1,5 +1,5 @@
 import { stateFromDefinition } from "./theatre-state";
-import type { SceneDefinition } from "./protocol";
+import type { SceneDocumentLike } from "./protocol";
 
 type SheetState = ReturnType<typeof stateFromDefinition>["sheetsById"]["Scene"];
 type StudioBridge = {
@@ -14,7 +14,7 @@ type StudioBridge = {
  * getProject accepts. No private UI/DOM manipulation, project recreation or
  * duplicated interpolation. Our portable document owns undo and persistence.
  */
-export function replaceTheatreSheet(projectId: string, definition: SceneDefinition) {
+export function replaceTheatreSheet(projectId: string, definition: SceneDocumentLike) {
   const bridge = (globalThis as typeof globalThis & { __TheatreJS_StudioBundle?: { _studio?: StudioBridge } }).__TheatreJS_StudioBundle?._studio;
   if (!bridge?.transaction) throw new Error("Theatre 0.7.2 authoring bridge is unavailable. Reload the editor.");
   const imported = stateFromDefinition(definition).sheetsById.Scene;
