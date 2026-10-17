@@ -17,7 +17,7 @@ export interface AssetDuplicateDialogProps {
   tx: IntegrationT;
 }
 
-/** "另存素材副本": a new team asset with its own version history; the original is untouched. */
+/** "另存素材副本": a new team asset with independent content; the original is untouched. */
 export function AssetDuplicateDialog(props: AssetDuplicateDialogProps) {
   const { tx } = props;
   const intent = useRef<UploadIntent | null>(null);

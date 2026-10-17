@@ -14,24 +14,19 @@ import { placementScopeKey, placementSourceName } from "../../lib/placement-to-v
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
 
-interface PlacementVersionSwitchProps {
-  placement: PlacementDto;
+interface PlacementRevisionSwitchProps {
+  placement: PlacementDto & { target: Extract<PlacementDto["target"], { kind: "scene_revision" }> };
   editable: boolean;
   /** Unsaved field edits: switching would bump the lock under them. */
   formDirty: boolean;
 }
 
-/**
- * Explicit upgrade / rollback of the pinned version (asset) or revision
- * (scene). Never automatic: publishing a scene or adding an asset version
- * leaves placements where they are until someone switches here.
- */
-export function PlacementVersionSwitch({ placement, editable, formDirty }: PlacementVersionSwitchProps) {
+/** Select a published scene layout. Asset content always follows its source. */
+export function PlacementRevisionSwitch({ placement, editable, formDirty }: PlacementRevisionSwitchProps) {
   const { tx, organizationId, workspaceId } = usePlacementMap();
   const target = placement.target;
   const scopeKey = placementScopeKey(organizationId, workspaceId);
-  const details = usePlacementStore((state) => (state.scopeKey === scopeKey && target.kind === "asset_version" ? state.assetDetails[target.asset_id] : undefined));
-  const currentId = target.kind === "asset_version" ? target.asset_version_id : target.scene_revision_id;
+  const currentId = target.scene_revision_id;
   const [choice, setChoice] = useState(currentId);
   const [revisions, setRevisions] = useState<{ key: string; options: PinnedTargetOption[] } | null>(null);
   const [pending, setPending] = useState(false);
@@ -55,22 +50,17 @@ export function PlacementVersionSwitch({ placement, editable, formDirty }: Place
   }, [sceneId, revisionKey, editable]);
 
   const options: PinnedTargetOption[] = useMemo(() => {
-    if (target.kind === "scene_revision") return revisions?.key === revisionKey && revisions.options.length ? revisions.options : [{ id: target.scene_revision_id, number: target.revision_no, createdAt: placement.updated_at }];
-    return details?.capabilities.can_read
-      ? details.versions.map((version) => ({ id: version.id, number: version.version_no, createdAt: version.created_at }))
-      : [{ id: target.asset_version_id, number: target.version_no, createdAt: placement.updated_at }];
-  }, [target, revisions, revisionKey, details, placement.updated_at]);
+    return revisions?.key === revisionKey && revisions.options.length ? revisions.options : [{ id: target.scene_revision_id, number: target.revision_no, createdAt: placement.updated_at }];
+  }, [target, revisions, revisionKey, placement.updated_at]);
 
-  const latestId = target.kind === "scene_revision" ? target.latest_revision_id : details?.current_version_id ?? null;
-  const latestNumber = target.kind === "scene_revision"
-    ? options.find((option) => option.id === latestId)?.number ?? null
-    : details?.current_version_no ?? null;
-  const canReadVersions = target.kind === "scene_revision" ? revisions?.key === revisionKey && !!revisions.options.length : details?.capabilities.can_read === true;
+  const latestId = target.latest_revision_id;
+  const latestNumber = options.find((option) => option.id === latestId)?.number ?? null;
+  const canReadVersions = revisions?.key === revisionKey && !!revisions.options.length;
   const disabled = !editable || !canReadVersions || formDirty || pending;
 
   const apply = async (id: string) => {
     if (disabled || id === currentId) return;
-    const next: PlacementTargetInput = target.kind === "asset_version" ? { kind: "asset_version", assetVersionId: id } : { kind: "scene_revision", sceneRevisionId: id };
+    const next: PlacementTargetInput = { kind: "scene_revision", sceneRevisionId: id };
     setPending(true);
     setError(null);
     try {
@@ -98,9 +88,7 @@ export function PlacementVersionSwitch({ placement, editable, formDirty }: Place
           {target.upgrade_available && latestId && latestId !== currentId && choice === currentId && (
             <Button size="sm" variant="outline" disabled={disabled} onClick={() => apply(latestId)}>
               <ArrowUpCircle className="size-4" aria-hidden />
-              {target.kind === "scene_revision"
-                ? tx("contentModel.integration.map.version.latestRevision", { number: latestNumber ?? "" })
-                : tx("contentModel.integration.map.version.upgrade", { number: latestNumber ?? "" })}
+              {tx("contentModel.integration.map.version.latestRevision", { number: latestNumber ?? "" })}
             </Button>
           )}
         </div>

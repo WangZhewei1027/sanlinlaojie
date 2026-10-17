@@ -57,7 +57,6 @@ export const ONSITE_TEXTS: IntegrationTexts = {
   "contentModel.integration.onsite.receipt.title": ["已上传并投放", "Uploaded and placed"],
   "contentModel.integration.onsite.receipt.replayed": ["与之前的提交相同，以下是第一次提交的结果。", "This matched an earlier submission; showing its result."],
   "contentModel.integration.onsite.receipt.asset": ["素材", "Asset"],
-  "contentModel.integration.onsite.receipt.version": ["版本", "Version"],
   "contentModel.integration.onsite.receipt.collection": ["合集", "Collection"],
   "contentModel.integration.onsite.receipt.placementId": ["投放 ID", "Placement ID"],
   "contentModel.integration.onsite.receipt.publicId": ["公开 ID", "Public ID"],

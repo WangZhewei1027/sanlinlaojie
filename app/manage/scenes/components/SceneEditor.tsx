@@ -9,7 +9,6 @@
  */
 import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
-import type { ContentActionResult } from "@/app/manage/content/types";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import type { SceneDetailDto } from "@/lib/content-model/contracts";
@@ -24,7 +23,6 @@ import { sceneApi } from "../../lib/content-api";
 import { teamHref } from "../../lib/content-context";
 import { ERROR_TEXTS, runContentAction } from "../../lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
-import { newAlias } from "../../lib/scene-v3";
 import { addModelInstance, type ModelAddFailure } from "./scene-add-model";
 import "./scene-editor.css";
 import { SceneConflictBanner } from "./SceneConflictBanner";
@@ -62,7 +60,6 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
   const tx = useIntegrationText(TEXTS);
   const editor = useSceneDocument(sceneId, initial);
   const { session, document, clips, time, playing, commit, resolve, resources, detail, readOnly } = editor;
-  const [preview3d, setPreview3d] = useState<{ instanceId: string; url: string } | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [values, setValues] = useState<TransformValues>();
@@ -74,7 +71,6 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
   const placementRef = useRef<PlacementReader | null>(null);
   const fitRef = useRef<(() => void) | null>(null);
   const instance = document?.definition.content.instances.find((item) => item.id === selectedId);
-  useEffect(() => { setPreview3d(null); }, [selectedId]);
   useEffect(() => {
     const object = selectedId && session?.objects.get(selectedId);
     if (!object) { setValues(undefined); return; }
@@ -103,15 +99,15 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
   const duration = document.definition.content.durationSeconds ?? 10;
   // Scenes belong to the team.
   const sceneOrganizationId = detail?.organization_id ?? organizationId;
-  const resolveUrl = (item: CompositionInstance) => preview3d?.instanceId === item.id ? preview3d.url : resolve(assets[item.asset])?.url;
+  const resolveUrl = (item: CompositionInstance) => resolve(assets[item.asset])?.url;
   const names = Object.fromEntries(instances.map((item) => {
     const model = resolve(assets[item.asset]);
     const siblings = instances.filter((other) => other.asset === item.asset);
-    return [item.id, `${model?.name || t("sceneEditor.unnamedModel")}${model?.versionNo ? ` v${model.versionNo}` : ""}${siblings.length > 1 ? ` (${siblings.findIndex((other) => other.id === item.id) + 1})` : ""}`];
+    return [item.id, `${model?.name || t("sceneEditor.unnamedModel")}${siblings.length > 1 ? ` (${siblings.findIndex((other) => other.id === item.id) + 1})` : ""}`];
   }));
   const editInstance = (id: string, edit: (item: CompositionInstance) => CompositionInstance) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, instances: current.definition.content.instances.map((item) => item.id === id ? edit(item) : item) } } }));
   /**
-   * `key` is the pinned version id. Aliases are shared only by identical versions.
+   * `key` is the asset ID. Instances of the same asset share an alias.
    * `picked` is the library resource behind a click or upload; it is not in `resources` until the next render.
    */
   const addModel = (key: string, position: ScenePosition = [0, 0, 0], picked?: SceneResource) => {
@@ -129,21 +125,6 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
     if (!outcome.added) return;
     if (picked) editor.registerResource(picked);
     setSelectedId(id); setMobilePanel("scene");
-  };
-  /** Explicit upgrade of the selected object (new alias) or of every object sharing its alias. */
-  const upgrade = (scope: "instance" | "alias", latest: SceneResource): ContentActionResult => {
-    if (!instance || !latest.assetVersionId) return { ok: false, kind: "error" };
-    const ref = { assetId: latest.assetId, assetVersionId: latest.assetVersionId };
-    const shared = instances.filter((item) => item.asset === instance.asset).length > 1;
-    if (scope === "alias" || !shared) {
-      commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, assets: { ...current.definition.content.assets, [instance.asset]: ref } } } }));
-    } else {
-      const alias = Object.keys(assets).find((name) => assets[name].assetVersionId === latest.assetVersionId) ?? newAlias();
-      if (!assets[alias] && Object.keys(assets).length >= COMPOSITION_LIMITS.maxAssets) return { ok: false, kind: "error", message: t("sceneEditor.assetLimit") };
-      commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, assets: { ...current.definition.content.assets, [alias]: ref }, instances: current.definition.content.instances.map((item) => item.id === instance.id ? { ...item, asset: alias } : item) } } }));
-    }
-    setPreview3d(null);
-    return { ok: true };
   };
   /** Publishing never touches the local draft; any lock conflict surfaces in the dialog for retry. */
   const publish = (updatePlacements: PlacementUpdate[]) => runContentAction(
@@ -164,7 +145,6 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
   };
   const missing = instances.some((item) => !resolve(assets[item.asset])?.url);
   const selectedResource = instance ? resolve(assets[instance.asset]) : undefined;
-  const latestResource = selectedResource?.currentVersionId ? resources[selectedResource.currentVersionId] : undefined;
   const canPublish = !!detail?.capabilities.can_publish && detail.state === "active";
   const publishStatus = detail && <ContentStatusBadge kind={detail.state === "archived" ? "archived" : detail.publish_status === "modified" ? "changed" : detail.publish_status} number={detail.latest_revision?.revision_no} />;
   return <main className="scene-workspace" data-mobile-panel={mobilePanel} data-preview={preview} aria-label={t("sceneEditor.heading")}>
@@ -180,7 +160,7 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
       <SceneModels instances={instances} names={names} selectedId={instance?.id ?? null} onSelect={setSelectedId}
         library={sceneOrganizationId ? <SceneLibraryPanel organizationId={sceneOrganizationId}
           inScene={Object.entries(assets).map(([alias, ref]) => ({ alias, resource: resolve(ref), instanceCount: instances.filter((item) => item.asset === alias).length }))}
-          canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} canUpload={!readOnly} onRegister={editor.registerResource} onAdd={(resource) => addModel(resource.assetVersionId ?? "", undefined, resource)}
+          canAdd={!readOnly && instances.length < COMPOSITION_LIMITS.maxInstances} canUpload={!readOnly} onRegister={editor.registerResource} onAdd={(resource) => addModel(resource.assetId ?? "", undefined, resource)}
           onSelectAlias={(alias) => setSelectedId(instances.find((item) => item.asset === alias)?.id ?? null)} /> : undefined} />} scene={
       <section className="scene-stage" aria-label={t("sceneEditor.sceneView")}>
         <div className="scene-stage-toolbar"><Text as="span" variant="bodyXs" fontWeight="semibold" className="mr-3">{t(preview ? "sceneEditor.preview" : "sceneEditor.scene")}</Text>{!preview && <>{([{ mode: "translate", icon: Move3D, key: "W" }, { mode: "rotate", icon: Rotate3D, key: "E" }, { mode: "scale", icon: Scaling, key: "R" }] as const).map(({ mode, icon: Icon, key }) => <Button key={mode} size="icon" variant={tool === mode ? "secondary" : "ghost"} className="size-7" aria-pressed={tool === mode} aria-label={t(`sceneEditor.${mode}Tool`)} title={`${t(`sceneEditor.${mode}Tool`)} (${key})`} onClick={() => setTool(mode)}><Icon /></Button>)}<div className="mx-2 h-4 border-l" /><Button size="icon" variant={grid ? "secondary" : "ghost"} className="size-7" aria-label={t("sceneEditor.grid")} aria-pressed={grid} title={t("sceneEditor.grid")} onClick={() => setGrid(!grid)}><Grid3X3 /></Button></>}<Button size="icon" variant="ghost" className="ml-auto size-7" aria-label={t("sceneEditor.fit")} title={`${t("sceneEditor.fit")} (F)`} onClick={() => fitRef.current?.()}><Maximize /></Button></div>
@@ -190,10 +170,7 @@ export default function SceneEditor({ sceneId, initial, organizationId }: { scen
         </SceneModelDropZone>
       </section>} inspector={
       <fieldset disabled={readOnly} className="contents"><SceneInspector instance={instance} name={instance && names[instance.id]} values={values ?? (instance && instanceValues(instance))} clips={instance && clips[instance.id]} time={time} duration={duration} record={record} playing={playing} onTransform={changeTransform} onKey={toggleKey} onAnimation={(animation) => { if (instance) editInstance(instance.id, (item) => ({ ...item, animation })); }} onRemove={removeModel}
-        source={instance && selectedResource ? <SceneResourceSource instanceId={instance.id} animation={instance.animation} resource={selectedResource} latest={latestResource}
-          aliasInstanceCount={instances.filter((item) => item.asset === instance.asset).length} aliasAnimations={instances.filter((item) => item.asset === instance.asset).map((item) => item.animation)}
-          assetHref={teamHref(`/manage/assets/${selectedResource.assetId}`, sceneOrganizationId)} readOnly={readOnly} previewing={preview3d?.instanceId === instance.id}
-          onRegister={editor.registerResource} onPreview={(url) => setPreview3d(url ? { instanceId: instance.id, url } : null)} onUpgrade={upgrade} /> : undefined} /></fieldset>} timeline={
+        source={instance && selectedResource ? <SceneResourceSource resource={selectedResource} assetHref={teamHref(`/manage/assets/${selectedResource.assetId}`, sceneOrganizationId)} /> : undefined} /></fieldset>} timeline={
       <SceneTimeline instances={instances} names={names} clips={clips} selectedId={instance?.id ?? null} time={time} duration={duration} minDuration={minimumDuration(document.definition)} playing={playing} loop={loop} record={record} preview={preview} onSelect={setSelectedId} onSeek={editor.seek} onPlay={editor.play} onLoop={() => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, loop: !loop } } }))} onRecord={() => { session.sheet.sequence.pause(); setRecord(!record); }} onDuration={(durationSeconds) => commit((current) => ({ ...current, definition: { ...current.definition, content: { ...current.definition.content, durationSeconds } } }))} onMoveKey={(id, group, from, to) => { editInstance(id, (item) => moveKeys(item, group, from, to)); editor.seek(to); }} onDeleteKey={(id, group, at) => editInstance(id, (item) => deleteKeys(item, group, at))} onMoveClip={(id, startSeconds) => editInstance(id, (item) => ({ ...item, animation: item.animation && { ...item.animation, startSeconds } }))} />} />
     {publishOpen && sceneOrganizationId && <ScenePublishDialog open={publishOpen} onOpenChange={setPublishOpen} sceneId={sceneId} organizationId={sceneOrganizationId} nextRevisionNo={(detail?.latest_revision?.revision_no ?? 0) + 1} onPublish={publish} />}
     <footer className="scene-status"><Text as="span" variant="bodyXs" tone="subdued">{instance ? names[instance.id] : t("sceneEditor.noSelection")} · {t("sceneEditor.unitsShort")}</Text><Text as="span" variant="bodyXs" tone="subdued">{t("sceneEditor.shortcuts")}</Text></footer>

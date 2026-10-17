@@ -7,9 +7,9 @@ import {
   type AssetFileType,
   type AssetOrigin,
   type AssetState,
-  type AssetVersionDto,
-  type AssetVersionPayload,
-  type AssetVersionResourceDto,
+  type AssetContentDto,
+  type AssetPayload,
+  type AssetResourceDto,
   type AssetVisibility,
   type ResourceRole,
 } from "@/lib/content-model/contracts";
@@ -33,9 +33,9 @@ const asState = (value: string): AssetState => (value === "archived" ? "archived
 const asOrigin = (value: string): AssetOrigin => (value === "team_upload" || value === "public_submission" ? value : "legacy");
 
 /** Stored payloads were validated on write; the jsonb comes back parsed. */
-export function payloadOf(value: unknown, fileType: AssetFileType): AssetVersionPayload {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value as AssetVersionPayload;
-  return { kind: fileType } as AssetVersionPayload;
+export function payloadOf(value: unknown, fileType: AssetFileType): AssetPayload {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as AssetPayload;
+  return { kind: fileType } as AssetPayload;
 }
 
 export interface AssetRowFull extends AssetIdentity {
@@ -54,7 +54,6 @@ export const ASSET_FULL_COLUMNS = [
   "asset.origin",
   "asset.origin_workspace_id",
   "asset.maintained_by",
-  "asset.current_version_id",
   "asset.lock_version",
   "asset.created_by",
   "asset.create_at",
@@ -62,64 +61,29 @@ export const ASSET_FULL_COLUMNS = [
   "asset.archived_at",
 ] as const;
 
-// ───────────────────────── versions ─────────────────────────
+// ───────────────────────── contents ─────────────────────────
 
-export async function loadVersionDtos(exec: Executor, versionIds: string[]): Promise<Map<string, AssetVersionDto>> {
-  const ids = [...new Set(versionIds)];
+export async function loadAssetContents(exec: Executor, assetIds: string[]): Promise<Map<string, AssetContentDto>> {
+  const ids = [...new Set(assetIds)];
   if (!ids.length) return new Map();
-  const [versions, resources] = await Promise.all([
-    exec
-      .selectFrom("asset_version as v")
-      .innerJoin("asset as a", "a.id", "v.asset_id")
-      .select(["v.id", "v.asset_id", "v.organization_id", "v.version_no", "v.payload_schema_version", "v.payload", "v.created_by", "v.created_at", "a.file_type"])
-      .where("v.id", "in", ids)
-      .execute(),
-    exec
-      .selectFrom("asset_version_resource")
-      .selectAll()
-      .where("asset_version_id", "in", ids)
-      .orderBy("role")
-      .orderBy("ordinal")
-      .execute(),
-  ]);
-  const byVersion = new Map<string, AssetVersionResourceDto[]>();
-  for (const row of resources) {
-    const list = byVersion.get(row.asset_version_id) ?? [];
-    list.push({
-      role: asRole(row.role),
-      ordinal: row.ordinal,
-      storage_key: row.storage_key,
-      external_url: row.external_url,
-      url: resourceUrl(row),
-      managed: row.storage_key !== null,
-      content_hash: row.content_hash,
-      mime_type: row.mime_type,
-      size_bytes: row.size_bytes,
-    });
-    byVersion.set(row.asset_version_id, list);
-  }
-  return new Map(
-    versions.map((v) => [
-      v.id,
-      {
-        id: v.id,
-        asset_id: v.asset_id,
-        organization_id: v.organization_id,
-        version_no: v.version_no,
-        payload_schema_version: v.payload_schema_version,
-        payload: payloadOf(v.payload, asFileType(v.file_type)),
-        resources: byVersion.get(v.id) ?? [],
-        created_by: v.created_by,
-        created_at: toIsoRequired(v.created_at),
-      },
-    ]),
-  );
+  // One statement gives each asset's payload and files the same DB snapshot.
+  const rows = await exec.selectFrom("asset as a")
+    .select(["a.id", "a.organization_id", "a.file_type", "a.payload", "a.lock_version", "a.updated_at",
+      sql<unknown>`coalesce((select jsonb_agg(to_jsonb(r) order by r.role,r.ordinal) from asset_resource r where r.asset_id=a.id),'[]'::jsonb)`.as("resources")])
+    .where("a.id", "in", ids).execute();
+  return new Map(rows.map((a) => [a.id, {
+    id: a.id, organization_id: a.organization_id, file_type: asFileType(a.file_type),
+    payload: payloadOf(a.payload, asFileType(a.file_type)), lock_version: a.lock_version, updated_at: toIsoRequired(a.updated_at),
+    resources: (a.resources as { role: string; ordinal: number; storage_key: string | null; external_url: string | null; content_hash: string | null; mime_type: string | null; size_bytes: number | null }[]).map((r) => ({
+      ...r, role: asRole(r.role), url: resourceUrl(r), managed: r.storage_key !== null,
+    })),
+  }]));
 }
 
-export function primaryResource(version: AssetVersionDto | undefined | null): AssetVersionResourceDto | null {
-  if (!version) return null;
-  return version.resources.find((r) => r.role === "primary" && r.ordinal === 0)
-    ?? version.resources.find((r) => r.role === "reference")
+export function primaryResource(content: AssetContentDto | undefined | null): AssetResourceDto | null {
+  if (!content) return null;
+  return content.resources.find((r) => r.role === "primary" && r.ordinal === 0)
+    ?? content.resources.find((r) => r.role === "reference")
     ?? null;
 }
 
@@ -141,7 +105,7 @@ async function usageCounts(exec: Executor, assetIds: string[]): Promise<Map<stri
 }
 
 /**
- * Asset DTOs with capability flags, current version and usage count. Rows of
+ * Asset DTOs with capability flags, current content and usage count. Rows of
  * organizations the caller does not belong to are dropped; inside the team
  * every asset is readable (visibility is metadata).
  */
@@ -162,9 +126,9 @@ export async function buildAssetDtos(
     if (access) orgAccess.set(orgId, access);
   }
   const maintainerIds = [...new Set(rows.map((row) => row.maintained_by).filter((id): id is string => !!id))];
-  const [usage, versions, maintainers] = await Promise.all([
+  const [usage, contents, maintainers] = await Promise.all([
     usageCounts(exec, ids),
-    loadVersionDtos(exec, rows.map((row) => row.current_version_id).filter((id): id is string => !!id)),
+    loadAssetContents(exec, ids),
     maintainerIds.length
       ? exec.selectFrom("users").select(["user_id", "name", "email"]).where("user_id", "in", maintainerIds).execute()
       : Promise.resolve([]),
@@ -176,7 +140,7 @@ export async function buildAssetDtos(
     if (!org) continue;
     const access = assetAccessFrom(org, row);
     if (!access.canRead) continue;
-    const version = row.current_version_id ? versions.get(row.current_version_id) ?? null : null;
+    const content = contents.get(row.id)!;
     // Any active team asset can be used in an open collection of the same team by a writer.
     const usable = opts.usableIn
       ? opts.usableIn.canEdit && opts.usableIn.workspace.organization_id === row.organization_id && row.state === "active"
@@ -193,13 +157,12 @@ export async function buildAssetDtos(
       origin_workspace_id: row.origin_workspace_id,
       maintained_by: row.maintained_by,
       maintainer: maintainer ? { user_id: maintainer.user_id, name: maintainer.name, email: maintainer.email } : null,
-      current_version_id: row.current_version_id,
-      current_version_no: version?.version_no ?? null,
-      current_version: version,
-      lock_version: row.lock_version,
+      payload: content.payload,
+      resources: content.resources,
+      lock_version: content.lock_version,
       created_by: row.created_by,
       create_at: toIso(row.create_at),
-      updated_at: toIsoRequired(row.updated_at),
+      updated_at: content.updated_at,
       archived_at: toIso(row.archived_at),
       usage_count: usage.get(row.id) ?? 0,
       capabilities: assetCapabilities(access, usable),

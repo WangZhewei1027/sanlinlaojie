@@ -14,7 +14,7 @@
 - Organization 在界面上统一称为**团队**。团队是唯一的所有权与权限边界。
 - 没有全局项目（Workspace）选择器，没有项目授权、项目成员矩阵或维护者门禁。`maintained_by` 只作为“维护人”信息显示。
 - 上传素材、新建/导入/复制场景、编辑与发布都不需要选择合集。
-- **合集**是放置内容的地方。首期只有一种合集：地图合集，对应原 Workspace 行（UUID 不变）。同一个场景或素材版本可以放进多个合集。
+- **合集**是放置内容的地方。首期只有一种合集：地图合集，对应原 Workspace 行（UUID 不变）。同一个场景或素材可以放进多个合集。
 - 团队角色 owner/admin/member/viewer 保留：viewer 只读，其余角色可写。
 - 新账号的个人团队、管理接口新建的团队直接进入工作台，初始没有合集；创建内容无需激活步骤。已有团队由数据库迁移统一转换。
 
@@ -25,7 +25,7 @@
 | 路由 | 内容 |
 | --- | --- |
 | `/manage` | 工作台：团队全部素材与场景。缩略图网格（可切换列表），搜索、全部/场景/模型/图片/视频/音频/文字/链接/文档筛选、未归档/已归档、上传素材、新建场景、导入场景 JSON。`?type=scene` 保留筛选。 |
-| `/manage/assets/[id]` | 素材详情：预览、版本、使用记录（场景与各合集中的投放）、重命名、另存副本、归档/恢复。 |
+| `/manage/assets/[id]` | 素材详情：预览、直接编辑内容、使用记录（场景与各合集中的投放）、重命名、另存副本、归档/恢复。 |
 | `/manage/scenes/[id]` | 场景编辑器：团队模型选择器（本场景 / 团队模型）、保存、发布（可同时更新任意合集中的投放）。返回工作台的场景筛选。 |
 | `/manage/collections` | 合集列表：新建、编辑、归档/恢复地图合集；页头提供团队级小程序二维码（原“全部项目”二维码）。 |
 | `/manage/collections/[id]` | 合集地图：原 PlacementMapView/Cesium 布局，顶部细栏显示返回、合集名、归档状态和该合集的小程序二维码。选择与多选只在本页有效。 |
@@ -45,7 +45,7 @@
 | 上传素材 | `POST /api/upload`（`organization_id`，不传 `workspace_id`）→ `POST /api/organizations/[id]/assets` |
 | 新建/导入场景 | `POST /api/organizations/[id]/scenes` |
 | 复制场景 / 另存素材副本 | `POST /api/scenes/[id]/copy`、`POST /api/assets/[id]/duplicate`，均不传 `targetWorkspaceId` |
-| 新版本 | 上传回执只绑定团队，再 `POST /api/assets/[id]/versions` |
+| 编辑素材 | 上传回执只绑定团队，再 `PATCH /api/assets/[id]`；地图和场景引用读取更新后的内容 |
 | 合集 | `GET/POST /api/organizations/[id]/collections`，`GET/PATCH /api/collections/[id]`，`POST/DELETE /api/collections/[id]/archive` |
 | 合集地图 | `/api/collections/[collectionId]/placements` 与 `/api/placements/**`；来源选择器读取团队全部素材和已发布场景 |
 | 现场上传 | 回执带 `organization_id` + 合集 `workspace_id`，再 `POST /api/collections/[collectionId]/placements` |

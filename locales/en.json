@@ -1086,28 +1086,9 @@
       "restricted_one": "{{count}} more reference is not listed",
       "restricted_other": "{{count}} more references are not listed",
       "emptyTitle": "Nothing uses this asset yet",
-      "emptyBody": "When a scene references it or it is placed in a map collection, it is listed here with its pinned version.",
-      "versionUnusedTitle": "Nothing references v{{number}} right now",
-      "versionUnusedBody": "Other versions may still be in use. Choose “Show usage of all versions” to see everything.",
+      "emptyBody": "References in scenes and map collections appear here.",
       "showMore_one": "Show {{count}} more",
       "showMore_other": "Show {{count}} more"
-    },
-    "version": {
-      "title": "Version history",
-      "pinnedHint": "Every reference is pinned to one version. Select a version to see where it is used.",
-      "current": "Current",
-      "showAllUsage": "Show usage of all versions",
-      "upload": "Upload new version",
-      "uploadTitle": "Upload v{{number}}",
-      "uploadBody": "The new version becomes the current version of “{{name}}”. Existing drafts, publications and placements keep their version until their owners upgrade.",
-      "file": "New file",
-      "text": "New text",
-      "url": "New link",
-      "note": "Version note (optional)",
-      "notePlaceholder": "For example: fixed textures, shorter animation",
-      "create": "Create v{{number}}",
-      "uploading": "Uploading",
-      "uploadingPercent": "{{percent}}% uploaded"
     },
     "maintenance": {
       "title": "Archive",
@@ -1116,7 +1097,7 @@
       "archivedBody": "This asset is archived. Restore it to use it in scenes and map collections again.",
       "restore": "Restore asset",
       "archiveTitle": "Archive “{{name}}”?",
-      "archiveBody": "Archiving deletes no versions or files and can be undone.",
+      "archiveBody": "Archiving retains the content and files. You can restore it anytime.",
       "keepsWorking": "Keeps working",
       "impact": {
         "published_one": "{{count}} published scene",
@@ -1133,17 +1114,16 @@
     },
     "detail": {
       "type": "Type",
-      "currentVersion": "Current version",
       "maintainer": "Maintainer",
       "source": "Source",
       "created": "Created",
-      "useOnlyHint": "You can browse, preview and use this asset. Uploading versions, renaming and archiving need the member role or above.",
+      "useOnlyHint": "You can browse, preview and use this asset. Editing and archiving require a team writer role.",
       "staleTitle": "Someone else changed this asset",
       "staleBody": "What you see is out of date and your last change wasn't saved. Reload before trying again.",
       "archivedTitle": "This asset is archived",
-      "archivedBody": "Existing scenes and placements keep their pinned version; it can't be newly referenced.",
-      "fileMissingTitle": "The current version's file is missing",
-      "fileMissingBody": "Content that references this version can't be published. Upload a new version or ask an admin to repair storage.",
+      "archivedBody": "Existing scenes and placements keep using the asset; new references are blocked.",
+      "fileMissingTitle": "Asset file missing",
+      "fileMissingBody": "Scenes using this asset cannot be published. Replace its file or ask an administrator to repair storage.",
       "updated": "Updated"
     },
     "scene": {
@@ -1154,7 +1134,7 @@
       "copy": "Copy",
       "moreNamed": "More actions for “{{name}}”",
       "copyTitle": "Copy scene",
-      "copyBody": "The copy is a new team scene that pins the same asset versions, without the original's revisions or placements.",
+      "copyBody": "The copy is a new team scene referencing the same current assets, without publications or placements.",
       "copyDefaultName": "{{name}} copy",
       "copyAction": "Create copy",
       "archive": "Archive scene",
@@ -1170,30 +1150,12 @@
       "archivePlacementsTotal_one": "This scene has {{count}} placement; it is not affected.",
       "archivePlacementsTotal_other": "This scene has {{count}} placements; they are not affected."
     },
-    "upgrade": {
-      "title": "Upgrade “{{name}}”",
-      "upToDate": "Up to date (v{{number}})",
-      "pinned": "Using v{{number}}",
-      "hint": "Upgrading changes only this draft; published revisions and placements stay as they are.",
-      "scope": "Upgrade",
-      "scopes": {
-        "instance": "Only this object",
-        "alias_one": "{{count}} object sharing this reference in the scene",
-        "alias_other": "All {{count}} objects sharing this reference in the scene"
-      },
-      "preview": "Preview v{{number}}",
-      "action": "Upgrade to v{{number}}",
-      "archived": "The asset is archived, so it can't be upgraded; the current version keeps working.",
-      "missingClip": "v{{number}} has no animation “{{clip}}”. Choose another animation for this object before upgrading."
-    },
     "placement": {
-      "version": "Placed asset version",
       "revision": "Placed scene revision",
       "choose": "Choose a version",
       "latest": "Latest",
       "pinnedHint": "The placement stays on the selected version; new versions of “{{name}}” don't replace it automatically.",
       "newerAvailable": "“{{name}}” has v{{number}}; switch when you're ready.",
-      "noVersions": "This asset has no version that can be placed yet.",
       "noRevisions": "This scene hasn't been published. Publish it before placing it.",
       "status": {
         "draft": "Draft",
@@ -1294,6 +1256,19 @@
       },
       "count_one": "{{count}} collection",
       "count_other": "{{count}} collections"
+    },
+    "edit": {
+      "file": "New file",
+      "text": "New text",
+      "url": "New link",
+      "uploading": "Uploading",
+      "uploadingPercent": "{{percent}}% uploaded",
+      "action": "Edit asset",
+      "title": "Edit asset content",
+      "body": "Changes to “{{name}}” update its references in maps and scenes.",
+      "save": "Save changes",
+      "liveReferences": "Asset edits update their references in maps and scenes.",
+      "openAsset": "Open asset details"
     }
   }
 }

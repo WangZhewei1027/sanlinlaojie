@@ -103,6 +103,7 @@ export const usePlacementStore = create<PlacementStore>()((set) => ({
       const ids = new Set(placements.map((placement) => placement.id));
       return {
         placements,
+        placementContents: {},
         status: "ready",
         error: null,
         loadedCount: state.loadedCount + 1,

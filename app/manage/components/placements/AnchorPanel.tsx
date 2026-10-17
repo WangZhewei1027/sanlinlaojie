@@ -24,7 +24,7 @@ const noop = () => {};
  * Recognition target (anchor asset) panel. Uses the matching-point
  * panel and status hook (`/api/assets/[id]/matching` stays anchor-specific);
  * "attached content" are placements whose `anchor_id` is this anchor.
- * Replacing the reference image is a new asset version (asset library).
+ * Replacing the reference image updates every use of the asset.
  */
 export function AnchorPanel({ anchorId }: { anchorId: string }) {
   const { tx, organizationId, anchors, workspaceCanEdit, canWrite, focusPlacement } = usePlacementMap();
@@ -34,11 +34,10 @@ export function AnchorPanel({ anchorId }: { anchorId: string }) {
   const contents = usePlacementStore((state) => state.placementContents);
   const scope = usePlacementStore((state) => state.scopeKey);
   const pinned = mapPlacement && scope ? contents[placementContentKey(scope, mapPlacement)] : null;
-  const versionId = mapPlacement?.target.kind === "asset_version" ? mapPlacement.target.asset_version_id : anchor?.current_version_id ?? null;
   const imageUrl = mapPlacement
-    ? (pinned?.kind === "asset_version" ? pinned.resources.find((file) => file.role === "reference" || file.role === "primary")?.url ?? null : null)
-    : primaryResource(anchor?.current_version)?.url ?? null;
-  const matching = useMatchingStatus(anchorId, imageUrl, versionId);
+    ? (pinned?.kind === "asset" ? pinned.resources.find((file) => file.role === "reference" || file.role === "primary")?.url ?? null : null)
+    : primaryResource(anchor)?.url ?? null;
+  const matching = useMatchingStatus(anchorId, imageUrl);
   const [attaching, setAttaching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

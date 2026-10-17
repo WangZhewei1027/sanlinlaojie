@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import type { Actor } from "../lib/content-model/access.server";
 import type { Trx } from "../lib/content-model/tx.server";
-import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedRuntimeProjectionFixture, seedServicesFixture, versionedDocument } from "./test-content-model-services-fixture";
+import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedRuntimeProjectionFixture, seedServicesFixture, assetDocument } from "./test-content-model-services-fixture";
 
 const failures: string[] = [];
 const matchAt = process.argv.indexOf("--match");
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const { declareWriter } = await import("../lib/content-model/tx.server");
   const dto = await import("../lib/assets/dto.server");
   const usage = await import("../lib/assets/usage.server");
-  const versions = await import("../lib/assets/versions.server");
+  const content = await import("../lib/assets/content.server");
   const assetService = await import("../lib/assets/service.server");
   const sceneService = await import("../lib/scene/service.server");
   const placementService = await import("../lib/placements/service.server");
@@ -133,29 +133,26 @@ async function main(): Promise<void> {
       assert.equal((await assetService.getAssetUsage(actors.unassigned, f.assets.shared)).impact.restricted_count, 0);
     });
 
-    await check("T03/T04 appending a source version leaves all existing draft/published/placement references pinned", async () => {
-      const previous = (await dto.loadVersionDtos(db, [f.versions.shared1, f.versions.shared2]));
-      assert.notEqual(previous.get(f.versions.shared1)?.resources[0].url, previous.get(f.versions.shared2)?.resources[0].url);
+    await check("T03/T04 editing an asset updates all existing draft, published and map references", async () => {
       await rollback(async (trx) => {
         const source = await access.requireAssetMaintain(trx, actors.maintainer, f.assets.shared, { forUpdate: true });
-        const appended = await versions.appendVersion(trx, actors.maintainer, source.asset, { kind: "model" },
-          [{ role: "primary", externalUrl: "https://external-fixture.invalid/model-v3.glb" }]);
-        assert.equal(appended.versionNo, 3);
-        assert.equal((await trx.selectFrom("asset").select("current_version_id").where("id", "=", f.assets.shared).executeTakeFirstOrThrow()).current_version_id, appended.versionId);
+        await content.writeAssetContent(trx, actors.maintainer, source.asset, { kind: "model" },
+          [{ role: "primary", externalUrl: "https://fixture.invalid/replaced.glb" }]);
+        const draft = await sceneService.resolveSceneResources(trx, [{resource_alias:"model",asset_id:f.assets.shared}]);
+        assert.equal(draft[0].url, "https://fixture.invalid/replaced.glb");
+        assert.equal((await sceneService.loadRevisionForPlayback(trx, f.revisions.a))?.resources[0].url, "https://fixture.invalid/replaced.glb");
         for (const table of ["scene_asset_ref", "scene_revision_asset_ref", "placement"] as const) {
-          const refs = await trx.selectFrom(table).select("asset_version_id").where("asset_id", "=", f.assets.shared).execute();
+          const refs = await trx.selectFrom(table).select("asset_id").where("asset_id", "=", f.assets.shared).execute();
           assert.ok(refs.length > 0);
-          assert.ok(refs.every((row) => row.asset_version_id === f.versions.shared1), `${table} must stay pinned to v1`);
         }
-        assert.deepEqual((await dto.loadVersionDtos(trx, [f.versions.shared1])).get(f.versions.shared1), previous.get(f.versions.shared1));
       });
     });
 
-    await check("T02/T09 version file reuse rejects another tenant and receipts enforce actor/tenant/purpose/expiry", async () => {
+    await check("T02/T09 asset file reuse rejects another tenant and receipts enforce actor/tenant/purpose/expiry", async () => {
       await rollback(async (trx) => {
         const source = await access.requireAssetMaintain(trx, actors.maintainer, f.assets.shared, { forUpdate: true });
-        await rejectCode(() => versions.appendVersion(trx, actors.maintainer, source.asset, { kind: "model" },
-          [{ role: "primary", fromVersionId: f.versions.foreign, fromRole: "primary" }]), "FORBIDDEN");
+        await rejectCode(() => content.writeAssetContent(trx, actors.maintainer, source.asset, { kind: "model" },
+          [{ role: "primary", fromAssetId: f.assets.foreign, fromRole: "primary" }]), "NOT_FOUND");
         assert.equal((await receipts.loadCommitReceipts(trx, f.users.maintainer, f.organizations.team, [f.receipts.active])).size, 1);
         await rejectCode(() => receipts.loadCommitReceipts(trx, f.users.editor, f.organizations.team, [f.receipts.active]), "RECEIPT_INVALID");
         await rejectCode(() => receipts.loadCommitReceipts(trx, f.users.maintainer, f.organizations.foreign, [f.receipts.active]), "RECEIPT_INVALID");
@@ -163,17 +160,16 @@ async function main(): Promise<void> {
       });
     });
 
-    await check("T08/T09 immutable storage versions, tenant FKs and Placement XOR reject invalid SQL", async () => {
-      await rejectSql("update asset_version set payload='{}'::jsonb where id=$1", [f.versions.shared1], "55000");
-      await rejectSql("update asset_version_resource set storage_key='assets/replaced.glb' where asset_version_id=$1", [f.versions.shared1], "55000");
+    await check("T08/T09 asset content shape, tenant FKs and Placement XOR reject invalid SQL", async () => {
+      await rejectSql("update asset set payload='{}'::jsonb where id=$1", [f.assets.shared], "23514");
       await rejectSql("delete from scene_revision where id=$1", [f.revisions.a], "55000");
-      await rejectSql("insert into placement(organization_id,workspace_id,asset_id,asset_version_id,scene_revision_id) values($1,$2,$3,$4,$5)",
-        [f.organizations.team, f.workspaces.b, f.assets.shared, f.versions.shared1, f.revisions.a], "23514");
+      await rejectSql("insert into placement(organization_id,workspace_id,asset_id,scene_revision_id) values($1,$2,$3,$4)",
+        [f.organizations.team, f.workspaces.b, f.assets.shared, f.revisions.a], "23514");
       await rejectSql("insert into placement(organization_id,workspace_id) values($1,$2)", [f.organizations.team, f.workspaces.b], "23514");
-      await rejectSql("insert into placement(organization_id,workspace_id,asset_id,asset_version_id) values($1,$2,$3,$4)",
-        [f.organizations.team, f.workspaces.b, f.assets.foreign, f.versions.foreign], "23503");
-      await rejectSql("insert into scene_asset_ref(scene_id,organization_id,resource_alias,asset_id,asset_version_id) values($1,$2,'foreign',$3,$4)",
-        [f.scenes.b, f.organizations.team, f.assets.foreign, f.versions.foreign], "23503");
+      await rejectSql("insert into placement(organization_id,workspace_id,asset_id) values($1,$2,$3)",
+        [f.organizations.team, f.workspaces.b, f.assets.foreign], "23503");
+      await rejectSql("insert into scene_asset_ref(scene_id,organization_id,resource_alias,asset_id) values($1,$2,'foreign',$3)",
+        [f.scenes.b, f.organizations.team, f.assets.foreign], "23503");
     });
 
     await check("T08 archive permits existing references while blocking new raw reuse", async () => {
@@ -182,7 +178,7 @@ async function main(): Promise<void> {
         const target = await access.requireWorkspaceEdit(trx, actors.editor, f.workspaces.b);
         await rejectCode(() => access.ensureAssetUse(trx, actors.editor, f.assets.shared, target), "ARCHIVED");
         assert.equal((await access.ensureAssetUse(trx, actors.editor, f.assets.shared, target, { existingReference: true })).id, f.assets.shared);
-        assert.ok((await dto.loadVersionDtos(trx, [f.versions.shared1])).get(f.versions.shared1)?.resources[0].url);
+        assert.ok((await dto.loadAssetContents(trx, [f.assets.shared])).get(f.assets.shared)?.resources[0].url);
         assert.ok(usage.hasDependencies(await usage.computeImpact(trx, actors.owner, f.assets.shared)));
       });
     });
@@ -195,7 +191,7 @@ async function main(): Promise<void> {
       assert.equal(await retention.isKeyProtected(db, f.keys.expired), false);
       assert.equal(await retention.isKeyProtected(db, f.keys.missing), false);
       await rollback(async (trx) => {
-        await trx.deleteFrom("asset_version_resource").where("asset_version_id", "=", f.versions.shared1).execute();
+        await trx.deleteFrom("asset_resource").where("asset_id", "=", f.assets.shared).execute();
         assert.equal(await retention.isKeyProtected(trx, f.keys.shared), true, "another tenant still retains the physical key");
       }, "purge");
       const protectedKeys = await retention.collectProtectedKeys();
@@ -220,7 +216,7 @@ async function main(): Promise<void> {
     });
 
 
-    await check("T19 a team with zero collections uploads, creates, versions, composes, publishes and copies without any workspace", async () => {
+    await check("T19 a team with zero collections uploads, creates, edits, composes, publishes and copies without any workspace", async () => {
       const solo = f.organizations.solo;
       const collections = async () => Number((await db.selectFrom("workspace").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", solo).executeTakeFirstOrThrow()).n);
       assert.equal(await collections(), 0);
@@ -230,7 +226,7 @@ async function main(): Promise<void> {
       const receipt = await db.transaction().execute(async (trx) => {
         await retention.lockObjectKeys(trx, [key]);
         return receipts.issueReceipt(trx, { organizationId: solo, workspaceId: null, userId: f.users.unassigned, storageKey: key, contentHash: `${f.run}-solo-hash`,
-          mimeType: "model/gltf-binary", sizeBytes: 64, uploadType: "model", purpose: "asset_version", reused: false });
+          mimeType: "model/gltf-binary", sizeBytes: 64, uploadType: "model", purpose: "asset", reused: false });
       });
       assert.equal(receipts.receiptDto(receipt).workspace_id, null);
       assert.equal(await retention.isKeyProtected(db, key), true, "an organization-only receipt still leases its object");
@@ -251,25 +247,25 @@ async function main(): Promise<void> {
       assert.equal(created.asset.origin_workspace_id, null);
       assert.equal(created.asset.visibility, "organization");
       assert.equal(created.placement, null);
-      assert.equal(created.version.resources[0].storage_key, key);
+      assert.equal(created.asset.resources[0].storage_key, key);
       assert.ok((await db.selectFrom("upload_receipt").select("consumed_at").where("id", "=", receipt.id).executeTakeFirstOrThrow()).consumed_at);
-      const sceneBody = { name: "solo scene", document: versionedDocument(created.asset.id, created.version.id), idempotencyKey: `${f.run}-solo-scene` };
+      const sceneBody = { name: "solo scene", document: assetDocument(created.asset.id), idempotencyKey: `${f.run}-solo-scene` };
       const scene = await sceneService.createOrganizationScene(actors.unassigned, solo, sceneBody);
       assert.equal(scene.workspace_id, null);
       assert.equal(scene.capabilities.can_edit, true);
       assert.equal((await sceneService.createOrganizationScene(actors.unassigned, solo, sceneBody)).id, scene.id, "idempotent replay");
       await rejectCode(() => sceneService.createOrganizationScene(actors.viewer, solo, { name: "viewer scene" }), "FORBIDDEN");
       const published = await sceneService.publishScene(actors.owner, scene.id, { expectedLockVersion: scene.lock_version });
-      const v2 = await assetService.createAssetVersion(actors.owner, created.asset.id, {
+      const v2 = await assetService.updateAsset(actors.owner, created.asset.id, {
         payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/solo-v2.glb" }],
-        idempotencyKey: `${f.run}-solo-v2`, expectedLockVersion: created.asset.lock_version,
+        expectedLockVersion: created.asset.lock_version,
       });
-      assert.equal(v2.version.version_no, 2);
+      assert.equal(v2.lock_version, created.asset.lock_version + 1);
       const draft = await sceneService.getScene(actors.viewer, scene.id);
-      assert.equal(draft.referenced_resources[0].asset_version_id, created.version.id, "the draft stays pinned after a new version");
-      assert.equal(draft.referenced_resources[0].upgrade_available, true);
+      assert.equal(draft.referenced_resources[0].asset_id, created.asset.id, "the draft keeps its asset identity after an edit");
+      assert.equal(draft.referenced_resources[0].url, "https://external-fixture.invalid/solo-v2.glb");
       assert.equal(draft.capabilities.can_edit, false, "viewers read but do not edit");
-      assert.equal((await sceneService.loadRevisionForPlayback(db, published.revision.id))?.resources[0].asset_version_id, created.version.id);
+      assert.equal((await sceneService.loadRevisionForPlayback(db, published.revision.id))?.resources[0].asset_id, created.asset.id);
       const saved = await sceneService.saveScene(actors.unassigned, scene.id, { expectedLockVersion: scene.lock_version, name: "solo scene renamed" });
       await rejectCode(() => sceneService.saveScene(actors.owner, scene.id, { expectedLockVersion: scene.lock_version, name: "stale tab" }), "LOCK_VERSION_CONFLICT");
       await rejectCode(() => sceneService.saveScene(actors.viewer, scene.id, { expectedLockVersion: saved.lock_version, name: "viewer" }), "FORBIDDEN");
@@ -278,7 +274,7 @@ async function main(): Promise<void> {
       assert.notEqual(copy.id, scene.id);
       const duplicate = await assetService.duplicateAsset(actors.unassigned, created.asset.id, { idempotencyKey: `${f.run}-solo-duplicate` });
       assert.equal(duplicate.asset.origin_workspace_id, null);
-      assert.equal(duplicate.version.resources[0].external_url, "https://external-fixture.invalid/solo-v2.glb");
+      assert.equal(duplicate.asset.resources[0].external_url, "https://external-fixture.invalid/solo-v2.glb");
       assert.deepEqual(new Set((await sceneService.listOrganizationScenes(actors.viewer, solo)).map((item) => item.id)), new Set([scene.id, copy.id]));
       assert.deepEqual((await sceneService.listOrganizationScenes(actors.viewer, solo, { state: "archived" })).map((item) => item.id), []);
       assert.ok((await assetService.listOrganizationAssets(actors.viewer, solo, {})).data.some((item) => item.id === created.asset.id));
@@ -289,7 +285,7 @@ async function main(): Promise<void> {
       assert.deepEqual(await projects.listCollections(actors.viewer, solo, { state: "all" }), []);
     });
 
-    await check("T01/T02 team catalog: every member lists every team asset; writers edit and version without being maintainers", async () => {
+    await check("T01/T02 team catalog: every member lists every team asset; writers edit without being maintainers", async () => {
       const expected = new Set([f.assets.shared, f.assets.restricted, f.assets.audio]);
       for (const name of ["editor", "unassigned", "viewer", "maintainer"] as const) {
         const listed = await assetService.listOrganizationAssets(actors[name], f.organizations.team, {});
@@ -314,27 +310,27 @@ async function main(): Promise<void> {
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/maintained-v1.glb" }], idempotencyKey: `${f.run}-maintained-elsewhere`,
       });
       assert.equal(own.asset.maintained_by, f.users.maintainer);
-      await rejectCode(() => assetService.createAssetVersion(actors.viewer, own.asset.id, {
-        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://fixture.invalid/no.glb" }], idempotencyKey: `${f.run}-viewer-version`,
+      await rejectCode(() => assetService.updateAsset(actors.viewer, own.asset.id, {
+        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://fixture.invalid/no.glb" }], expectedLockVersion: own.asset.lock_version,
       }), "FORBIDDEN");
-      const v2 = await assetService.createAssetVersion(actors.unassigned, own.asset.id, {
+      const v2 = await assetService.updateAsset(actors.unassigned, own.asset.id, {
         payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/maintained-v2.glb" }],
-        idempotencyKey: `${f.run}-teammate-version`, expectedLockVersion: own.asset.lock_version,
+        expectedLockVersion: own.asset.lock_version,
       });
-      assert.equal(v2.version.version_no, 2);
-      assert.equal(v2.asset.maintained_by, f.users.maintainer, "responsibility metadata is unchanged by a teammate's version");
-      const renamed = await assetService.updateAssetIdentity(actors.editor, own.asset.id, { name: "renamed by teammate", expectedLockVersion: v2.asset.lock_version });
+      assert.equal(v2.lock_version, own.asset.lock_version + 1);
+      assert.equal(v2.maintained_by, f.users.maintainer, "responsibility metadata is unchanged by a teammate's version");
+      const renamed = await assetService.updateAsset(actors.editor, own.asset.id, { name: "renamed by teammate", expectedLockVersion: v2.lock_version });
       assert.equal(renamed.name, "renamed by teammate");
-      await rejectCode(() => assetService.updateAssetIdentity(actors.editor, own.asset.id, { maintainedBy: f.users.editor, expectedLockVersion: renamed.lock_version }), "FORBIDDEN");
-      const transferred = await assetService.updateAssetIdentity(actors.owner, own.asset.id, { maintainedBy: f.users.editor, expectedLockVersion: renamed.lock_version });
+      await rejectCode(() => assetService.updateAsset(actors.editor, own.asset.id, { maintainedBy: f.users.editor, expectedLockVersion: renamed.lock_version }), "FORBIDDEN");
+      const transferred = await assetService.updateAsset(actors.owner, own.asset.id, { maintainedBy: f.users.editor, expectedLockVersion: renamed.lock_version });
       assert.equal(transferred.maintained_by, f.users.editor);
       const archived = await assetService.archiveAsset(actors.unassigned, own.asset.id, transferred.lock_version);
       assert.equal(archived.asset.state, "archived");
-      const restored = await assetService.updateAssetIdentity(actors.editor, own.asset.id, { state: "active", expectedLockVersion: archived.asset.lock_version });
+      const restored = await assetService.updateAsset(actors.editor, own.asset.id, { state: "active", expectedLockVersion: archived.asset.lock_version });
       assert.equal(restored.state, "active");
     });
 
-    await check("T05/T06 asset creation/version retries are idempotent and maintenance requires current lock", async () => {
+    await check("T05/T06 asset creation retries are idempotent; edits use locks and maintenance requires current lock", async () => {
       const body = { name: "idempotent model", fileType: "model", payload: { kind: "model" },
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/created.glb" }], idempotencyKey: `${f.run}-asset-create` };
       const first = await assetService.createAssetForCollection(actors.maintainer, f.workspaces.a, body);
@@ -342,63 +338,69 @@ async function main(): Promise<void> {
       assert.equal(first.created, true);
       assert.equal(replay.created, false);
       assert.equal(replay.asset.id, first.asset.id);
-      assert.equal(replay.version.id, first.version.id);
+      assert.equal(replay.asset.id, first.asset.id);
       await rejectCode(() => assetService.createAssetForCollection(actors.maintainer, f.workspaces.a, { ...body, name: "different request" }), "IDEMPOTENCY_CONFLICT");
-      await rejectCode(() => assetService.updateAssetIdentity(actors.maintainer, first.asset.id, { name: "missing lock" }), "LOCK_VERSION_REQUIRED");
-      const changed = await assetService.updateAssetIdentity(actors.maintainer, first.asset.id, { name: "renamed", expectedLockVersion: first.asset.lock_version });
+      await rejectCode(() => assetService.updateAsset(actors.maintainer, first.asset.id, { name: "missing lock" }), "LOCK_VERSION_REQUIRED");
+      const changed = await assetService.updateAsset(actors.maintainer, first.asset.id, { name: "renamed", expectedLockVersion: first.asset.lock_version });
       assert.ok(changed.lock_version > first.asset.lock_version);
-      await rejectCode(() => assetService.updateAssetIdentity(actors.maintainer, first.asset.id, { name: "stale", expectedLockVersion: first.asset.lock_version }), "LOCK_VERSION_CONFLICT");
+      await rejectCode(() => assetService.updateAsset(actors.maintainer, first.asset.id, { name: "stale", expectedLockVersion: first.asset.lock_version }), "LOCK_VERSION_CONFLICT");
       const newVersion = { payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/new.glb" }],
-        idempotencyKey: `${f.run}-asset-version`, expectedLockVersion: changed.lock_version };
-      const appended = await assetService.createAssetVersion(actors.maintainer, first.asset.id, newVersion);
-      const retry = await assetService.createAssetVersion(actors.maintainer, first.asset.id, newVersion);
-      assert.equal(appended.version.version_no, 2);
-      assert.equal(retry.version.id, appended.version.id);
-      assert.equal(retry.created, false);
-      assert.equal((await assetService.getAssetDetail(actors.maintainer, first.asset.id)).versions.length, 2);
+        expectedLockVersion: changed.lock_version };
+      const appended = await assetService.updateAsset(actors.maintainer, first.asset.id, newVersion);
+      await rejectCode(() => assetService.updateAsset(actors.maintainer, first.asset.id, newVersion), "LOCK_VERSION_CONFLICT");
+      assert.equal(appended.id, first.asset.id);
+      assert.equal(appended.resources[0].url, "https://external-fixture.invalid/new.glb");
+      const concurrent = await Promise.allSettled([
+        assetService.updateAsset(actors.editor, first.asset.id, { expectedLockVersion: appended.lock_version, payload: {kind:"model"}, resources:[{role:"primary",externalUrl:"https://fixture.invalid/a.glb"}] }),
+        assetService.updateAsset(actors.editor, first.asset.id, { expectedLockVersion: appended.lock_version, payload: {kind:"model"}, resources:[{role:"primary",externalUrl:"https://fixture.invalid/b.glb"}] }),
+      ]);
+      assert.equal(concurrent.filter((r) => r.status === "fulfilled").length, 1);
+      const rejected = concurrent.find((r) => r.status === "rejected");
+      assert.ok(rejected?.status === "rejected" && rejected.reason.code === "LOCK_VERSION_CONFLICT");
+      assert.equal((await assetService.getAssetDetail(actors.maintainer, first.asset.id)).resources.length, 1);
     });
 
 
     await check("T01/T08 any writer reuses a formerly restricted team asset's files without a grant; tenants stay separate", async () => {
       const reused = await assetService.createAssetForCollection(actors.editor, f.workspaces.empty, {
         name: "reuse without grant", fileType: "model", payload: { kind: "model" },
-        resources: [{ role: "primary", fromVersionId: f.versions.restricted, fromRole: "primary" }], idempotencyKey: `${f.run}-source-reuse`,
+        resources: [{ role: "primary", fromAssetId: f.assets.restricted, fromRole: "primary" }], idempotencyKey: `${f.run}-source-reuse`,
       });
-      assert.equal(reused.version.resources[0].storage_key, f.keys.restricted);
+      assert.equal(reused.asset.resources[0].storage_key, f.keys.restricted);
       assert.equal(reused.asset.origin_workspace_id, f.workspaces.empty);
       const body = (key: string, resources: unknown[]) => ({ name: "denied", fileType: "model", payload: { kind: "model" }, resources, idempotencyKey: `${f.run}-${key}` });
       const external = [{ role: "primary", externalUrl: "https://fixture.invalid/denied.glb" }];
       await rejectCode(() => assetService.createAssetInOrganization(actors.viewer, f.organizations.team, body("viewer-create", external)), "FORBIDDEN");
       await rejectCode(() => assetService.createAssetInOrganization(actors.foreign, f.organizations.team, body("foreign-create", external)), "FORBIDDEN");
       await rejectCode(() => assetService.createAssetInOrganization(actors.editor, f.organizations.team,
-        body("foreign-bytes", [{ role: "primary", fromVersionId: f.versions.foreign, fromRole: "primary" }])), "FORBIDDEN");
+        body("foreign-bytes", [{ role: "primary", fromAssetId: f.assets.foreign, fromRole: "primary" }])), "NOT_FOUND");
     });
 
-    await check("T08 archived source bytes cannot be imported through generic fromVersionId as new content", async () => {
+    await check("T08 archived source bytes cannot be imported through generic fromAssetId as new content", async () => {
       const duplicate = await assetService.duplicateAsset(actors.editor, f.assets.restricted, {
         targetWorkspaceId: f.workspaces.b, name: "archive source", idempotencyKey: `${f.run}-archive-source`,
       });
       const archived = await assetService.archiveAsset(actors.editor, duplicate.asset.id, duplicate.asset.lock_version);
       assert.equal(archived.asset.state, "archived");
       const retained = await assetService.getAssetDetail(actors.editor, duplicate.asset.id);
-      assert.equal(retained.versions[0].id, duplicate.version.id);
+      assert.equal(retained.id, duplicate.asset.id);
       await rejectCode(() => assetService.createAssetForCollection(actors.editor, f.workspaces.b, {
         name: "archived resource bypass", fileType: "model", payload: { kind: "model" },
-        resources: [{ role: "primary", fromVersionId: duplicate.version.id, fromRole: "primary" }], idempotencyKey: `${f.run}-archive-bypass`,
+        resources: [{ role: "primary", fromAssetId: duplicate.asset.id, fromRole: "primary" }], idempotencyKey: `${f.run}-archive-bypass`,
       }), "ARCHIVED");
     });
 
-    await check("T02/T04/T05 Scene service pins two versions and serializes conflicting draft saves", async () => {
+    await check("T02/T04/T05 Scene service shares current content across aliases and serializes conflicting draft saves", async () => {
       const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "two-version composition" });
       assert.equal(scene.workspace_id, null, "scenes belong directly to the team");
       assert.equal(scene.organization_id, f.organizations.team);
-      assert.equal(scene.draft_document.schemaVersion, 3);
+      assert.equal(scene.draft_document.schemaVersion, 4);
       assert.equal(scene.draft_document.content.durationSeconds, 10);
       assert.equal(scene.draft_document.content.loop, false);
       assert.deepEqual(scene.draft_document.content.assets, {});
       await rejectCode(() => sceneService.saveScene(actors.editor, scene.id, { name: "missing lock" }), "LOCK_VERSION_REQUIRED");
-      const dual = versionedDocument(f.assets.shared, f.versions.shared1);
-      dual.content.assets.newer = { assetId: f.assets.shared, assetVersionId: f.versions.shared2 };
+      const dual = assetDocument(f.assets.shared);
+      dual.content.assets.newer = { assetId: f.assets.shared };
       dual.content.instances.push({ ...(dual.content.instances[0] as Record<string, unknown>), id: "new-instance", asset: "newer" });
       const results = await Promise.allSettled([
         sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document: dual, name: "left tab" }),
@@ -408,8 +410,8 @@ async function main(): Promise<void> {
       const rejected = results.find((result) => result.status === "rejected");
       assert.ok(rejected?.status === "rejected" && rejected.reason instanceof ContentError && rejected.reason.code === "LOCK_VERSION_CONFLICT");
       const saved = await sceneService.getScene(actors.editor, scene.id);
-      assert.deepEqual(new Set(saved.referenced_resources.map((resource) => resource.asset_version_id)), new Set([f.versions.shared1, f.versions.shared2]));
-      assert.equal(new Set(saved.referenced_resources.map((resource) => resource.url)).size, 2);
+      assert.deepEqual(new Set(saved.referenced_resources.map((resource) => resource.asset_id)), new Set([f.assets.shared, f.assets.shared]));
+      assert.equal(new Set(saved.referenced_resources.map((resource) => resource.url)).size, 1);
       await rejectCode(() => sceneService.getScene(actors.foreign, scene.id), "NOT_FOUND");
       assert.equal((await sceneService.getScene(actors.viewer, scene.id)).capabilities.can_edit, false);
       await rejectCode(() => sceneService.saveScene(actors.viewer, scene.id, { expectedLockVersion: saved.lock_version, name: "viewer write" }), "FORBIDDEN");
@@ -421,7 +423,7 @@ async function main(): Promise<void> {
 
     await check("T06 concurrent Scene publication freezes exact references once per source lock", async () => {
       const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, {
-        name: "publish frozen draft", document: versionedDocument(f.assets.shared, f.versions.shared1),
+        name: "publish frozen draft", document: assetDocument(f.assets.shared),
       });
       const published = await Promise.all([
         sceneService.publishScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version }),
@@ -431,13 +433,15 @@ async function main(): Promise<void> {
       assert.equal(published.filter((item) => item.created).length, 1);
       assert.equal((await sceneService.listRevisions(actors.editor, scene.id)).length, 1);
       const fixed = await sceneService.loadRevisionForPlayback(db, published[0].revision.id);
-      assert.equal(fixed?.resources[0].asset_version_id, f.versions.shared1);
-      assert.ok(fixed?.resources[0].url?.endsWith("shared.glb"));
+      assert.equal(fixed?.resources[0].asset_id, f.assets.shared);
+      assert.ok(fixed?.resources[0].url?.endsWith("current.glb"));
+      const changedDocument = assetDocument(f.assets.shared);
+      changedDocument.content.durationSeconds = 20;
       const changed = await sceneService.saveScene(actors.editor, scene.id, {
-        expectedLockVersion: scene.lock_version, document: versionedDocument(f.assets.shared, f.versions.shared2),
+        expectedLockVersion: scene.lock_version, document: changedDocument,
       });
       assert.equal(changed.publish_status, "modified");
-      assert.equal((await sceneService.loadRevisionForPlayback(db, published[0].revision.id))?.resources[0].asset_version_id, f.versions.shared1);
+      assert.equal((await sceneService.loadRevisionForPlayback(db, published[0].revision.id))?.resources[0].asset_id, f.assets.shared);
       await rejectCode(() => sceneService.publishScene(actors.viewer, scene.id, { expectedLockVersion: changed.lock_version }), "FORBIDDEN");
     });
 
@@ -452,7 +456,7 @@ async function main(): Promise<void> {
       try {
         await client.query("select set_config('content_model.writer','content',true)");
         await client.query("select id from asset where id=$1 for update", [asset.asset.id]);
-        pending = sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document: versionedDocument(asset.asset.id, asset.version.id) })
+        pending = sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document: assetDocument(asset.asset.id) })
           .then((value): PromiseFulfilledResult<unknown> => ({ status: "fulfilled", value }), (reason): PromiseRejectedResult => ({ status: "rejected", reason }));
         assert.equal(await waitForBlockedBy(), true, "the new reference must wait on the asset row lock");
         await client.query("update asset set state='archived', archived_at=now(), lock_version=lock_version+1 where id=$1", [asset.asset.id]);
@@ -486,13 +490,13 @@ async function main(): Promise<void> {
         name: "collection model", fileType: "model", payload: { kind: "model" },
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/collection.glb" }], idempotencyKey: `${f.run}-collection-model`,
       });
-      const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "collection scene", document: versionedDocument(model.asset.id, model.version.id) });
+      const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "collection scene", document: assetDocument(model.asset.id) });
       const revision = (await sceneService.publishScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version })).revision;
       const placed = (await placementService.createPlacement(actors.unassigned, created.id, {
         target: { kind: "scene_revision", sceneRevisionId: revision.id }, location: { longitude: 121.51, latitude: 31.21 },
       })).placement;
       const direct = (await placementService.createPlacement(actors.unassigned, created.id, {
-        target: { kind: "asset_version", assetVersionId: model.version.id }, location: { longitude: 121.52, latitude: 31.21 },
+        target: { kind: "asset", assetId: model.asset.id }, location: { longitude: 121.52, latitude: 31.21 },
       })).placement;
       const scope = { workspaceId: created.id, organizationId: f.organizations.team };
       const discovered = (await runtime.nearbyPlacements(scope, 31.21, 121.51, 2000)).map((item) => item.id);
@@ -501,7 +505,7 @@ async function main(): Promise<void> {
       const fingerprint = async () => JSON.stringify([
         await db.selectFrom("asset").selectAll().where("id", "=", model.asset.id).executeTakeFirstOrThrow(),
         await db.selectFrom("scene").selectAll().where("id", "=", scene.id).executeTakeFirstOrThrow(),
-        await db.selectFrom("asset_version").select("id").where("asset_id", "=", model.asset.id).execute(),
+        await db.selectFrom("asset").select("id").where("id", "=", model.asset.id).execute(),
         await db.selectFrom("scene_revision").select("id").where("scene_id", "=", scene.id).execute(),
       ]);
       const before = await fingerprint();
@@ -514,12 +518,12 @@ async function main(): Promise<void> {
       assert.equal((await runtime.nearbyPlacements(scope, 31.21, 121.51, 2000)).length, 0, "an archived collection stops its public entries");
       await rejectCode(() => placementService.updatePlacement(actors.editor, direct.id, { expectedLockVersion: direct.lock_version, status: "paused" }), "ARCHIVED");
       await rejectCode(() => placementService.createPlacement(actors.editor, created.id, {
-        target: { kind: "asset_version", assetVersionId: model.version.id }, location: { longitude: 121.53, latitude: 31.21 },
+        target: { kind: "asset", assetId: model.asset.id }, location: { longitude: 121.53, latitude: 31.21 },
       }), "ARCHIVED");
       await rejectCode(() => projects.updateCollection(actors.editor, created.id, { name: "renamed while archived" }), "ARCHIVED");
       const stillEditable = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, name: "edited while collection archived" });
       assert.equal(stillEditable.capabilities.can_edit, true, "team scenes do not depend on collections");
-      await assetService.updateAssetIdentity(actors.editor, model.asset.id, { name: "renamed while collection archived", expectedLockVersion: model.asset.lock_version });
+      await assetService.updateAsset(actors.editor, model.asset.id, { name: "renamed while collection archived", expectedLockVersion: model.asset.lock_version });
       assert.equal((await projects.listCollections(actors.viewer, f.organizations.team, {})).some((item) => item.id === created.id), false);
       assert.ok((await projects.listCollections(actors.viewer, f.organizations.team, { state: "archived" })).some((item) => item.id === created.id));
       assert.ok((await projects.listCollections(actors.viewer, f.organizations.team, { state: "all" })).some((item) => item.id === created.id));
@@ -547,7 +551,7 @@ async function main(): Promise<void> {
           name: "first model", fileType: "model", payload: { kind: "model" },
           resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/newcomer.glb" }], idempotencyKey: `${f.run}-newcomer-asset`,
         });
-        const scene = await sceneService.createOrganizationScene(actor, personal, { name: "first scene", document: versionedDocument(asset.asset.id, asset.version.id) });
+        const scene = await sceneService.createOrganizationScene(actor, personal, { name: "first scene", document: assetDocument(asset.asset.id) });
         await sceneService.publishScene(actor, scene.id, { expectedLockVersion: scene.lock_version });
         assert.deepEqual(await projects.listCollections(actor, personal, { state: "all" }), []);
         await rejectSql("insert into scene(organization_id,name,draft_document) values($1,'orphan','{}'::jsonb)", [randomUUID()], "23503");
@@ -555,12 +559,9 @@ async function main(): Promise<void> {
         await client.query("begin");
         try {
           await client.query("select set_config('content_model.writer','purge',true)");
-          await client.query("delete from asset_version_resource where asset_version_id in (select id from asset_version where organization_id=$1)", [personal]);
-          await client.query("update asset set current_version_id=null where organization_id=$1", [personal]);
           await client.query("delete from scene_revision_asset_ref where organization_id=$1", [personal]);
           await client.query("delete from scene_revision where organization_id=$1", [personal]);
           await client.query("delete from scene_asset_ref where organization_id=$1", [personal]);
-          await client.query("delete from asset_version where organization_id=$1", [personal]);
           await client.query("delete from asset where organization_id=$1", [personal]);
           await client.query("savepoint only_scene");
           await assert.rejects(client.query("delete from organization where id=$1", [personal]), (error: { code?: string }) => error.code === "23503", "a remaining team scene alone blocks deletion");
@@ -595,7 +596,7 @@ async function main(): Promise<void> {
       const first = await placementService.getPlacement(actors.editor, f.placements.first);
       const sibling = await placementService.getPlacement(actors.editor, f.placements.second);
       assert.equal(first.public_id, first.id);
-      assert.equal(first.target.kind, "asset_version");
+      assert.equal(first.target.kind, "asset");
       await rejectCode(() => placementService.getPlacement(actors.foreign, first.id), "NOT_FOUND");
       await rejectCode(() => placementService.updatePlacement(actors.viewer, first.id, { expectedLockVersion: first.lock_version, status: "paused" }), "FORBIDDEN");
       await rejectCode(() => placementService.updatePlacement(actors.editor, first.id, { status: "paused" }), "LOCK_VERSION_REQUIRED");
@@ -613,13 +614,13 @@ async function main(): Promise<void> {
       assert.equal(copy.placement.public_id, copy.placement.id);
       assert.deepEqual(copy.placement.target, moved.target);
       const upgraded = await placementService.updatePlacement(actors.editor, copy.placement.id, {
-        expectedLockVersion: copy.placement.lock_version, target: { kind: "asset_version", assetVersionId: f.versions.shared2 },
+        expectedLockVersion: copy.placement.lock_version, target: { kind: "asset", assetId: f.assets.shared },
       });
-      assert.ok(upgraded.target.kind === "asset_version" && upgraded.target.asset_version_id === f.versions.shared2);
+      assert.ok(upgraded.target.kind === "asset" && upgraded.target.asset_id === f.assets.shared);
       const archived = await placementService.archivePlacement(actors.editor, copy.placement.id, upgraded.lock_version);
       assert.equal(archived.status, "archived");
       assert.deepEqual(await placementService.getPlacement(actors.editor, f.placements.second), sibling);
-      assert.ok((await assetService.getAssetDetail(actors.maintainer, f.assets.shared)).versions.some((version) => version.id === f.versions.shared1));
+      assert.equal((await assetService.getAssetDetail(actors.maintainer, f.assets.shared)).id, f.assets.shared);
       assert.deepEqual((await placementService.getPlacement(actors.editor, first.id)).target, first.target);
     });
 
@@ -632,7 +633,7 @@ async function main(): Promise<void> {
       assert.deepEqual(await placementService.getPlacement(actors.editor, two.id), two);
       await rejectCode(() => placementService.movePlacements(actors.viewer, { moves: [move(one.id, one.lock_version)] }), "FORBIDDEN");
       const frozen = (await placementService.createPlacement(actors.editor, f.workspaces.secret, {
-        target: { kind: "asset_version", assetVersionId: f.versions.shared1 }, location: { longitude: 121.5, latitude: 31.2 },
+        target: { kind: "asset", assetId: f.assets.shared }, location: { longitude: 121.5, latitude: 31.2 },
       })).placement;
       await client.query("update workspace set archived_at=now() where id=$1", [f.workspaces.secret]);
       try {
@@ -651,7 +652,7 @@ async function main(): Promise<void> {
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/team-scene-v1.glb" }], idempotencyKey: `${f.run}-team-scene-asset`,
       });
       const scene = await sceneService.createOrganizationScene(actors.maintainer, f.organizations.team, {
-        name: "team fixed work", document: versionedDocument(sourceAsset.asset.id, sourceAsset.version.id),
+        name: "team fixed work", document: assetDocument(sourceAsset.asset.id),
       });
       assert.equal(scene.workspace_id, null);
       const revision = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
@@ -670,12 +671,12 @@ async function main(): Promise<void> {
       });
       assert.equal(paused.status, "paused");
       assert.deepEqual(await placementService.getPlacement(actors.editor, inA.placement.id), inA.placement, "the sibling placement is untouched");
-      await assetService.createAssetVersion(actors.editor, sourceAsset.asset.id, {
-        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/team-scene-v2.glb" }], idempotencyKey: `${f.run}-team-scene-v2`,
+      await assetService.updateAsset(actors.editor, sourceAsset.asset.id, {
+        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/team-scene-v2.glb" }], expectedLockVersion: sourceAsset.asset.lock_version,
       });
       const fixed = await sceneService.loadRevisionForPlayback(db, revision.id);
-      assert.equal(fixed?.resources[0].asset_version_id, sourceAsset.version.id, "a new asset version never changes the published revision");
-      assert.ok(fixed?.resources[0].url?.endsWith("team-scene-v1.glb"));
+      assert.equal(fixed?.resources[0].asset_id, sourceAsset.asset.id, "asset edits retain publication identities");
+      assert.ok(fixed?.resources[0].url?.endsWith("team-scene-v2.glb"));
       const newer = await sceneService.saveScene(actors.unassigned, scene.id, { expectedLockVersion: scene.lock_version, name: "later draft" });
       const next = (await sceneService.publishScene(actors.unassigned, scene.id, { expectedLockVersion: newer.lock_version })).revision;
       const switched = await placementService.updatePlacement(actors.editor, paused.id, {
@@ -694,7 +695,7 @@ async function main(): Promise<void> {
       const asset = await assetService.createAssetForCollection(actors.editor, f.workspaces.b, {
         name: "archived placement source", fileType: "text", payload: { kind: "text", text: "retained" }, resources: [], idempotencyKey: `${f.run}-archive-placement-asset`,
       });
-      const body = { target: { kind: "asset_version", assetVersionId: asset.version.id }, location: { longitude: 121, latitude: 31 } };
+      const body = { target: { kind: "asset", assetId: asset.asset.id }, location: { longitude: 121, latitude: 31 } };
       const placed = await placementService.createPlacement(actors.editor, f.workspaces.b, body);
       await assetService.archiveAsset(actors.editor, asset.asset.id, asset.asset.lock_version);
       await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, body), "ARCHIVED");
@@ -703,8 +704,8 @@ async function main(): Promise<void> {
         expectedLockVersion: placed.placement.lock_version, target: body.target, status: "paused",
       });
       assert.equal(changed.status, "paused");
-      assert.ok(changed.target.kind === "asset_version" && changed.target.asset_state === "archived");
-      assert.equal((await assetService.getAssetDetail(actors.editor, asset.asset.id)).versions[0].payload.kind, "text");
+      assert.ok(changed.target.kind === "asset" && changed.target.asset_state === "archived");
+      assert.equal((await assetService.getAssetDetail(actors.editor, asset.asset.id)).payload.kind, "text");
     });
 
     await check("T10/T18 upload-and-place is atomic and idempotent; unlocated Shops remain directory placements", async () => {
@@ -712,20 +713,20 @@ async function main(): Promise<void> {
         idempotencyKey: `${f.run}-onsite`, location: { longitude: 121, latitude: 31 } };
       const first = await placementService.createPlacement(actors.editor, f.workspaces.b, body);
       const retry = await placementService.createPlacement(actors.editor, f.workspaces.b, body);
-      assert.ok(first.asset && first.version);
-      assert.equal(first.placement.target.kind, "asset_version");
+      assert.ok(first.asset && first.asset);
+      assert.equal(first.placement.target.kind, "asset");
       assert.equal(retry.asset?.id, first.asset.id);
       assert.equal(retry.placement.id, first.placement.id);
       assert.equal(retry.created, false);
       const before = await db.selectFrom("asset").select("id").where("organization_id", "=", f.organizations.team).execute();
       await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { ...body, idempotencyKey: `${f.run}-invalid-onsite`, location: null }), "VALIDATION_FAILED");
       assert.equal((await db.selectFrom("asset").select("id").where("organization_id", "=", f.organizations.team).execute()).length, before.length);
-      const shop = await placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset_version", assetVersionId: f.versions.shop } });
+      const shop = await placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.shop } });
       assert.equal(shop.placement.status, "active");
       assert.equal(shop.placement.location, null);
       assert.equal(shop.placement.directory_only, true);
-      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset_version", assetVersionId: f.versions.shared1 } }), "VALIDATION_FAILED");
-      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset_version", assetVersionId: f.versions.foreign }, status: "draft" }), "NOT_FOUND");
+      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.shared } }), "VALIDATION_FAILED");
+      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.foreign }, status: "draft" }), "NOT_FOUND");
     });
 
 
@@ -733,7 +734,7 @@ async function main(): Promise<void> {
 
 
 
-    await check("T11 public discovery uses independent collection placements and fixed versions", async () => {
+    await check("T11 public discovery uses independent collection placements and current assets", async () => {
       const ids = await seedRuntimeProjectionFixture(client, f, { kind: "model", payload: { kind: "model" },
         resources: [{ role: "primary", url: "https://external-fixture.invalid/runtime-v1.glb" }] });
       const copied = (await placementService.copyPlacement(actors.editor, ids.placement, { targetWorkspaceId: f.workspaces.b })).placement;
@@ -770,12 +771,12 @@ async function main(): Promise<void> {
         const projection = (await runtime.nearbyPlacements({ workspaceId: f.workspaces.b, organizationId: f.organizations.team }, 31.2, 121.5, 50)).find((item) => item.id === placed.id);
         assert.equal(projection?.text_content, "public message");
         const source = await db.selectFrom("placement as p").innerJoin("asset as a", "a.id", "p.asset_id")
-          .select(["a.id", "a.origin", "a.maintained_by", "a.created_by", "a.origin_workspace_id", "p.asset_version_id"]).where("p.id", "=", placed.id).executeTakeFirstOrThrow();
+          .select(["a.id", "a.origin", "a.maintained_by", "a.created_by", "a.origin_workspace_id", "p.asset_id"]).where("p.id", "=", placed.id).executeTakeFirstOrThrow();
         assert.equal(source.origin, "public_submission");
         assert.equal(source.maintained_by, null);
         assert.equal(source.created_by, f.users.foreign);
         assert.equal(source.origin_workspace_id, f.workspaces.b);
-        assert.ok(source.asset_version_id);
+        assert.ok(source.asset_id);
         assert.ok((await assetService.listOrganizationAssets(actors.owner, f.organizations.team, { origin: "public_submission" })).data.some((item) => item.id === source.id), "team members see submissions as team assets");
         assert.equal((await assetService.listOrganizationAssets(actors.owner, f.organizations.team, { origin: "team_upload" })).data.some((item) => item.id === source.id), false);
         await rejectCode(() => assetService.getAssetDetail(actors.foreign, source.id), "NOT_FOUND");
@@ -810,11 +811,11 @@ async function main(): Promise<void> {
 
     await check("T08 boundary-regression: retrying an older publication cannot retarget a placement after Scene archival", async () => {
       const scene = await sceneService.createOrganizationScene(actors.maintainer, f.organizations.team, {
-        name: "archived publication retry", document: versionedDocument(f.assets.shared, f.versions.shared1),
+        name: "archived publication retry", document: assetDocument(f.assets.shared),
       });
       const first = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
       const changed = await sceneService.saveScene(actors.maintainer, scene.id, {
-        expectedLockVersion: scene.lock_version, document: versionedDocument(f.assets.shared, f.versions.shared2),
+        expectedLockVersion: scene.lock_version, document: assetDocument(f.assets.shared),
       });
       const second = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: changed.lock_version })).revision;
       assert.notEqual(first.id, second.id);
@@ -839,14 +840,14 @@ async function main(): Promise<void> {
     await check("T02 boundary-regression: same organization alone does not register an Anchor in a different collection", async () => {
       const anchor = await seedRuntimeProjectionFixture(client, f, { kind: "anchor", payload: { kind: "anchor" }, location: false });
       const permitted = await placementService.createPlacement(actors.maintainer, f.workspaces.a, {
-        target: { kind: "asset_version", assetVersionId: f.versions.shared1 }, anchorId: anchor.asset,
+        target: { kind: "asset", assetId: f.assets.shared }, anchorId: anchor.asset,
       });
       assert.equal(permitted.placement.anchor_id, anchor.asset, "the Anchor is usable in its actual collection A");
       const before = await db.selectFrom("placement").select("id").where("workspace_id", "=", f.workspaces.b).execute();
       let rejection: unknown;
       try {
         await placementService.createPlacement(actors.editor, f.workspaces.b, {
-          target: { kind: "asset_version", assetVersionId: f.versions.shared1 }, anchorId: anchor.asset,
+          target: { kind: "asset", assetId: f.assets.shared }, anchorId: anchor.asset,
         });
       } catch (error) { rejection = error; }
       const after = await db.selectFrom("placement").select("id").where("workspace_id", "=", f.workspaces.b).execute();
@@ -854,36 +855,38 @@ async function main(): Promise<void> {
       assert.ok(rejection instanceof ContentError && rejection.code === "VALIDATION_FAILED", "an Anchor outside the collection is rejected by the service");
     });
 
-    await check("T12 anchors keep independent reference versions across collections", async () => {
+    await check("T12 anchor edits update every collection and invalidate in-flight descriptors", async () => {
       const { findNearbyAnchors } = await import("../lib/anchor/recognize.server");
       const { getMatchingAnchor } = await import("../lib/anchor/access.server");
       const anchor = await assetService.createAssetForCollection(actors.editor, f.workspaces.a, {
-        name: "pinned anchor", fileType: "anchor", payload: { kind: "anchor" },
-        resources: [{ role: "reference", externalUrl: "https://external-fixture.invalid/anchor-v1.jpg" }],
-        idempotencyKey: `${f.run}-anchor-v1`, placement: { location: { longitude: 120, latitude: 30 } },
+        name: "live anchor", fileType: "anchor", payload: { kind: "anchor" },
+        resources: [{ role: "reference", externalUrl: "https://fixture.invalid/anchor-before.jpg" }],
+        idempotencyKey: `${f.run}-live-anchor`, placement: { location: { longitude: 120, latitude: 30 } },
       });
-      const next = await assetService.createAssetVersion(actors.editor, anchor.asset.id, {
-        payload: { kind: "anchor" }, resources: [{ role: "reference", externalUrl: "https://external-fixture.invalid/anchor-v2.jpg" }], idempotencyKey: `${f.run}-anchor-v2`,
-      });
-      await placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset_version", assetVersionId: next.version.id }, location: { longitude: 120, latitude: 30 } });
-      const gps = { longitude: 120, latitude: 30, radius: 100 };
-      assert.deepEqual((await findNearbyAnchors(f.workspaces.a, gps)).map(row=>row.id), [anchor.version.id]);
-      assert.deepEqual((await findNearbyAnchors(f.workspaces.b, gps)).map(row=>row.id), [next.version.id]);
-      assert.equal((await getMatchingAnchor(anchor.asset.id, anchor.version.id)).file_url, "https://external-fixture.invalid/anchor-v1.jpg");
-      await assert.rejects(()=>getMatchingAnchor(anchor.asset.id, f.versions.foreign));
-      await client.query("insert into anchor_embedding(anchor_id,asset_version_id,image_url,status,generation) values($1,$2,$3,'pending',gen_random_uuid()),($1,$4,$5,'pending',gen_random_uuid())",
-        [anchor.asset.id, anchor.version.id, "https://external-fixture.invalid/anchor-v1.jpg", next.version.id, "https://external-fixture.invalid/anchor-v2.jpg"]);
-      assert.equal((await client.query("select count(*)::int n from anchor_embedding where anchor_id=$1",[anchor.asset.id])).rows[0].n, 2);
+      await placementService.createPlacement(actors.editor, f.workspaces.b, {target:{kind:"asset",assetId:anchor.asset.id},location:{longitude:120,latitude:30}});
+      const generation = randomUUID();
+      await client.query("insert into anchor_embedding(anchor_id,image_url,status,generation) values($1,$2,'pending',$3)",
+        [anchor.asset.id,"https://fixture.invalid/anchor-before.jpg",generation]);
+      await assetService.updateAsset(actors.editor, anchor.asset.id, {expectedLockVersion:anchor.asset.lock_version,
+        payload:{kind:"anchor"},resources:[{role:"reference",externalUrl:"https://fixture.invalid/anchor-after.jpg"}]});
+      assert.equal((await getMatchingAnchor(anchor.asset.id)).file_url,"https://fixture.invalid/anchor-after.jpg");
+      for (const workspace of [f.workspaces.a,f.workspaces.b]) {
+        const nearby = await findNearbyAnchors(workspace,{longitude:120,latitude:30,radius:100});
+        assert.deepEqual(nearby.map((row)=>row.id),[anchor.asset.id]);
+        assert.equal(nearby[0].file_url,"https://fixture.invalid/anchor-after.jpg");
+      }
+      assert.equal((await client.query("select * from anchor_embedding where anchor_id=$1",[anchor.asset.id])).rowCount,0);
+      assert.equal((await client.query("update anchor_embedding set status='failed' where anchor_id=$1 and generation=$2",[anchor.asset.id,generation])).rowCount,0);
     });
 
     await check("T02 probe-content-regression: hash probes stay inside the team and never expose another actor's upload lease", async () => {
       const team = await access.requireOrgWrite(db, actors.editor, f.organizations.team);
       const maintainerTeam = await access.requireOrgWrite(db, actors.maintainer, f.organizations.team);
       const foreignOrg = await access.requireOrgWrite(db, actors.foreign, f.organizations.foreign);
-      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.versions.shared1}`), f.keys.shared, "published history remains discoverable by its own hash");
-      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.versions.restricted}`), f.keys.restricted, "formerly restricted team files are team-readable");
-      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.versions.foreign}`), null, "another tenant's file is never found");
-      assert.equal(await receipts.findProbeKey(db, actors.foreign, foreignOrg, `hash-${f.versions.restricted}`), null, "a team hash is not disclosed to another tenant");
+      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.assets.shared}`), f.keys.current, "published history remains discoverable by its own hash");
+      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.assets.restricted}`), f.keys.restricted, "formerly restricted team files are team-readable");
+      assert.equal(await receipts.findProbeKey(db, actors.editor, team, `hash-${f.assets.foreign}`), null, "another tenant's file is never found");
+      assert.equal(await receipts.findProbeKey(db, actors.foreign, foreignOrg, `hash-${f.assets.restricted}`), null, "a team hash is not disclosed to another tenant");
       assert.equal(await receipts.findProbeKey(db, actors.editor, team, `receipt-${f.receipts.active}`), null, "another actor's uncommitted upload is not a readable version");
       assert.equal(await receipts.findProbeKey(db, actors.maintainer, maintainerTeam, `receipt-${f.receipts.active}`), f.keys.lease, "own valid receipt remains reusable");
       assert.equal(await receipts.findProbeKey(db, actors.maintainer, maintainerTeam, `receipt-${f.receipts.expired}`), null);
@@ -903,40 +906,39 @@ async function main(): Promise<void> {
       assert.equal(viaCollection.workspaceId, f.workspaces.secret);
     });
 
-    await check("T02 probe-content-regression: placement content returns only the pinned version; source access comes from the team, never from the placement", async () => {
+    await check("T02 probe-content-regression: placement content returns the latest asset; source access comes from the team, never from the placement", async () => {
       const ids = await seedRuntimeProjectionFixture(client, f, { kind: "model", payload: { kind: "model", attributes: { label: "fixed-v1" } },
         resources: [{ role: "primary", url: "https://external-fixture.invalid/fixed-preview-v1.glb" }] });
-      const newest = await assetService.createAssetVersion(actors.maintainer, ids.asset, {
+      const newest = await assetService.updateAsset(actors.maintainer, ids.asset, {
         payload: { kind: "model", attributes: { label: "private-v2" } }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/private-preview-v2.glb" }],
-        idempotencyKey: `${f.run}-private-preview-version`,
+        expectedLockVersion: 1,
       });
       const fixed = await placementService.getPlacementContent(actors.editor, ids.placement, f.workspaces.a);
-      assert.equal(fixed.kind, "asset_version");
-      if (fixed.kind !== "asset_version") throw new Error("Expected fixed AssetVersion content");
+      assert.equal(fixed.kind, "asset");
+      if (fixed.kind !== "asset") throw new Error("Expected fixed AssetVersion content");
       assert.equal(fixed.placement_id, ids.placement);
       assert.equal(fixed.public_id, ids.public);
-      assert.equal(fixed.asset_version_id, ids.version);
-      assert.equal(fixed.version_no, 1);
-      assert.equal(fixed.resources[0].url, "https://external-fixture.invalid/fixed-preview-v1.glb");
-      assert.equal(fixed.payload.attributes?.label, "fixed-v1");
-      for (const forbidden of ["migration_legacy", "current_version_id", "versions", "grants", newest.version.id, "private-v2"]) assert.equal(JSON.stringify(fixed).includes(forbidden), false, forbidden);
-      assert.equal((await placementService.getPlacementContent(actors.viewer, ids.placement, f.workspaces.a)).kind, "asset_version", "viewers preview the shared placement");
-      assert.equal((await placementService.getPlacementContent(actors.editor, ids.placement)).kind, "asset_version", "team members read it without a context");
+      assert.equal(fixed.asset_id, ids.asset);
+      assert.equal(fixed.asset_lock_version, newest.lock_version);
+      assert.equal(fixed.resources[0].url, "https://external-fixture.invalid/private-preview-v2.glb");
+      assert.equal(fixed.payload.attributes?.label, "private-v2");
+      for (const forbidden of ["migration_legacy", "current_version_id", "versions", "grants"]) assert.equal(JSON.stringify(fixed).includes(forbidden), false, forbidden);
+      assert.equal((await placementService.getPlacementContent(actors.viewer, ids.placement, f.workspaces.a)).kind, "asset", "viewers preview the shared placement");
+      assert.equal((await placementService.getPlacementContent(actors.editor, ids.placement)).kind, "asset", "team members read it without a context");
       const detail = await assetService.getAssetDetail(actors.editor, ids.asset);
-      assert.equal(detail.current_version_id, newest.version.id, "the team catalog shows the source history");
-      assert.equal(detail.versions.length, 2);
+      assert.equal(detail.id, newest.id, "the team catalog shows the source history");
       const duplicate = await assetService.duplicateAsset(actors.editor, ids.asset, { idempotencyKey: `${f.run}-team-duplicate` });
       assert.equal(duplicate.asset.origin_workspace_id, null);
-      assert.equal(duplicate.version.resources[0].external_url, "https://external-fixture.invalid/private-preview-v2.glb");
+      assert.equal(duplicate.asset.resources[0].external_url, "https://external-fixture.invalid/private-preview-v2.glb");
       const pinnedElsewhere = await placementService.createPlacement(actors.editor, f.workspaces.b, {
-        target: { kind: "asset_version", assetVersionId: ids.version }, location: { longitude: 121.5, latitude: 31.2 },
+        target: { kind: "asset", assetId: ids.asset }, location: { longitude: 121.5, latitude: 31.2 },
       });
-      assert.ok(pinnedElsewhere.placement.target.kind === "asset_version" && pinnedElsewhere.placement.target.asset_version_id === ids.version && pinnedElsewhere.placement.target.upgrade_available);
+      assert.ok(pinnedElsewhere.placement.target.kind === "asset" && pinnedElsewhere.placement.target.asset_id === ids.asset);
       const reused = await assetService.createAssetForCollection(actors.editor, f.workspaces.b, {
         name: "team reuse of pinned bytes", fileType: "model", payload: { kind: "model" },
-        resources: [{ role: "primary", fromVersionId: ids.version, fromRole: "primary" }], idempotencyKey: `${f.run}-team-source-bytes`,
+        resources: [{ role: "primary", fromAssetId: ids.asset, fromRole: "primary" }], idempotencyKey: `${f.run}-team-source-bytes`,
       });
-      assert.equal(reused.version.resources[0].external_url, "https://external-fixture.invalid/fixed-preview-v1.glb");
+      assert.equal(reused.asset.resources[0].external_url, "https://external-fixture.invalid/private-preview-v2.glb");
       for (const viewer of [f.workspaces.b, f.workspaces.empty, f.workspaces.foreign, randomUUID()]) {
         await rejectCode(() => placementService.getPlacementContent(actors.editor, ids.placement, viewer), "NOT_FOUND");
       }
@@ -944,13 +946,13 @@ async function main(): Promise<void> {
       await rejectCode(() => placementService.getPlacementContent(actors.foreign, ids.placement), "NOT_FOUND");
     });
 
-    await check("T02 probe-content-regression: shared Scene Placement preview returns frozen revision resources; the draft is team content", async () => {
+    await check("T02 probe-content-regression: shared Scene Placement preview resolves current asset resources; the draft is team content", async () => {
       const asset = await assetService.createAssetForCollection(actors.maintainer, f.workspaces.a, {
         name: "private scene model", fileType: "model", visibility: "restricted", payload: { kind: "model" },
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/fixed-scene-model.glb" }], idempotencyKey: `${f.run}-fixed-scene-model`,
       });
       const scene = await sceneService.createOrganizationScene(actors.maintainer, f.organizations.team, {
-        name: "published preview", document: versionedDocument(asset.asset.id, asset.version.id),
+        name: "published preview", document: assetDocument(asset.asset.id),
       });
       assert.equal(scene.workspace_id, null);
       const revision = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
@@ -958,31 +960,31 @@ async function main(): Promise<void> {
         target: { kind: "scene_revision", sceneRevisionId: revision.id }, location: { longitude: 121.5, latitude: 31.2 },
       })).placement;
       const publicId = placed.id;
-      const newest = await assetService.createAssetVersion(actors.maintainer, asset.asset.id, {
-        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/private-scene-model-new.glb" }], idempotencyKey: `${f.run}-private-scene-model-new`,
+      const newest = await assetService.updateAsset(actors.maintainer, asset.asset.id, {
+        payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/private-scene-model-new.glb" }], expectedLockVersion: asset.asset.lock_version,
       });
-      await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version, name: "unpublished secret name", document: versionedDocument(asset.asset.id, newest.version.id) });
+      await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version, name: "unpublished secret name", document: assetDocument(asset.asset.id) });
       const fixed = await placementService.getPlacementContent(actors.editor, placed.id, f.workspaces.a);
       assert.equal(fixed.kind, "scene_revision");
       if (fixed.kind !== "scene_revision") throw new Error("Expected fixed SceneRevision content");
       assert.equal(fixed.public_id, publicId);
       assert.equal(fixed.scene_revision_id, revision.id);
       assert.equal(fixed.name, "published preview");
-      assert.equal(fixed.document.content.assets.model.assetVersionId, asset.version.id);
-      assert.equal(fixed.resources[0].asset_version_id, asset.version.id);
-      assert.equal(fixed.resources[0].url, "https://external-fixture.invalid/fixed-scene-model.glb");
+      assert.equal(fixed.document.content.assets.model.assetId, asset.asset.id);
+      assert.equal(fixed.resources[0].asset_id, asset.asset.id);
+      assert.equal(fixed.resources[0].url, "https://external-fixture.invalid/private-scene-model-new.glb");
       assert.equal(JSON.stringify(fixed).includes("unpublished secret name"), false, "placement content never carries the draft");
-      assert.equal(JSON.stringify(fixed).includes(newest.version.id), false);
+      assert.equal(JSON.stringify(fixed).includes(newest.id), true);
       const draft = await sceneService.getScene(actors.editor, scene.id);
       assert.equal(draft.name, "unpublished secret name", "team members read the draft itself");
-      assert.equal(draft.referenced_resources[0].asset_version_id, newest.version.id);
+      assert.equal(draft.referenced_resources[0].asset_id, newest.id);
       assert.ok((await sceneService.listRevisions(actors.editor, scene.id)).some((item) => item.id === revision.id));
       const copied = await sceneService.copyScene(actors.editor, scene.id, { targetWorkspaceId: f.workspaces.b, idempotencyKey: `${f.run}-scene-copy-b` });
       assert.equal(copied.workspace_id, f.workspaces.b);
       const teamCopy = await sceneService.copyScene(actors.editor, scene.id, { idempotencyKey: `${f.run}-scene-copy-team` });
       assert.equal(teamCopy.workspace_id, null);
       assert.equal(teamCopy.organization_id, f.organizations.team);
-      assert.equal(teamCopy.referenced_resources[0].asset_version_id, newest.version.id, "copies keep the pinned versions");
+      assert.equal(teamCopy.referenced_resources[0].asset_id, newest.id, "copies reference the same assets");
       await rejectCode(() => sceneService.copyScene(actors.editor, scene.id, { targetWorkspaceId: f.workspaces.foreign }), "NOT_FOUND");
       await rejectCode(() => sceneService.copyScene(actors.viewer, scene.id, {}), "FORBIDDEN");
       await rejectCode(() => sceneService.getScene(actors.foreign, scene.id), "NOT_FOUND");
@@ -991,7 +993,7 @@ async function main(): Promise<void> {
     await check("T02 probe-content-regression: explicit viewer-collection context is validated even for the source owner", async () => {
       const ids = await seedRuntimeProjectionFixture(client, f, { kind: "model", payload: { kind: "model" },
         resources: [{ role: "primary", url: "https://external-fixture.invalid/context.glb" }] });
-      assert.equal((await placementService.getPlacementContent(actors.owner, ids.placement, f.workspaces.a)).kind, "asset_version");
+      assert.equal((await placementService.getPlacementContent(actors.owner, ids.placement, f.workspaces.a)).kind, "asset");
       for (const invalidViewer of [f.workspaces.b, f.workspaces.empty, f.workspaces.foreign, randomUUID()]) {
         await rejectCode(() => placementService.getPlacementContent(actors.owner, ids.placement, invalidViewer), "NOT_FOUND");
         await rejectCode(() => placementService.getPlacement(actors.owner, ids.placement, invalidViewer), "NOT_FOUND");

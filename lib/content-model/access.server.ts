@@ -266,7 +266,6 @@ export interface AssetIdentity {
   origin: string;
   origin_workspace_id: string | null;
   maintained_by: string | null;
-  current_version_id: string | null;
   lock_version: number;
   created_by: string | null;
 }
@@ -289,7 +288,6 @@ const ASSET_COLUMNS = [
   "origin",
   "origin_workspace_id",
   "maintained_by",
-  "current_version_id",
   "lock_version",
   "created_by",
 ] as const;

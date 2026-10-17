@@ -1,4 +1,4 @@
-import { archiveAsset, getAssetDetail, updateAssetIdentity } from "@/lib/assets/service.server";
+import { archiveAsset, getAssetDetail, updateAsset } from "@/lib/assets/service.server";
 import { handleActorRoute, readJsonBody } from "@/lib/content-model/http.server";
 import { requireUuid } from "@/lib/content-model/input";
 import { parseArchiveLock } from "@/lib/placements/service.server";
@@ -9,7 +9,7 @@ export async function GET(request: Request, { params }: Context) {
 }
 export async function PATCH(request: Request, { params }: Context) {
   const { id } = await params;
-  return handleActorRoute(request, `/api/assets/${id}`, async (actor) => updateAssetIdentity(actor, requireUuid(id, "asset id"), await readJsonBody(request)));
+  return handleActorRoute(request, `/api/assets/${id}`, async (actor) => updateAsset(actor, requireUuid(id, "asset id"), await readJsonBody(request)));
 }
 export async function DELETE(request: Request, { params }: Context) {
   const { id } = await params;

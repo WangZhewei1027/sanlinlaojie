@@ -13,7 +13,7 @@ const meta = {
   component: PlacementTargetSelect,
   parameters: { layout: "padded" },
   decorators: [(Story) => <div className="max-w-xs"><Story /></div>],
-  args: { kind: "asset_version", sourceName: "走马灯模型", options, value: "v3", onChange: noop },
+  args: { kind: "scene_revision", sourceName: "走马灯模型", options, value: "v3", onChange: noop },
 } satisfies Meta<typeof PlacementTargetSelect>;
 export default meta;
 type Story = StoryObj<typeof meta>;

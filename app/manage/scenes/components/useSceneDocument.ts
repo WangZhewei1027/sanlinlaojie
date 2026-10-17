@@ -1,10 +1,12 @@
 "use client";
+import { subscribeContentChanges } from "../../lib/content-events";
+import { primaryResource } from "../../lib/content-mappers";
 import type { SceneDetailDto, SceneResolvedResourceDto } from "@/lib/content-model/contracts";
 import { onChange } from "@theatre/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isLockConflict, sceneApi } from "../../lib/content-api";
-import { fromV3, normalizeDefinition, toV3, type EditorAssetRef, type EditorDefinition } from "../../lib/scene-v3";
+import { assetApi, isLockConflict, sceneApi } from "../../lib/content-api";
+import { fromDocument, normalizeDefinition, toDocument, type EditorAssetRef, type EditorDefinition } from "../../lib/scene-document";
 import { resourceKey } from "./scene-add-model";
 import { createTheatreSession, type TheatreSession } from "./theatre-session";
 import type { ClipInfo, SceneResource } from "./types";
@@ -14,12 +16,11 @@ export interface SaveConflict { message: string }
 
 function fromResolved(resource: SceneResolvedResourceDto): SceneResource {
   return {
-    assetId: resource.asset_id, assetVersionId: resource.asset_version_id, name: resource.asset_name, url: resource.url, versionNo: resource.version_no,
-    currentVersionId: resource.current_version_id, currentVersionNo: resource.current_version_no, upgradeAvailable: resource.upgrade_available,
+    assetId: resource.asset_id, assetLockVersion: resource.asset_lock_version, name: resource.asset_name, url: resource.url,
     assetState: resource.asset_state, animations: resource.animations,
   };
 }
-const indexResolved = (list: SceneResolvedResourceDto[]) => Object.fromEntries(list.map((item) => [item.asset_version_id, fromResolved(item)]));
+const indexResolved = (list: SceneResolvedResourceDto[]) => Object.fromEntries(list.map((item) => [item.asset_id, fromResolved(item)]));
 
 export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | null) {
   const { t } = useTranslation();
@@ -52,7 +53,7 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
         // Both Strict Mode runs may use the route's prefetch; only an explicit reload refetches.
         const prefetched = retry === 0 ? initialRef.current : null;
         const scene = prefetched ?? await sceneApi.get(sceneId, abort.signal);
-        const loaded: SceneDocument = { title: scene.name, definition: fromV3(scene.draft_document) };
+        const loaded: SceneDocument = { title: scene.name, definition: fromDocument(scene.draft_document) };
         if (cancelled) return;
         setDetail(scene); setResources(indexResolved(scene.referenced_resources)); lock.current = scene.lock_version;
       active = await createTheatreSession(sceneId, loaded.definition);
@@ -75,9 +76,28 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
+  // Refresh resources independently: the local composition and undo history stay intact.
+  useEffect(() => {
+    let abort: AbortController | null = null;
+    const stop = subscribeContentChanges(() => {
+      abort?.abort();
+      const controller = new AbortController();
+      abort = controller;
+      const ids = [...new Set(Object.values(latest.current?.definition.content.assets ?? {}).map((ref) => ref.assetId))];
+      void Promise.all(ids.map(async (id) => {
+        const asset = await assetApi.get(id, controller.signal);
+        return { assetId: id, assetLockVersion: asset.lock_version, name: asset.name,
+          url: primaryResource(asset)?.url ?? null, assetState: asset.state,
+          animations: asset.payload.kind === "model" ? asset.payload.animations : undefined } satisfies SceneResource;
+      })).then((items) => {
+        if (!controller.signal.aborted) setResources((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.assetId, item])) }));
+      }).catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : String(cause)); });
+    });
+    return () => { stop(); abort?.abort(); };
+  }, [sceneId]);
   const resolve = useCallback((ref: EditorAssetRef | undefined) => resources[resourceKey(ref)], [resources]);
   const registerResource = useCallback((resource: SceneResource) => {
-    const key = resource.assetVersionId;
+    const key = resource.assetId;
     if (key) setResources((current) => ({ ...current, [key]: { ...current[key], ...resource } }));
   }, []);
   const commit = useCallback((edit: (current: SceneDocument) => SceneDocument) => {
@@ -121,7 +141,7 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
       }
       session.sheet.sequence.pause(); savingRef.current = true; setSaving(true);
         try {
-          const saved = await sceneApi.save(sceneId, { expectedLockVersion: Number(lock.current), name: snapshot.title, document: toV3(snapshot.definition) });
+          const saved = await sceneApi.save(sceneId, { expectedLockVersion: Number(lock.current), name: snapshot.title, document: toDocument(snapshot.definition) });
           lock.current = saved.lock_version; setDetail(saved);
           setResources((current) => ({ ...current, ...indexResolved(saved.referenced_resources) }));
         } catch (err) {

@@ -7,7 +7,7 @@ import {
 } from "@/lib/miniapp/request";
 import { nearbyPlacements } from "@/lib/placements/runtime.server";
 
-// Public: active placements within a GPS radius, resolved at pinned versions.
+// Public: active placements within a GPS radius, resolved at current assets.
 const MAX_RADIUS_METERS = 5000;
 
 export async function POST(request: Request) {

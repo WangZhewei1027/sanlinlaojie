@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
  * 存储/数据库一致性清扫（仅 super_admin）：
  *
  * - clean-rows：按合集（workspace）检查旧资产行，以及该合集投放直接或经
- *   场景发布版本固定的素材版本文件（另含历史授权素材的版本），报告存储对象已
+ *   场景发布版本固定的素材内容文件（另含历史授权素材的版本），报告存储对象已
  *   不存在的记录（需要 workspaceId）。只报告、不删行：缺文件的版本不可发布，
  *   素材身份与引用必须保留，由团队成员上传新版本修复。
  * - clean-files：遍历 OSS assets/ 下全部对象，与全局保留集合（版本资源、旧行
@@ -45,22 +45,22 @@ interface CleanResult {
  */
 async function workspaceObjects(workspaceId: string): Promise<{ id: string; url: string; key: string; reason: string }[]> {
   const versionIds = sql<string>`(
-    select p.asset_version_id from placement p where p.workspace_id = ${workspaceId}::uuid and p.asset_version_id is not null
+    select p.asset_id from placement p where p.workspace_id = ${workspaceId}::uuid and p.asset_id is not null
     union
-    select ra.asset_version_id from placement p join scene_revision_asset_ref ra on ra.scene_revision_id = p.scene_revision_id where p.workspace_id = ${workspaceId}::uuid
+    select ra.asset_id from placement p join scene_revision_asset_ref ra on ra.scene_revision_id = p.scene_revision_id where p.workspace_id = ${workspaceId}::uuid
 
   )`;
   const versions = await db
-    .selectFrom("asset_version as v")
-    .innerJoin("asset_version_resource as r", "r.asset_version_id", "v.id")
-    .select(["v.id", "r.storage_key", "r.role", "v.version_no"])
+    .selectFrom("asset as v")
+    .innerJoin("asset_resource as r", "r.asset_id", "v.id")
+    .select(["v.id", "r.storage_key", "r.role"])
     .where(sql<boolean>`v.id in ${versionIds}`)
     .where("r.storage_key", "is not", null)
     .orderBy("v.id")
     .execute();
   const out: { id: string; url: string; key: string; reason: string }[] = [];
   for (const row of versions) {
-    if (row.storage_key) out.push({ id: row.id, url: row.storage_key, key: row.storage_key, reason: `版本 v${row.version_no} 的 ${row.role} 文件不存在（不可发布，请上传新版本）` });
+    if (row.storage_key) out.push({ id: row.id, url: row.storage_key, key: row.storage_key, reason: `素材的 ${row.role} 文件不存在（不可发布，请编辑素材文件）` });
   }
   return out;
 }

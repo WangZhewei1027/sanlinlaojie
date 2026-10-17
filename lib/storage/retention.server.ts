@@ -58,8 +58,8 @@ export async function isKeyProtected(exec: Executor, key: string): Promise<boole
   const urls = keys.flatMap(urlForms);
 
   const resource = await exec
-    .selectFrom("asset_version_resource")
-    .select("asset_version_id")
+    .selectFrom("asset_resource")
+    .select("asset_id")
     .where("storage_key", "in", keys)
     .limit(1)
     .executeTakeFirst();
@@ -76,7 +76,7 @@ export async function isKeyProtected(exec: Executor, key: string): Promise<boole
 
   const patternsForPayload = keys.map((k) => `%${escapeLike(k)}%`);
   const payload = await exec
-    .selectFrom("asset_version")
+    .selectFrom("asset")
     .select("id")
     .where((eb) => eb.or(patternsForPayload.map((p) => eb(sql<string>`payload::text`, "like", p))))
     .limit(1)
@@ -166,13 +166,13 @@ function keysInText(text: string | null | undefined, into: Set<string>): void {
  */
 export async function collectProtectedKeys(): Promise<Set<string>> {
   const keys = new Set<string>();
-  const resources = await db.selectFrom("asset_version_resource").select("storage_key").where("storage_key", "is not", null).execute();
+  const resources = await db.selectFrom("asset_resource").select("storage_key").where("storage_key", "is not", null).execute();
   for (const row of resources) if (row.storage_key) keys.add(row.storage_key);
   const receipts = await db.selectFrom("upload_receipt").select("storage_key").where("expires_at", ">", sql<Date>`now()`).execute();
   for (const row of receipts) keys.add(row.storage_key);
   const anchors = await db.selectFrom("anchor_embedding").select("image_url").execute();
   for (const row of anchors) keysInText(row.image_url, keys);
-  const payloads = await db.selectFrom("asset_version").select(sql<string>`payload::text`.as("payload_text")).execute();
+  const payloads = await db.selectFrom("asset").select(sql<string>`payload::text`.as("payload_text")).execute();
   for (const row of payloads) keysInText(row.payload_text, keys);
   const holds = await db.selectFrom("storage_hold").select("storage_key").execute();
   for (const row of holds) keys.add(row.storage_key);

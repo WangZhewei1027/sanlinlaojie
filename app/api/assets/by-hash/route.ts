@@ -12,9 +12,9 @@ import { NextResponse } from "next/server";
  * 必须携带 organization_id 或 workspace_id（两者同时给出时合集必须属于该组织），
  * 调用者需是该团队的可编辑成员（团队角色从数据库读取，不信任参数）。只凭 hash 不能
  * 证明持有文件字节，所以只匹配调用者作为团队成员本就能读取的内容（findProbeKey）：
- * 本团队未归档素材的版本文件、调用者自己的有效上传回执；
+ * 本团队未归档素材的当前文件、调用者自己的有效上传回执；
  * 绝不返回其他团队的文件或他人未提交的上传。真实字节上传的去重仍走 /api/upload。
- * 命中时在对象 key 锁内复核仍可达并登记一张 asset_version 用途的租约，使后续
+ * 命中时在对象 key 锁内复核仍可达并登记一张 asset 用途的租约，使后续
  * 版本写入之前文件不会被回收。
  * 未命中返回 { file_url: null }。
  */
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
         mimeType: null,
         sizeBytes: 0,
         uploadType: null,
-        purpose: "asset_version",
+        purpose: "asset",
         reused: true,
       });
       return true;

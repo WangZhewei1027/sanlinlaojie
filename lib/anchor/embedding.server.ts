@@ -4,6 +4,7 @@ import {
   MAX_MATCH_IMAGE_BYTES,
   validateEmbedding,
 } from "@/lib/anchor-matching";
+import { loadAssetContents, primaryResource } from "@/lib/assets/dto.server";
 import { db } from "@/lib/db";
 import { createHash, randomUUID } from "node:crypto";
 import "server-only";
@@ -72,14 +73,16 @@ export async function embedImage(
   };
 }
 /** Called by asset saves and the public feature-generation endpoint, never by recognition. */
-export async function syncAnchorEmbedding(assetId: string, versionId: string, fileUrl: string) {
+export async function syncAnchorEmbedding(assetId: string, fileUrl: string) {
   if (!modelConfigured()) return "unconfigured";
   const generation = randomUUID();
   const started = await db.transaction().execute(async (trx) => {
-    const version = await trx.selectFrom("asset_version").select("id").where("id", "=", versionId).where("asset_id", "=", assetId).executeTakeFirst();
-    if (!version) return false;
-    await trx.insertInto("anchor_embedding").values({ anchor_id: assetId, asset_version_id: versionId, image_url: fileUrl, generation, status: "pending" })
-      .onConflict((oc) => oc.column("asset_version_id").doUpdateSet({ image_url: fileUrl, generation, status: "pending", embedding: null, embedding_version: null, image_sha256: null, updated_at: new Date() })).execute();
+    const asset = await trx.selectFrom("asset").select("id").where("id", "=", assetId).forShare().executeTakeFirst();
+    if (!asset) return false;
+    const content = (await loadAssetContents(trx, [assetId])).get(assetId);
+    if (content?.file_type !== "anchor" || primaryResource(content)?.url !== fileUrl) return false;
+    await trx.insertInto("anchor_embedding").values({ anchor_id: assetId, image_url: fileUrl, generation, status: "pending" })
+      .onConflict((oc) => oc.column("anchor_id").doUpdateSet({ image_url: fileUrl, generation, status: "pending", embedding: null, embedding_version: null, image_sha256: null, updated_at: new Date() })).execute();
     return true;
   });
   if (!started) throw new MatchingError("匹配图片已变更，请刷新后重试", 409);
@@ -100,7 +103,7 @@ export async function syncAnchorEmbedding(assetId: string, versionId: string, fi
           image_sha256: checksum,
           updated_at: new Date(),
         })
-        .where("asset_version_id", "=", versionId)
+        .where("anchor_id", "=", assetId)
         .where("generation", "=", generation)
         .returning("anchor_id")
         .executeTakeFirst();
@@ -114,7 +117,7 @@ export async function syncAnchorEmbedding(assetId: string, versionId: string, fi
     await db
       .updateTable("anchor_embedding")
       .set({ status: "failed" })
-      .where("asset_version_id", "=", versionId)
+      .where("anchor_id", "=", assetId)
       .where("generation", "=", generation)
       .execute()
       .catch(() => undefined);

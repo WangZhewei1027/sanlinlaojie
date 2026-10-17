@@ -33,7 +33,7 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
   const name = placementDisplayName(placement);
   const type = placementFileType(placement);
   const target = placement.target;
-  const versionLabel = target.kind === "asset_version" ? `v${target.version_no}` : `#${target.revision_no}`;
+  const revisionLabel = target.kind === "scene_revision" ? `#${target.revision_no}` : null;
   const mappable = isMappable(placement);
 
   const focus = (event: MouseEvent) => {
@@ -65,11 +65,11 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
         <p className="truncate text-sm font-medium leading-tight" title={name}>{name}</p>
         <div className="flex flex-wrap items-center gap-1">
           <Badge variant="secondary" className="px-1.5 py-0 text-xs">{tx(`contentModel.integration.map.type.${type}`)}</Badge>
-          <span className="text-xs tabular-nums text-muted-foreground">{versionLabel}</span>
+          {revisionLabel && <span className="text-xs tabular-nums text-muted-foreground">{revisionLabel}</span>}
           {placement.status !== "active" && (
             <Badge variant="outline" className="px-1.5 py-0 text-xs">{t(`contentModel.placement.status.${placement.status}`)}</Badge>
           )}
-          {target.upgrade_available && <ContentStatusBadge kind="outdated" />}
+          {target.kind === "scene_revision" && target.upgrade_available && <ContentStatusBadge kind="outdated" />}
           {placement.directory_only && <Badge variant="outline" className="px-1.5 py-0 text-xs">{tx("contentModel.integration.map.card.directoryOnly")}</Badge>}
         </div>
         {placement.tag_ids.length > 0 && (

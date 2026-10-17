@@ -41,7 +41,7 @@ export function PlaceExistingForm() {
     if (point === "invalid") return setProblem(tx("contentModel.integration.map.problem.coordinates"));
     if (!point) return setProblem(tx("contentModel.integration.map.create.locationRequired"));
     const target = source.kind === "asset"
-      ? source.asset.current_version_id && { kind: "asset_version" as const, assetVersionId: source.asset.current_version_id }
+      ? { kind: "asset" as const, assetId: source.asset.id }
       : source.scene.latest_revision && { kind: "scene_revision" as const, sceneRevisionId: source.scene.latest_revision.id };
     if (!target) return setProblem(tx("contentModel.integration.map.create.noVersion"));
     const created = await create.submit(async () => ({ target, name: name.trim() || undefined, location: point, status: "active" }));

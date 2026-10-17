@@ -16,7 +16,7 @@ function isAbort(error: unknown) {
 
 /**
  * Asset detail and its usage, loaded independently so a slow or failing usage
- * query never blocks the identity, versions or sharing panels. Reloads keep
+ * query never blocks the identity or content panels. Reloads keep
  * the previous data on screen; `lockVersion` always holds the latest lock seen.
  */
 export function useAssetDetail(assetId: string) {

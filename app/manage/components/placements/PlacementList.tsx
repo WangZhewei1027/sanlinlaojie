@@ -44,7 +44,7 @@ export function PlacementList({ visible }: { visible: PlacementDto[] }) {
     const next = listTabOf(placement);
     if (usePlacementStore.getState().tab !== next) usePlacementStore.getState().setTab(next);
     const frame = requestAnimationFrame(() => {
-      const element = document.getElementById(next === "anchors" && placement.target.kind === "asset_version" ? `anchor-card-${placement.target.asset_id}` : `placement-card-${selectedId}`);
+      const element = document.getElementById(next === "anchors" && placement.target.kind === "asset" ? `anchor-card-${placement.target.asset_id}` : `placement-card-${selectedId}`);
       element?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);

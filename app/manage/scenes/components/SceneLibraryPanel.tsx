@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { newIdempotencyKey, organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { primaryResource } from "../../lib/content-mappers";
-import { acceptFor, prepareFile, uploadFileVersion } from "../../lib/content-upload";
+import { acceptFor, prepareFile, uploadAssetFiles } from "../../lib/content-upload";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
 import type { SceneResource } from "./types";
 
@@ -20,8 +20,8 @@ const TEXTS: IntegrationTexts = {
   "contentModel.integration.sceneLibrary.views.scene": ["本场景", "In scene"],
   "contentModel.integration.sceneLibrary.views.team": ["团队模型", "Team models"],
   "contentModel.integration.sceneLibrary.search": ["搜索模型…", "Search models…"],
-  "contentModel.integration.sceneLibrary.add": ["添加 {{name}} v{{version}}", "Add {{name}} v{{version}}"],
-  "contentModel.integration.sceneLibrary.drag": ["拖入场景，或点击 + 添加；固定为 v{{version}}", "Drag into the scene or click +; pinned to v{{version}}"],
+  "contentModel.integration.sceneLibrary.add": ["添加 {{name}}", "Add {{name}}"],
+  "contentModel.integration.sceneLibrary.drag": ["拖入场景，或点击 + 添加", "Drag into the scene or click +"],
   "contentModel.integration.sceneLibrary.upload": ["上传并添加", "Upload and add"],
   "contentModel.integration.sceneLibrary.uploading": ["正在上传…", "Uploading…"],
   "contentModel.integration.sceneLibrary.loadMore": ["加载更多", "Load more"],
@@ -30,7 +30,7 @@ const TEXTS: IntegrationTexts = {
   "contentModel.integration.sceneLibrary.noResults": ["没有匹配的模型", "No matching models"],
   "contentModel.integration.sceneLibrary.instances": ["{{count}} 个对象", "{{count}} objects"],
   "contentModel.integration.sceneLibrary.missing": ["文件缺失", "File missing"],
-  "contentModel.integration.sceneLibrary.pinnedHint": ["场景引用固定版本；素材更新不会自动改变场景。", "Scenes pin versions; asset updates never change a scene by themselves."],
+  "contentModel.integration.sceneLibrary.liveHint": ["素材修改会同步更新场景中的引用。", "Asset edits update their references in scenes."],
 };
 
 export interface InSceneEntry { alias: string; resource: SceneResource | undefined; instanceCount: number }
@@ -38,12 +38,9 @@ type View = "scene" | "team";
 const PAGE = 20;
 
 function candidateOf(asset: AssetDto): SceneResource | null {
-  const version = asset.current_version;
-  if (!asset.current_version_id || !version) return null;
   return {
-    assetId: asset.id, assetVersionId: asset.current_version_id, name: asset.name, url: primaryResource(version)?.url ?? null,
-    versionNo: asset.current_version_no, currentVersionId: asset.current_version_id, currentVersionNo: asset.current_version_no,
-    upgradeAvailable: false, assetState: asset.state, animations: version.payload.kind === "model" ? version.payload.animations : undefined,
+    assetId: asset.id, assetLockVersion: asset.lock_version, name: asset.name, url: primaryResource(asset)?.url ?? null,
+    assetState: asset.state, animations: asset.payload.kind === "model" ? asset.payload.animations : undefined,
   };
 }
 
@@ -54,7 +51,7 @@ function candidateOf(asset: AssetDto): SceneResource | null {
  */
 export function SceneLibraryPanel({ organizationId, inScene, canAdd, canUpload, onRegister, onAdd, onSelectAlias }: {
   organizationId: string; inScene: InSceneEntry[]; canAdd: boolean; canUpload: boolean;
-  /** Registers a dragged resource; the drop only carries its pinned version id. */
+  /** Registers a dragged resource; the drop only carries its asset ID. */
   onRegister: (resource: SceneResource) => void;
   /** Receives the picked resource itself, so the first add never waits for a registration render. */
   onAdd: (resource: SceneResource) => void; onSelectAlias: (alias: string) => void;
@@ -99,10 +96,10 @@ export function SceneLibraryPanel({ organizationId, inScene, canAdd, canUpload, 
       if (uploadKey.current?.file !== file) uploadKey.current = { file, key: newIdempotencyKey() };
       const prepared = await prepareFile(file, "model");
       // Team asset: no collection; every member can reuse it afterwards.
-      const version = await uploadFileVersion(prepared, { organizationId });
+      const version = await uploadAssetFiles(prepared, { organizationId });
       const created = await organizationApi.createAsset(organizationId, { name: file.name.replace(/\.(glb|gltf)$/i, ""), fileType: "model", payload: version.payload, resources: version.resources, idempotencyKey: uploadKey.current.key });
       uploadKey.current = null;
-      const resource = candidateOf({ ...created.asset, current_version: created.version, current_version_id: created.version.id, current_version_no: created.version.version_no });
+      const resource = candidateOf(created.asset);
       if (resource) onAdd(resource);
     } catch (cause) { setError(errorMessage(cause, tx)); }
     finally { setUploading(false); if (fileInput.current) fileInput.current.value = ""; }
@@ -110,18 +107,18 @@ export function SceneLibraryPanel({ organizationId, inScene, canAdd, canUpload, 
 
   const row = (resource: SceneResource, key: string, extra?: React.ReactNode, onPick?: () => void) => {
     const name = resource.name || "—";
-    const versionId = resource.assetVersionId;
-    const draggable = canAdd && !!resource.url && !!versionId;
-    return <div key={key} className="scene-library-row" draggable={draggable} title={tx("contentModel.integration.sceneLibrary.drag", { version: resource.versionNo ?? "?" })} onDragStart={(event) => {
-      if (!draggable || !versionId || (event.target as HTMLElement).closest("button")) { event.preventDefault(); return; }
-      onRegister(resource); event.dataTransfer.setData(MODEL_DRAG_TYPE, versionId); event.dataTransfer.effectAllowed = "copy";
+    const assetId = resource.assetId;
+    const draggable = canAdd && !!resource.url && !!assetId;
+    return <div key={key} className="scene-library-row" draggable={draggable} title={tx("contentModel.integration.sceneLibrary.drag")} onDragStart={(event) => {
+      if (!draggable || !assetId || (event.target as HTMLElement).closest("button")) { event.preventDefault(); return; }
+      onRegister(resource); event.dataTransfer.setData(MODEL_DRAG_TYPE, assetId); event.dataTransfer.effectAllowed = "copy";
     }}>
       <Box className="size-5 shrink-0 text-muted-foreground" />
       <button type="button" className="min-w-0 flex-1 text-start" onClick={onPick} disabled={!onPick}>
         <Text as="span" variant="bodySm" truncate className="block" title={name}>{name}</Text>
-        <span className="flex items-center gap-1.5"><Text as="span" variant="bodyXs" tone="subdued" className="tabular-nums">v{resource.versionNo ?? "?"}</Text>{extra}</span>
+        <span className="flex items-center gap-1.5">{extra}</span>
       </button>
-      <Button variant="ghost" size="icon" className="size-8" draggable={false} disabled={!draggable} aria-label={tx("contentModel.integration.sceneLibrary.add", { name, version: resource.versionNo ?? "?" })} onClick={() => onAdd(resource)}><Plus /></Button>
+      <Button variant="ghost" size="icon" className="size-8" draggable={false} disabled={!draggable} aria-label={tx("contentModel.integration.sceneLibrary.add", { name })} onClick={() => onAdd(resource)}><Plus /></Button>
     </div>;
   };
 
@@ -140,15 +137,14 @@ export function SceneLibraryPanel({ organizationId, inScene, canAdd, canUpload, 
       {view === "scene" ? <>
         {inScene.map(({ alias, resource, instanceCount }) => resource ? row(resource, alias, <>
           <Text as="span" variant="bodyXs" tone="subdued">· {tx("contentModel.integration.sceneLibrary.instances", { count: instanceCount })}</Text>
-          {resource.upgradeAvailable && resource.currentVersionNo && <ContentStatusBadge kind="outdated" number={resource.currentVersionNo} />}
           {resource.assetState === "archived" && <ContentStatusBadge kind="archived" />}
           {!resource.url && <Text as="span" variant="bodyXs" tone="critical">{tx("contentModel.integration.sceneLibrary.missing")}</Text>}
         </>, () => onSelectAlias(alias)) : null)}
         {!inScene.length && empty("contentModel.integration.sceneLibrary.emptyScene")}
-        <Text as="p" variant="bodyXs" tone="subdued" className="px-2 pt-2">{tx("contentModel.integration.sceneLibrary.pinnedHint")}</Text>
+        <Text as="p" variant="bodyXs" tone="subdued" className="px-2 pt-2">{tx("contentModel.integration.sceneLibrary.liveHint")}</Text>
       </> : <>
         {status === "loading" && <div className="flex justify-center py-4"><LoaderCircle className="size-4 animate-spin text-muted-foreground" /></div>}
-        {items.map((resource) => row(resource, resource.assetVersionId!))}
+        {items.map((resource) => row(resource, resource.assetId!))}
         {status === "ready" && !items.length && empty("contentModel.integration.sceneLibrary.emptyTeam")}
         {(status === "ready" || status === "more") && loaded < total && <Button variant="ghost" size="sm" className="mt-1 w-full" disabled={status === "more"} onClick={() => void load(loaded)}>{tx("contentModel.integration.sceneLibrary.loadMore")}</Button>}
       </>}

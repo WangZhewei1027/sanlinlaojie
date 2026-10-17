@@ -75,21 +75,9 @@ export interface AssetDetailData {
   origin: AssetOrigin;
   /** Informational only: every editing team member may maintain the asset. */
   maintainer: ContentPerson | null;
-  currentVersionNo: number;
   updatedAt: string;
   createdAt: string;
   fileMissing?: boolean;
-}
-
-export interface AssetVersion {
-  id: string;
-  versionNo: number;
-  createdAt: string;
-  createdBy: ContentPerson | null;
-  note?: string | null;
-  sizeBytes?: number | null;
-  /** Dependencies pinned to this version. */
-  usageCount?: number;
 }
 
 export type AssetUsageKind = "draft" | "published" | "placement";
@@ -100,7 +88,6 @@ export interface AssetUsageEntry {
   /** Map collection of a placement; omitted for scenes (they belong to the team). */
   collectionName?: string | null;
   targetName: string;
-  versionNo: number;
   href?: string;
   placementStatus?: PlacementStatus;
 }

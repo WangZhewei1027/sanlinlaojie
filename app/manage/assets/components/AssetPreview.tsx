@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { ExternalLink } from "lucide-react";
 import { Text } from "@/components/ui/typography";
-import type { AssetVersionDto } from "@/lib/content-model/contracts";
+import type { AssetContentDto } from "@/lib/content-model/contracts";
 import { AssetAudioPreview } from "@/app/manage/components/AssetEditor/previews/AssetAudioPreview";
 import { AssetImagePreview } from "@/app/manage/components/AssetEditor/previews/AssetImagePreview";
 import { AssetVideoPreview } from "@/app/manage/components/AssetEditor/previews/AssetVideoPreview";
@@ -18,21 +18,21 @@ const AssetModelPreview = dynamic(
 );
 
 /** Whether AssetPreview renders anything; otherwise the header keeps its thumbnail. */
-export function hasPreview(version: AssetVersionDto | null): version is AssetVersionDto {
-  if (!version) return false;
-  const kind = version.payload.kind;
+export function hasPreview(content: AssetContentDto | null): content is AssetContentDto {
+  if (!content) return false;
+  const kind = content.payload.kind;
   if (kind === "text" || kind === "link") return true;
-  return ["image", "audio", "video", "model"].includes(kind) && !!primaryResource(version);
+  return ["image", "audio", "video", "model"].includes(kind) && !!primaryResource(content);
 }
 
 /**
- * Larger preview of one version for the detail header, reusing the asset
+ * Larger preview of one content for the detail header, reusing the asset
  * editor previews. Check `hasPreview` first.
  */
-export function AssetPreview({ version, name, tx }: { version: AssetVersionDto | null; name: string; tx: IntegrationT }) {
-  if (!version) return null;
-  const payload = version.payload;
-  const url = primaryResource(version)?.url ?? null;
+export function AssetPreview({ content, name, tx }: { content: AssetContentDto | null; name: string; tx: IntegrationT }) {
+  if (!content) return null;
+  const payload = content.payload;
+  const url = primaryResource(content)?.url ?? null;
   const frame = (child: ReactNode) => <div className="w-full md:w-72">{child}</div>;
 
   if (payload.kind === "text") {

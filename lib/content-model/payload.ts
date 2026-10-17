@@ -3,7 +3,7 @@ import {
   ASSET_FILE_TYPES,
   RESOURCE_ROLES,
   type AssetFileType,
-  type AssetVersionPayload,
+  type AssetPayload,
   type CaptureMetadata,
   type ModelAnimationInfo,
   type PayloadAttributes,
@@ -122,7 +122,7 @@ const KIND_KEYS: Record<AssetFileType, string[]> = {
 };
 
 /** Validate a version payload for the asset's media type. */
-export function parseAssetPayload(fileType: AssetFileType, value: unknown): AssetVersionPayload {
+export function parseAssetPayload(fileType: AssetFileType, value: unknown): AssetPayload {
   if (!isRecord(value)) throw invalid("payload 必须是对象");
   if (value.kind !== fileType) throw invalid(`payload.kind 必须是 ${fileType}`);
   rejectUnknown(value, ["kind", "attributes", "capture", ...KIND_KEYS[fileType]], "payload ");
@@ -158,7 +158,7 @@ export function parseAssetPayload(fileType: AssetFileType, value: unknown): Asse
     case "anchor":
       return { kind: "anchor", ...base, ...(value.text !== undefined ? { text: text(value.text, "payload.text") } : {}) };
     default:
-      return { kind: fileType, ...base } as AssetVersionPayload;
+      return { kind: fileType, ...base } as AssetPayload;
   }
 }
 
@@ -205,18 +205,18 @@ export function parseResourceInputs(fileType: AssetFileType, value: unknown): Re
     const slot = `${role}:${ordinal}`;
     if (seen.has(slot)) throw invalid(`${path} 与其他资源角色/序号重复`);
     seen.add(slot);
-    const sources = ["receiptId", "fromVersionId", "externalUrl"].filter((key) => raw[key] !== undefined);
-    if (sources.length !== 1) throw invalid(`${path} 必须且只能提供 receiptId / fromVersionId / externalUrl 之一`);
+    const sources = ["receiptId", "fromAssetId", "externalUrl"].filter((key) => raw[key] !== undefined);
+    if (sources.length !== 1) throw invalid(`${path} 必须且只能提供 receiptId / fromAssetId / externalUrl 之一`);
     if (raw.receiptId !== undefined) {
       rejectUnknown(raw, ["role", "ordinal", "receiptId"], `${path} `);
       return { role, ordinal, receiptId: requireUuid(raw.receiptId, `${path}.receiptId`) };
     }
-    if (raw.fromVersionId !== undefined) {
-      rejectUnknown(raw, ["role", "ordinal", "fromVersionId", "fromRole", "fromOrdinal"], `${path} `);
+    if (raw.fromAssetId !== undefined) {
+      rejectUnknown(raw, ["role", "ordinal", "fromAssetId", "fromRole", "fromOrdinal"], `${path} `);
       return {
         role,
         ordinal,
-        fromVersionId: requireUuid(raw.fromVersionId, `${path}.fromVersionId`),
+        fromAssetId: requireUuid(raw.fromAssetId, `${path}.fromAssetId`),
         fromRole: requireEnum(raw.fromRole ?? role, `${path}.fromRole`, RESOURCE_ROLES),
         fromOrdinal: raw.fromOrdinal === undefined ? 0 : requireInt(raw.fromOrdinal, `${path}.fromOrdinal`, 0, 15),
       };

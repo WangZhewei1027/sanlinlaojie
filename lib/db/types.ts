@@ -27,7 +27,6 @@ export type UserRole = "super_admin" | "user";
 
 export interface AnchorEmbedding {
   anchor_id: string;
-  asset_version_id: string;
   embedding: number[] | null;
   embedding_version: string | null;
   generation: string;
@@ -54,7 +53,6 @@ export interface Asset {
   archived_by: string | null;
   create_at: Generated<Timestamp | null>;
   created_by: string | null;
-  current_version_id: string | null;
   file_type: string;
   id: Generated<string>;
   lock_version: Generated<number>;
@@ -63,25 +61,14 @@ export interface Asset {
   organization_id: string;
   origin: Generated<string>;
   origin_workspace_id: string | null;
+  payload: Json;
   state: Generated<string>;
   updated_at: Generated<Timestamp>;
   visibility: Generated<string>;
 }
 
-export interface AssetVersion {
+export interface AssetResource {
   asset_id: string;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  id: Generated<string>;
-  organization_id: string;
-  payload: Json;
-  payload_schema_version: Generated<number>;
-  source_fingerprint: string | null;
-  version_no: number;
-}
-
-export interface AssetVersionResource {
-  asset_version_id: string;
   content_hash: string | null;
   external_url: string | null;
   mime_type: string | null;
@@ -209,7 +196,6 @@ export interface Placement {
   altitude: number | null;
   anchor_id: string | null;
   asset_id: string | null;
-  asset_version_id: string | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
   id: Generated<string>;
@@ -248,7 +234,6 @@ export interface Scene {
 
 export interface SceneAssetRef {
   asset_id: string;
-  asset_version_id: string;
   organization_id: string;
   resource_alias: string;
   scene_id: string;
@@ -268,7 +253,6 @@ export interface SceneRevision {
 
 export interface SceneRevisionAssetRef {
   asset_id: string;
-  asset_version_id: string;
   organization_id: string;
   resource_alias: string;
   scene_revision_id: string;
@@ -341,8 +325,7 @@ export interface DB {
   anchor_match_rate_limit: AnchorMatchRateLimit;
   app_config: AppConfig;
   asset: Asset;
-  asset_version: AssetVersion;
-  asset_version_resource: AssetVersionResource;
+  asset_resource: AssetResource;
   "auth.account": AuthAccount;
   "auth.session": AuthSession;
   "auth.users": AuthUsers;

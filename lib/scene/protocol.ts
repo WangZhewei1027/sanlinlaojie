@@ -1,19 +1,18 @@
 /**
- * Schema 3 stores pinned scene documents. Schema 2 is the mini-program
- * playback manifest, with resource URLs resolved from those pinned versions.
+ * Schema 4 stores scene documents with asset references. Schema 2 is the mini-program
+ * playback manifest, with current asset resource URLs.
  */
 export const SCENE_SCHEMA_VERSION = 2 as const;
-export const SCENE_DOCUMENT_VERSION = 3 as const;
+export const SCENE_DOCUMENT_VERSION = 4 as const;
 export const MAX_SCENE_BYTES = 256 * 1024;
 
 export interface CompositionAssetRef {
   assetId: string;
 }
 
-/** Schema 3 alias: identity for upgrade UI + the version that decides content. */
-export interface VersionedAssetRef {
+/** Scene alias referencing an asset identity. */
+export interface AssetRef {
   assetId: string;
-  assetVersionId: string;
 }
 
 export interface InstanceAnimation {
@@ -61,9 +60,9 @@ export interface SceneDefinition {
   content: CompositionContent;
 }
 
-export interface SceneDocumentV3 {
+export interface SceneDocument {
   schemaVersion: typeof SCENE_DOCUMENT_VERSION;
-  content: CompositionContent<VersionedAssetRef>;
+  content: CompositionContent<AssetRef>;
 }
 
 /** Anything with a composition timeline: authoring helpers accept every schema. */
@@ -85,7 +84,7 @@ export function createBlankScene(): SceneDefinition {
 }
 
 /** Server factory for a new independent Scene draft (10 s, no loop, empty). */
-export function createBlankSceneDocument(): SceneDocumentV3 {
+export function createBlankSceneDocument(): SceneDocument {
   return { schemaVersion: SCENE_DOCUMENT_VERSION, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false, assets: {}, instances: [] } };
 }
 

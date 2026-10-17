@@ -78,7 +78,7 @@ export function receiptDto(row: ReceiptRow): UploadReceiptDto {
     content_hash: row.content_hash,
     mime_type: row.mime_type,
     size_bytes: row.size_bytes,
-    purpose: "asset_version",
+    purpose: "asset",
     reused: row.reused,
     expires_at: toIsoRequired(row.expires_at),
   };
@@ -124,10 +124,10 @@ export async function issueReceipt(
  */
 export async function findReusableKey(exec: Executor, organizationId: string, contentHash: string): Promise<string | null> {
   const version = await exec
-    .selectFrom("asset_version_resource as r")
-    .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
+    .selectFrom("asset_resource as r")
+    .innerJoin("asset as a", "a.id", "r.asset_id")
     .select("r.storage_key")
-    .where("v.organization_id", "=", organizationId)
+    .where("a.organization_id", "=", organizationId)
     .where("r.content_hash", "=", contentHash)
     .where("r.storage_key", "is not", null)
     .limit(1)
@@ -157,11 +157,10 @@ export async function findProbeKey(exec: Executor, actor: Actor, org: OrgAccess,
   if (!org.canRead) return null;
   const organizationId = org.org.id;
   const version = await exec
-    .selectFrom("asset_version_resource as r")
-    .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
-    .innerJoin("asset as a", "a.id", "v.asset_id")
+    .selectFrom("asset_resource as r")
+    .innerJoin("asset as a", "a.id", "r.asset_id")
     .select("r.storage_key")
-    .where("v.organization_id", "=", organizationId)
+    .where("a.organization_id", "=", organizationId)
     .where("r.content_hash", "=", contentHash)
     .where("r.storage_key", "is not", null)
     .where("a.state", "=", "active")
@@ -200,7 +199,7 @@ export async function loadCommitReceipts(trx: Trx, userId: string, organizationI
     if (!row) throw new ContentError("RECEIPT_INVALID", "上传回执不存在或已过期，请重新上传");
     if (row.created_by !== userId) throw new ContentError("RECEIPT_INVALID", "上传回执不属于当前用户");
     if (row.organization_id !== organizationId) throw new ContentError("RECEIPT_INVALID", "上传回执不属于该组织");
-    if (row.purpose !== "asset_version") throw new ContentError("RECEIPT_INVALID", "上传回执用途不匹配");
+    if (row.purpose !== "asset") throw new ContentError("RECEIPT_INVALID", "上传回执用途不匹配");
   }
   return byId;
 }

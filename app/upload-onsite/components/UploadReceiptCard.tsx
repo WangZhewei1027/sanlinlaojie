@@ -23,11 +23,10 @@ export interface OnsiteReceipt {
 export function UploadReceiptCard({ receipt, onDismiss }: { receipt: OnsiteReceipt; onDismiss: () => void }) {
   const tx = useIntegrationText(ONSITE_TEXTS);
   const { result, organizationId, workspaceId } = receipt;
-  const { placement, asset, version } = result;
+  const { placement, asset } = result;
   const location = placement.location ?? receipt.submittedLocation;
   const rows: { label: string; value: string; mono?: boolean }[] = [
     { label: tx("contentModel.integration.onsite.receipt.asset"), value: asset?.name || placement.name || tx("contentModel.integration.onsite.receipt.untitled") },
-    ...(version ? [{ label: tx("contentModel.integration.onsite.receipt.version"), value: `v${version.version_no}` }] : []),
     { label: tx("contentModel.integration.onsite.receipt.collection"), value: placement.workspace_name || receipt.collectionName || workspaceId },
     {
       label: tx("contentModel.integration.onsite.receipt.location"),

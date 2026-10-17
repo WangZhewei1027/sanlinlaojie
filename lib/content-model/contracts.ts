@@ -98,17 +98,17 @@ export type PlacementStatus = "draft" | "active" | "paused" | "archived";
 /** Derived from draft lock + revisions, never stored (plan §4.3). */
 export type ScenePublishStatus = "unpublished" | "published" | "modified" | "archived";
 
-/** Media types an asset version can carry. `scene` lives in its own table. */
+/** Media types an asset content can carry. `scene` lives in its own table. */
 export type AssetFileType = "image" | "video" | "audio" | "document" | "model" | "text" | "link" | "shop" | "anchor";
 export const ASSET_FILE_TYPES: readonly AssetFileType[] = ["image", "video", "audio", "document", "model", "text", "link", "shop", "anchor"];
 /** Business objects with dedicated panels; excluded from generic pickers unless requested. */
 export const SPECIAL_ASSET_FILE_TYPES: readonly AssetFileType[] = ["anchor", "shop"];
 
-/** Role of one physical file inside a version. */
+/** Role of one physical file of an asset. */
 export type ResourceRole = "primary" | "thumbnail" | "checkin" | "audio_compat" | "reference";
 export const RESOURCE_ROLES: readonly ResourceRole[] = ["primary", "thumbnail", "checkin", "audio_compat", "reference"];
 
-export type UploadPurpose = "asset_version";
+export type UploadPurpose = "asset";
 
 // ───────────────────────── capabilities ─────────────────────────
 
@@ -124,7 +124,7 @@ export interface CollectionCapabilities {
 
 export interface AssetCapabilities {
   can_read: boolean;
-  /** Team writer (owner/admin/member) in an open organization: name, versions, archive, restore. */
+  /** Team writer (owner/admin/member) in an open organization: name, content, archive, restore. */
   can_maintain: boolean;
   /** Owner/admin only: change the responsible maintainer. */
   can_transfer_maintainer: boolean;
@@ -216,7 +216,7 @@ export interface UploadResponse {
   data: UploadReceiptDto;
 }
 
-// ───────────────────────── asset versions ─────────────────────────
+// ───────────────────────── asset content ─────────────────────────
 
 /** Capture metadata: provenance only, never triggers a placement. */
 export interface CaptureMetadata {
@@ -245,7 +245,7 @@ interface PayloadBase {
   capture?: CaptureMetadata;
 }
 
-export type AssetVersionPayload =
+export type AssetPayload =
   | (PayloadBase & { kind: "image" })
   | (PayloadBase & { kind: "video" })
   | (PayloadBase & { kind: "audio" })
@@ -256,9 +256,7 @@ export type AssetVersionPayload =
   | (PayloadBase & { kind: "shop"; text?: string; name?: string })
   | (PayloadBase & { kind: "anchor"; text?: string });
 
-export const ASSET_PAYLOAD_SCHEMA_VERSION = 1;
-
-export interface AssetVersionResourceDto {
+export interface AssetResourceDto {
   role: ResourceRole;
   ordinal: number;
   storage_key: string | null;
@@ -271,38 +269,21 @@ export interface AssetVersionResourceDto {
   size_bytes: number | null;
 }
 
-export interface AssetVersionDto {
+export interface AssetContentDto {
   id: string;
-  asset_id: string;
   organization_id: string;
-  version_no: number;
-  payload_schema_version: number;
-  payload: AssetVersionPayload;
-  resources: AssetVersionResourceDto[];
-  created_by: string | null;
-  created_at: string;
+  file_type: AssetFileType;
+  payload: AssetPayload;
+  resources: AssetResourceDto[];
+  lock_version: number;
+  updated_at: string;
 }
 
-/** One file of a new version. Managed files must come from an upload receipt or an existing version. */
+/** One current file. Managed files come from an upload receipt or an authorized source asset. */
 export type ResourceInput =
   | { role: ResourceRole; ordinal?: number; receiptId: string }
-  | { role: ResourceRole; ordinal?: number; fromVersionId: string; fromRole: ResourceRole; fromOrdinal?: number }
+  | { role: ResourceRole; ordinal?: number; fromAssetId: string; fromRole: ResourceRole; fromOrdinal?: number }
   | { role: ResourceRole; ordinal?: number; externalUrl: string };
-
-/** POST /api/assets/[id]/versions → { data: CreateVersionResult } */
-export interface CreateAssetVersionRequest {
-  payload: AssetVersionPayload;
-  resources: ResourceInput[];
-  idempotencyKey: string;
-  /** Optional optimistic guard on the asset identity row. */
-  expectedLockVersion?: number;
-}
-
-export interface CreateVersionResult {
-  asset: AssetDto;
-  version: AssetVersionDto;
-  created: boolean;
-}
 
 // ───────────────────────── assets ─────────────────────────
 
@@ -312,7 +293,7 @@ export interface UserRefDto {
   email: string | null;
 }
 
-export interface AssetDto {
+export interface AssetDto extends AssetContentDto {
   id: string;
   organization_id: string;
   name: string | null;
@@ -326,10 +307,6 @@ export interface AssetDto {
   /** Responsible person (metadata); does not restrict editing. */
   maintained_by: string | null;
   maintainer: UserRefDto | null;
-  current_version_id: string | null;
-  current_version_no: number | null;
-  /** Primary resource of the current version (catalog thumbnails only). */
-  current_version: AssetVersionDto | null;
   lock_version: number;
   created_by: string | null;
   create_at: string | null;
@@ -378,7 +355,7 @@ export interface PlacementFieldsInput {
 export interface CreateAssetRequest {
   name: string;
   fileType: AssetFileType;
-  payload: AssetVersionPayload;
+  payload: AssetPayload;
   resources: ResourceInput[];
   /** Metadata only; defaults to `organization`. */
   visibility?: AssetVisibility;
@@ -395,18 +372,18 @@ export type CreateOrganizationAssetRequest = Omit<CreateAssetRequest, "placement
 
 export interface CreateAssetResult {
   asset: AssetDto;
-  version: AssetVersionDto;
   placement: PlacementDto | null;
   created: boolean;
 }
 
 /** GET /api/assets/[id] */
-export interface AssetDetailDto extends AssetDto {
-  versions: AssetVersionDto[];
-}
+export type AssetDetailDto = AssetDto;
 
 /** PATCH /api/assets/[id] → { data: AssetDto } (any team writer) */
 export interface UpdateAssetRequest {
+  /** Replaces the current content; existing references read the new data. */
+  payload?: AssetPayload;
+  resources?: ResourceInput[];
   expectedLockVersion: number;
   name?: string;
   /** Metadata only. */
@@ -428,8 +405,6 @@ export interface DuplicateAssetRequest {
   /** Optional origin collection (metadata, must be an open collection of the team); omit for a team-owned copy. */
   targetWorkspaceId?: string;
   name?: string;
-  /** Defaults to the current version. */
-  sourceVersionId?: string;
   idempotencyKey: string;
 }
 
@@ -445,23 +420,21 @@ export interface DependencyImpact {
 
 /** Scene items carry the scene's origin collection (null for team scenes); placements their collection. */
 export type DependencyItem =
-  | { kind: "scene_draft"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string; asset_version_id: string; version_no: number }
-  | { kind: "scene_revision"; scene_id: string; scene_name: string; scene_revision_id: string; revision_no: number; workspace_id: string | null; workspace_name: string | null; resource_alias: string; asset_version_id: string; version_no: number }
-  | { kind: "placement"; placement_id: string; placement_name: string | null; status: PlacementStatus; workspace_id: string; workspace_name: string; asset_version_id: string; version_no: number };
+  | { kind: "scene_draft"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
+  | { kind: "scene_revision"; scene_id: string; scene_name: string; scene_revision_id: string; revision_no: number; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
+  | { kind: "placement"; placement_id: string; placement_name: string | null; status: PlacementStatus; workspace_id: string; workspace_name: string };
 
 /** GET /api/assets/[id]/usage → { data: AssetUsageDto } */
 export interface AssetUsageDto {
   asset_id: string;
-  current_version_id: string | null;
   impact: DependencyImpact;
 }
 
 // ───────────────────────── scenes ─────────────────────────
 
-/** Internal schema 3: every alias is pinned to an explicit version. */
-export interface VersionedAssetRef {
+/** Internal schema 4: each alias references an asset identity. */
+export interface AssetRef {
   assetId: string;
-  assetVersionId: string;
 }
 
 export interface SceneRevisionSummaryDto {
@@ -493,38 +466,34 @@ export interface SceneSummaryDto {
   capabilities: SceneCapabilities;
 }
 
-/** Resource pinned by the draft, resolved by version (never by the asset's current URL). */
+/** Current asset resource referenced by a scene alias. */
 export interface SceneResolvedResourceDto {
   resource_alias: string;
   asset_id: string;
-  asset_version_id: string;
-  version_no: number;
   asset_name: string | null;
   file_type: AssetFileType;
   asset_state: AssetState;
+  asset_lock_version: number;
   url: string | null;
   animations: ModelAnimationInfo[];
-  current_version_id: string | null;
-  current_version_no: number | null;
-  upgrade_available: boolean;
 }
 
 /** GET /api/scenes/[id] → { data: SceneDetailDto } */
 export interface SceneDetailDto extends SceneSummaryDto {
-  /** schemaVersion 3 document (see lib/scene/protocol.ts SceneDocumentV3). */
-  draft_document: SceneDocumentV3Json;
+  /** schemaVersion 4 document (see lib/scene/protocol.ts SceneDocument). */
+  draft_document: SceneDocumentJson;
   referenced_resources: SceneResolvedResourceDto[];
 }
 
-/** Structural JSON shape of schemaVersion 3; validated server-side. */
-export interface SceneDocumentV3Json {
-  schemaVersion: 3;
+/** Structural JSON shape of schemaVersion 4; validated server-side. */
+export interface SceneDocumentJson {
+  schemaVersion: 4;
   content: {
     kind: "composition";
     units: "meters";
     durationSeconds: number | null;
     loop: boolean;
-    assets: Record<string, VersionedAssetRef>;
+    assets: Record<string, AssetRef>;
     instances: unknown[];
   };
 }
@@ -536,7 +505,7 @@ export interface SceneDocumentV3Json {
 export interface CreateSceneRequest {
   name: string;
   /** Optional import; schema 1/2 imports must be converted by the client first. */
-  document?: SceneDocumentV3Json;
+  document?: SceneDocumentJson;
   idempotencyKey?: string;
 }
 
@@ -548,7 +517,7 @@ export interface CreateSceneRequest {
 export interface SaveSceneRequest {
   expectedLockVersion: number;
   name?: string;
-  document?: SceneDocumentV3Json;
+  document?: SceneDocumentJson;
   state?: SceneState;
 }
 
@@ -604,21 +573,18 @@ export interface PlacementRenderConfig {
 }
 
 export type PlacementTargetInput =
-  | { kind: "asset_version"; assetVersionId: string }
+  | { kind: "asset"; assetId: string }
   | { kind: "scene_revision"; sceneRevisionId: string };
 
 export type PlacementTargetDto =
   | {
-      kind: "asset_version";
+      kind: "asset";
       asset_id: string;
-      asset_version_id: string;
-      version_no: number;
-      asset_name: string | null;
+              asset_name: string | null;
       file_type: AssetFileType;
       asset_state: AssetState;
-      current_version_id: string | null;
-      upgrade_available: boolean;
-    }
+      asset_lock_version: number;
+            }
   | {
       kind: "scene_revision";
       scene_id: string;
@@ -630,7 +596,7 @@ export type PlacementTargetDto =
       scene_state: SceneState;
       latest_revision_id: string | null;
       upgrade_available: boolean;
-    };
+        };
 
 export interface PlacementDto {
   id: string;
@@ -663,7 +629,7 @@ export interface PlacementDto {
 
 /**
  * POST /api/collections/[id]/placements → 201 { data: CreatePlacementResult }
- * Any same-team AssetVersion or SceneRevision can be placed into any open
+ * Any same-team Asset or SceneRevision can be placed into any open
  * collection; a scene is never copied to be placed in another collection.
  */
 export type CreatePlacementRequest =
@@ -674,7 +640,6 @@ export interface CreatePlacementResult {
   placement: PlacementDto;
   /** Present for the upload-and-place form. */
   asset: AssetDto | null;
-  version: AssetVersionDto | null;
   created: boolean;
 }
 
@@ -699,23 +664,22 @@ export interface UpdatePlacementRequest {
  *
  * Fixed playable content of one placement for preview, authorized exactly
  * like GET /api/placements/[id]: team membership of the placement's
- * organization. An explicit workspace_id must be the owning collection. Returns only what the placement pins — never version history,
- * the asset's current version, grants, drafts or catalog data — and grants
+ * organization. An explicit workspace_id must be the owning collection. Returns the placement content — never
+ * grants, drafts or catalog data — and grants
  * nothing for reuse. Unreadable placements are 404.
  */
 export type PlacementContentDto = PlacementAssetContentDto | PlacementSceneContentDto;
 
 export interface PlacementAssetContentDto {
-  kind: "asset_version";
+  kind: "asset";
   placement_id: string;
   public_id: string;
   asset_id: string;
-  asset_version_id: string;
-  version_no: number;
+  asset_lock_version: number;
   file_type: AssetFileType;
-  /** The pinned version's payload (immutable content). */
-  payload: AssetVersionPayload;
-  resources: AssetVersionResourceDto[];
+  /** Current asset content. */
+  payload: AssetPayload;
+  resources: AssetResourceDto[];
 }
 
 export interface PlacementSceneContentDto {
@@ -726,17 +690,15 @@ export interface PlacementSceneContentDto {
   scene_revision_id: string;
   revision_no: number;
   name: string;
-  /** Frozen schema-3 document of the revision. */
-  document: SceneDocumentV3Json;
-  /** One entry per alias, resolved from the pinned version's own files. */
-  resources: PinnedSceneResourceDto[];
+  /** Frozen schema-4 document of the revision. */
+  document: SceneDocumentJson;
+  /** One entry per alias, resolved from current asset files. */
+  resources: ScenePlaybackResourceDto[];
 }
 
-export interface PinnedSceneResourceDto {
+export interface ScenePlaybackResourceDto {
   resource_alias: string;
   asset_id: string;
-  asset_version_id: string;
-  version_no: number;
   file_type: AssetFileType;
   url: string | null;
   animations: ModelAnimationInfo[];

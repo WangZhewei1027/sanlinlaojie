@@ -25,45 +25,44 @@ collections. Collections are created when content needs a map.
 
 | Entity | Responsibility |
 | --- | --- |
-| `asset` | Team identity, current-version pointer and archive state |
-| `asset_version` / `asset_version_resource` | Immutable content and its files |
-| `scene` / `scene_asset_ref` | Schema-3 draft with pinned version references |
-| `scene_revision` / `scene_revision_asset_ref` | Immutable publication |
+| `asset` / `asset_resource` | Mutable team content and its current files |
+| `scene` / `scene_asset_ref` | Schema-4 composition with asset identity references |
+| `scene_revision` / `scene_revision_asset_ref` | Published layout with live asset references |
 | `workspace` | Map collection; no independent membership |
-| `placement` / `placement_tag` | Collection-owned presentation of one version/revision |
+| `placement` / `placement_tag` | Collection-owned presentation of an asset or scene publication |
 | `upload_receipt` | Actor/team-bound upload proof and expiring lease |
-| `anchor_embedding` | Reference features keyed by immutable asset version |
-| `storage_hold` | Explicit protection for archived migration references |
+| `anchor_embedding` | Current reference features keyed by asset ID |
+| `storage_hold` | Explicit protection for archived migration files |
 
-There is no organization model-state switch, legacy write path, project ACL or
-version header. `lib/content-model/access.server.ts` enforces team permissions
-and archival. `contracts.ts` defines DTOs; domain services in `lib/assets/`,
-`lib/scene/service.server.ts` and `lib/placements/` own content writes.
-Transactions declare `content_model.writer`; only the explicit purge writer
-may remove immutable versions. It is not an authorization substitute.
+There is one runtime model, with no legacy adapters, asset history or version
+selection. `lib/content-model/access.server.ts` enforces team permissions and
+archival. `contracts.ts` defines DTOs. Domain services own all mutations.
 
-The upgrade migrates old data and removes old schema in one transaction.
-Original workspace UUIDs remain collection IDs; shared old content becomes
-independent placements. Migration evidence is stored outside the runtime schema.
-See [content-model-migration-runbook.md](content-model-migration-runbook.md).
+`PATCH /api/assets/[id]` replaces payload and resources in one transaction under
+an asset row lock. `expectedLockVersion` is required (missing 428, stale 409);
+this counter prevents concurrent overwrites and does not represent content
+history. Create commands support scoped idempotency keys. File reuse and garbage
+collection share object-key locks; managed files require receipts or authorized
+`fromAssetId` sources. Copies get independent content.
 
-Identity/draft/placement updates validate `expectedLockVersion` (missing 428,
-stale 409). Appending an AssetVersion is serialized under the Asset row lock;
-an optional supplied expected version is checked. Create commands use scoped
-idempotency keys; the same key with different input is a conflict. Scene
-publishing also reuses an existing revision for the same source draft version.
-Publishing can atomically switch selected placements through `updatePlacements`,
-with a separate expected lock for each placement; bare `updatePlacementIds`
-are rejected with 428.
-Resource lifecycle changes and new references retain their locking protocol;
-grant mutation is retired. Resource reuse, version commit and garbage collection
-share the object-key retention lock protocol.
+Placements and scene aliases reference asset IDs. Every read, including a
+published scene's playback, resolves current payloads and files. Layout
+publications remain immutable; editing an asset does not require republishing
+or switching placements. Scene JSON is authoritative and reference indexes are
+rebuilt in the same transaction as draft saves. Playback compiles schema 4 to
+the mini-program's schema 2 protocol. Publishing can switch explicitly selected
+placements, each guarded by its own expected lock.
 
-Scene JSON is the authoring source of truth; reference rows are derived inside
-the same transaction. Runtime compiles published schema-3 documents to playback
-schema 1/2 and never substitutes an Asset's current version. Ordinary media can
-be placed directly. Activity/topic/reply models are not implemented; future
-business content stays outside static Asset and Scene documents.
+Changing an anchor's reference file deletes its old descriptor. Generation
+requests lock and check the current image before starting; generation IDs prevent
+obsolete in-flight work from restoring deleted or superseded descriptors.
+
+Existing databases run the single-content-model conversion followed by the
+mutable-assets migration. Former workspace IDs remain collection IDs. The
+latter selects each asset's current content, rewrites draft and published scene
+aliases, and removes all asset-version tables/columns. Migration archives and
+file holds are for recovery only, never runtime reads. See
+[content-model-migration-runbook.md](content-model-migration-runbook.md).
 
 Schema: `db/schema.sql` (baseline), `db/migrations/*.sql` (incremental),
 applied with `npm run db:migrate`. Types: `lib/db/types.ts`, regenerated with

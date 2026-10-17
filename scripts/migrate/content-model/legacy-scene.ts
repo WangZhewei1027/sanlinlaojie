@@ -20,3 +20,8 @@ export function validateLegacySceneDefinition(def: unknown): ValidationResult {
   }
   return { ok: !issues.hasErrors, issues: issues.issues };
 }
+
+export interface SceneDocumentV3 {
+  schemaVersion: 3;
+  content: CompositionContent<{ assetId: string; assetVersionId: string }>;
+}

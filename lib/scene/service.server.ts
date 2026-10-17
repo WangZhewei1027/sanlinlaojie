@@ -1,4 +1,4 @@
-import { asFileType, loadVersionDtos, primaryResource } from "@/lib/assets/dto.server";
+import { loadAssetContents, primaryResource } from "@/lib/assets/dto.server";
 import {
   assertOrgWritable,
   ensureAssetUse,
@@ -17,7 +17,7 @@ import type {
   PlacementDto,
   PublishSceneResult,
   SceneDetailDto,
-  SceneDocumentV3Json,
+  SceneDocumentJson,
   ScenePublishStatus,
   SceneResolvedResourceDto,
   SceneRevisionSummaryDto,
@@ -49,8 +49,8 @@ import { db, sql } from "@/lib/db";
 import { assertPlacementWritable, buildPlacementDtos, loadPlacementRows, lockPlacement } from "@/lib/placements/core.server";
 import "server-only";
 import { clipIssues } from "./compile";
-import { createBlankSceneDocument, type SceneDocumentV3 } from "./protocol";
-import { validateSceneDocumentV3 } from "./validate";
+import { createBlankSceneDocument, type SceneDocument } from "./protocol";
+import { validateSceneDocument } from "./validate";
 
 /**
  * Independent team scenes (plan §4.3, team workbench contract). A scene
@@ -78,14 +78,14 @@ interface SceneRow {
 
 const SCENE_COLUMNS = ["id", "organization_id", "workspace_id", "name", "draft_document", "lock_version", "state", "created_by", "updated_by", "created_at", "updated_at"] as const;
 
-export function parseDocument(value: unknown): SceneDocumentV3 {
-  const result = validateSceneDocumentV3(value);
+export function parseDocument(value: unknown): SceneDocument {
+  const result = validateSceneDocument(value);
   if (!result.ok)
     throw invalid(
       "场景草稿校验失败",
       result.issues.filter((i) => i.severity === "error").slice(0, 20).map((i) => ({ path: i.path, message: i.message })),
     );
-  return value as SceneDocumentV3;
+  return value as SceneDocument;
 }
 
 async function loadSceneRow(exec: Executor, sceneId: string, forUpdate = false): Promise<SceneRow | null> {
@@ -112,93 +112,33 @@ async function requireSceneWrite(exec: Executor, actor: Actor, sceneId: string):
 
 // ───────────────────────── derived references ─────────────────────────
 
-interface VersionInfo {
-  id: string;
-  asset_id: string;
-  organization_id: string;
-  file_type: string;
-  payload: unknown;
-}
-
 function animationsOf(payload: unknown): ModelAnimationInfo[] | undefined {
   if (!isRecord(payload) || !Array.isArray(payload.animations)) return undefined;
   return payload.animations as ModelAnimationInfo[];
 }
 
-/**
- * Validate every alias (version belongs to the named asset, same org, model
- * with a file, clip still present) and rebuild the draft index. New versions
- * go through ensureAssetUse (team writer, asset active under a share lock);
- * versions already pinned by this draft stay usable even if their asset was
- * archived since.
- */
-async function syncDraftRefs(trx: Trx, actor: Actor, scene: { id: string; organization_id: string }, writer: OrgAccess, document: SceneDocumentV3): Promise<void> {
-  const existing = await trx.selectFrom("scene_asset_ref").select(["asset_version_id"]).where("scene_id", "=", scene.id).execute();
-  const pinned = new Set(existing.map((r) => r.asset_version_id));
+async function syncDraftRefs(trx: Trx, actor: Actor, scene: { id: string; organization_id: string }, writer: OrgAccess, document: SceneDocument): Promise<void> {
+  const existing = new Set((await trx.selectFrom("scene_asset_ref").select("asset_id").where("scene_id", "=", scene.id).execute()).map((r) => r.asset_id));
   const entries = Object.entries(document.content.assets);
-  const versionIds = [...new Set(entries.map(([, ref]) => ref.assetVersionId.toLowerCase()))];
-  const versions: VersionInfo[] = versionIds.length
-    ? await trx
-        .selectFrom("asset_version as v")
-        .innerJoin("asset as a", "a.id", "v.asset_id")
-        .select(["v.id", "v.asset_id", "v.organization_id", "a.file_type", "v.payload"])
-        .where("v.id", "in", versionIds)
-        .execute()
-    : [];
-  const byId = new Map(versions.map((v) => [v.id, v]));
-  const primaries = versionIds.length
-    ? new Set(
-        (await trx.selectFrom("asset_version_resource").select("asset_version_id").where("asset_version_id", "in", versionIds).where("role", "=", "primary").execute()).map(
-          (r) => r.asset_version_id,
-        ),
-      )
-    : new Set<string>();
-  // Existence and use rights first, with one uniform message, so validation
-  // details never describe versions the caller may not use.
-  const missing = entries
-    .filter(([, ref]) => {
-      const version = byId.get(ref.assetVersionId.toLowerCase());
-      return !version || version.organization_id !== scene.organization_id || version.asset_id !== ref.assetId.toLowerCase();
-    })
-    .map(([alias]) => ({ path: `content.assets.${alias}`, message: "素材版本不存在或不属于 assetId 指定的素材" }));
-  if (missing.length) throw invalid("场景引用校验失败", missing);
-
-  // Per asset: any not-yet-pinned version is a new reference.
-  const byAsset = new Map<string, { isNew: boolean }>();
-  for (const [, ref] of entries) {
-    const assetId = ref.assetId.toLowerCase();
-    const isNew = !pinned.has(ref.assetVersionId.toLowerCase());
-    byAsset.set(assetId, { isNew: (byAsset.get(assetId)?.isNew ?? false) || isNew });
-  }
-  for (const [assetId, { isNew }] of [...byAsset.entries()].sort(([a], [b]) => a.localeCompare(b)))
-    await ensureAssetUse(trx, actor, assetId, writer, { existingReference: !isNew });
-
+  const assetIds = [...new Set(entries.map(([, ref]) => ref.assetId.toLowerCase()))].sort();
+  for (const id of assetIds) await ensureAssetUse(trx, actor, id, writer, { existingReference: existing.has(id) });
+  const assets = await loadAssetContents(trx, assetIds);
   const issues: { path: string; message: string }[] = [];
   const animations: Record<string, ModelAnimationInfo[] | undefined> = {};
   for (const [alias, ref] of entries) {
-    const version = byId.get(ref.assetVersionId.toLowerCase())!;
+    const asset = assets.get(ref.assetId.toLowerCase());
     const path = `content.assets.${alias}`;
-    if (version.file_type !== "model") issues.push({ path, message: "场景目前只支持模型素材" });
-    else if (!primaries.has(version.id)) issues.push({ path, message: "素材版本缺少模型文件" });
-    else animations[alias] = animationsOf(version.payload);
+    if (!asset || asset.organization_id !== scene.organization_id) issues.push({ path, message: "素材不存在" });
+    else if (asset.file_type !== "model") issues.push({ path, message: "场景目前只支持模型素材" });
+    else if (!primaryResource(asset)) issues.push({ path, message: "素材缺少模型文件" });
+    else animations[alias] = animationsOf(asset.payload);
   }
   issues.push(...clipIssues(document, animations));
   if (issues.length) throw invalid("场景引用校验失败", issues);
-
   await trx.deleteFrom("scene_asset_ref").where("scene_id", "=", scene.id).execute();
-  if (entries.length)
-    await trx
-      .insertInto("scene_asset_ref")
-      .values(
-        entries.map(([alias, ref]) => ({
-          scene_id: scene.id,
-          organization_id: scene.organization_id,
-          resource_alias: alias,
-          asset_id: ref.assetId.toLowerCase(),
-          asset_version_id: ref.assetVersionId.toLowerCase(),
-        })),
-      )
-      .execute();
+  if (entries.length) await trx.insertInto("scene_asset_ref").values(entries.map(([alias, ref]) => ({
+    scene_id: scene.id, organization_id: scene.organization_id, resource_alias: alias, asset_id: ref.assetId.toLowerCase(),
+  }))).execute();
 }
 
 // ───────────────────────── DTOs ─────────────────────────
@@ -288,34 +228,21 @@ async function buildSceneSummaries(exec: Executor, actor: Actor, scenes: SceneRo
   });
 }
 
-/** Resources pinned by alias → version, resolved from the version's own files. */
-export async function resolvePinnedResources(exec: Executor, refs: { resource_alias: string; asset_id: string; asset_version_id: string }[]): Promise<SceneResolvedResourceDto[]> {
+/** Resolve each alias against its asset's current content. */
+export async function resolveSceneResources(exec: Executor, refs: { resource_alias: string; asset_id: string }[]): Promise<SceneResolvedResourceDto[]> {
   if (!refs.length) return [];
-  const versions = await loadVersionDtos(exec, refs.map((r) => r.asset_version_id));
-  const assets = await exec
-    .selectFrom("asset as a")
-    .leftJoin("asset_version as cv", "cv.id", "a.current_version_id")
-    .select(["a.id", "a.name", "a.file_type", "a.state", "a.current_version_id", "cv.version_no as current_version_no"])
-    .where("a.id", "in", [...new Set(refs.map((r) => r.asset_id))])
-    .execute();
-  const assetById = new Map(assets.map((a) => [a.id, a]));
+  const ids = [...new Set(refs.map((r) => r.asset_id))];
+  const contents = await loadAssetContents(exec, ids);
+  const identities = await exec.selectFrom("asset").select(["id", "name", "state"]).where("id", "in", ids).execute();
+  const byId = new Map(identities.map((a) => [a.id, a]));
   return refs.map((ref) => {
-    const version = versions.get(ref.asset_version_id);
-    const asset = assetById.get(ref.asset_id);
-    const payload = version?.payload;
+    const asset = contents.get(ref.asset_id);
+    const identity = byId.get(ref.asset_id);
     return {
-      resource_alias: ref.resource_alias,
-      asset_id: ref.asset_id,
-      asset_version_id: ref.asset_version_id,
-      version_no: version?.version_no ?? 0,
-      asset_name: asset?.name ?? null,
-      file_type: asFileType(asset?.file_type ?? "model"),
-      asset_state: asset?.state === "archived" ? "archived" : "active",
-      url: primaryResource(version)?.url ?? null,
-      animations: payload && payload.kind === "model" ? payload.animations ?? [] : [],
-      current_version_id: asset?.current_version_id ?? null,
-      current_version_no: asset?.current_version_no ?? null,
-      upgrade_available: !!asset?.current_version_id && asset.current_version_id !== ref.asset_version_id,
+      resource_alias: ref.resource_alias, asset_id: ref.asset_id, asset_name: identity?.name ?? null,
+      file_type: asset?.file_type ?? "model", asset_state: identity?.state === "archived" ? "archived" : "active",
+      asset_lock_version: asset?.lock_version ?? 0, url: primaryResource(asset)?.url ?? null,
+      animations: asset?.payload.kind === "model" ? asset.payload.animations ?? [] : [],
     };
   });
 }
@@ -324,14 +251,14 @@ async function buildSceneDetail(exec: Executor, actor: Actor, scene: SceneRow): 
   const [summary] = await buildSceneSummaries(exec, actor, [scene]);
   const refs = await exec
     .selectFrom("scene_asset_ref")
-    .select(["resource_alias", "asset_id", "asset_version_id"])
+    .select(["resource_alias", "asset_id"])
     .where("scene_id", "=", scene.id)
     .orderBy("resource_alias")
     .execute();
   return {
     ...summary,
-    draft_document: scene.draft_document as SceneDocumentV3Json,
-    referenced_resources: await resolvePinnedResources(exec, refs),
+    draft_document: scene.draft_document as SceneDocumentJson,
+    referenced_resources: await resolveSceneResources(exec, refs),
   };
 }
 
@@ -399,7 +326,7 @@ async function insertSceneTx(
   trx: Trx,
   actor: Actor,
   writer: OrgAccess,
-  input: { name: string; document: SceneDocumentV3; workspaceId: string | null },
+  input: { name: string; document: SceneDocument; workspaceId: string | null },
 ): Promise<string> {
   const scene = await trx
     .insertInto("scene")
@@ -519,19 +446,16 @@ export async function publishScene(actor: Actor, sceneId: string, body: JsonReco
       const refs = await trx.selectFrom("scene_asset_ref").selectAll().where("scene_id", "=", sceneId).execute();
       const refByAlias = new Map(refs.map((r) => [r.resource_alias, r]));
       const aliases = Object.entries(document.content.assets);
-      if (refs.length !== aliases.length || aliases.some(([alias, ref]) => refByAlias.get(alias)?.asset_version_id !== ref.assetVersionId.toLowerCase()))
+      if (refs.length !== aliases.length || aliases.some(([alias, ref]) => refByAlias.get(alias)?.asset_id !== ref.assetId.toLowerCase()))
         throw new ContentError("LOCK_VERSION_CONFLICT", "草稿引用索引与文档不一致，请重新保存后发布");
-      const versionIds = refs.map((r) => r.asset_version_id);
-      if (versionIds.length) {
-        const files = await trx.selectFrom("asset_version_resource").select("asset_version_id").where("asset_version_id", "in", versionIds).where("role", "=", "primary").execute();
-        const withFile = new Set(files.map((f) => f.asset_version_id));
-        const missing = refs.filter((r) => !withFile.has(r.asset_version_id)).map((r) => r.resource_alias);
-        if (missing.length) throw invalid(`资源 ${missing.join(", ")} 缺少文件，不能发布`);
-        const payloads = await trx.selectFrom("asset_version").select(["id", "payload"]).where("id", "in", versionIds).execute();
-        const animByVersion = new Map(payloads.map((p) => [p.id, animationsOf(p.payload)]));
-        const issues = clipIssues(document, Object.fromEntries(refs.map((r) => [r.resource_alias, animByVersion.get(r.asset_version_id)])));
-        if (issues.length) throw invalid("动画配置与固定版本不一致", issues);
-      }
+      const assetIds = [...new Set(refs.map((r) => r.asset_id))].sort();
+      // Serialize publication with content updates while validating the current files.
+      if (assetIds.length) await trx.selectFrom("asset").select("id").where("id", "in", assetIds).orderBy("id").forShare().execute();
+      const assets = await loadAssetContents(trx, assetIds);
+      const missing = refs.filter((r) => !primaryResource(assets.get(r.asset_id))).map((r) => r.resource_alias);
+      if (missing.length) throw invalid(`资源 ${missing.join(", ")} 缺少文件，不能发布`);
+      const issues = clipIssues(document, Object.fromEntries(refs.map((r) => [r.resource_alias, animationsOf(assets.get(r.asset_id)?.payload)])));
+      if (issues.length) throw invalid("动画配置与素材不一致", issues);
       const last = await trx.selectFrom("scene_revision").select(({ fn }) => fn.max("revision_no").as("max")).where("scene_id", "=", sceneId).executeTakeFirst();
       const inserted = await trx
         .insertInto("scene_revision")
@@ -554,7 +478,6 @@ export async function publishScene(actor: Actor, sceneId: string, body: JsonReco
             organization_id: scene.organization_id,
             resource_alias: r.resource_alias,
             asset_id: r.asset_id,
-            asset_version_id: r.asset_version_id,
           })))
           .execute();
       await audit(trx, {
@@ -688,8 +611,8 @@ export async function loadRevisionForPlayback(exec: Executor, revisionId: string
   if (!revision) return null;
   const refs = await exec
     .selectFrom("scene_revision_asset_ref")
-    .select(["resource_alias", "asset_id", "asset_version_id"])
+    .select(["resource_alias", "asset_id"])
     .where("scene_revision_id", "=", revisionId)
     .execute();
-  return { revision, resources: await resolvePinnedResources(exec, refs) };
+  return { revision, resources: await resolveSceneResources(exec, refs) };
 }

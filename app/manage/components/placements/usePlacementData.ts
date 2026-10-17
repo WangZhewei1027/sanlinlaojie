@@ -1,4 +1,5 @@
 "use client";
+import { subscribeContentChanges } from "../../lib/content-events";
 
 import type { AssetDto, PlacementDto } from "@/lib/content-model/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -58,6 +59,8 @@ export function usePlacementData({ organizationId, workspaceId, isAll, tx }: Pla
   const txRef = useRef(tx);
   txRef.current = tx;
 
+  useEffect(() => subscribeContentChanges(() => usePlacementStore.getState().requestReload()), []);
+
   // A new organization or project must reauthorize every cached read.
   useEffect(() => {
     usePlacementStore.getState().resetScope();
@@ -107,8 +110,8 @@ export function usePlacementData({ organizationId, workspaceId, isAll, tx }: Pla
   }, [placements, loadedScopeKey, scopeKey, workspaceId, reloadNonce]);
 
   const selected = loadedScopeKey === scopeKey ? placements.find((placement) => placement.id === selectedPlacementId) : undefined;
-  const sourceAssetId = selected?.target.kind === "asset_version" ? selected.target.asset_id : null;
-  const sourceCurrentVersionId = selected?.target.kind === "asset_version" ? selected.target.current_version_id : null;
+  const sourceAssetId = selected?.target.kind === "asset" ? selected.target.asset_id : null;
+  const sourceLockVersion = selected?.target.kind === "asset" ? selected.target.asset_lock_version : null;
   useEffect(() => {
     if (!scopeKey || !sourceAssetId || usePlacementStore.getState().scopeKey !== scopeKey) return;
     const abort = new AbortController();
@@ -121,7 +124,7 @@ export function usePlacementData({ organizationId, workspaceId, isAll, tx }: Pla
         // Source actions stay unavailable; the placement preview is independent.
       });
     return () => abort.abort();
-  }, [scopeKey, sourceAssetId, sourceCurrentVersionId, reloadNonce]);
+  }, [scopeKey, sourceAssetId, sourceLockVersion, reloadNonce]);
 
   const tags = useTags(organizationId, workspaceId, isAll, reloadNonce);
   const anchors = useAnchors(workspaceId, reloadNonce);

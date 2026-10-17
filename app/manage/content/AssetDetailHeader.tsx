@@ -13,19 +13,18 @@ import type { AssetDetailData } from "./types";
 export interface AssetDetailHeaderProps {
   asset: AssetDetailData;
   canMaintain: boolean;
-  onUploadVersion: () => void;
+  onEditContent: () => void;
   /** Optional larger preview (image, model, audio) supplied by the page. */
   preview?: ReactNode;
 }
 
-/** Identity block with the surface's single primary action: upload a new version. */
-export function AssetDetailHeader({ asset, canMaintain, onUploadVersion, preview }: AssetDetailHeaderProps) {
+/** Identity block with the surface's single primary action: edit asset content. */
+export function AssetDetailHeader({ asset, canMaintain, onEditContent, preview }: AssetDetailHeaderProps) {
   const { t } = useTranslation();
   const format = useContentFormat();
   const archived = asset.state === "archived";
   const facts: Array<[string, string]> = [
     [t("contentModel.detail.type"), t(`fileTypes.${asset.type}`)],
-    [t("contentModel.detail.currentVersion"), `v${asset.currentVersionNo}`],
     [t("contentModel.detail.source"), t(`contentModel.filter.origins.${asset.origin}`)],
     [t("contentModel.detail.created"), format.date(asset.createdAt)],
     [t("contentModel.detail.updated"), format.date(asset.updatedAt)],
@@ -48,9 +47,9 @@ export function AssetDetailHeader({ asset, canMaintain, onUploadVersion, preview
             )}
           </div>
           {canMaintain && !archived && (
-            <Button onClick={onUploadVersion} className="self-start">
+            <Button onClick={onEditContent} className="self-start">
               <Upload aria-hidden />
-              {t("contentModel.version.upload")}
+              {t("contentModel.edit.action")}
             </Button>
           )}
         </div>

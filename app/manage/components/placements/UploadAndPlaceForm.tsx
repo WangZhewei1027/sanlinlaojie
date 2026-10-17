@@ -9,7 +9,7 @@ import type { UploadType } from "@/lib/upload/types";
 import { Camera, Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { acceptFor, fileTypeOf, linkPayload, prepareFile, textPayload, uploadFileVersion, type PreparedFile, type UploadedVersionInput } from "../../lib/content-upload";
+import { acceptFor, fileTypeOf, linkPayload, prepareFile, textPayload, uploadAssetFiles, type PreparedFile, type UploadedAssetInput } from "../../lib/content-upload";
 import { usePlacementStore } from "../../lib/placement-store";
 import { FieldLabel } from "../AssetEditor/FieldLabel";
 import { AssetLinkPreview } from "../AssetEditor/previews/AssetLinkPreview";
@@ -43,7 +43,7 @@ export function UploadAndPlaceForm() {
   const [location, setLocation] = useState<LocationInput>(EMPTY_LOCATION);
   const [problem, setProblem] = useState<string | null>(null);
   // Same file + same intent → reuse the receipt so a retry replays an identical body.
-  const uploaded = useRef<{ source: PreparedFile; input: UploadedVersionInput } | null>(null);
+  const uploaded = useRef<{ source: PreparedFile; input: UploadedAssetInput } | null>(null);
 
   const linkState = useMemo(() => {
     if (type !== "link" || !link.trim()) return { data: null, errorKey: null };
@@ -97,7 +97,7 @@ export function UploadAndPlaceForm() {
       if (type === "text") return { asset: { name: assetName, fileType: "text", payload: textPayload(text.trim()), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (type === "link") return { asset: { name: assetName, fileType: "link", payload: linkPayload(linkState.data!, name.trim() || undefined), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (!uploaded.current || uploaded.current.source !== prepared) {
-        uploaded.current = { source: prepared!, input: await uploadFileVersion(prepared!, { organizationId, workspaceId }) };
+        uploaded.current = { source: prepared!, input: await uploadAssetFiles(prepared!, { organizationId, workspaceId }) };
       }
       const { payload, resources } = uploaded.current.input;
       return { asset: { name: assetName, fileType: fileTypeOf(prepared!.type), payload, resources }, name: name.trim() || undefined, location: point, status: "active" };

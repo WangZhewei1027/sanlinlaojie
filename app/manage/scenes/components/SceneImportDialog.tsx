@@ -9,23 +9,22 @@ import { useId, useRef, useState } from "react";
 import { newIdempotencyKey, organizationApi } from "../../lib/content-api";
 import { ERROR_TEXTS, runContentAction } from "../../lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
-import { readSceneImport } from "../../lib/scene-v3";
+import { readSceneImport } from "../../lib/scene-document";
 
 const TEXTS: IntegrationTexts = {
   ...ERROR_TEXTS,
   "contentModel.integration.sceneImport.title": ["导入场景 JSON", "Import scene JSON"],
   "contentModel.integration.sceneImport.body": [
-    "在团队「{{team}}」中新建场景。文件中的模型版本将保持固定。",
-    "Creates a scene in the team “{{team}}”. The model versions in the file stay pinned.",
+    "在团队「{{team}}」中新建场景。使用文件中引用的素材最新内容。",
+    "Creates a scene in the team “{{team}}”. References use the latest asset content.",
   ],
   "contentModel.integration.sceneImport.file": ["场景文件", "Scene file"],
   "contentModel.integration.sceneImport.action": ["导入", "Import"],
   "contentModel.integration.sceneImport.fileRequired": ["请选择一个 JSON 文件", "Choose a JSON file"],
   "contentModel.integration.sceneImport.tooLarge": ["文件不能超过 256 KiB", "The file must be 256 KiB or smaller"],
-  "contentModel.integration.sceneImport.noVersion": ["素材 {{id}} 没有可用版本", "Asset {{id}} has no usable version"],
 };
 
-/** Import a schema-3 document with explicitly pinned model versions. */
+/** Import a schema-4 document with asset references. */
 export function SceneImportDialog({ open, onOpenChange, teamName, organizationId, onImported }: {
   open: boolean; onOpenChange: (open: boolean) => void; teamName: string; organizationId: string; onImported: (sceneId: string) => void;
 }) {

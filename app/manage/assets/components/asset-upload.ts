@@ -1,24 +1,24 @@
 /**
- * Turns a user's file / text / link into a version body, and keeps one
+ * Turns a user's file / text / link into asset content, and keeps one
  * idempotency key (plus the already-uploaded receipt) per submission intent so
  * a retry after a network failure replays the same command instead of
- * creating a second asset or version.
+ * creating a second asset.
  */
 import { isContentApiError, newIdempotencyKey } from "@/app/manage/lib/content-api";
-import { linkPayload, prepareFile, textPayload, uploadFileVersion, type LibraryUploadType } from "@/app/manage/lib/content-upload";
-import type { AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
+import { linkPayload, prepareFile, textPayload, uploadAssetFiles, type LibraryUploadType } from "@/app/manage/lib/content-upload";
+import type { AssetPayload, ResourceInput } from "@/lib/content-model/contracts";
 import { getLinkAssetErrorKey, parseLinkAssetInput } from "@/lib/link-asset";
 import type { MutableRefObject } from "react";
 
-export type VersionContent =
+export type AssetInputContent =
   | { kind: "file"; type: LibraryUploadType; file: File }
   | { kind: "text"; text: string }
   | { kind: "link"; url: string };
 
 export type UploadStage = "preparing" | "uploading" | "creating";
 
-export interface VersionBody {
-  payload: AssetVersionPayload;
+export interface AssetContentBody {
+  payload: AssetPayload;
   resources: ResourceInput[];
 }
 
@@ -26,10 +26,10 @@ export interface UploadIntent {
   signature: string;
   key: string;
   /** Set once the receipt exists, so a retry does not upload the file again. */
-  body?: VersionBody;
+  body?: AssetContentBody;
 }
 
-export function contentSignature(content: VersionContent): string {
+export function contentSignature(content: AssetInputContent): string {
   if (content.kind === "file") return `file:${content.type}:${content.file.name}:${content.file.size}:${content.file.lastModified}`;
   if (content.kind === "text") return `text:${content.text}`;
   return `link:${content.url.trim()}`;
@@ -62,35 +62,30 @@ export function parseLink(url: string, translate: (key: string) => string) {
   }
 }
 
-export async function buildVersionBody(
-  content: VersionContent,
+export async function buildAssetContentBody(
+  content: AssetInputContent,
   organizationId: string,
   translate: (key: string) => string,
   onStage?: (stage: UploadStage) => void,
-): Promise<VersionBody> {
+): Promise<AssetContentBody> {
   if (content.kind === "text") return { payload: textPayload(content.text), resources: [] };
   if (content.kind === "link") return { payload: linkPayload(parseLink(content.url, translate)), resources: [] };
   onStage?.("preparing");
   const prepared = await prepareFile(content.file, content.type);
   onStage?.("uploading");
   // Team content: the receipt is bound to the organization, never to a collection.
-  const { payload, resources } = await uploadFileVersion(prepared, { organizationId });
+  const { payload, resources } = await uploadAssetFiles(prepared, { organizationId });
   return { payload, resources };
 }
 
 /** Reuse the cached body of this intent or build (and cache) a new one. */
 export async function bodyForIntent(
   intent: UploadIntent,
-  content: VersionContent,
+  content: AssetInputContent,
   organizationId: string,
   translate: (key: string) => string,
   onStage?: (stage: UploadStage) => void,
-): Promise<VersionBody> {
-  if (!intent.body) intent.body = await buildVersionBody(content, organizationId, translate, onStage);
+): Promise<AssetContentBody> {
+  if (!intent.body) intent.body = await buildAssetContentBody(content, organizationId, translate, onStage);
   return intent.body;
-}
-
-export function withNote(payload: AssetVersionPayload, note: string): AssetVersionPayload {
-  const trimmed = note.trim();
-  return trimmed ? { ...payload, attributes: { ...payload.attributes, note: trimmed } } : payload;
 }

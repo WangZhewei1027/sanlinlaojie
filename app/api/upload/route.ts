@@ -34,7 +34,7 @@ import { createHash } from "node:crypto";
 // Hard cap, same as the old storage bucket; per-type limits are enforced
 // client-side in lib/upload/config.ts.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const PURPOSES: readonly UploadPurpose[] = ["asset_version"];
+const PURPOSES: readonly UploadPurpose[] = ["asset"];
 
 function newObjectKey(userId: string, fileName: string): string {
   const ext = fileName.includes(".")
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const scope = await resolveUploadScope(db, actor, { organizationId, workspaceId });
     const purpose: UploadPurpose =
       (requestedPurpose as UploadPurpose | null) ??
-      "asset_version";
+      "asset";
     const receiptInput = {
       organizationId: scope.org.org.id,
       workspaceId: scope.workspaceId,

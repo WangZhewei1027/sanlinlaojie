@@ -1,3 +1,4 @@
+import { notifyContentChange } from "./content-events";
 /**
  * Typed browser client for the content model APIs.
  *
@@ -21,13 +22,11 @@ import {
   type CopyPlacementRequest,
   type CopySceneRequest,
   type CreateAssetResult,
-  type CreateAssetVersionRequest,
   type CreateCollectionRequest,
   type CreateOrganizationAssetRequest,
   type CreatePlacementRequest,
   type CreatePlacementResult,
   type CreateSceneRequest,
-  type CreateVersionResult,
   type DuplicateAssetRequest,
   type MovePlacementsRequest,
   type PlacementContentDto,
@@ -130,7 +129,9 @@ export async function contentRequest<T>(path: string, options: RequestOptions = 
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new ContentApiError(error instanceof Error ? error.message : "Network error", 0, null);
   }
-  return parse<T>(response);
+  const result = await parse<T>(response);
+  if (options.method && options.method !== "GET") notifyContentChange();
+  return result;
 }
 
 const get = <T>(path: string, query?: Query, signal?: AbortSignal) => contentRequest<T>(path, { query, signal });
@@ -195,8 +196,6 @@ export const assetApi = {
   update: (assetId: string, request: UpdateAssetRequest) => send<Data<AssetDto>>("PATCH", `/api/assets/${id(assetId)}`, request).then((body) => body.data),
   archive: (assetId: string, expectedLockVersion: number) =>
     send<Data<ArchiveAssetResult>>("DELETE", `/api/assets/${id(assetId)}`, undefined, { expectedLockVersion }).then((body) => body.data),
-  createVersion: (assetId: string, request: CreateAssetVersionRequest) =>
-    send<Data<CreateVersionResult>>("POST", `/api/assets/${id(assetId)}/versions`, request).then((body) => body.data),
   usage: (assetId: string, signal?: AbortSignal) => get<Data<AssetUsageDto>>(`/api/assets/${id(assetId)}/usage`, undefined, signal).then((body) => body.data),
   /** Same-team copy when `targetWorkspaceId` is omitted. */
   duplicate: (assetId: string, request: DuplicateAssetRequest) =>
@@ -252,7 +251,7 @@ export async function uploadReceipt(
   form.set("type", options.type);
   form.set("organization_id", options.organizationId);
   if (options.workspaceId) form.set("workspace_id", options.workspaceId);
-  form.set("purpose", options.purpose ?? "asset_version");
+  form.set("purpose", options.purpose ?? "asset");
   let response: Response;
   try {
     response = await fetch("/api/upload", {

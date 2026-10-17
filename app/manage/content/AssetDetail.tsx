@@ -6,14 +6,12 @@ import { Button } from "@/components/ui/button";
 import { AssetDetailHeader } from "./AssetDetailHeader";
 import { AssetMaintenancePanel } from "./AssetMaintenancePanel";
 import { AssetUsagePanel } from "./AssetUsagePanel";
-import { AssetVersionHistory } from "./AssetVersionHistory";
-import { AssetVersionUploadDialog, type AssetVersionInput } from "./AssetVersionUploadDialog";
+import { AssetEditDialog, type AssetContentInput } from "./AssetEditDialog";
 import { ContentNotice } from "./ContentFeedback";
 import type {
   AssetDetailData,
   AssetUsageKind,
   AssetUsageSummary,
-  AssetVersion,
   ContentAction,
   ContentLoadStatus,
 } from "./types";
@@ -21,21 +19,16 @@ import type {
 export interface AssetDetailProps {
   asset: AssetDetailData;
   preview?: ReactNode;
-  /** Server capability: editing team members may upload versions, rename and archive. */
+  /** Server capability: editing team members may edit content, rename and archive. */
   canMaintain: boolean;
   /** Set after a write returned a stale lock; the page reloads fresh data. */
   stale?: boolean;
   onReload?: () => void;
 
-  versions: AssetVersion[];
-  currentVersionId: string;
-  versionsStatus?: ContentLoadStatus;
-  onRetryVersions?: () => void;
-  selectedVersionId: string | null;
-  onSelectVersion: (versionId: string | null) => void;
+  initialText?: string;
   uploadAccept?: string;
   uploadProgress?: number | null;
-  onUploadVersion: ContentAction<[input: AssetVersionInput]>;
+  onEditContent: ContentAction<[input: AssetContentInput]>;
 
   usage: AssetUsageSummary;
   usageByKind: Record<AssetUsageKind, number>;
@@ -49,18 +42,16 @@ export interface AssetDetailProps {
   onRestore: ContentAction;
 }
 
-/** Asset detail: identity, versions and usage in the main column; lifecycle beside. */
+/** Asset detail: identity, content and usage in the main column; lifecycle beside. */
 export function AssetDetail(props: AssetDetailProps) {
   const { t } = useTranslation();
   const [uploadOpen, setUploadOpen] = useState(false);
   const { asset } = props;
   const archived = asset.state === "archived";
-  const nextVersionNo = Math.max(asset.currentVersionNo, ...props.versions.map((version) => version.versionNo)) + 1;
-  const selectedVersion = props.versions.find((version) => version.id === props.selectedVersionId);
 
   return (
     <div className="flex flex-col gap-6">
-      <AssetDetailHeader asset={asset} canMaintain={props.canMaintain} onUploadVersion={() => setUploadOpen(true)} preview={props.preview} />
+      <AssetDetailHeader asset={asset} canMaintain={props.canMaintain} onEditContent={() => setUploadOpen(true)} preview={props.preview} />
 
       {props.stale && (
         <ContentNotice
@@ -75,20 +66,10 @@ export function AssetDetail(props: AssetDetailProps) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="flex min-w-0 flex-col gap-6">
-          <AssetVersionHistory
-            versions={props.versions}
-            currentVersionId={props.currentVersionId}
-            status={props.versionsStatus}
-            onRetry={props.onRetryVersions}
-            selectedVersionId={props.selectedVersionId}
-            onSelectVersion={props.onSelectVersion}
-          />
           <AssetUsagePanel
             usage={props.usage}
-            currentVersionNo={asset.currentVersionNo}
             status={props.usageStatus}
             onRetry={props.onRetryUsage}
-            versionFilterNo={selectedVersion?.versionNo ?? null}
             hasMore={props.usageHasMore}
             loadingMore={props.usageLoadingMore}
             onLoadMore={props.onLoadMoreUsage}
@@ -106,15 +87,16 @@ export function AssetDetail(props: AssetDetailProps) {
         </div>
       </div>
 
-      <AssetVersionUploadDialog
+      <AssetEditDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         assetName={asset.name}
         assetType={asset.type}
-        nextVersionNo={nextVersionNo}
+        key={String(uploadOpen)}
+        initialText={props.initialText}
         accept={props.uploadAccept}
         progress={props.uploadProgress}
-        onSubmit={props.onUploadVersion}
+        onSubmit={props.onEditContent}
       />
     </div>
   );

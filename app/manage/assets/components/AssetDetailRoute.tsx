@@ -5,12 +5,10 @@ import { AssetDetail, ContentErrorState } from "@/app/manage/content";
 import { isContentApiError, isEndpointMissing } from "@/app/manage/lib/content-api";
 import { teamCanWrite, teamHref, useResourceTeam, useTeamContext } from "@/app/manage/lib/content-context";
 import { errorMessage } from "@/app/manage/lib/content-errors";
-import { toDetailData, toUsageSummary, toVersions, usageByKind } from "@/app/manage/lib/content-mappers";
-import { useOrganizationPeople } from "@/app/manage/lib/content-people";
+import { toDetailData, toUsageSummary, usageByKind } from "@/app/manage/lib/content-mappers";
 import { acceptFor } from "@/app/manage/lib/content-upload";
 import { useIntegrationText, type IntegrationT } from "@/app/manage/lib/integration-text";
 import { Button } from "@/components/ui/button";
-import type { AssetVersionDto } from "@/lib/content-model/contracts";
 import { ArrowLeft, Copy, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,11 +23,6 @@ import { ASSET_TEXTS } from "./texts";
 import { useAssetDetail } from "./useAssetDetail";
 import { useAssetWrites } from "./useAssetWrites";
 
-const noteOf = (version: AssetVersionDto) => {
-  const note = version.payload.attributes?.note;
-  return typeof note === "string" ? note : null;
-};
-
 function loadErrorText(error: unknown, tx: IntegrationT) {
   if (isEndpointMissing(error)) return tx("contentModel.integration.assets.endpointMissing");
   if (isContentApiError(error) && error.status === 404) return tx("contentModel.integration.assetDetail.notFound");
@@ -37,7 +30,7 @@ function loadErrorText(error: unknown, tx: IntegrationT) {
   return errorMessage(error, tx);
 }
 
-/** /manage/assets/[id]: identity, versions, usage and lifecycle of one team asset. */
+/** /manage/assets/[id]: identity, content, usage and lifecycle of one team asset. */
 export function AssetDetailRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   // Keyed by id so selection, stale and archive notices never leak into another asset.
@@ -52,11 +45,9 @@ function AssetDetailView({ id }: { id: string }) {
   const detail = useAssetDetail(id);
   const asset = detail.asset;
   const organizationId = asset?.organization_id ?? team.organizationId;
-  const people = useOrganizationPeople(asset?.organization_id ?? null);
   const writes = useAssetWrites(detail, tx);
   // The asset's team drives the URL and header; a later header switch leaves for that team's workbench.
   const { settled } = useResourceTeam(asset?.organization_id, "/manage");
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
 
@@ -88,10 +79,6 @@ function AssetDetailView({ id }: { id: string }) {
   const sameTeam = team.organization?.id === asset.organization_id;
   const canCopy = canMaintain || (sameTeam && teamCanWrite({ archivedAt: team.organization?.archived_at, orgRole: team.organization?.role, globalRole: team.currentUserRole }));
   const data = toDetailData(asset);
-  const sortedVersions = [...asset.versions].sort((a, b) => b.version_no - a.version_no);
-  const notes = new Map(sortedVersions.map((version) => [version.id, noteOf(version)]));
-  const versions = toVersions(sortedVersions, people.byId, detail.usage?.impact).map((version) => ({ ...version, note: notes.get(version.id) ?? null }));
-  const previewVersion = asset.versions.find((version) => version.id === (selectedVersionId ?? asset.current_version_id)) ?? asset.current_version;
   const type = asset.file_type as CreatableType;
 
   return shell(
@@ -105,19 +92,15 @@ function AssetDetailView({ id }: { id: string }) {
       />
       <AssetDetail
         asset={data}
-        preview={hasPreview(previewVersion) ? <AssetPreview version={previewVersion} name={data.name} tx={tx} /> : undefined}
+        preview={hasPreview(asset) ? <AssetPreview content={asset} name={data.name} tx={tx} /> : undefined}
         canMaintain={canMaintain}
         stale={writes.stale}
         onReload={writes.reload}
-        versions={versions}
-        currentVersionId={asset.current_version_id ?? ""}
-        versionsStatus="ready"
-        selectedVersionId={selectedVersionId}
-        onSelectVersion={setSelectedVersionId}
+        initialText={asset.payload.kind === "text" ? asset.payload.text : asset.payload.kind === "link" ? asset.payload.url : undefined}
         uploadAccept={isFileType(type) ? acceptFor(type) || undefined : undefined}
         uploadProgress={null}
-        onUploadVersion={writes.uploadVersion}
-        usage={toUsageSummary(detail.usage?.impact, asset.organization_id, selectedVersionId)}
+        onEditContent={writes.editContent}
+        usage={toUsageSummary(detail.usage?.impact, asset.organization_id)}
         usageByKind={usageByKind(detail.usage?.impact)}
         usageStatus={detail.usageStatus}
         onRetryUsage={detail.retryUsage}

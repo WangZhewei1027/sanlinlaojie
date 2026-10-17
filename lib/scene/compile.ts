@@ -1,15 +1,10 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
-import type { SceneAssetManifest, SceneDocumentV3 } from "./protocol";
+import type { SceneAssetManifest, SceneDocument } from "./protocol";
 
-/**
- * Compile a fixed schema-3 document into the playback protocol the current
- * mini-program understands (schema 2). Instances and tracks are kept; every
- * alias resolves to the file of its pinned version. Never reads an asset's
- * current version.
- */
+/** Compile a published layout with current asset resources into playback schema 2. */
 export function compileSceneManifest(
   publicId: string,
-  document: SceneDocumentV3,
+  document: SceneDocument,
   resources: Record<string, { assetId: string; url: string }>,
 ): SceneAssetManifest {
   const assets: Record<string, { assetId: string }> = {};
@@ -26,12 +21,12 @@ export function compileSceneManifest(
 }
 
 /**
- * Animation clips that no longer exist in the pinned version (plan §5.2:
- * block the save instead of silently dropping the animation). Versions with
+ * Animation clips unavailable in current asset content (
+ * block the save instead of silently dropping the animation). Assets with
  * an unknown clip list are not checked here; the player still verifies.
  */
 export function clipIssues(
-  document: SceneDocumentV3,
+  document: Pick<SceneDocument, "content">,
   animationsByAlias: Record<string, ModelAnimationInfo[] | undefined>,
 ): { path: string; message: string }[] {
   const issues: { path: string; message: string }[] = [];
@@ -42,10 +37,10 @@ export function clipIssues(
     const path = `content.instances[${index}].animation`;
     if (animation.clipName !== undefined) {
       const matches = known.filter((clip) => clip.name === animation.clipName).length;
-      if (matches === 0) issues.push({ path, message: `所选版本没有动画 "${animation.clipName}"` });
-      else if (matches > 1) issues.push({ path, message: `动画名 "${animation.clipName}" 在所选版本中不唯一，请改用序号` });
+      if (matches === 0) issues.push({ path, message: `素材没有动画 "${animation.clipName}"` });
+      else if (matches > 1) issues.push({ path, message: `动画名 "${animation.clipName}" 在素材中不唯一，请改用序号` });
     } else if (animation.clipIndex !== undefined && !known.some((clip) => clip.index === animation.clipIndex)) {
-      issues.push({ path, message: `所选版本没有第 ${animation.clipIndex} 个动画` });
+      issues.push({ path, message: `素材没有第 ${animation.clipIndex} 个动画` });
     }
   });
   return issues;

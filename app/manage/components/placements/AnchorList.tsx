@@ -13,7 +13,7 @@ import { usePlacementMap } from "./PlacementMapContext";
 
 /** Placement that puts this anchor on the map (anchors may also exist without one). */
 export function anchorPlacementOf(anchorId: string, placements: readonly PlacementDto[]) {
-  return placements.find((placement) => placement.target.kind === "asset_version" && placement.target.asset_id === anchorId && placement.status !== "archived") ?? null;
+  return placements.find((placement) => placement.target.kind === "asset" && placement.target.asset_id === anchorId && placement.status !== "archived") ?? null;
 }
 
 /**
@@ -34,7 +34,7 @@ export function AnchorList({ anchorPlacements }: { anchorPlacements: PlacementDt
           <ul className="divide-y">
             {anchorPlacements.map((placement) => (
               <li key={placement.id}>
-                <AnchorRow name={placement.name ?? (placement.target.kind === "asset_version" ? placement.target.asset_name : null)} url={null} selected={selectedPlacementId === placement.id} placement={placement} onSelect={() => focusPlacement(placement)} />
+                <AnchorRow name={placement.name ?? (placement.target.kind === "asset" ? placement.target.asset_name : null)} url={null} selected={selectedPlacementId === placement.id} placement={placement} onSelect={() => focusPlacement(placement)} />
               </li>
             ))}
           </ul>
@@ -55,7 +55,7 @@ export function AnchorList({ anchorPlacements }: { anchorPlacements: PlacementDt
           <li key={anchor.id} id={`anchor-card-${anchor.id}`}>
             <AnchorRow
               name={anchor.name}
-              url={primaryResource(anchor.current_version)?.url ?? null}
+              url={primaryResource(anchor)?.url ?? null}
               selected={selected}
               placement={placement}
               onSelect={() => usePlacementStore.getState().selectAnchor(anchor.id)}

@@ -18,22 +18,19 @@ export async function computeImpact(exec: Executor, actor: Actor, assetId: strin
     .selectFrom("scene_asset_ref as r")
     .innerJoin("scene as s", "s.id", "r.scene_id")
     .leftJoin("workspace as w", "w.id", "s.workspace_id")
-    .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
-    .select(["s.id as scene_id", "s.name as scene_name", "s.workspace_id", "w.name as workspace_name", "r.resource_alias", "r.asset_version_id", "v.version_no"])
+    .select(["s.id as scene_id", "s.name as scene_name", "s.workspace_id", "w.name as workspace_name", "r.resource_alias"])
     .where("r.asset_id", "=", assetId);
   let revisions = exec
     .selectFrom("scene_revision_asset_ref as r")
     .innerJoin("scene_revision as sr", "sr.id", "r.scene_revision_id")
     .innerJoin("scene as s", "s.id", "sr.scene_id")
     .leftJoin("workspace as w", "w.id", "s.workspace_id")
-    .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
-    .select(["s.id as scene_id", "s.name as scene_name", "sr.id as scene_revision_id", "sr.revision_no", "s.workspace_id", "w.name as workspace_name", "r.resource_alias", "r.asset_version_id", "v.version_no"])
+    .select(["s.id as scene_id", "s.name as scene_name", "sr.id as scene_revision_id", "sr.revision_no", "s.workspace_id", "w.name as workspace_name", "r.resource_alias"])
     .where("r.asset_id", "=", assetId);
   let placements = exec
     .selectFrom("placement as p")
     .innerJoin("workspace as w", "w.id", "p.workspace_id")
-    .innerJoin("asset_version as v", "v.id", "p.asset_version_id")
-    .select(["p.id as placement_id", "p.name as placement_name", "p.status", "w.id as workspace_id", "w.name as workspace_name", "p.asset_version_id", "v.version_no"])
+    .select(["p.id as placement_id", "p.name as placement_name", "p.status", "w.id as workspace_id", "w.name as workspace_name"])
     .where("p.asset_id", "=", assetId);
   if (workspaceId) {
     drafts = drafts.where("s.workspace_id", "=", workspaceId);
@@ -59,8 +56,6 @@ export async function computeImpact(exec: Executor, actor: Actor, assetId: strin
       status: asStatus(r.status),
       workspace_id: r.workspace_id,
       workspace_name: r.workspace_name,
-      asset_version_id: r.asset_version_id ?? "",
-      version_no: r.version_no,
     })),
   ];
   return { drafts: draftRows.length, revisions: revisionRows.length, placements: placementRows.length, items, restricted_count: 0 };

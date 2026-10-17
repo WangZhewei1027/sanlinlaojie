@@ -90,8 +90,8 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
             const name = asset.name || asset.id.slice(0, 8);
             return (
               <Row key={asset.id} selected={selected} onSelect={() => onChange({ kind: "asset", asset })}>
-                <AssetThumbnail fileType={asset.file_type} fileUrl={thumbnailOf(asset.current_version)} textContent={excerptOf(asset.current_version)} fileName={name} />
-                <RowText title={name} meta={`${tx(`contentModel.integration.map.type.${asset.file_type}`)} · v${asset.current_version_no ?? "—"}`} />
+                <AssetThumbnail fileType={asset.file_type} fileUrl={thumbnailOf(asset)} textContent={excerptOf(asset)} fileName={name} />
+                <RowText title={name} meta={tx(`contentModel.integration.map.type.${asset.file_type}`)} />
               </Row>
             );
           })
@@ -110,7 +110,7 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
       {value && (
         <Text as="p" variant="bodyXs" tone="subdued">
           {value.kind === "asset"
-            ? tx("contentModel.integration.map.create.pinsVersion", { number: value.asset.current_version_no ?? "—" })
+            ? tx("contentModel.integration.map.source.liveAsset")
             : tx("contentModel.integration.map.create.pinsRevision", { number: value.scene.latest_revision?.revision_no ?? "—" })}
         </Text>
       )}

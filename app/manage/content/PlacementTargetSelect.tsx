@@ -9,8 +9,8 @@ import { useContentFormat } from "./useContentFormat";
 import type { PinnedTargetOption } from "./types";
 
 export interface PlacementTargetSelectProps {
-  /** A placement pins either an asset version or a published scene revision, never a draft. */
-  kind: "asset_version" | "scene_revision";
+  /** A placement pins a published scene revision, never a draft. */
+  kind: "scene_revision";
   sourceName: string;
   options: PinnedTargetOption[];
   value: string | null;
@@ -18,8 +18,8 @@ export interface PlacementTargetSelectProps {
   disabled?: boolean;
 }
 
-/** Chooses the fixed version or revision a placement plays. */
-export function PlacementTargetSelect({ kind, sourceName, options, value, onChange, disabled }: PlacementTargetSelectProps) {
+/** Chooses the published layout a placement plays. */
+export function PlacementTargetSelect({ sourceName, options, value, onChange, disabled }: PlacementTargetSelectProps) {
   const { t } = useTranslation();
   const format = useContentFormat();
   const id = useId();
@@ -30,14 +30,14 @@ export function PlacementTargetSelect({ kind, sourceName, options, value, onChan
   if (!ordered.length) {
     return (
       <Text as="p" variant="bodySm" tone="subdued">
-        {kind === "scene_revision" ? t("contentModel.placement.noRevisions") : t("contentModel.placement.noVersions")}
+        {t("contentModel.placement.noRevisions")}
       </Text>
     );
   }
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{kind === "asset_version" ? t("contentModel.placement.version") : t("contentModel.placement.revision")}</Label>
+      <Label htmlFor={id}>{t("contentModel.placement.revision")}</Label>
       <Select value={value ?? ""} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id={id} className="w-full" aria-describedby={`${id}-hint`}>
           <SelectValue placeholder={t("contentModel.placement.choose")} />
@@ -45,7 +45,7 @@ export function PlacementTargetSelect({ kind, sourceName, options, value, onChan
         <SelectContent>
           {ordered.map((option) => (
             <SelectItem key={option.id} value={option.id}>
-              <span className="tabular-nums">v{option.number}</span>
+              <span className="tabular-nums">#{option.number}</span>
               <span className="text-muted-foreground">{format.date(option.createdAt)}</span>
               {option.id === latest.id && <span className="text-muted-foreground">· {t("contentModel.placement.latest")}</span>}
             </SelectItem>

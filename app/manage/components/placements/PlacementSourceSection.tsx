@@ -13,7 +13,7 @@ import { placementFileType, placementScopeKey } from "../../lib/placement-to-vie
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
 import { PlacementPreview } from "./PlacementPreview";
-import { PlacementVersionSwitch } from "./PlacementVersionSwitch";
+import { PlacementRevisionSwitch } from "./PlacementRevisionSwitch";
 
 interface PlacementSourceSectionProps {
   placement: PlacementDto;
@@ -29,14 +29,14 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
   const { tx, organizationId, workspaceId } = usePlacementMap();
   const target = placement.target;
   const scopeKey = placementScopeKey(organizationId, workspaceId);
-  const detail = usePlacementStore((state) => (state.scopeKey === scopeKey && target.kind === "asset_version" ? state.assetDetails[target.asset_id] : undefined));
+  const detail = usePlacementStore((state) => (state.scopeKey === scopeKey && target.kind === "asset" ? state.assetDetails[target.asset_id] : undefined));
   const canReadSource = target.kind === "scene_revision" || detail?.capabilities.can_read === true;
   const type = placementFileType(placement);
-  const sourceArchived = target.kind === "asset_version" ? target.asset_state === "archived" : target.scene_state === "archived";
-  const href = target.kind === "asset_version"
+  const sourceArchived = target.kind === "asset" ? target.asset_state === "archived" : target.scene_state === "archived";
+  const href = target.kind === "asset"
     ? teamHref(`/manage/assets/${target.asset_id}`, organizationId)
     : teamHref(`/manage/scenes/${target.scene_id}`, organizationId);
-  const sourceName = (target.kind === "asset_version" ? target.asset_name : target.scene_name) || tx("contentModel.integration.map.source.unnamed");
+  const sourceName = (target.kind === "asset" ? target.asset_name : target.scene_name) || tx("contentModel.integration.map.source.unnamed");
 
   return (
     <FieldSection title={tx("contentModel.integration.map.section.source")} hint={tx("contentModel.integration.map.section.sourceHint")} icon={Package}>
@@ -47,12 +47,12 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
           {sourceArchived && <ContentStatusBadge kind="archived" />}
         </div>
         <Text as="p" variant="bodySm" tone="subdued">
-          {target.kind === "asset_version"
-            ? tx("contentModel.integration.map.source.pinnedVersion", { number: target.version_no })
+          {target.kind === "asset"
+            ? tx("contentModel.integration.map.source.liveAsset")
             : tx("contentModel.integration.map.source.pinnedRevision", { number: target.revision_no })}
         </Text>
-        {target.upgrade_available && (
-          <ContentStatusBadge kind="outdated" number={target.kind === "asset_version" ? detail?.current_version_no ?? null : null} />
+        {target.kind === "scene_revision" && target.upgrade_available && (
+          <ContentStatusBadge kind="outdated"  />
         )}
       </div>
 
@@ -60,10 +60,10 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
         <Button variant="outline" size="sm" asChild>
           <Link href={href}>
             <ExternalLink className="size-4" aria-hidden />
-            {tx(target.kind === "asset_version" ? "contentModel.integration.map.source.openAsset" : "contentModel.integration.map.source.openScene")}
+            {tx(target.kind === "asset" ? "contentModel.integration.map.source.openAsset" : "contentModel.integration.map.source.openScene")}
           </Link>
         </Button>
-        {type === "anchor" && target.kind === "asset_version" && (
+        {type === "anchor" && target.kind === "asset" && (
           <Button variant="ghost" size="sm" onClick={() => usePlacementStore.getState().selectAnchor(target.asset_id)}>
             <Anchor className="size-4" aria-hidden />
             {tx("contentModel.integration.map.source.openAnchor")}
@@ -72,7 +72,7 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
       </div>}
 
       <PlacementPreview placement={placement} />
-      <PlacementVersionSwitch placement={placement} editable={editable} formDirty={formDirty} />
+      {target.kind === "scene_revision" && <PlacementRevisionSwitch placement={{ ...placement, target }} editable={editable} formDirty={formDirty} />}
     </FieldSection>
   );
 }

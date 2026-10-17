@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import type { ModelAnimationInfo } from "../lib/content-model/contracts";
 import { clipIssues } from "../lib/scene/compile";
-import type { SceneDocumentV3 } from "../lib/scene/protocol";
+import type { SceneDocumentV3 } from "./migrate/content-model/legacy-scene";
 import type { LegacyAsset } from "./migrate/content-model/audit";
 import { legacyPayload } from "./migrate/content-model/staging";
 

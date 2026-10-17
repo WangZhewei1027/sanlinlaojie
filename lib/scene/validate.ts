@@ -1,4 +1,4 @@
-import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_SCHEMA_VERSION, type SceneDefinition, type SceneDocumentV3, type ValidationResult } from "./protocol";
+import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_SCHEMA_VERSION, type SceneDefinition, type SceneDocument, type ValidationResult } from "./protocol";
 import { IssueList, rejectUnknownKeys, requireObject } from "./validate-utils";
 import { validateCompositionContent } from "./validate-content";
 
@@ -32,15 +32,15 @@ export function parseSceneText(text: unknown): SceneDefinition {
   return value as SceneDefinition;
 }
 
-/** Internal schema 3 (independent Scene draft): tracks allowed, versioned refs required. */
-export function validateSceneDocumentV3(def: unknown): ValidationResult {
+/** Internal schema 4: composition tracks and direct asset references. */
+export function validateSceneDocument(def: unknown): ValidationResult {
   const issues = new IssueList();
   const root = requireObject(issues, "$", def);
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
-    if (root.schemaVersion !== SCENE_DOCUMENT_VERSION) issues.error("schemaVersion", "场景草稿必须是 schemaVersion 3");
+    if (root.schemaVersion !== SCENE_DOCUMENT_VERSION) issues.error("schemaVersion", "场景草稿必须是 schemaVersion 4");
     const content = requireObject(issues, "content", root.content);
-    if (content?.kind === "composition") validateCompositionContent(issues, content, true, true);
+    if (content?.kind === "composition") validateCompositionContent(issues, content, true);
     else if (content) issues.error("content.kind", "场景仅支持 composition");
   }
   if (!issues.hasErrors && new TextEncoder().encode(JSON.stringify(def)).length > MAX_SCENE_BYTES)
@@ -48,8 +48,8 @@ export function validateSceneDocumentV3(def: unknown): ValidationResult {
   return { ok: !issues.hasErrors, issues: issues.issues };
 }
 
-export function parseSceneDocumentV3(value: unknown): SceneDocumentV3 {
-  const result = validateSceneDocumentV3(value);
+export function parseSceneDocument(value: unknown): SceneDocument {
+  const result = validateSceneDocument(value);
   if (!result.ok) throw new SceneAssetError(result.issues.filter((i) => i.severity === "error").slice(0, 3).map((i) => `${i.path}: ${i.message}`).join("；"));
-  return value as SceneDocumentV3;
+  return value as SceneDocument;
 }

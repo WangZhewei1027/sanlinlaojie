@@ -5,7 +5,6 @@
 import type {
   AssetDetailData,
   AssetUsageSummary,
-  AssetVersion,
   CollectionItem,
   ContentActionResult,
   ContentPerson,
@@ -82,24 +81,19 @@ export const archivedCollections: CollectionItem[] = [
 
 export const assetDetail: AssetDetailData = {
   id: "asset-lantern", name: "走马灯模型", type: "model", state: "active", origin: "team_upload",
-  maintainer: people.lin, currentVersionNo: 3, createdAt: "2026-09-02T02:00:00Z", updatedAt: "2026-10-12T09:30:00Z",
+  maintainer: people.lin, createdAt: "2026-09-02T02:00:00Z", updatedAt: "2026-10-12T09:30:00Z",
 };
 
-export const versions: AssetVersion[] = [
-  { id: "v3", versionNo: 3, createdAt: "2026-10-12T09:30:00Z", createdBy: people.lin, note: "示例说明：减少面数，修正灯罩贴图", sizeBytes: 4_820_000, usageCount: 1 },
-  { id: "v2", versionNo: 2, createdAt: "2026-09-20T05:12:00Z", createdBy: people.lin, note: "示例说明：增加旋转动画", sizeBytes: 5_310_000, usageCount: 3 },
-  { id: "v1", versionNo: 1, createdAt: "2026-09-02T02:00:00Z", createdBy: people.zhou, sizeBytes: 5_020_000, usageCount: 2 },
-];
 
 export const usage: AssetUsageSummary = {
   totalCount: 5,
   restrictedCount: 0,
   entries: [
-    { id: "u1", kind: "published", targetName: "灯会入口 #2", versionNo: 2, href: "#" },
-    { id: "u2", kind: "published", targetName: "夜游序章 #4", versionNo: 3, href: "#" },
-    { id: "u3", kind: "placement", collectionName: "老街导览", targetName: "东街口投放", versionNo: 2, placementStatus: "active", href: "#" },
-    { id: "u4", kind: "placement", collectionName: "元宵灯会", targetName: "广场预热", versionNo: 1, placementStatus: "paused", href: "#" },
-    { id: "u5", kind: "draft", targetName: "夜游序章", versionNo: 3, href: "#" },
+    { id: "u1", kind: "published", targetName: "灯会入口 #2", href: "#" },
+    { id: "u2", kind: "published", targetName: "夜游序章 #4", href: "#" },
+    { id: "u3", kind: "placement", collectionName: "老街导览", targetName: "东街口投放", placementStatus: "active", href: "#" },
+    { id: "u4", kind: "placement", collectionName: "元宵灯会", targetName: "广场预热", placementStatus: "paused", href: "#" },
+    { id: "u5", kind: "draft", targetName: "夜游序章", href: "#" },
   ],
 };
 

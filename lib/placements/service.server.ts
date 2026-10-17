@@ -10,13 +10,13 @@ import {
   type WorkspaceAccess,
 } from "@/lib/content-model/access.server";
 import type {
-  AssetVersionPayload,
+  AssetPayload,
   CreatePlacementResult,
   GeoPointInput,
   PlacementContentDto,
   PlacementDto,
   PlacementStatus,
-  SceneDocumentV3Json,
+  SceneDocumentJson,
 } from "@/lib/content-model/contracts";
 import { checkLockVersion, invalid, notFound } from "@/lib/content-model/errors";
 import {
@@ -110,23 +110,22 @@ export async function getPlacement(actor: Actor, placementId: string, viewerWork
 export async function getPlacementContent(actor: Actor, placementId: string, viewerWorkspaceId?: string): Promise<PlacementContentDto> {
   const row = await requirePlacementRead(actor, placementId, viewerWorkspaceId);
   const publicId = row.id;
-  const target: StaticPlacementTarget = row.asset_version_id
-    ? { kind: "asset_version", assetVersionId: row.asset_version_id }
+  const target: StaticPlacementTarget = row.asset_id
+    ? { kind: "asset", assetId: row.asset_id }
     : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" };
   const content = await resolvePlacementContent(db, target);
   if (!content) throw notFound("投放内容不存在");
-  if (content.kind === "asset_version") {
-    const payload = content.version.payload;
+  if (content.kind === "asset") {
+    const payload = content.asset.payload;
     return {
-      kind: "asset_version",
+      kind: "asset",
       placement_id: row.id,
       public_id: publicId,
-      asset_id: content.version.asset_id,
-      asset_version_id: content.version.id,
-      version_no: content.version.version_no,
+      asset_id: content.asset.id,
+      asset_lock_version: content.asset.lock_version,
       file_type: content.fileType,
-      payload: payload as AssetVersionPayload,
-      resources: content.version.resources,
+      payload: payload as AssetPayload,
+      resources: content.asset.resources,
     };
   }
   const revision = await db
@@ -142,12 +141,10 @@ export async function getPlacementContent(actor: Actor, placementId: string, vie
     scene_revision_id: content.sceneRevisionId,
     revision_no: revision.revision_no,
     name: revision.name,
-    document: content.document as unknown as SceneDocumentV3Json,
+    document: content.document as unknown as SceneDocumentJson,
     resources: content.resources.map((r) => ({
       resource_alias: r.resource_alias,
       asset_id: r.asset_id,
-      asset_version_id: r.asset_version_id,
-      version_no: r.version_no,
       file_type: r.file_type,
       url: r.url,
       animations: r.animations,
@@ -165,7 +162,7 @@ async function dto(actor: Actor, id: string): Promise<PlacementDto> {
 
 /**
  * POST /api/collections/[id]/placements. Either a fixed target (any same-team
- * AssetVersion or SceneRevision), or the upload-and-place form (`asset` +
+ * Asset or SceneRevision), or the upload-and-place form (`asset` +
  * `idempotencyKey`) that creates the team Asset, v1 and the placement in one
  * transaction.
  */
@@ -176,7 +173,7 @@ export async function createPlacement(actor: Actor, workspaceId: string, body: J
     const { asset, idempotencyKey, ...placement } = body;
     const result = await createAssetForCollection(actor, workspaceId, { ...asset, idempotencyKey, placement });
     if (!result.placement) throw invalid("投放未创建");
-    return { placement: result.placement, asset: result.asset, version: result.version, created: result.created };
+    return { placement: result.placement, asset: result.asset, created: result.created };
   }
   rejectUnknown(body, ["target", "idempotencyKey", "name", "location", "anchorId", "renderConfig", "status", "tagIds"]);
   const target = parseTarget(body.target);
@@ -204,17 +201,16 @@ export async function createPlacement(actor: Actor, workspaceId: string, body: J
     });
     return { id, created: true };
   });
-  return { placement: await dto(actor, outcome.id), asset: null, version: null, created: outcome.created };
+  return { placement: await dto(actor, outcome.id), asset: null, created: outcome.created };
 }
 
 /** Current target of a placement, as resolveTargetForWrite would describe it. */
 async function describeTarget(exec: Executor, row: PlacementRow): Promise<ResolvedTarget> {
-  if (row.asset_version_id) {
+  if (row.asset_id) {
     const asset = await exec.selectFrom("asset").select("file_type").where("id", "=", row.asset_id ?? "").executeTakeFirst();
     return {
-      kind: "asset_version",
+      kind: "asset",
       assetId: row.asset_id,
-      assetVersionId: row.asset_version_id,
       sceneRevisionId: null,
       fileType: asFileType(asset?.file_type ?? "document"),
       sceneId: null,
@@ -232,7 +228,6 @@ async function describeTarget(exec: Executor, row: PlacementRow): Promise<Resolv
   return {
     kind: "scene_revision",
     assetId: null,
-    assetVersionId: null,
     sceneRevisionId: row.scene_revision_id,
     fileType: "scene",
     sceneId: revision?.scene_id ?? null,
@@ -279,12 +274,12 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
     const changes: Record<string, unknown> = {};
     if (target) {
       const next = await resolveTargetForWrite(trx, actor, access, target, {
-        currentTarget: { assetVersionId: row.asset_version_id, sceneRevisionId: row.scene_revision_id },
+        currentTarget: { assetId: row.asset_id, sceneRevisionId: row.scene_revision_id },
       });
-      if (next.kind !== resolved.kind || (next.kind === "asset_version" ? next.assetId !== resolved.assetId : next.sceneId !== resolved.sceneId))
-        throw invalid("只能切换到同一素材的其他版本或同一场景的其他发布版本；不同内容请新建投放");
-      if (next.assetVersionId !== row.asset_version_id || next.sceneRevisionId !== row.scene_revision_id) {
-        changes.asset_version_id = next.assetVersionId;
+      if (next.kind !== resolved.kind || (next.kind === "asset" ? next.assetId !== resolved.assetId : next.sceneId !== resolved.sceneId))
+        throw invalid("只能切换同一场景的发布记录；不同素材请新建投放");
+      if (next.assetId !== row.asset_id || next.sceneRevisionId !== row.scene_revision_id) {
+        changes.asset_id = next.assetId;
         changes.scene_revision_id = next.sceneRevisionId;
       }
       resolved = next;
@@ -311,7 +306,7 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
       .set((eb) => ({ ...changes, lock_version: eb("lock_version", "+", 1), updated_by: actor.userId, updated_at: sql<Date>`now()` }))
       .where("id", "=", placementId)
       .execute();
-    const action = "asset_version_id" in changes ? "placement.retarget" : "status" in changes ? `placement.status.${String(changes.status)}` : "placement.update";
+    const action = "asset_id" in changes ? "placement.retarget" : "status" in changes ? `placement.status.${String(changes.status)}` : "placement.update";
     await audit(trx, {
       organizationId: row.organization_id,
       actorId: actor.userId,
@@ -321,7 +316,7 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
       workspaceId: row.workspace_id,
       details: {
         fields: [...Object.keys(changes), ...(fields.tagIds !== undefined ? ["tag_ids"] : [])],
-        from: { asset_version_id: row.asset_version_id, scene_revision_id: row.scene_revision_id, status: row.status },
+        from: { asset_id: row.asset_id, scene_revision_id: row.scene_revision_id, status: row.status },
       },
     });
   });
@@ -415,7 +410,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
       trx,
       actor,
       target,
-      row.asset_version_id ? { kind: "asset_version", assetVersionId: row.asset_version_id } : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" },
+      row.asset_id ? { kind: "asset", assetId: row.asset_id } : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" },
     );
     const sourcePoint = row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, altitude: row.altitude } : null;
     const location = explicitLocation !== undefined ? explicitLocation : sourcePoint ? offsetPoint(sourcePoint, offset) : null;
@@ -447,7 +442,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
     });
     return { id, created: true };
   });
-  return { placement: await dto(actor, outcome.id), asset: null, version: null, created: outcome.created };
+  return { placement: await dto(actor, outcome.id), asset: null, created: outcome.created };
 }
 
 async function anchorInScope(exec: Executor, anchorId: string, target: WorkspaceAccess): Promise<boolean> {

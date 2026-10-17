@@ -321,7 +321,7 @@ export async function DELETE(
     }
 
     // 离开组织只影响身份与维护责任：团队内容权限随成员关系失效，维护的素材交由
-    // owner/admin 接管（maintained_by 置空），素材与版本保持不变。
+    // owner/admin 接管（maintained_by 置空），素材内容保持不变。
     await db.transaction().execute(async (trx) => {
       await trx
         .deleteFrom("organization_member")

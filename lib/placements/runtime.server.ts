@@ -1,7 +1,5 @@
-import { asFileType, loadVersionDtos, primaryResource } from "@/lib/assets/dto.server";
-import { appendVersion } from "@/lib/assets/versions.server";
-import type { Actor } from "@/lib/content-model/access.server";
-import type { AssetVersionDto } from "@/lib/content-model/contracts";
+import { asFileType, loadAssetContents, primaryResource } from "@/lib/assets/dto.server";
+import type { AssetContentDto } from "@/lib/content-model/contracts";
 import { audit, contentTransaction, type Executor } from "@/lib/content-model/tx.server";
 import { db, sql } from "@/lib/db";
 import { parseLinkAssetInput, type LinkAssetData } from "@/lib/link-asset";
@@ -11,7 +9,7 @@ import "server-only";
 import { resolvePlacementContent } from "./content.server";
 import { pointSql, renderConfigOf } from "./core.server";
 
-/** Public discovery and playback resolve active placements at their pinned versions. */
+/** Public discovery and playback resolve active placements at their pinned contents. */
 
 export interface RuntimeScope {
   workspaceId: string | null;
@@ -24,7 +22,6 @@ interface RuntimeRow {
   organization_id: string;
   name: string | null;
   asset_id: string | null;
-  asset_version_id: string | null;
   scene_revision_id: string | null;
   anchor_id: string | null;
   render_config: unknown;
@@ -47,7 +44,6 @@ function runtimeQuery(exec: Executor, scope: RuntimeScope) {
       "p.organization_id",
       "p.name",
       "p.asset_id",
-      "p.asset_version_id",
       "p.scene_revision_id",
       "p.anchor_id",
       "p.render_config",
@@ -66,18 +62,18 @@ function runtimeQuery(exec: Executor, scope: RuntimeScope) {
 }
 
 interface ProjectionContext {
-  versions: Map<string, AssetVersionDto>;
+  contents: Map<string, AssetContentDto>;
   fileTypes: Map<string, string>;
 }
 
 async function projectionContext(exec: Executor, rows: RuntimeRow[]): Promise<ProjectionContext> {
-  const versionIds = rows.map((r) => r.asset_version_id).filter((id): id is string => !!id);
+  const assetIdsToLoad = rows.map((r) => r.asset_id).filter((id): id is string => !!id);
   const assetIds = rows.map((r) => r.asset_id).filter((id): id is string => !!id);
-  const [versions, assets] = await Promise.all([
-    loadVersionDtos(exec, versionIds),
+  const [contents, assets] = await Promise.all([
+    loadAssetContents(exec, assetIdsToLoad),
     assetIds.length ? exec.selectFrom("asset").select(["id", "file_type"]).where("id", "in", [...new Set(assetIds)]).execute() : Promise.resolve([]),
   ]);
-  return { versions, fileTypes: new Map(assets.map((a) => [a.id, a.file_type])) };
+  return { contents, fileTypes: new Map(assets.map((a) => [a.id, a.file_type])) };
 }
 
 function scalarRecord(value: unknown): Record<string, unknown> {
@@ -96,7 +92,7 @@ function linkData(url: string): LinkAssetData | null {
 function placementContent(row: RuntimeRow, ctx: ProjectionContext) {
   const render = renderConfigOf(row.render_config);
   const location = row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, height: row.altitude ?? undefined } : {};
-  if (!row.asset_version_id) {
+  if (!row.asset_id) {
     return {
       file_type: "scene",
       file_url: null as string | null,
@@ -107,18 +103,18 @@ function placementContent(row: RuntimeRow, ctx: ProjectionContext) {
       name: row.name,
     };
   }
-  const version = ctx.versions.get(row.asset_version_id);
-  const fileType = asFileType(ctx.fileTypes.get(row.asset_id ?? "") ?? version?.payload.kind ?? "document");
-  const payload = version?.payload;
+  const content = ctx.contents.get(row.asset_id);
+  const fileType = asFileType(ctx.fileTypes.get(row.asset_id ?? "") ?? content?.payload.kind ?? "document");
+  const payload = content?.payload;
   const metadata: Record<string, unknown> = {
     ...scalarRecord(payload?.attributes),
     ...scalarRecord(render.display),
     ...location,
   };
-  const checkin = version?.resources.find((r) => r.role === "checkin");
+  const checkin = content?.resources.find((r) => r.role === "checkin");
   if (checkin) metadata.checkin_url = checkin.url;
   const config: Record<string, unknown> = { ...scalarRecord(render.config) };
-  let fileUrl = primaryResource(version)?.url ?? null;
+  let fileUrl = primaryResource(content)?.url ?? null;
   let text: string | null = null;
   let name = row.name;
   if (payload?.kind === "text" || payload?.kind === "anchor") text = payload.text ?? text;
@@ -130,7 +126,7 @@ function placementContent(row: RuntimeRow, ctx: ProjectionContext) {
     // Link protocol: config.link = LinkAssetData, file_url = preview.
     const link = linkData(payload.url);
     if (link && !scalarRecord(config.link).originalUrl) config.link = link;
-    fileUrl = version?.resources.find((r) => r.role === "thumbnail")?.url ?? fileUrl ?? link?.previewUrl ?? null;
+    fileUrl = content?.resources.find((r) => r.role === "thumbnail")?.url ?? fileUrl ?? link?.previewUrl ?? null;
   }
   const isHuge = render.is_huge === true;
   return { file_type: fileType, file_url: fileUrl, text_content: text, metadata, config, is_huge: isHuge && fileType === "model", name };
@@ -163,7 +159,7 @@ export async function nearbyPlacements(scope: RuntimeScope, lat: number, lng: nu
 }
 
 export async function hugePlacements(scope: RuntimeScope) {
-  const rows = await runtimeQuery(db, scope).where("p.location", "is not", null).where("p.asset_version_id", "is not", null).execute();
+  const rows = await runtimeQuery(db, scope).where("p.location", "is not", null).where("p.asset_id", "is not", null).execute();
   const ctx = await projectionContext(db, rows);
   return rows.flatMap((row) => {
     const c = placementContent(row, ctx);
@@ -263,7 +259,6 @@ export class RuntimeUnavailable extends Error {}
 export async function submitAnonymousText(input: { content: string; workspaceId: string; organizationId: string | null; lat: number | null; lng: number | null }) {
   const submitter = await db.selectFrom("users").select("user_id").where("email", "=", "dongming@user.com").executeTakeFirst();
   if (!submitter) throw new RuntimeUnavailable("No user found in database");
-  const actor: Actor = { userId: submitter.user_id, globalRole: null, superAdmin: false };
   const uploadTime = new Date().toISOString();
   const hasLocation = input.lat !== null && input.lng !== null;
   return contentTransaction(async (trx) => {
@@ -296,31 +291,22 @@ export async function submitAnonymousText(input: { content: string; workspaceId:
         origin: "public_submission",
         file_type: "text",
         name: null,
-        created_by: submitter.user_id,
-      })
-      .returning(["id", "create_at"])
-      .executeTakeFirstOrThrow();
-    await appendVersion(
-      trx,
-      actor,
-      { id: asset.id, organization_id: workspace.organization_id },
-      {
+        payload: JSON.stringify({
         kind: "text",
         text: input.content,
         attributes: hasLocation ? { gps_source: "user_input", upload_time: uploadTime } : { upload_time: uploadTime },
         ...(hasLocation ? { capture: { latitude: input.lat!, longitude: input.lng!, source: "user_input" } } : {}),
-      },
-      [],
-      { actorIdForRow: submitter.user_id },
-    );
-    const version = await trx.selectFrom("asset").select("current_version_id").where("id", "=", asset.id).executeTakeFirstOrThrow();
+      }),
+        created_by: submitter.user_id,
+      })
+      .returning(["id", "create_at"])
+      .executeTakeFirstOrThrow();
     const placement = await trx
       .insertInto("placement")
       .values({
         organization_id: workspace.organization_id,
         workspace_id: workspace.id,
         asset_id: asset.id,
-        asset_version_id: version.current_version_id,
         location: hasLocation ? pointSql({ longitude: input.lng!, latitude: input.lat! }) : null,
         status: hasLocation ? "active" : "draft",
         created_by: submitter.user_id,

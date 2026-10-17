@@ -25,8 +25,7 @@ export { CollectionHeaderBar } from "./CollectionHeaderBar";
 
 export { AssetDetail, type AssetDetailProps } from "./AssetDetail";
 export { AssetDetailHeader } from "./AssetDetailHeader";
-export { AssetVersionHistory } from "./AssetVersionHistory";
-export { AssetVersionUploadDialog, type AssetVersionInput } from "./AssetVersionUploadDialog";
+export { AssetEditDialog, type AssetContentInput } from "./AssetEditDialog";
 export { AssetUsagePanel } from "./AssetUsagePanel";
 export { AssetMaintenancePanel } from "./AssetMaintenancePanel";
 export { AssetArchiveDialog } from "./AssetArchiveDialog";
@@ -35,5 +34,4 @@ export { SceneNameDialog } from "./SceneNameDialog";
 export { SceneCopyDialog } from "./SceneCopyDialog";
 export { SceneArchiveDialog } from "./SceneArchiveDialog";
 
-export { AssetVersionUpgrade, type UpgradeScope } from "./AssetVersionUpgrade";
 export { PlacementTargetSelect } from "./PlacementTargetSelect";

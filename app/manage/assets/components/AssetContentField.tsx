@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/typography";
 import { FileDropzone } from "@/app/manage/components/upload/file-dropzone";
 import { acceptFor, LIBRARY_UPLOAD_TYPES, type LibraryUploadType } from "@/app/manage/lib/content-upload";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
-import type { VersionContent } from "./asset-upload";
+import type { AssetInputContent } from "./asset-upload";
 
 export type CreatableType = LibraryUploadType | "text" | "link";
 export const CREATABLE_TYPES: readonly CreatableType[] = [...LIBRARY_UPLOAD_TYPES, "text", "link"];
@@ -24,7 +24,7 @@ export function isFileType(type: CreatableType): type is LibraryUploadType {
 }
 
 /** The submit-ready content, or null while the draft is incomplete. */
-export function contentOf(type: CreatableType, draft: DraftContent): VersionContent | null {
+export function contentOf(type: CreatableType, draft: DraftContent): AssetInputContent | null {
   if (isFileType(type)) return draft.file ? { kind: "file", type, file: draft.file } : null;
   if (!draft.text.trim()) return null;
   return type === "text" ? { kind: "text", text: draft.text } : { kind: "link", url: draft.text.trim() };

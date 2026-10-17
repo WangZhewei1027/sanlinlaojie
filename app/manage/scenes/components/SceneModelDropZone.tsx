@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 export function SceneModelDropZone({ children, canDrop, enabled, placementRef, onAdd }: {
   children: ReactNode; enabled: boolean; placementRef: RefObject<PlacementReader | null>;
-  /** Overrides the `models` lookup, e.g. when drag ids are pinned version ids. */
+  /** Overrides the `models` lookup, e.g. when drag ids are asset IDs. */
   canDrop: (id: string) => boolean;
   onAdd: (id: string, position: ScenePosition) => void;
 }) {

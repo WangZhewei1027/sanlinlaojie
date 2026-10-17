@@ -62,7 +62,6 @@ export function validateCompositionContent(
   issues: IssueList,
   content: Record<string, unknown>,
   allowTracks = false,
-  versionedRefs = false,
 ): void {
   rejectUnknownKeys(issues, "content", content, [
     "kind",
@@ -88,13 +87,9 @@ export function validateCompositionContent(
       if (!ALIAS_RE.test(alias)) issues.error(path, "别名必须以字母开头，只含字母、数字、_、-，最长 32");
       const obj = requireObject(issues, path, ref);
       if (!obj) continue;
-      rejectUnknownKeys(issues, path, obj, versionedRefs ? ["assetId", "assetVersionId"] : ["assetId"]);
+      rejectUnknownKeys(issues, path, obj, ["assetId"]);
       if (typeof obj.assetId !== "string" || !UUID_RE.test(obj.assetId)) {
         issues.error(`${path}.assetId`, "必须是素材 UUID");
-        continue;
-      }
-      if (versionedRefs && (typeof obj.assetVersionId !== "string" || !UUID_RE.test(obj.assetVersionId))) {
-        issues.error(`${path}.assetVersionId`, "必须是素材版本 UUID");
         continue;
       }
       aliasToAssetId.set(alias, obj.assetId);

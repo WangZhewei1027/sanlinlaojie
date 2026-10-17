@@ -6,7 +6,7 @@ const meta = {
   title: "Manage/Content/Asset Detail Header",
   component: AssetDetailHeader,
   parameters: { layout: "padded" },
-  args: { asset: assetDetail, canMaintain: true, onUploadVersion: noop },
+  args: { asset: assetDetail, canMaintain: true, onEditContent: noop },
 } satisfies Meta<typeof AssetDetailHeader>;
 export default meta;
 type Story = StoryObj<typeof meta>;

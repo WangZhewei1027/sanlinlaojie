@@ -186,8 +186,8 @@ export async function purgeOrganizations(orgIds: string[]): Promise<PurgeResult>
   const candidateKeys = new Set<string>();
   const [resources, receipts] = await Promise.all([
     db
-      .selectFrom("asset_version_resource as r")
-      .innerJoin("asset_version as v", "v.id", "r.asset_version_id")
+      .selectFrom("asset_resource as r")
+      .innerJoin("asset as v", "v.id", "r.asset_id")
       .select("r.storage_key")
       .where("v.organization_id", "in", orgIds)
       .where("r.storage_key", "is not", null)

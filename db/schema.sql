@@ -1,6 +1,5 @@
--- PostgreSQL 17 + PostGIS baseline: one team-owned content model.
--- Generated structure is kept in sync with db/migrations. New databases start
--- here; existing databases use the transactional migrations and data conversion.
+-- PostgreSQL 17 + PostGIS baseline: mutable team assets and map collections.
+-- Existing databases upgrade through the transactional migration ledger.
 CREATE EXTENSION IF NOT EXISTS postgis;
 SET LOCAL check_function_bodies = false;
 
@@ -238,7 +237,6 @@ declare
   _deleted_assets integer := 0;
   _deleted_workspaces integer := 0;
   _deleted_orgs integer := 0;
-  _deleted_versions integer := 0;
 begin
   select coalesce(array_agg(id), '{}'::uuid[])
   into _ws_ids
@@ -252,13 +250,6 @@ begin
   delete from public.scene where organization_id = any(_org_ids);
   delete from public.upload_receipt where organization_id = any(_org_ids);
   delete from public.content_command_idempotency where organization_id = any(_org_ids);
-  update public.asset set current_version_id = null
-  where organization_id = any(_org_ids) and current_version_id is not null;
-  delete from public.asset_version_resource r
-  using public.asset_version v
-  where v.id = r.asset_version_id and v.organization_id = any(_org_ids);
-  delete from public.asset_version where organization_id = any(_org_ids);
-  get diagnostics _deleted_versions = row_count;
   -- placements of other organizations never reference these anchors (same-org rule)
   delete from public.asset where organization_id = any(_org_ids);
   get diagnostics _deleted_assets = row_count;
@@ -275,8 +266,7 @@ begin
   return jsonb_build_object(
     'deleted_assets', _deleted_assets,
     'deleted_workspaces', _deleted_workspaces,
-    'deleted_orgs', _deleted_orgs,
-    'deleted_versions', _deleted_versions
+    'deleted_orgs', _deleted_orgs
   );
 end;
 $$;
@@ -408,6 +398,13 @@ CREATE TABLE migration_archive.content_model_source (
     captured_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE migration_archive.mutable_asset_source (
+    source_table text NOT NULL,
+    source_key text NOT NULL,
+    row_data jsonb NOT NULL,
+    captured_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE public.anchor_embedding (
     anchor_id uuid NOT NULL,
     image_url text NOT NULL,
@@ -417,7 +414,6 @@ CREATE TABLE public.anchor_embedding (
     embedding real[],
     embedding_version text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    asset_version_id uuid NOT NULL,
     CONSTRAINT anchor_embedding_check CHECK (((status <> 'ready'::text) OR ((embedding IS NOT NULL) AND (array_ndims(embedding) = 1) AND (cardinality(embedding) = 8448) AND (embedding_version IS NOT NULL)))),
     CONSTRAINT anchor_embedding_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
 );
@@ -446,32 +442,19 @@ CREATE TABLE public.asset (
     maintained_by uuid,
     visibility text DEFAULT 'restricted'::text NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
-    current_version_id uuid,
     lock_version integer DEFAULT 1 NOT NULL,
     origin text DEFAULT 'legacy'::text NOT NULL,
     archived_at timestamp with time zone,
     archived_by uuid,
+    payload jsonb NOT NULL,
     CONSTRAINT asset_origin_check CHECK ((origin = ANY (ARRAY['team_upload'::text, 'public_submission'::text, 'legacy'::text]))),
+    CONSTRAINT asset_payload_check CHECK (((jsonb_typeof(payload) = 'object'::text) AND (payload ? 'kind'::text) AND ((payload ->> 'kind'::text) = file_type))),
     CONSTRAINT asset_state_check CHECK ((state = ANY (ARRAY['active'::text, 'archived'::text]))),
     CONSTRAINT asset_visibility_check CHECK ((visibility = ANY (ARRAY['restricted'::text, 'organization'::text])))
 );
 
-CREATE TABLE public.asset_version (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE public.asset_resource (
     asset_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    version_no integer NOT NULL,
-    payload_schema_version integer DEFAULT 1 NOT NULL,
-    payload jsonb NOT NULL,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    source_fingerprint text,
-    CONSTRAINT asset_version_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
-    CONSTRAINT asset_version_version_no_check CHECK ((version_no > 0))
-);
-
-CREATE TABLE public.asset_version_resource (
-    asset_version_id uuid NOT NULL,
     role text NOT NULL,
     ordinal integer DEFAULT 0 NOT NULL,
     storage_key text,
@@ -479,12 +462,12 @@ CREATE TABLE public.asset_version_resource (
     content_hash text,
     mime_type text,
     size_bytes integer,
-    CONSTRAINT asset_version_resource_key_check CHECK (((storage_key IS NULL) OR (((length(storage_key) >= 1) AND (length(storage_key) <= 1024)) AND (storage_key !~ '^[A-Za-z][A-Za-z0-9+.-]*:'::text) AND (storage_key !~ '(^|/)\.\.(/|$)'::text) AND (storage_key !~ '^/'::text)))),
-    CONSTRAINT asset_version_resource_ordinal_check CHECK ((ordinal >= 0)),
-    CONSTRAINT asset_version_resource_role_check CHECK ((role = ANY (ARRAY['primary'::text, 'thumbnail'::text, 'checkin'::text, 'audio_compat'::text, 'reference'::text]))),
-    CONSTRAINT asset_version_resource_size_check CHECK (((size_bytes IS NULL) OR (size_bytes >= 0))),
-    CONSTRAINT asset_version_resource_target_check CHECK ((num_nonnulls(storage_key, external_url) = 1)),
-    CONSTRAINT asset_version_resource_url_check CHECK (((external_url IS NULL) OR (external_url ~ '^https?://'::text)))
+    CONSTRAINT asset_resource_key_check CHECK (((storage_key IS NULL) OR ((length(storage_key) >= 1) AND (length(storage_key) <= 1024) AND (storage_key !~ '^[A-Za-z][A-Za-z0-9+.-]*:'::text) AND (storage_key !~ '(^|/)\.\.(/|$)'::text) AND (storage_key !~ '^/'::text)))),
+    CONSTRAINT asset_resource_ordinal_check CHECK ((ordinal >= 0)),
+    CONSTRAINT asset_resource_role_check CHECK ((role = ANY (ARRAY['primary'::text, 'thumbnail'::text, 'checkin'::text, 'audio_compat'::text, 'reference'::text]))),
+    CONSTRAINT asset_resource_size_check CHECK (((size_bytes IS NULL) OR (size_bytes >= 0))),
+    CONSTRAINT asset_resource_target_check CHECK ((num_nonnulls(storage_key, external_url) = 1)),
+    CONSTRAINT asset_resource_url_check CHECK (((external_url IS NULL) OR (external_url ~ '^https?://'::text)))
 );
 
 CREATE TABLE public.content_audit_log (
@@ -564,7 +547,6 @@ CREATE TABLE public.placement (
     workspace_id uuid NOT NULL,
     name text,
     asset_id uuid,
-    asset_version_id uuid,
     scene_revision_id uuid,
     location public.geometry(Point,4326),
     altitude double precision,
@@ -576,10 +558,9 @@ CREATE TABLE public.placement (
     updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT placement_asset_pair_check CHECK (((asset_version_id IS NULL) = (asset_id IS NULL))),
     CONSTRAINT placement_render_config_check CHECK ((jsonb_typeof(render_config) = 'object'::text)),
     CONSTRAINT placement_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text]))),
-    CONSTRAINT placement_target_xor CHECK ((num_nonnulls(asset_version_id, scene_revision_id) = 1))
+    CONSTRAINT placement_target_xor CHECK ((num_nonnulls(asset_id, scene_revision_id) = 1))
 );
 
 CREATE TABLE public.placement_tag (
@@ -610,8 +591,7 @@ CREATE TABLE public.scene_asset_ref (
     scene_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     resource_alias text NOT NULL,
-    asset_id uuid NOT NULL,
-    asset_version_id uuid NOT NULL
+    asset_id uuid NOT NULL
 );
 
 CREATE TABLE public.scene_revision (
@@ -632,8 +612,7 @@ CREATE TABLE public.scene_revision_asset_ref (
     scene_revision_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     resource_alias text NOT NULL,
-    asset_id uuid NOT NULL,
-    asset_version_id uuid NOT NULL
+    asset_id uuid NOT NULL
 );
 
 CREATE TABLE public.schema_migrations (
@@ -671,7 +650,7 @@ CREATE TABLE public.upload_receipt (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     consumed_at timestamp with time zone,
-    CONSTRAINT upload_receipt_purpose_check CHECK ((purpose = 'asset_version'::text)),
+    CONSTRAINT upload_receipt_purpose_check CHECK ((purpose = 'asset'::text)),
     CONSTRAINT upload_receipt_size_check CHECK ((size_bytes >= 0))
 );
 
@@ -730,8 +709,11 @@ ALTER TABLE ONLY migration_archive.content_migration_run
 ALTER TABLE ONLY migration_archive.content_model_source
     ADD CONSTRAINT content_model_source_pkey PRIMARY KEY (source_table, source_key);
 
+ALTER TABLE ONLY migration_archive.mutable_asset_source
+    ADD CONSTRAINT mutable_asset_source_pkey PRIMARY KEY (source_table, source_key);
+
 ALTER TABLE ONLY public.anchor_embedding
-    ADD CONSTRAINT anchor_embedding_pkey PRIMARY KEY (asset_version_id);
+    ADD CONSTRAINT anchor_embedding_pkey PRIMARY KEY (anchor_id);
 
 ALTER TABLE ONLY public.anchor_match_rate_limit
     ADD CONSTRAINT anchor_match_rate_limit_pkey PRIMARY KEY (workspace_id);
@@ -745,20 +727,8 @@ ALTER TABLE ONLY public.asset
 ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.asset_version
-    ADD CONSTRAINT asset_version_asset_no_unique UNIQUE (asset_id, version_no);
-
-ALTER TABLE ONLY public.asset_version
-    ADD CONSTRAINT asset_version_id_asset_unique UNIQUE (id, asset_id);
-
-ALTER TABLE ONLY public.asset_version
-    ADD CONSTRAINT asset_version_id_organization_unique UNIQUE (id, organization_id);
-
-ALTER TABLE ONLY public.asset_version
-    ADD CONSTRAINT asset_version_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.asset_version_resource
-    ADD CONSTRAINT asset_version_resource_pkey PRIMARY KEY (asset_version_id, role, ordinal);
+ALTER TABLE ONLY public.asset_resource
+    ADD CONSTRAINT asset_resource_pkey PRIMARY KEY (asset_id, role, ordinal);
 
 ALTER TABLE ONLY public.content_audit_log
     ADD CONSTRAINT content_audit_log_pkey PRIMARY KEY (id);
@@ -862,9 +832,7 @@ CREATE INDEX content_migration_map_run_idx ON migration_archive.content_migratio
 
 CREATE INDEX asset_organization_id_idx ON public.asset USING btree (organization_id) WHERE (organization_id IS NOT NULL);
 
-CREATE INDEX asset_version_resource_storage_key_idx ON public.asset_version_resource USING btree (storage_key) WHERE (storage_key IS NOT NULL);
-
-CREATE UNIQUE INDEX asset_version_source_fingerprint_idx ON public.asset_version USING btree (asset_id, source_fingerprint) WHERE (source_fingerprint IS NOT NULL);
+CREATE INDEX asset_resource_storage_key_idx ON public.asset_resource USING btree (storage_key) WHERE (storage_key IS NOT NULL);
 
 CREATE INDEX content_audit_log_object_idx ON public.content_audit_log USING btree (object_type, object_id);
 
@@ -886,8 +854,6 @@ CREATE INDEX idx_workspace_organization_id ON public.workspace USING btree (orga
 
 CREATE INDEX placement_anchor_idx ON public.placement USING btree (anchor_id) WHERE (anchor_id IS NOT NULL);
 
-CREATE INDEX placement_asset_version_idx ON public.placement USING btree (asset_version_id) WHERE (asset_version_id IS NOT NULL);
-
 CREATE INDEX placement_location_gix ON public.placement USING gist (((location)::public.geography)) WHERE (location IS NOT NULL);
 
 CREATE INDEX placement_organization_idx ON public.placement USING btree (organization_id);
@@ -898,13 +864,9 @@ CREATE INDEX placement_workspace_idx ON public.placement USING btree (workspace_
 
 CREATE INDEX scene_asset_ref_asset_idx ON public.scene_asset_ref USING btree (asset_id);
 
-CREATE INDEX scene_asset_ref_version_idx ON public.scene_asset_ref USING btree (asset_version_id);
-
 CREATE INDEX scene_organization_idx ON public.scene USING btree (organization_id, updated_at DESC);
 
 CREATE INDEX scene_revision_asset_ref_asset_idx ON public.scene_revision_asset_ref USING btree (asset_id);
-
-CREATE INDEX scene_revision_asset_ref_version_idx ON public.scene_revision_asset_ref USING btree (asset_version_id);
 
 CREATE INDEX scene_workspace_idx ON public.scene USING btree (workspace_id);
 
@@ -917,10 +879,6 @@ CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXEC
 CREATE TRIGGER on_auth_user_email_changed AFTER UPDATE OF email ON auth.users FOR EACH ROW WHEN ((old.email IS DISTINCT FROM new.email)) EXECUTE FUNCTION public.sync_user_email();
 
 CREATE TRIGGER trg_session_touch_last_sign_in AFTER INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION public.touch_last_sign_in();
-
-CREATE TRIGGER asset_version_immutable BEFORE DELETE OR UPDATE ON public.asset_version FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_content_change();
-
-CREATE TRIGGER asset_version_resource_immutable BEFORE DELETE OR UPDATE ON public.asset_version_resource FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_content_change();
 
 CREATE TRIGGER scene_revision_asset_ref_immutable BEFORE DELETE OR UPDATE ON public.scene_revision_asset_ref FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_content_change();
 
@@ -940,9 +898,6 @@ ALTER TABLE ONLY migration_archive.content_migration_map
 ALTER TABLE ONLY public.anchor_embedding
     ADD CONSTRAINT anchor_embedding_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES public.asset(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.anchor_embedding
-    ADD CONSTRAINT anchor_embedding_version_asset_fk FOREIGN KEY (asset_version_id, anchor_id) REFERENCES public.asset_version(id, asset_id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY public.anchor_match_rate_limit
     ADD CONSTRAINT anchor_match_rate_limit_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
@@ -951,9 +906,6 @@ ALTER TABLE ONLY public.asset
 
 ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY public.asset
-    ADD CONSTRAINT asset_current_version_fk FOREIGN KEY (current_version_id, id) REFERENCES public.asset_version(id, asset_id);
 
 ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_maintained_by_fkey FOREIGN KEY (maintained_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
@@ -967,11 +919,8 @@ ALTER TABLE ONLY public.asset
 ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_origin_workspace_fk FOREIGN KEY (origin_workspace_id, organization_id) REFERENCES public.workspace(id, organization_id) ON DELETE SET NULL (origin_workspace_id);
 
-ALTER TABLE ONLY public.asset_version
-    ADD CONSTRAINT asset_version_asset_fk FOREIGN KEY (asset_id, organization_id) REFERENCES public.asset(id, organization_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.asset_version_resource
-    ADD CONSTRAINT asset_version_resource_asset_version_id_fkey FOREIGN KEY (asset_version_id) REFERENCES public.asset_version(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.asset_resource
+    ADD CONSTRAINT asset_resource_asset_fk FOREIGN KEY (asset_id) REFERENCES public.asset(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.organization
     ADD CONSTRAINT organization_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
@@ -992,10 +941,7 @@ ALTER TABLE ONLY public.placement
     ADD CONSTRAINT placement_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES public.asset(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.placement
-    ADD CONSTRAINT placement_asset_version_fk FOREIGN KEY (asset_version_id, asset_id) REFERENCES public.asset_version(id, asset_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.placement
-    ADD CONSTRAINT placement_asset_version_org_fk FOREIGN KEY (asset_version_id, organization_id) REFERENCES public.asset_version(id, organization_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT placement_asset_org_fk FOREIGN KEY (asset_id, organization_id) REFERENCES public.asset(id, organization_id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.placement
     ADD CONSTRAINT placement_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
@@ -1021,9 +967,6 @@ ALTER TABLE ONLY public.scene_asset_ref
 ALTER TABLE ONLY public.scene_asset_ref
     ADD CONSTRAINT scene_asset_ref_scene_fk FOREIGN KEY (scene_id, organization_id) REFERENCES public.scene(id, organization_id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.scene_asset_ref
-    ADD CONSTRAINT scene_asset_ref_version_fk FOREIGN KEY (asset_version_id, asset_id) REFERENCES public.asset_version(id, asset_id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.scene
     ADD CONSTRAINT scene_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
 
@@ -1035,9 +978,6 @@ ALTER TABLE ONLY public.scene_revision_asset_ref
 
 ALTER TABLE ONLY public.scene_revision_asset_ref
     ADD CONSTRAINT scene_revision_asset_ref_revision_fk FOREIGN KEY (scene_revision_id, organization_id) REFERENCES public.scene_revision(id, organization_id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.scene_revision_asset_ref
-    ADD CONSTRAINT scene_revision_asset_ref_version_fk FOREIGN KEY (asset_version_id, asset_id) REFERENCES public.asset_version(id, asset_id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.scene_revision
     ADD CONSTRAINT scene_revision_scene_fk FOREIGN KEY (scene_id, organization_id) REFERENCES public.scene(id, organization_id) ON DELETE RESTRICT;
@@ -1083,4 +1023,5 @@ INSERT INTO public.schema_migrations(name) VALUES
  ('20261008000000_anchor_match_rate_limit_param.sql'),
  ('20261015000000_content_model_foundation.sql'),
  ('20261017120000_team_workbench.sql'),
- ('20261017180000_single_content_model.sql');
+ ('20261017180000_single_content_model.sql'),
+ ('20261017220000_mutable_assets.sql');

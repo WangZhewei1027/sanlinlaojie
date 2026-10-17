@@ -37,16 +37,16 @@ export async function findNearbyAnchors(
   const point = sql`ST_SetSRID(ST_MakePoint(${gps.longitude}::float8, ${gps.latitude}::float8),4326)::geography`;
   const { rows } = await sql<Candidate & { storage_key: string | null; external_url: string | null }>`
     select * from (
-      select distinct on (p.asset_version_id) p.asset_version_id id,a.id asset_id,coalesce(p.name,a.name,'') name,
-        r.storage_key,r.external_url,v.payload->'attributes' metadata,
+      select distinct on (p.asset_id) p.asset_id id,a.id asset_id,coalesce(p.name,a.name,'') name,
+        r.storage_key,r.external_url,a.payload->'attributes' metadata,
         ST_Distance(p.location::geography,${point}) distance_meters
-      from placement p join asset a on a.id=p.asset_id join asset_version v on v.id=p.asset_version_id
+      from placement p join asset a on a.id=p.asset_id
       join workspace w on w.id=p.workspace_id join organization o on o.id=p.organization_id
-      join lateral (select storage_key,external_url from asset_version_resource where asset_version_id=v.id and role in ('reference','primary') order by case role when 'reference' then 0 else 1 end,ordinal limit 1) r on true
+      join lateral (select storage_key,external_url from asset_resource where asset_id=a.id and role in ('reference','primary') order by case role when 'reference' then 0 else 1 end,ordinal limit 1) r on true
       where p.workspace_id=${workspaceId}::uuid and a.file_type='anchor' and p.status='active'
         and w.archived_at is null and o.archived_at is null and p.location is not null
         and ST_DWithin(p.location::geography,${point},${Math.min(gps.radius,200)}::float8)
-      order by p.asset_version_id,distance_meters
+      order by p.asset_id,distance_meters
     ) candidates order by distance_meters,id limit 201
   `.execute(db);
   return rows.map((row) => ({ ...row, file_url: resourceUrl(row) }));
@@ -157,7 +157,7 @@ export async function recognizeAnchor(
     ready = meta.filter(
       (r) =>
         r.status === "ready" &&
-        candidates.some((c) => c.id === r.asset_version_id && c.file_url === r.image_url),
+        candidates.some((c) => c.id === r.anchor_id && c.file_url === r.image_url),
     );
     diagnostics.ready_reference_count = ready.length;
     // Never silently omit an unprepared competitor and accept a different nearby point.
@@ -179,9 +179,9 @@ export async function recognizeAnchor(
   if (ready.some((r) => r.embedding_version !== query.version))
     return empty("model_version_mismatch");
   const ranked = ready.map((row) => ({
-    id: row.asset_version_id,
-    score: cosine(query.embedding, references.vectors.get(row.asset_version_id)!),
-    distance_meters: candidates.find((c) => c.id === row.asset_version_id)!
+    id: row.anchor_id,
+    score: cosine(query.embedding, references.vectors.get(row.anchor_id)!),
+    distance_meters: candidates.find((c) => c.id === row.anchor_id)!
       .distance_meters,
   }));
   const sorted = [...ranked].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));

@@ -1072,7 +1072,6 @@
     "usage": {
       "title": "使用记录",
       "summary": "共 {{count}} 处引用",
-      "filteredTo": "v{{number}} 共 {{count}} 处引用",
       "count": "{{count}} 处使用",
       "none": "未使用",
       "kind": {
@@ -1083,26 +1082,7 @@
       "restricted": "另有 {{count}} 处引用未列出",
       "showMore": "显示其余 {{count}} 处",
       "emptyTitle": "还没有地方使用这个素材",
-      "emptyBody": "场景引用或放进地图合集后，会在这里列出位置和固定版本。",
-      "versionUnusedTitle": "v{{number}} 目前没有被引用",
-      "versionUnusedBody": "其他版本可能仍在使用。选择“显示全部版本的使用”查看完整记录。"
-    },
-    "version": {
-      "title": "版本历史",
-      "pinnedHint": "每处引用都固定在某个版本。选择版本可查看引用它的位置。",
-      "current": "当前",
-      "showAllUsage": "显示全部版本的使用",
-      "upload": "上传新版本",
-      "uploadTitle": "上传 v{{number}}",
-      "uploadBody": "新版本会成为“{{name}}”的当前版本。已有场景草稿、发布和投放继续使用原版本，使用方需要主动升级。",
-      "file": "新文件",
-      "text": "新的文字内容",
-      "url": "新的链接地址",
-      "note": "版本说明（可选）",
-      "notePlaceholder": "例如：修正贴图、缩短动画",
-      "create": "创建 v{{number}}",
-      "uploading": "正在上传",
-      "uploadingPercent": "已上传 {{percent}}%"
+      "emptyBody": "场景引用或放进地图合集后，会在这里列出使用位置。"
     },
     "maintenance": {
       "title": "归档",
@@ -1111,7 +1091,7 @@
       "archivedBody": "此素材已归档。恢复后，可以再次用于场景和地图合集。",
       "restore": "恢复素材",
       "archiveTitle": "归档“{{name}}”？",
-      "archiveBody": "归档不会删除任何版本或文件，可以随时恢复。",
+      "archiveBody": "归档会保留素材内容和文件，可以随时恢复。",
       "keepsWorking": "继续工作",
       "impact": {
         "published": "{{count}} 个已发布场景",
@@ -1125,17 +1105,16 @@
     },
     "detail": {
       "type": "类型",
-      "currentVersion": "当前版本",
       "maintainer": "维护人",
       "source": "来源",
       "created": "创建于",
-      "useOnlyHint": "你可以浏览、预览和使用此素材；上传新版本、重命名和归档需要团队成员及以上角色。",
+      "useOnlyHint": "你可以浏览、预览和使用此素材；编辑和归档需要团队成员及以上角色。",
       "staleTitle": "素材已被他人修改",
       "staleBody": "你看到的信息已过期，刚才的修改没有保存。重新载入后再操作。",
       "archivedTitle": "此素材已归档",
-      "archivedBody": "已有场景和投放继续使用固定版本；不能新增引用。",
-      "fileMissingTitle": "当前版本的文件缺失",
-      "fileMissingBody": "引用此版本的内容不能发布。请上传新版本，或联系管理员修复存储。",
+      "archivedBody": "已有场景和投放继续使用该素材；不能新增引用。",
+      "fileMissingTitle": "素材文件缺失",
+      "fileMissingBody": "引用此素材的场景不能发布。请编辑素材文件，或联系管理员修复存储。",
       "updated": "最近更新"
     },
     "scene": {
@@ -1146,7 +1125,7 @@
       "copy": "复制",
       "moreNamed": "“{{name}}”的更多操作",
       "copyTitle": "复制场景",
-      "copyBody": "副本是团队里的一个新场景，沿用原场景引用的固定素材版本，不包含发布记录和投放。",
+      "copyBody": "副本是团队里的一个新场景，引用相同素材的最新内容，不包含发布记录和投放。",
       "copyDefaultName": "{{name}} 副本",
       "copyAction": "创建副本",
       "archive": "归档场景",
@@ -1158,29 +1137,12 @@
       "placementsTotal": "{{count}} 处投放",
       "archivePlacementsTotal": "此场景有 {{count}} 处投放，它们不受影响。"
     },
-    "upgrade": {
-      "title": "升级“{{name}}”",
-      "upToDate": "已是最新版本 v{{number}}",
-      "pinned": "使用 v{{number}}",
-      "hint": "升级只修改当前草稿，已发布版本和投放保持不变。",
-      "scope": "升级范围",
-      "scopes": {
-        "instance": "仅当前对象",
-        "alias": "本场景中共用此引用的全部 {{count}} 个对象"
-      },
-      "preview": "预览 v{{number}}",
-      "action": "升级到 v{{number}}",
-      "archived": "素材已归档，不能升级到新版本；现有版本继续可用。",
-      "missingClip": "v{{number}} 中没有动画“{{clip}}”。请先为此对象换用其他动画再升级。"
-    },
     "placement": {
-      "version": "投放的素材版本",
       "revision": "投放的场景发布版本",
       "choose": "选择版本",
       "latest": "最新",
       "pinnedHint": "投放固定在所选版本，“{{name}}”的新版本不会自动替换它。",
       "newerAvailable": "“{{name}}”已有 v{{number}}，需要时可切换。",
-      "noVersions": "此素材还没有可投放的版本。",
       "noRevisions": "此场景还没有发布，发布后才能投放。",
       "status": {
         "draft": "草稿",
@@ -1280,6 +1242,19 @@
         "archivedBody": "归档的合集会显示在这里，可以随时恢复。"
       },
       "count": "共 {{count}} 个合集"
+    },
+    "edit": {
+      "file": "新文件",
+      "text": "新的文字内容",
+      "url": "新的链接地址",
+      "uploading": "正在上传",
+      "uploadingPercent": "已上传 {{percent}}%",
+      "action": "编辑素材",
+      "title": "编辑素材内容",
+      "body": "修改「{{name}}」后，地图和场景里的引用会同步更新。",
+      "save": "保存修改",
+      "liveReferences": "素材修改会同步更新地图和场景中的引用。",
+      "openAsset": "打开素材详情"
     }
   }
 }

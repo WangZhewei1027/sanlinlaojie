@@ -1,6 +1,6 @@
 import type { Client } from "pg";
 import type { ModelAnimationInfo } from "../../../lib/content-model/contracts";
-import type { SceneDocumentV3 } from "../../../lib/scene/protocol";
+import type { SceneDocumentV3 } from "./legacy-scene";
 import { validateLegacySceneDefinition as validateSceneDefinition, type LegacySceneDefinition as SceneDefinition } from "./legacy-scene";
 import type { AssetMapping, LegacyAsset } from "./audit";
 import { enumerateResources, stableId, type MappingTarget, type MigrationReview, type ResourceSnapshot } from "./review";

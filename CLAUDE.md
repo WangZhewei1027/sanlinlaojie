@@ -73,19 +73,18 @@ Front-end model: `docs/team-workbench.md`. Primary navigation is 工作台 / 合
 `/manage` is the team workbench. `/manage/collections/[id]` opens a collection map.
 `useTeamContext` provides the selected team; collections are explicit URL/page context.
 `app/manage/store.ts` persists only the selected team. Map selection, placements and
-pinned playable content live in `placement-store.ts`.
+resolved playable content live in `placement-store.ts`.
 
 The map is a standalone Cesium iframe under `public/js/viewer/`. React communicates
 through `usePlacementViewer.ts` and `placement-to-viewer.ts`. Map IDs are Placement
-IDs; drag updates use placement optimistic locks. Source versions stay immutable.
+IDs; drag updates use placement optimistic locks. Asset edits update referenced content; placement settings stay independent.
 
 ### Upload module (`lib/upload/`)
 
 `FILE_TYPE_CONFIGS` and `FileUploadService.processFile` handle browser preprocessing.
 `/api/upload` requires explicit team/collection context and returns an actor/team-bound
 receipt. Team asset creation uses `/api/organizations/[id]/assets`; upload-and-place
-uses `/api/collections/[id]/placements`. Anchors are versioned assets with reference
-resources, and recognition features belong to the pinned version.
+uses `/api/collections/[id]/placements`. Anchors are mutable assets with reference resources. Features belong to the current image and are invalidated when it changes.
 
 All cleanup uses `lib/storage/retention.server.ts`. Physical deletion remains disabled
 unless `app_config.managed_object_deletion.enabled` is explicitly true.
@@ -95,8 +94,8 @@ unless `app_config.managed_object_deletion.enabled` is explicitly true.
 - **i18n**: `react-i18next`, initialized in `lib/i18n/config.ts`. Default `zh`, fallback `en`; language persisted in `localStorage`. Strings live in `locales/zh.json` / `locales/en.json`. Long-form instruction pages use MDX under `app/instructions/{zh,en}` (`@next/mdx`, `mdx-components.tsx`).
 - **Error logging**: `lib/log-error.ts` — `logError`/`logErrorSafe` are **fire-and-forget, never throw**; they insert into the `error_log` table. API catch-blocks call these. Surfaced at `/super-admin/error-logs`.
 - **SMS / phone auth**: `lib/auth/sms.ts` uses Alibaba Cloud Dypnsapi (号码认证服务) for phone register/login/reset. Phone users are email/password accounts under a virtual email (`lib/phone-email.ts`). Credentials come from the RAM user `sanlin-app` (`ALIBABA_CLOUD_ACCESS_KEY_*`, shared with OSS).
-- **Scenes**: team-owned schema-3 drafts pin AssetVersion references. Publishing freezes SceneRevision and dependencies; public playback compiles the pinned revision. Old asset-backed scenes are converted by the database migration.
-- **Activity extension**: static placement content resolves AssetVersion or SceneRevision. Activity/topic/reply/reward storage and a generic rule engine are not implemented; keep future business content outside Asset and Scene documents.
+- **Scenes**: team-owned schema-4 drafts reference asset IDs. Publishing freezes the layout; playback resolves current assets, including in old publications. Old asset-backed scenes are converted by the database migration.
+- **Activity extension**: static placement content resolves a current Asset or published SceneRevision layout. Activity/topic/reply/reward storage and a generic rule engine are not implemented; keep future business content outside Asset and Scene documents.
 - **Anchor matching**: `lib/anchor/*` + PAI-EAS (`SAGE_EAS_*`); reference images must live on our media host (`lib/anchor/reference.server.ts`).
 - **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`. Teams get the collection QR on `/manage/collections/[id]` and the team QR on `/manage/collections`.
 

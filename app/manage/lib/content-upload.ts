@@ -8,7 +8,7 @@
  */
 import type {
   AssetFileType,
-  AssetVersionPayload,
+  AssetPayload,
   CaptureMetadata,
   ModelAnimationInfo,
   PayloadAttributes,
@@ -28,7 +28,7 @@ export interface PreparedFile {
   animations?: ModelAnimationInfo[];
 }
 
-/** Upload types that become an asset version in the generic library. */
+/** Upload types that become asset content in the generic library. */
 export const LIBRARY_UPLOAD_TYPES = ["model", "image", "video", "audio", "document", "anchor"] as const;
 export type LibraryUploadType = (typeof LIBRARY_UPLOAD_TYPES)[number];
 
@@ -40,7 +40,7 @@ export function maxSizeFor(type: UploadType) {
   return getEffectiveMaxSizeMB(type);
 }
 
-/** Compress and inspect files in the browser before issuing a version receipt. */
+/** Compress and inspect files in the browser before issuing an upload receipt. */
 export async function prepareFile(file: File, type?: UploadType): Promise<PreparedFile> {
   if (type === "model") {
     if (!validateFileSize(file, getEffectiveMaxSizeMB("model"))) throw new Error(`> ${getEffectiveMaxSizeMB("model")} MB`);
@@ -54,7 +54,7 @@ export async function prepareFile(file: File, type?: UploadType): Promise<Prepar
   return { file: processed.file, type: processed.type, capture };
 }
 
-/** Best-effort clip list for the version payload; the server stays authoritative. */
+/** Best-effort clip list for the asset payload; the server stays authoritative. */
 export async function readModelAnimations(file: File): Promise<ModelAnimationInfo[] | undefined> {
   try {
     const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
@@ -75,34 +75,34 @@ export function fileTypeOf(type: UploadType): AssetFileType {
   return type === "scene" ? "document" : type;
 }
 
-export function filePayload(prepared: PreparedFile): AssetVersionPayload {
+export function filePayload(prepared: PreparedFile): AssetPayload {
   const kind = fileTypeOf(prepared.type);
   const base = prepared.capture ? { capture: prepared.capture } : {};
   if (kind === "model") return { ...base, kind, ...(prepared.animations ? { animations: prepared.animations } : {}) };
   if (kind === "text" || kind === "link") throw new Error(`${kind} has no file payload`);
-  return { ...base, kind } as AssetVersionPayload;
+  return { ...base, kind } as AssetPayload;
 }
 
-export function textPayload(text: string, attributes?: PayloadAttributes, capture?: CaptureMetadata): AssetVersionPayload {
+export function textPayload(text: string, attributes?: PayloadAttributes, capture?: CaptureMetadata): AssetPayload {
   return { kind: "text", text, ...(attributes ? { attributes } : {}), ...(capture ? { capture } : {}) };
 }
 
-export function linkPayload(link: LinkAssetData, title?: string): AssetVersionPayload {
+export function linkPayload(link: LinkAssetData, title?: string): AssetPayload {
   return { kind: "link", url: link.originalUrl, ...(title ? { title } : {}), preview: { preview_url: link.previewUrl, link_type: link.linkType } };
 }
 
-export interface UploadedVersionInput {
-  payload: AssetVersionPayload;
+export interface UploadedAssetInput {
+  payload: AssetPayload;
   resources: ResourceInput[];
   receipts: UploadReceiptDto[];
 }
 
 /**
- * Upload the processed file and describe it as a new version body. Team
+ * Upload the processed file and describe it as asset content. Team
  * content passes only the organization; a collection is added solely for
  * upload-and-place on the map or onsite.
  */
-export async function uploadFileVersion(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal): Promise<UploadedVersionInput> {
-  const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset_version", signal });
+export async function uploadAssetFiles(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal): Promise<UploadedAssetInput> {
+  const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset", signal });
   return { payload: filePayload(prepared), resources: [{ role: prepared.type === "anchor" ? "reference" : "primary", receiptId: receipt.id }], receipts: [receipt] };
 }

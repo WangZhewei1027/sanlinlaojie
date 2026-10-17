@@ -7,18 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { ContentEmptyState, ContentErrorState, ContentListSkeleton } from "./ContentFeedback";
 import { ContentSection } from "./ContentSection";
-import { ContentStatusBadge } from "./ContentStatusBadge";
 import type { AssetUsageEntry, AssetUsageKind, AssetUsageSummary, ContentLoadStatus } from "./types";
 
 const KIND_ORDER: AssetUsageKind[] = ["published", "placement", "draft"];
 
 export interface AssetUsagePanelProps {
   usage: AssetUsageSummary;
-  currentVersionNo: number;
   status?: ContentLoadStatus;
   onRetry?: () => void;
-  /** Shown when the list is narrowed to one version. */
-  versionFilterNo?: number | null;
   /** Visible entries may be paged; request the next page. */
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -30,23 +26,17 @@ export interface AssetUsagePanelProps {
  * map placements (with their collection) and scene drafts. Anything the
  * server reports only as a count stays a count.
  */
-export function AssetUsagePanel({ usage, currentVersionNo, status = "ready", onRetry, versionFilterNo, hasMore, loadingMore, onLoadMore }: AssetUsagePanelProps) {
+export function AssetUsagePanel({ usage, status = "ready", onRetry, hasMore, loadingMore, onLoadMore }: AssetUsagePanelProps) {
   const { t } = useTranslation();
   const groups = KIND_ORDER.map((kind) => ({ kind, entries: usage.entries.filter((entry) => entry.kind === kind) })).filter((group) => group.entries.length);
-  const description = versionFilterNo != null
-    ? t("contentModel.usage.filteredTo", { number: versionFilterNo, count: usage.totalCount })
-    : t("contentModel.usage.summary", { count: usage.totalCount });
+  const description = t("contentModel.usage.summary", { count: usage.totalCount });
 
   return (
     <ContentSection title={t("contentModel.usage.title")} description={status === "ready" ? description : undefined}>
       {status === "loading" && <ContentListSkeleton rows={3} label={t("contentModel.state.loading")} />}
       {status === "error" && <ContentErrorState onRetry={onRetry} />}
       {status === "ready" && usage.totalCount === 0 && (
-        versionFilterNo != null ? (
-          <ContentEmptyState title={t("contentModel.usage.versionUnusedTitle", { number: versionFilterNo })} description={t("contentModel.usage.versionUnusedBody")} />
-        ) : (
           <ContentEmptyState title={t("contentModel.usage.emptyTitle")} description={t("contentModel.usage.emptyBody")} />
-        )
       )}
       {status === "ready" && usage.totalCount > 0 && (
         <div className="divide-y">
@@ -56,7 +46,7 @@ export function AssetUsagePanel({ usage, currentVersionNo, status = "ready", onR
                 {t(`contentModel.usage.kind.${group.kind}`)}
               </Text>
               <ul className="space-y-1">
-                {group.entries.map((entry) => <UsageRow key={entry.id} entry={entry} currentVersionNo={currentVersionNo} />)}
+                {group.entries.map((entry) => <UsageRow key={entry.id} entry={entry} />)}
               </ul>
             </div>
           ))}
@@ -79,9 +69,8 @@ export function AssetUsagePanel({ usage, currentVersionNo, status = "ready", onR
   );
 }
 
-function UsageRow({ entry, currentVersionNo }: { entry: AssetUsageEntry; currentVersionNo: number }) {
+function UsageRow({ entry }: { entry: AssetUsageEntry }) {
   const { t } = useTranslation();
-  const outdated = entry.versionNo < currentVersionNo;
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
       <div className="min-w-0 flex-1 basis-48">
@@ -98,8 +87,6 @@ function UsageRow({ entry, currentVersionNo }: { entry: AssetUsageEntry; current
         {entry.placementStatus && entry.placementStatus !== "active" && (
           <Text as="span" variant="bodyXs" tone="subdued">{t(`contentModel.placement.status.${entry.placementStatus}`)}</Text>
         )}
-        <Text as="span" variant="bodyXs" className="tabular-nums">v{entry.versionNo}</Text>
-        {outdated && <ContentStatusBadge kind="outdated" number={currentVersionNo} />}
       </div>
     </li>
   );

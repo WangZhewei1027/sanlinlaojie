@@ -98,11 +98,11 @@ async function checks() {
   await request(a, `/api/assets/${created.asset.id}`, "PATCH", { name: "stale client" }, [428]);
   console.log("PASS HTTP create retry, viewer read-only cap, team editing and optimistic locks");
 
-  const document = { schemaVersion: 3, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
-    assets: { tree: { assetId: created.asset.id, assetVersionId: created.version.id } },
+  const document = { schemaVersion: 4, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
+    assets: { tree: { assetId: created.asset.id } },
     instances: [{ id: "tree-one", asset: "tree", position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: { clipName: "sway", startSeconds: 0, loop: true } }] } };
   const scene = await data(request<{ data: SceneDetailDto }>(b, `/api/organizations/${ids.org}/scenes`, "POST", { name: "社区入口", document, idempotencyKey: `${marker}-scene` }));
-  assert.equal(scene.referenced_resources[0].asset_version_id, created.version.id);
+  assert.equal(scene.referenced_resources[0].asset_id, created.asset.id);
   await request(a, `/api/scenes/${scene.id}`, "GET");
   await request(outsider, `/api/scenes/${scene.id}`, "GET", undefined, [404]);
   const usage = await request<{ data: { impact: { restricted_count: number; items: unknown[] } } }>(a, `/api/assets/${created.asset.id}/usage`);
@@ -112,20 +112,19 @@ async function checks() {
   const publishRetry = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
   assert.equal(publication.revision.id, publishRetry.revision.id);
   const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/collections/${ids.projectB}/placements`, "POST", { target: { kind: "scene_revision", sceneRevisionId: publication.revision.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
-  const next = await data(request<{ data: { version: { id: string } } }>(b, `/api/assets/${created.asset.id}/versions`, "POST", {
+  const next = await data(request<{ data: { id: string } }>(b, `/api/assets/${created.asset.id}`, "PATCH", {
     expectedLockVersion: teammate.lock_version, payload: body.payload,
-    resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v2.glb" }], idempotencyKey: `${marker}-version`,
+    resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v2.glb" }],
   }));
-  assert.notEqual(next.version.id, created.version.id);
+  assert.equal(next.id, created.asset.id);
   const fixed = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`));
-  assert.equal(fixed.referenced_resources[0].url, "https://fixture.invalid/tree-v1.glb");
-  assert.equal(fixed.referenced_resources[0].upgrade_available, true);
+  assert.equal(fixed.referenced_resources[0].url, "https://fixture.invalid/tree-v2.glb");
   const manifest = await request<{ assetId: string; schemaVersion: number; resources: { tree: { url: string } } }>(null, "/api/miniapp/assets/scene", "POST", {
     asset_id: placed.placement.public_id, p_workspace_id: ids.projectB, p_organization_id: ids.org,
   });
   assert.equal(manifest.assetId, placed.placement.public_id);
   assert.ok([1, 2].includes(manifest.schemaVersion));
-  assert.equal(manifest.resources.tree.url, "https://fixture.invalid/tree-v1.glb");
+  assert.equal(manifest.resources.tree.url, "https://fixture.invalid/tree-v2.glb");
   const pinnedContent = await data(request<{ data: PlacementContentDto }>(b, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`));
   assert.equal(pinnedContent.kind, "scene_revision");
   if (pinnedContent.kind === "scene_revision") {

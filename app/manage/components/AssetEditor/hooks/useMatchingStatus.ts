@@ -6,7 +6,7 @@ import type { MatchingStatus } from "../matching-point-types";
 const serverStatuses = new Set(["missing_image", "pending", "ready", "failed", "unconfigured", "processing"]);
 
 /** Poll only unsettled features; never let an old request overwrite a new image or rebuild. */
-export function useMatchingStatus(assetId: string, imageUrl: string | null, versionId: string | null) {
+export function useMatchingStatus(assetId: string, imageUrl: string | null) {
   const { t } = useTranslation();
   const [state, setState] = useState<{ status: MatchingStatus; updatedAt: string | null; error: string | null }>({
     status: "loading", updatedAt: null, error: null,
@@ -14,7 +14,6 @@ export function useMatchingStatus(assetId: string, imageUrl: string | null, vers
   const [request, setRequest] = useState({ revision: 0, generate: false });
   const consumedRequest = useRef(request);
   useEffect(() => {
-    if (!versionId) return;
     const generate = request.generate && consumedRequest.current !== request;
     consumedRequest.current = request;
     const controller = new AbortController();
@@ -25,7 +24,7 @@ export function useMatchingStatus(assetId: string, imageUrl: string | null, vers
     async function read(method: "GET" | "POST") {
       const timeout = setTimeout(() => controller.abort("timeout"), method === "POST" ? 65_000 : 15_000);
       try {
-        const response = await fetch(`/api/assets/${assetId}/matching?version_id=${versionId}`, {
+        const response = await fetch(`/api/assets/${assetId}/matching`, {
           method, signal: controller.signal, cache: "no-store",
         });
         const body = await response.json();
@@ -62,7 +61,7 @@ export function useMatchingStatus(assetId: string, imageUrl: string | null, vers
     }
     void refresh(generate);
     return () => { disposed = true; controller.abort(); clearTimeout(timer); };
-  }, [assetId, imageUrl, versionId, request, t]);
+  }, [assetId, imageUrl, request, t]);
   return {
     ...state,
     rebuild: () => setRequest((value) => ({ revision: value.revision + 1, generate: true })),

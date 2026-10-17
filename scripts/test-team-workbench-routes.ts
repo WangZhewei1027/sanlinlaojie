@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
-import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedServicesFixture, versionedDocument } from "./test-content-model-services-fixture";
+import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedServicesFixture, assetDocument } from "./test-content-model-services-fixture";
 import { installRouteStubs } from "./test-support/install-route-stubs";
 import type * as AuthStub from "./test-support/stub-auth-server";
 import type * as OssStub from "./test-support/stub-oss";
@@ -62,7 +62,6 @@ async function main(): Promise<void> {
     collectionAssets: await import("../app/api/collections/[id]/assets/route"),
     collectionPlacements: await import("../app/api/collections/[id]/placements/route"),
     asset: await import("../app/api/assets/[id]/route"),
-    assetVersions: await import("../app/api/assets/[id]/versions/route"),
     assetDuplicate: await import("../app/api/assets/[id]/duplicate/route"),
     assetUsage: await import("../app/api/assets/[id]/usage/route"),
     byHash: await import("../app/api/assets/by-hash/route"),
@@ -158,10 +157,10 @@ async function main(): Promise<void> {
       const url = `/api/organizations/${f.organizations.team}/scenes`;
       const params = { id: f.organizations.team };
       const scene = expect(await call(routes.orgScenes.POST, { user: u.unassigned, method: "POST", url, params,
-        body: { name: "route team scene", document: versionedDocument(f.assets.restricted, f.versions.restricted), idempotencyKey: `${f.run}-route-scene` } }), 201).data;
+        body: { name: "route team scene", document: assetDocument(f.assets.restricted), idempotencyKey: `${f.run}-route-scene` } }), 201).data;
       assert.equal(scene.workspace_id, null);
       assert.equal(scene.organization_id, f.organizations.team);
-      assert.equal(scene.referenced_resources[0].asset_version_id, f.versions.restricted);
+      assert.equal(scene.referenced_resources[0].asset_id, f.assets.restricted);
       const listed = expect(await call(routes.orgScenes.GET, { user: u.viewer, url: `${url}?state=active`, params }), 200).data;
       assert.ok(listed.some((item: Body) => item.id === scene.id && item.capabilities.can_edit === false));
       expect(await call(routes.orgScenes.GET, { user: u.unassigned, url: `${url}?state=bogus`, params }), 400, "VALIDATION_FAILED");
@@ -207,12 +206,12 @@ async function main(): Promise<void> {
     await check("R07 POST /api/upload binds receipts to the team (collection optional), never trusting the form's organization", async () => {
       const bytes = `route-upload-${f.run}`;
       const hash = createHash("sha256").update(bytes).digest("hex");
-      const orgOnly = expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(bytes, { organization_id: f.organizations.solo, purpose: "asset_version" }) }), 200);
+      const orgOnly = expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(bytes, { organization_id: f.organizations.solo, purpose: "asset" }) }), 200);
       assert.equal(orgOnly.contentHash, hash);
       assert.ok(orgOnly.storagePath && oss.stubObjects.has(orgOnly.storagePath), "new bytes are written once");
       assert.equal(orgOnly.data.workspace_id, null);
       assert.equal(orgOnly.data.organization_id, f.organizations.solo);
-      assert.equal(orgOnly.data.purpose, "asset_version");
+      assert.equal(orgOnly.data.purpose, "asset");
       const again = expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(bytes, { organization_id: f.organizations.solo }) }), 200);
       assert.equal(again.storagePath, null, "identical bytes in the same team are reused");
       assert.equal(again.data.reused, true);
@@ -229,7 +228,7 @@ async function main(): Promise<void> {
       expect(await call(routes.upload.POST, { user: u.unassigned, method: "POST", url: "/api/upload", form: uploadForm(`${bytes}-h`, {}) }), 400);
       const created = expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url: `/api/organizations/${f.organizations.solo}/assets`, params: { id: f.organizations.solo },
         body: modelBody("uploaded-solo", [{ role: "primary", receiptId: orgOnly.data.id }]) }), 201).data;
-      assert.equal(created.version.resources[0].storage_key, orgOnly.storagePath);
+      assert.equal(created.asset.resources[0].storage_key, orgOnly.storagePath);
       expect(await call(routes.orgAssets.POST, { user: u.owner, method: "POST", url: `/api/organizations/${f.organizations.solo}/assets`, params: { id: f.organizations.solo },
         body: modelBody("receipt-other-user", [{ role: "primary", receiptId: again.data.id }]) }), 400, "RECEIPT_INVALID");
       expect(await call(routes.orgAssets.POST, { user: u.unassigned, method: "POST", url: `/api/organizations/${f.organizations.team}/assets`, params: { id: f.organizations.team },
@@ -239,15 +238,15 @@ async function main(): Promise<void> {
       assert.equal(expect(await probe(u.foreign, `organization_id=${f.organizations.foreign}`), 200).file_url, null, "another team's hash is never disclosed");
       expect(await probe(u.foreign, `organization_id=${f.organizations.solo}`), 403, "FORBIDDEN");
       expect(await probe(u.unassigned, ""), 400);
-      expect(await call(routes.assetVersions.POST, { user: u.owner, method: "POST", url: `/api/assets/${created.asset.id}/versions`, params: { id: created.asset.id },
-        body: { payload: { kind: "model" }, resources: [{ role: "primary", receiptId: withCollection.data.id }], idempotencyKey: `${f.run}-route-v2-wrong-receipt` } }), 400, "RECEIPT_INVALID");
+      expect(await call(routes.asset.PATCH, { user: u.owner, method: "PATCH", url: `/api/assets/${created.asset.id}`, params: { id: created.asset.id },
+        body: { payload: { kind: "model" }, resources: [{ role: "primary", receiptId: withCollection.data.id }], expectedLockVersion: created.asset.lock_version } }), 400, "RECEIPT_INVALID");
     });
 
     await check("R08 placements: a team SceneRevision goes into two collections; duplicate needs no target; mini-program sees both", async () => {
       const team = { id: f.organizations.team };
       const asset = expect(await call(routes.orgAssets.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/assets`, params: team, body: modelBody("placement-model") }), 201).data;
       const scene = expect(await call(routes.orgScenes.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/scenes`, params: team,
-        body: { name: "route placed scene", document: versionedDocument(asset.asset.id, asset.version.id) } }), 201).data;
+        body: { name: "route placed scene", document: assetDocument(asset.asset.id) } }), 201).data;
       const published = expect(await call(routes.scenePublish.POST, { user: u.unassigned, method: "POST", url: `/api/scenes/${scene.id}/publish`, params: { id: scene.id }, body: { expectedLockVersion: scene.lock_version } }), 201).data;
       const place = (workspace: string, user: string, longitude: number) => call(routes.collectionPlacements.POST, { user, method: "POST", url: `/api/collections/${workspace}/placements`, params: { id: workspace },
         body: { target: { kind: "scene_revision", sceneRevisionId: published.revision.id }, location: { longitude, latitude: 31.2 } } });
@@ -281,7 +280,7 @@ async function main(): Promise<void> {
 
     await check("R10 super-admin clean-rows derives a collection's files from its placements, not from grants", async () => {
       const placed = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
-        body: { target: { kind: "asset_version", assetVersionId: f.versions.restricted }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
+        body: { target: { kind: "asset", assetId: f.assets.restricted }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
       const viaRevision = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
         body: { target: { kind: "scene_revision", sceneRevisionId: f.revisions.a }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
       assert.ok(placed.placement.id && viaRevision.placement.id);
@@ -290,7 +289,7 @@ async function main(): Promise<void> {
       try {
         const report = expect(await call(routes.adminClean.POST, { user: u.owner, method: "POST", url: "/api/admin/clean", body: { action: "clean-rows", workspaceId: f.workspaces.empty } }), 200).data;
         assert.ok(report.orphanedRows.some((row: Body) => row.file_url === f.keys.restricted), "a directly pinned version's missing file is reported for its collection");
-        assert.ok(report.orphanedRows.some((row: Body) => row.file_url === f.keys.shared), "versions pinned through a placed scene revision are included");
+        assert.ok(report.orphanedRows.some((row: Body) => row.file_url === f.keys.current), "versions pinned through a placed scene revision are included");
         assert.deepEqual(report.errors, []);
       } finally { await client.query("update users set role='user' where user_id=$1", [u.owner]); }
     });

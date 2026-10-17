@@ -2,9 +2,9 @@
 
 import { collectionApi, isContentApiError, newIdempotencyKey } from "@/app/manage/lib/content-api";
 import { errorMessage } from "@/app/manage/lib/content-errors";
-import { fileTypeOf, prepareFile, textPayload, uploadFileVersion } from "@/app/manage/lib/content-upload";
+import { fileTypeOf, prepareFile, textPayload, uploadAssetFiles } from "@/app/manage/lib/content-upload";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
-import type { AssetFileType, AssetVersionPayload, ResourceInput } from "@/lib/content-model/contracts";
+import type { AssetFileType, AssetPayload, ResourceInput } from "@/lib/content-model/contracts";
 import { useCallback, useRef, useState } from "react";
 import type { ConfirmedLocation } from "../components/LocationConfirm";
 import type { OnsiteReceipt } from "../components/UploadReceiptCard";
@@ -36,7 +36,7 @@ interface UploadedFile {
   source: string | File;
   workspaceId: string;
   fileType: AssetFileType;
-  payload: AssetVersionPayload;
+  payload: AssetPayload;
   resources: ResourceInput[];
 }
 
@@ -45,7 +45,7 @@ async function dataUrlToFile(dataUrl: string) {
   return new File([blob], `onsite-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
 }
 
-function withDescription(payload: AssetVersionPayload, description?: string): AssetVersionPayload {
+function withDescription(payload: AssetPayload, description?: string): AssetPayload {
   const text = description?.trim();
   if (!text) return payload;
   return { ...payload, attributes: { ...(payload.attributes ?? {}), description: text } };
@@ -96,7 +96,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
     setReceipt(null);
     try {
       let fileType: AssetFileType = "text";
-      let payload: AssetVersionPayload;
+      let payload: AssetPayload;
       let resources: ResourceInput[] = [];
       if (capture.kind === "text") {
         payload = textPayload(capture.source);
@@ -105,7 +105,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
         if (!uploaded || uploaded.source !== capture.source || uploaded.workspaceId !== workspaceId) {
           const file = capture.kind === "image" ? await dataUrlToFile(capture.source) : capture.source;
           const prepared = await prepareFile(file, capture.kind);
-          const version = await uploadFileVersion(prepared, { organizationId, workspaceId });
+          const version = await uploadAssetFiles(prepared, { organizationId, workspaceId });
           uploaded = { source: capture.source, workspaceId, fileType: fileTypeOf(prepared.type), payload: version.payload, resources: version.resources };
           uploadRef.current = uploaded;
         }

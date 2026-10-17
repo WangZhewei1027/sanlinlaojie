@@ -1,6 +1,6 @@
 # Team workbench backend contract
 
-The application has one content model. Organizations are teams; existing workspace rows are map collections. All runtime queries and writes use Asset, AssetVersion, Scene, SceneRevision and Placement. Migration-only source formats live under `scripts/migrate/content-model/` and `migration_archive`, outside runtime services.
+The application has one content model. Organizations are teams; existing workspace rows are map collections. All runtime queries and writes use Asset, Scene, SceneRevision and Placement. Migration-only source formats live under `scripts/migrate/content-model/` and `migration_archive`, outside runtime services.
 
 ## Ownership and permissions
 
@@ -16,34 +16,35 @@ Asset visibility, maintainer and origin collection are metadata, not permission 
 | --- | --- |
 | `GET/POST /api/organizations/[id]/assets` | List/create team assets, no collection required |
 | `GET /api/collections/[id]/assets` | Team catalog with usability capabilities for this collection |
-| `GET/PATCH/DELETE /api/assets/[id]` | Read, edit identity, archive; anchors use the same model |
-| `POST /api/assets/[id]/versions` | Append an immutable version |
+| `GET/PATCH/DELETE /api/assets/[id]` | Read, edit identity/content, archive; anchors use the same model |
 | `GET /api/assets/[id]/usage` | Team-visible draft, revision and placement dependencies |
 | `POST /api/assets/[id]/duplicate` | Create a team-owned copy |
 | `GET/POST /api/organizations/[id]/scenes` | List/create independent team scenes |
-| `GET/PATCH /api/scenes/[id]` | Read/save schema-3 draft with pinned version references |
+| `GET/PATCH /api/scenes/[id]` | Read/save schema-4 draft with direct asset references |
 | `POST /api/scenes/[id]/publish` | Freeze a revision; optionally update explicitly named placements with their lock versions |
 | `GET/POST /api/organizations/[id]/collections` | List/create collections |
 | `GET/PATCH /api/collections/[id]` | Read/rename collection |
 | `POST/DELETE /api/collections/[id]/archive` | Archive/restore collection |
 | `GET/POST /api/collections/[id]/placements` | List/create independently editable placements; upload-and-place is atomic |
 | `GET/PATCH/DELETE /api/placements/[id]` | Read/edit/archive a placement |
-| `GET /api/placements/[id]/content` | Only the pinned version/revision and its files |
+| `GET /api/placements/[id]/content` | Current asset content or published layout with current asset files |
 | `POST /api/upload` | Upload with explicit team/collection and an actor-bound receipt |
-| `GET/POST /api/assets/[id]/matching?version_id=…` | Read/build reference features for the specified anchor version |
+| `GET/POST /api/assets/[id]/matching` | Read/build reference features for the current anchor image |
 
 Old `/api/workspaces/*`, workspace grants/members, asset move/copy adapters and content-model activation endpoints do not exist. Responses are `{ data }` (paged lists add `page`); errors are `{ error, code, details? }`. `lib/content-model/contracts.ts` is the typed contract.
 
 ## Consistency
 
-Identity/draft/placement writes require `expectedLockVersion` (428 if missing, 409 if stale). Creation supports idempotency keys; reusing a key with changed input returns 409. Publishing the same draft lock reuses its frozen revision. Every placement pins one AssetVersion or SceneRevision; editing a source creates a new version without upgrading existing placements.
+Asset/draft/placement writes require `expectedLockVersion` (428 if missing, 409 if stale). It is a concurrency counter, not an asset content version. Asset PATCH accepts `payload` and `resources` together, replacing both atomically. Creation supports idempotency keys. Publishing the same draft lock reuses its layout publication.
 
-Scene drafts and imports require schema 3. Public playback compiles the pinned document to the mini-program protocol. Public discovery reads only active placements in open teams and collections, using placement IDs. `workspace_id` on a placement read is an optional assertion of its owning collection, not a shared scope.
+Placements target `{kind:"asset", assetId}` or `{kind:"scene_revision", sceneRevisionId}`. Scene aliases use `{assetId}` in schema 4. All asset references resolve current content, including existing published layouts; asset edits require no placement upgrade or scene republish. Public discovery reads active placements in open teams and collections, with stable placement IDs.
 
-Managed files are committed through upload receipts or authorized source-version resources. Retention checks immutable resources, live receipts, reference features, derived audio and explicit migration holds. Matching features are keyed by immutable reference version, so two collections may keep different versions of one anchor.
+Managed resources come from receipts or authorized `fromAssetId` sources. Receipt purpose is `asset`. Retention checks current resources, live receipts, reference features, derived audio and migration holds. Anchor features use the asset ID; changing its reference image invalidates existing and in-flight descriptors.
+
+The management client refreshes resources after successful mutations, across same-origin tabs and on focus. Scene resource refresh preserves unsaved composition changes and undo history. External clients see edits on their next content fetch.
 
 ## Migration and validation
 
 See [content-model-migration-runbook.md](content-model-migration-runbook.md). The SQL baseline describes the final schema; upgrades convert data and remove old tables/columns in one transaction. `migration_archive` retains evidence without serving application reads.
 
-Focused checks: `test-single-content-model-migration.ts`, `test-content-model-services.ts`, `test-team-workbench-routes.ts`, `test-content-model-contracts.ts`, `test-scene-add-model.ts`. UI checks are typecheck, lint, production build and Storybook build.
+Focused checks: `test-single-content-model-migration.ts`, `test-mutable-assets-migration.ts`, `test-content-model-services.ts`, `test-team-workbench-routes.ts`, `test-content-model-contracts.ts`, `test-scene-add-model.ts`. UI checks are typecheck, lint, production build and Storybook build.

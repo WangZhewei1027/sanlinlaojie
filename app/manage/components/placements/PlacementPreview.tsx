@@ -4,7 +4,7 @@ import type { PlacementDto } from "@/lib/content-model/contracts";
 import { Text } from "@/components/ui/typography";
 import { parseLinkAssetInput, type LinkAssetData } from "@/lib/link-asset";
 import { AssetAudioPreview, AssetImagePreview, AssetLinkPreview, AssetModelPreview, AssetVideoPreview } from "../AssetEditor/previews";
-import { pinnedAssetContentOf, placementDisplayName, placementScopeKey, resolvedContentOf } from "../../lib/placement-to-viewer";
+import { assetContentOf, placementDisplayName, placementScopeKey, resolvedContentOf } from "../../lib/placement-to-viewer";
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
 
@@ -21,13 +21,13 @@ function linkDataOf(url: string, preview: Record<string, unknown> | undefined): 
   }
 }
 
-/** Read-only preview of the exact version the placement pins (never the asset's current one). */
+/** Read-only preview of the asset content used by the placement. */
 export function PlacementPreview({ placement }: { placement: PlacementDto }) {
   const { tx, organizationId, workspaceId } = usePlacementMap();
   const contents = usePlacementStore((state) => state.placementContents);
   const scopeKey = placementScopeKey(organizationId, workspaceId);
   if (placement.target.kind === "scene_revision") return null;
-  const version = pinnedAssetContentOf(placement, contents, scopeKey);
+  const version = assetContentOf(placement, contents, scopeKey);
   if (!version) return <Text as="p" variant="bodySm" tone="subdued">{tx("contentModel.integration.map.source.previewUnavailable")}</Text>;
 
   const name = placementDisplayName(placement);
