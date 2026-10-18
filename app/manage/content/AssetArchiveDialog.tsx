@@ -30,7 +30,7 @@ export function AssetArchiveDialog({ open, onOpenChange, assetName, impact, onAr
   const submit = async () => {
     if (await action.run(onArchive)) close(false);
   };
-  const lines = (["published", "placement", "draft"] as const).filter((kind) => impact[kind] > 0);
+  const lines = (["scene", "placement"] as const).filter((kind) => impact[kind] > 0);
 
   return (
     <Dialog open={open} onOpenChange={close}>

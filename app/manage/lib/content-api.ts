@@ -32,11 +32,8 @@ import {
   type PlacementContentDto,
   type PlacementDto,
   type PlacementStatus,
-  type PublishSceneRequest,
-  type PublishSceneResult,
   type SaveSceneRequest,
   type SceneDetailDto,
-  type SceneRevisionSummaryDto,
   type SceneSummaryDto,
   type UpdateAssetRequest,
   type UpdateCollectionRequest,
@@ -74,9 +71,6 @@ export function isLockConflict(error: unknown) {
 export function isEndpointMissing(error: unknown) {
   return isContentApiError(error) && error.code === null && (error.status === 404 || error.status === 405);
 }
-
-/** The organization has not been cut over (or is frozen) — show feature state, not an error. */
-
 
 type Query = Record<string, string | number | boolean | null | undefined>;
 
@@ -207,12 +201,8 @@ export const assetApi = {
 export const sceneApi = {
   get: (sceneId: string, signal?: AbortSignal) => get<Data<SceneDetailDto>>(`/api/scenes/${id(sceneId)}`, undefined, signal).then((body) => body.data),
   save: (sceneId: string, request: SaveSceneRequest) => send<Data<SceneDetailDto>>("PATCH", `/api/scenes/${id(sceneId)}`, request).then((body) => body.data),
-  publish: (sceneId: string, request: PublishSceneRequest) =>
-    send<Data<PublishSceneResult>>("POST", `/api/scenes/${id(sceneId)}/publish`, request).then((body) => body.data),
   /** Same-team copy when `targetWorkspaceId` is omitted. */
   copy: (sceneId: string, request: CopySceneRequest) => send<Data<SceneDetailDto>>("POST", `/api/scenes/${id(sceneId)}/copy`, request).then((body) => body.data),
-  revisions: (sceneId: string, signal?: AbortSignal) =>
-    get<Data<SceneRevisionSummaryDto[]>>(`/api/scenes/${id(sceneId)}/revisions`, undefined, signal).then((body) => body.data ?? []),
 };
 
 // ───────────────────────── placements ─────────────────────────
@@ -240,7 +230,7 @@ export interface UploadScope {
 
 /**
  * Upload one already-processed file and return its receipt. The receipt (not
- * the URL) is what version and placement commands accept.
+ * the URL) is what asset and placement commands accept.
  */
 export async function uploadReceipt(
   file: File,

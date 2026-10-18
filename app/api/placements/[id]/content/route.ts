@@ -5,7 +5,7 @@ import { getPlacementContent } from "@/lib/placements/service.server";
 type Context = { params: Promise<{ id: string }> };
 
 // GET /api/placements/[id]/content?workspace_id=<viewer project> → { data: PlacementContentDto }
-// Fixed playable content of the placement only (pinned version or frozen revision);
+// Current playable content of the placement;
 // same team read rule as GET /api/placements/[id].
 export async function GET(request: Request, { params }: Context) {
   const { id } = await params;

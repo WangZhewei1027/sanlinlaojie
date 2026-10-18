@@ -43,8 +43,8 @@ export function parseGeoPoint(value: unknown, field = "location"): GeoPointInput
 export function parseTarget(value: unknown): PlacementTargetInput {
   if (!isRecord(value)) throw invalid("target 必须是对象");
   if (value.kind === "asset") return { kind: "asset", assetId: requireUuid(value.assetId, "target.assetId") };
-  if (value.kind === "scene_revision") return { kind: "scene_revision", sceneRevisionId: requireUuid(value.sceneRevisionId, "target.sceneRevisionId") };
-  throw invalid("target.kind 必须是 asset 或 scene_revision");
+  if (value.kind === "scene") return { kind: "scene", sceneId: requireUuid(value.sceneId, "target.sceneId") };
+  throw invalid("target.kind 必须是 asset 或 scene");
 }
 
 export function parseTagIds(value: unknown): string[] | undefined {
@@ -68,11 +68,10 @@ export function pointSql(point: GeoPointInput) {
 // ───────────────────────── target resolution ─────────────────────────
 
 export interface ResolvedTarget {
-  kind: "asset" | "scene_revision";
+  kind: "asset" | "scene";
   assetId: string | null;
-  sceneRevisionId: string | null;
-  fileType: AssetFileType | "scene";
   sceneId: string | null;
+  fileType: AssetFileType | "scene";
   /** The scene's legacy origin collection, if any. */
   sceneWorkspaceId: string | null;
   instanceCount: number;
@@ -84,7 +83,7 @@ export interface ResolvedTarget {
  * (`target.canEdit`); any same-team content may be placed there:
  * - assets: same org, asset active (share lock) unless the asset
  *   is already this placement's target;
- * - scene revisions: same org, scene not archived unless unchanged. A scene
+ * - scenes: same org, scene not archived unless unchanged. A scene
  *   is never copied to be placed into another collection.
  */
 export async function resolveTargetForWrite(
@@ -92,42 +91,30 @@ export async function resolveTargetForWrite(
   actor: Actor,
   target: WorkspaceAccess,
   input: PlacementTargetInput,
-  opts: { currentTarget?: { assetId: string | null; sceneRevisionId: string | null } } = {},
+  opts: { currentTarget?: { assetId: string | null; sceneId: string | null } } = {},
 ): Promise<ResolvedTarget> {
   if (input.kind === "asset") {
     const asset = await ensureAssetUse(trx, actor, input.assetId, target, { existingReference: opts.currentTarget?.assetId === input.assetId });
-    return { kind: "asset", assetId: input.assetId, sceneRevisionId: null,
-      fileType: asFileType(asset.file_type), sceneId: null, sceneWorkspaceId: null, instanceCount: 1 };
+    return { kind: "asset", assetId: input.assetId, sceneId: null,
+      fileType: asFileType(asset.file_type), sceneWorkspaceId: null, instanceCount: 1 };
   }
-  const revision = await trx
-    .selectFrom("scene_revision as r")
-    .innerJoin("scene as s", "s.id", "r.scene_id")
-    .select(["r.id", "r.organization_id", "r.document", "s.id as scene_id", "s.workspace_id", "s.state"])
-    .where("r.id", "=", input.sceneRevisionId)
-    .executeTakeFirst();
-  if (!revision || revision.organization_id !== target.workspace.organization_id) throw notFound("场景发布版本不存在");
-  const unchanged = opts.currentTarget?.sceneRevisionId === revision.id;
-  if (!unchanged) {
+  const scene = await trx.selectFrom("scene").select(["id", "organization_id", "document", "workspace_id", "state"])
+    .where("id", "=", input.sceneId).forShare().executeTakeFirst();
+  if (!scene || scene.organization_id !== target.workspace.organization_id) throw notFound("场景不存在");
+  if (opts.currentTarget?.sceneId !== scene.id) {
     if (!target.canEdit) throw new ContentError("FORBIDDEN", "组织查看者只能浏览团队内容");
-    if (revision.state === "archived") throw archived("场景已归档，不能新建或切换投放");
+    if (scene.state === "archived") throw archived("场景已归档，不能新建或切换投放");
   }
-  const content = isRecord(revision.document) && isRecord(revision.document.content) ? revision.document.content : null;
-  const instanceCount = Array.isArray(content?.instances) ? content.instances.length : 0;
-  return {
-    kind: "scene_revision",
-    assetId: null,
-    sceneRevisionId: revision.id,
-    fileType: "scene",
-    sceneId: revision.scene_id,
-    sceneWorkspaceId: revision.workspace_id,
-    instanceCount,
-  };
+  const content = isRecord(scene.document) && isRecord(scene.document.content) ? scene.document.content : null;
+  return { kind: "scene", assetId: null, sceneId: scene.id, fileType: "scene", sceneWorkspaceId: scene.workspace_id,
+    instanceCount: Array.isArray(content?.instances) ? content.instances.length : 0 };
+
 }
 
 /** Active placements need a discovery path the runtime supports (GPS or anchor); shops may be directory-only. */
 export function assertDiscoverable(status: PlacementStatus, location: GeoPointInput | null, anchorId: string | null, target: ResolvedTarget): void {
   if (status !== "active") return;
-  if (target.kind === "scene_revision" && target.instanceCount === 0) throw invalid("空场景不能创建有效投放，请先添加对象并发布");
+  if (target.kind === "scene" && target.instanceCount === 0) throw invalid("空场景不能创建有效投放，请先添加对象并保存");
   if (!location && !anchorId && target.fileType !== "shop") throw invalid("有效投放必须设置 GPS 位置或识别目标");
 }
 
@@ -195,7 +182,7 @@ export async function insertPlacementTx(
       workspace_id: target.workspace.id,
       name: fields.name ?? null,
       asset_id: resolved.assetId,
-      scene_revision_id: resolved.sceneRevisionId,
+      scene_id: resolved.sceneId,
       location: location ? pointSql(location) : null,
       altitude: location?.altitude ?? null,
       anchor_id: anchorId,
@@ -218,7 +205,7 @@ export const PLACEMENT_COLUMNS = [
   "p.workspace_id",
   "p.name",
   "p.asset_id",
-  "p.scene_revision_id",
+  "p.scene_id",
   "p.altitude",
   "p.anchor_id",
   "p.render_config",
@@ -236,7 +223,7 @@ export interface PlacementRow {
   workspace_id: string;
   name: string | null;
   asset_id: string | null;
-  scene_revision_id: string | null;
+  scene_id: string | null;
   altitude: number | null;
   anchor_id: string | null;
   render_config: unknown;
@@ -279,61 +266,34 @@ export async function buildPlacementDtos(
 ): Promise<PlacementDto[]> {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const versionIds = rows.map((r) => r.asset_id).filter((id): id is string => !!id);
-  const revisionIds = rows.map((r) => r.scene_revision_id).filter((id): id is string => !!id);
-  const [versions, revisions, tags] = await Promise.all([
-    versionIds.length ? exec.selectFrom("asset").select(["id", "name", "file_type", "state", "lock_version"]).where("id", "in", versionIds).execute() : Promise.resolve([]),
-    revisionIds.length
-      ? exec
-          .selectFrom("scene_revision as r")
-          .innerJoin("scene as s", "s.id", "r.scene_id")
-          .select([
-            "r.id",
-            "r.revision_no",
-            "s.id as scene_id",
-            "s.name as scene_name",
-            "s.workspace_id as scene_workspace_id",
-            "s.state as scene_state",
-            (eb) =>
-              eb
-                .selectFrom("scene_revision as latest")
-                .select("latest.id")
-                .whereRef("latest.scene_id", "=", "s.id")
-                .orderBy("latest.revision_no", "desc")
-                .limit(1)
-                .as("latest_revision_id"),
-          ])
-          .where("r.id", "in", revisionIds)
-          .execute()
-      : Promise.resolve([]),
+  const assetIds = rows.map((r) => r.asset_id).filter((id): id is string => !!id);
+  const sceneIds = rows.map((r) => r.scene_id).filter((id): id is string => !!id);
+  const [assets, scenes, tags] = await Promise.all([
+    assetIds.length ? exec.selectFrom("asset").select(["id", "name", "file_type", "state", "lock_version"]).where("id", "in", assetIds).execute() : Promise.resolve([]),
+    sceneIds.length ? exec.selectFrom("scene").select(["id", "name", "workspace_id", "state"])
+      .where("id", "in", sceneIds).execute() : Promise.resolve([]),
     exec.selectFrom("placement_tag").select(["placement_id", "tag_id"]).where("placement_id", "in", ids).execute(),
   ]);
   const workspaceIds = [...new Set(rows.map((r) => r.workspace_id))];
   const access = await loadWorkspaceAccessMany(exec, actor, workspaceIds);
-  const versionById = new Map(versions.map((v) => [v.id, v]));
-  const revisionById = new Map(revisions.map((r) => [r.id, r]));
+  const assetById = new Map(assets.map((v) => [v.id, v]));
+  const sceneById = new Map(scenes.map((r) => [r.id, r]));
 
   return rows.map((row): PlacementDto => {
     let target: PlacementTargetDto;
     if (row.asset_id) {
-      const v = versionById.get(row.asset_id);
+      const v = assetById.get(row.asset_id);
       target = {
         kind: "asset", asset_id: row.asset_id, asset_name: v?.name ?? null,
         file_type: asFileType(v?.file_type ?? "document"), asset_state: v?.state === "archived" ? "archived" : "active",
         asset_lock_version: v?.lock_version ?? 0,
       };
     } else {
-      const r = revisionById.get(row.scene_revision_id ?? "");
+      const r = sceneById.get(row.scene_id ?? "");
       target = {
-        kind: "scene_revision",
-        scene_id: r?.scene_id ?? "",
-        scene_revision_id: row.scene_revision_id ?? "",
-        revision_no: r?.revision_no ?? 0,
-        scene_name: r?.scene_name ?? "",
-        scene_workspace_id: r?.scene_workspace_id ?? null,
-        scene_state: (r?.scene_state === "archived" ? "archived" : "active") as SceneState,
-        latest_revision_id: r?.latest_revision_id ?? null,
-        upgrade_available: !!r?.latest_revision_id && r.latest_revision_id !== row.scene_revision_id,
+        kind: "scene", scene_id: row.scene_id ?? "", scene_name: r?.name ?? "",
+        scene_workspace_id: r?.workspace_id ?? null,
+        scene_state: (r?.state === "archived" ? "archived" : "active") as SceneState,
       };
     }
     const own = access.get(row.workspace_id);

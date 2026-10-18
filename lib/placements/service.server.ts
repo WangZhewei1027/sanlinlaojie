@@ -103,7 +103,7 @@ export async function getPlacement(actor: Actor, placementId: string, viewerWork
 }
 
 /**
- * GET /api/placements/[id]/content: the pinned playable content only, through
+ * GET /api/placements/[id]/content: the current playable content, through
  * the resolvePlacementContent boundary. No history, no current-version hints,
  * no grant and no catalog access are derived from it.
  */
@@ -112,7 +112,7 @@ export async function getPlacementContent(actor: Actor, placementId: string, vie
   const publicId = row.id;
   const target: StaticPlacementTarget = row.asset_id
     ? { kind: "asset", assetId: row.asset_id }
-    : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" };
+    : { kind: "scene", sceneId: row.scene_id ?? "" };
   const content = await resolvePlacementContent(db, target);
   if (!content) throw notFound("投放内容不存在");
   if (content.kind === "asset") {
@@ -128,19 +128,13 @@ export async function getPlacementContent(actor: Actor, placementId: string, vie
       resources: content.asset.resources,
     };
   }
-  const revision = await db
-    .selectFrom("scene_revision")
-    .select(["revision_no", "name"])
-    .where("id", "=", content.sceneRevisionId)
-    .executeTakeFirstOrThrow();
+  const scene = await db.selectFrom("scene").select("name").where("id", "=", content.sceneId).executeTakeFirstOrThrow();
   return {
-    kind: "scene_revision",
+    kind: "scene",
     placement_id: row.id,
     public_id: publicId,
     scene_id: content.sceneId,
-    scene_revision_id: content.sceneRevisionId,
-    revision_no: revision.revision_no,
-    name: revision.name,
+    name: scene.name,
     document: content.document as unknown as SceneDocumentJson,
     resources: content.resources.map((r) => ({
       resource_alias: r.resource_alias,
@@ -162,7 +156,7 @@ async function dto(actor: Actor, id: string): Promise<PlacementDto> {
 
 /**
  * POST /api/collections/[id]/placements. Either a fixed target (any same-team
- * Asset or SceneRevision), or the upload-and-place form (`asset` +
+ * Asset or Scene), or the upload-and-place form (`asset` +
  * `idempotencyKey`) that creates the team Asset, v1 and the placement in one
  * transaction.
  */
@@ -211,29 +205,18 @@ async function describeTarget(exec: Executor, row: PlacementRow): Promise<Resolv
     return {
       kind: "asset",
       assetId: row.asset_id,
-      sceneRevisionId: null,
       fileType: asFileType(asset?.file_type ?? "document"),
       sceneId: null,
       sceneWorkspaceId: null,
       instanceCount: 1,
     };
   }
-  const revision = await exec
-    .selectFrom("scene_revision as r")
-    .innerJoin("scene as s", "s.id", "r.scene_id")
-    .select(["r.document", "s.id as scene_id", "s.workspace_id"])
-    .where("r.id", "=", row.scene_revision_id ?? "")
-    .executeTakeFirst();
-  const content = isRecord(revision?.document) && isRecord(revision.document.content) ? revision.document.content : null;
-  return {
-    kind: "scene_revision",
-    assetId: null,
-    sceneRevisionId: row.scene_revision_id,
-    fileType: "scene",
-    sceneId: revision?.scene_id ?? null,
-    sceneWorkspaceId: revision?.workspace_id ?? null,
-    instanceCount: Array.isArray(content?.instances) ? content.instances.length : 0,
-  };
+  const scene = await exec.selectFrom("scene").select(["document", "workspace_id"])
+    .where("id", "=", row.scene_id ?? "").executeTakeFirst();
+  const content = isRecord(scene?.document) && isRecord(scene.document.content) ? scene.document.content : null;
+  return { kind: "scene", assetId: null, sceneId: row.scene_id, fileType: "scene",
+    sceneWorkspaceId: scene?.workspace_id ?? null, instanceCount: Array.isArray(content?.instances) ? content.instances.length : 0 };
+
 }
 
 /** Owning collection of a placement (immutable), read before any lock is taken. */
@@ -274,13 +257,13 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
     const changes: Record<string, unknown> = {};
     if (target) {
       const next = await resolveTargetForWrite(trx, actor, access, target, {
-        currentTarget: { assetId: row.asset_id, sceneRevisionId: row.scene_revision_id },
+        currentTarget: { assetId: row.asset_id, sceneId: row.scene_id },
       });
       if (next.kind !== resolved.kind || (next.kind === "asset" ? next.assetId !== resolved.assetId : next.sceneId !== resolved.sceneId))
         throw invalid("只能切换同一场景的发布记录；不同素材请新建投放");
-      if (next.assetId !== row.asset_id || next.sceneRevisionId !== row.scene_revision_id) {
+      if (next.assetId !== row.asset_id || next.sceneId !== row.scene_id) {
         changes.asset_id = next.assetId;
-        changes.scene_revision_id = next.sceneRevisionId;
+        changes.scene_id = next.sceneId;
       }
       resolved = next;
     }
@@ -316,7 +299,7 @@ export async function updatePlacement(actor: Actor, placementId: string, body: J
       workspaceId: row.workspace_id,
       details: {
         fields: [...Object.keys(changes), ...(fields.tagIds !== undefined ? ["tag_ids"] : [])],
-        from: { asset_id: row.asset_id, scene_revision_id: row.scene_revision_id, status: row.status },
+        from: { asset_id: row.asset_id, scene_id: row.scene_id, status: row.status },
       },
     });
   });
@@ -381,7 +364,7 @@ function offsetPoint(point: GeoPointInput, meters: number): GeoPointInput {
 
 /**
  * POST /api/placements/[id]/copy: an independent placement with its own id
- * and public id, pinned to the same content, in any open collection of the
+ * and public id, referencing the same content, in any open collection of the
  * same team (still subject to archive rules). Tags are copied only inside the
  * same collection; anchors only where the anchor is registered.
  */
@@ -410,7 +393,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
       trx,
       actor,
       target,
-      row.asset_id ? { kind: "asset", assetId: row.asset_id } : { kind: "scene_revision", sceneRevisionId: row.scene_revision_id ?? "" },
+      row.asset_id ? { kind: "asset", assetId: row.asset_id } : { kind: "scene", sceneId: row.scene_id ?? "" },
     );
     const sourcePoint = row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, altitude: row.altitude } : null;
     const location = explicitLocation !== undefined ? explicitLocation : sourcePoint ? offsetPoint(sourcePoint, offset) : null;
@@ -418,7 +401,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
     const status: PlacementStatus = row.status === "archived" ? "draft" : (row.status as PlacementStatus);
     const discoverable =
       status !== "active" ||
-      ((!!location || !!anchorId || resolved.fileType === "shop") && !(resolved.kind === "scene_revision" && resolved.instanceCount === 0));
+      ((!!location || !!anchorId || resolved.fileType === "shop") && !(resolved.kind === "scene" && resolved.instanceCount === 0));
     const id = await insertPlacementTx(trx, actor, target, resolved, {
       name,
       location,

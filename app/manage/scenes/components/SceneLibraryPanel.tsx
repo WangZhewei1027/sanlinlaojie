@@ -45,7 +45,7 @@ function candidateOf(asset: AssetDto): SceneResource | null {
 }
 
 /**
- * model picker over the whole team. "In scene" lists the pinned references
+ * model picker over the whole team. "In scene" lists the current references
  * independently of the catalog requests, so paging, filtering or archiving in
  * the team view can never make a referenced model disappear from the viewport.
  */

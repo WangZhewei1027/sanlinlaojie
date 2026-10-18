@@ -9,7 +9,7 @@ import "server-only";
 import { resolvePlacementContent } from "./content.server";
 import { pointSql, renderConfigOf } from "./core.server";
 
-/** Public discovery and playback resolve active placements at their pinned contents. */
+/** Public discovery and playback resolve active placements with current saved content. */
 
 export interface RuntimeScope {
   workspaceId: string | null;
@@ -22,7 +22,7 @@ interface RuntimeRow {
   organization_id: string;
   name: string | null;
   asset_id: string | null;
-  scene_revision_id: string | null;
+  scene_id: string | null;
   anchor_id: string | null;
   render_config: unknown;
   altitude: number | null;
@@ -44,7 +44,7 @@ function runtimeQuery(exec: Executor, scope: RuntimeScope) {
       "p.organization_id",
       "p.name",
       "p.asset_id",
-      "p.scene_revision_id",
+      "p.scene_id",
       "p.anchor_id",
       "p.render_config",
       "p.altitude",
@@ -88,7 +88,7 @@ function linkData(url: string): LinkAssetData | null {
   }
 }
 
-/** Map the pinned content and placement presentation to the mini-program protocol. */
+/** Map the saved content and placement presentation to the mini-program protocol. */
 function placementContent(row: RuntimeRow, ctx: ProjectionContext) {
   const render = renderConfigOf(row.render_config);
   const location = row.longitude !== null && row.latitude !== null ? { longitude: row.longitude, latitude: row.latitude, height: row.altitude ?? undefined } : {};
@@ -220,19 +220,19 @@ export async function anchorPlacements(workspaceId: string, anchorId: string) {
 export class RuntimeNotFound extends Error {}
 
 /**
- * Compiled schema-1/2 manifest of a published scene placement, resolved by the
+ * Compiled schema-2 manifest of a saved scene placement, resolved by the
  * discovery id the client already has. `manifest.assetId` echoes that id.
  */
 export async function sceneManifest(publicId: string, scope: RuntimeScope): Promise<SceneAssetManifest> {
   const id = publicId.toLowerCase();
   const rows = await runtimeQuery(db, scope)
-    .where("p.scene_revision_id", "is not", null)
+    .where("p.scene_id", "is not", null)
     .where("p.id", "=", id)
     .limit(2)
     .execute();
-  if (rows.length !== 1 || !rows[0].scene_revision_id) throw new RuntimeNotFound("场景素材不存在");
-  const content = await resolvePlacementContent(db, { kind: "scene_revision", sceneRevisionId: rows[0].scene_revision_id });
-  if (!content || content.kind !== "scene_revision") throw new RuntimeNotFound("场景素材不存在");
+  if (rows.length !== 1 || !rows[0].scene_id) throw new RuntimeNotFound("场景素材不存在");
+  const content = await resolvePlacementContent(db, { kind: "scene", sceneId: rows[0].scene_id });
+  if (!content || content.kind !== "scene") throw new RuntimeNotFound("场景素材不存在");
   const resources: Record<string, { assetId: string; url: string }> = {};
   for (const resource of content.resources) {
     if (!resource.url) throw new RuntimeNotFound("场景资源文件缺失");
@@ -245,14 +245,30 @@ export async function sceneManifest(publicId: string, scope: RuntimeScope): Prom
   }
 }
 
+/** Direct QR preview: saved scene in an active team, without a map placement. */
+export async function previewSceneManifest(sceneId: string, organizationId: string): Promise<SceneAssetManifest> {
+  const visible = await db.selectFrom("scene as s").innerJoin("organization as o", "o.id", "s.organization_id")
+    .select("s.id").where("s.id", "=", sceneId).where("s.organization_id", "=", organizationId)
+    .where("s.state", "=", "active").where("o.archived_at", "is", null).executeTakeFirst();
+  if (!visible) throw new RuntimeNotFound("场景不存在或已归档");
+  const content = await resolvePlacementContent(db, { kind: "scene", sceneId });
+  if (!content || content.kind !== "scene") throw new RuntimeNotFound("场景不存在");
+  const resources: Record<string, { assetId: string; url: string }> = {};
+  for (const resource of content.resources) {
+    if (!resource.url) throw new RuntimeNotFound("场景资源文件缺失");
+    resources[resource.resource_alias] = { assetId: resource.asset_id, url: resource.url };
+  }
+  return compileSceneManifest(sceneId, content.document, resources);
+}
+
 // ───────────────────────── anonymous text ─────────────────────────
 
 export class RuntimeUnavailable extends Error {}
 
 /**
- * Anonymous mini-program text for a cut-over organization: a restricted
+ * Anonymous mini-program text for an organization: a restricted
  * command that creates a public_submission team text asset (origin: the
- * scanned collection), its v1 and an active (or, without GPS, draft)
+ * scanned collection) and an active (or, without GPS, draft)
  * placement in that collection. The caller gets no catalog or editing
  * rights; field validation and rate limits stay in the route.
  */

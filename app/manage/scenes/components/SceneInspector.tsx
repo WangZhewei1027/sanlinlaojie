@@ -15,7 +15,7 @@ export interface SceneInspectorProps {
   time: number; duration: number; record: boolean; playing: boolean;
   onTransform: (channel: TransformChannel, value: number) => void;
   onKey: (group: TransformGroup) => void; onAnimation: (animation: CompositionInstance["animation"]) => void; onRemove: () => void;
-  /** Source facts for the selected object, e.g. its pinned asset version and upgrade (scenes). */
+  /** Source facts for the selected object, e.g. its current asset and editor link. */
   source?: ReactNode;
 }
 export function SceneInspector({ instance, name, values, clips, time, duration, record, playing, onTransform, onKey, onAnimation, onRemove, source }: SceneInspectorProps) {

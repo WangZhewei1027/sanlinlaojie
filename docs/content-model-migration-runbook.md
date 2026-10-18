@@ -18,7 +18,7 @@
 1. 对目标数据库做完整备份，并先在副本运行迁移。停止旧应用写入；本次升级包含删列和删表，旧应用不能继续连接升级后的库。
 2. 使用目标数据库的 `DATABASE_URL` 和实际 `NEXT_PUBLIC_MEDIA_BASE_URL` 执行 `npm run db:migrate`。迁移不会上传或删除 OSS 文件。升级入口只有 `db:migrate`，分阶段切换和回切脚本已移除。
 3. 检查迁移账本、合集数量、各合集投放、素材直接引用、资源清单及隔离归档，再部署本分支应用。
-4. 验证团队素材创建、场景发布、合集投放、小程序发现、二维码和匹配点。新库直接使用 `db/schema.sql` 的最终结构。
+4. 验证团队素材创建、场景保存、合集投放、小程序发现、二维码和匹配点。新库直接使用 `db/schema.sql` 的最终结构。
 
 迁移器持有数据库级迁移锁，并为每项迁移在同一事务内执行数据转换和 DDL。失败会回滚当前迁移；已完成的迁移由 `schema_migrations` 跳过。成功之后需要回退时，应停写并恢复升级前备份及对应应用版本，不能重新启用旧模型写入。
 
@@ -30,3 +30,9 @@
 
 
 `test-mutable-assets-migration.ts` 使用迁移前快照，在全新的 `content_mutable_migration`（127.0.0.1:55439）验证当前内容选择、旧版本引用转换、合集与投放 ID 保留、历史文件保护、识别特征迁移、失败回滚和账本重入。最终服务测试使用同端口的 `content_mutable`。
+
+## Scene 保存即生效（20261018000000）
+
+在 mutable-assets 之后执行 mutable-scenes：`scene.draft_document` 改名为 `document`，保留最近保存的内容；所有状态的投放由发布版本解析到 scene_id。位置、标签、展示配置、投放 ID 和锁不变。旧场景、发布内容、发布依赖和场景投放先写入 `migration_archive.mutable_scene_source`，再移除 scene_revision、scene_revision_asset_ref 及投放版本字段。没有运行时兼容分支，也不自动执行旧发布操作。
+
+`test-mutable-scenes-migration.ts` 在全新的 127.0.0.1:55439/content_scene_migration 验证保存内容优先、各状态投放、回滚、归档证据、租户外键和清理；新库基线另行验证。升级需同时部署 Web 与小程序。本地开发库已备份并迁移；生产升级遵循上方停写、备份和验证流程。

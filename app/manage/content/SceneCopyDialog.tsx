@@ -11,7 +11,7 @@ export interface SceneCopyDialogProps {
   onCopy: ContentAction<[sceneId: string, name: string]>;
 }
 
-/** Copies a scene inside the team. The copy pins the same asset versions and has no revisions or placements. */
+/** Copies a scene inside the team. The copy references the same current assets and has no placements. */
 export function SceneCopyDialog({ scene, onOpenChange, onCopy }: SceneCopyDialogProps) {
   const { t } = useTranslation();
   return (

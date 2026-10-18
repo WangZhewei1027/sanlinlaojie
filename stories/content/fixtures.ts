@@ -34,13 +34,13 @@ function placeholder(from: string, to: string) {
 
 export const workbenchItems: WorkbenchItem[] = [
   {
-    id: "scene-intro", kind: "scene", name: "夜游序章", type: "scene", state: "active", sceneStatus: "changed", latestRevisionNo: 4,
+    id: "scene-intro", kind: "scene", name: "夜游序章", type: "scene", state: "active",
     placementCount: 2, updatedAt: "2026-10-15T10:00:00Z", updatedBy: people.zhou,
   },
   { id: "asset-bridge", kind: "asset", name: "石桥立面照片", type: "image", thumbnailUrl: placeholder("#8a9a8b", "#3e4a46"), state: "active", updatedAt: "2026-10-14T03:10:00Z" },
   { id: "asset-lantern", kind: "asset", name: "走马灯模型", type: "model", state: "active", updatedAt: "2026-10-12T09:30:00Z" },
   {
-    id: "scene-gate", kind: "scene", name: "灯会入口", type: "scene", state: "active", sceneStatus: "published", latestRevisionNo: 2,
+    id: "scene-gate", kind: "scene", name: "灯会入口", type: "scene", state: "active",
     placementCount: 3, updatedAt: "2026-10-10T08:00:00Z",
   },
   {
@@ -49,7 +49,7 @@ export const workbenchItems: WorkbenchItem[] = [
   },
   { id: "asset-teahouse", kind: "asset", name: "茶馆门口全景", type: "image", thumbnailUrl: placeholder("#c9a77c", "#6b4f36"), state: "active", updatedAt: "2026-10-08T05:20:00Z" },
   { id: "asset-audio", kind: "asset", name: "评弹导览音频", type: "audio", state: "active", updatedAt: "2026-10-05T12:00:00Z" },
-  { id: "scene-draft", kind: "scene", name: "石桥传说（草稿）", type: "scene", state: "active", sceneStatus: "unpublished", latestRevisionNo: null, placementCount: 0, updatedAt: "2026-10-03T01:20:00Z" },
+  { id: "scene-draft", kind: "scene", name: "石桥传说（草稿）", type: "scene", state: "active", placementCount: 0, updatedAt: "2026-10-03T01:20:00Z" },
   { id: "asset-video", kind: "asset", name: "老街晨景延时", type: "video", state: "active", updatedAt: "2026-09-28T06:00:00Z" },
   {
     id: "asset-dragon", kind: "asset", name: "舞龙动画模型（带三段动作的长名称示例，用来检查截断与换行）", type: "model", state: "active",
@@ -60,7 +60,7 @@ export const workbenchItems: WorkbenchItem[] = [
 ];
 
 export const archivedItems: WorkbenchItem[] = [
-  { id: "scene-old", kind: "scene", name: "旧版开场", type: "scene", state: "archived", sceneStatus: "archived", latestRevisionNo: 3, placementCount: 1, updatedAt: "2026-07-01T06:00:00Z" },
+  { id: "scene-old", kind: "scene", name: "旧版开场", type: "scene", state: "archived", placementCount: 1, updatedAt: "2026-07-01T06:00:00Z" },
   { id: "asset-old-photo", kind: "asset", name: "旧牌坊照片", type: "image", thumbnailUrl: placeholder("#9aa3ad", "#4c535b"), state: "archived", updatedAt: "2026-06-11T06:00:00Z" },
 ];
 
@@ -89,12 +89,12 @@ export const usage: AssetUsageSummary = {
   totalCount: 5,
   restrictedCount: 0,
   entries: [
-    { id: "u1", kind: "published", targetName: "灯会入口 #2", href: "#" },
-    { id: "u2", kind: "published", targetName: "夜游序章 #4", href: "#" },
+    { id: "u1", kind: "scene", targetName: "灯会入口 #2", href: "#" },
+    { id: "u2", kind: "scene", targetName: "夜游序章 #4", href: "#" },
     { id: "u3", kind: "placement", collectionName: "老街导览", targetName: "东街口投放", placementStatus: "active", href: "#" },
     { id: "u4", kind: "placement", collectionName: "元宵灯会", targetName: "广场预热", placementStatus: "paused", href: "#" },
-    { id: "u5", kind: "draft", targetName: "夜游序章", href: "#" },
+    { id: "u5", kind: "scene", targetName: "夜游序章", href: "#" },
   ],
 };
 
-export const usageByKind = { published: 2, placement: 2, draft: 1 };
+export const usageByKind = { scene: 3, placement: 2 };

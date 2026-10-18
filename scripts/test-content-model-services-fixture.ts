@@ -35,7 +35,6 @@ export function fixtureIds() {
     workspaces: { a: randomUUID(), b: randomUUID(), secret: randomUUID(), empty: randomUUID(), foreign: randomUUID() },
     assets: { shared: randomUUID(), restricted: randomUUID(), foreign: randomUUID(), audio: randomUUID(), shop: randomUUID() },
     scenes: { a: randomUUID(), b: randomUUID(), secret: randomUUID() },
-    revisions: { a: randomUUID(), secret: randomUUID() },
     placements: { first: randomUUID(), second: randomUUID(), scene: randomUUID() },
     receipts: { active: randomUUID(), expired: randomUUID() },
     keys: { shared: `assets/${run}/shared.glb`, current: `assets/${run}/current.glb`, restricted: `assets/${run}/restricted.glb`,
@@ -117,16 +116,9 @@ export async function seedServicesFixture(client: Client, f: ServicesFixture): P
     const document = JSON.stringify(assetDocument(f.assets.shared));
     for (const [name, id] of Object.entries(f.scenes)) {
       const workspace = f.workspaces[name as keyof typeof f.scenes];
-      await client.query("insert into scene(id,organization_id,workspace_id,name,draft_document,created_by) values($1,$2,$3,$4,$5::jsonb,$6)",
+      await client.query("insert into scene(id,organization_id,workspace_id,name,document,created_by) values($1,$2,$3,$4,$5::jsonb,$6)",
         [id, f.organizations.team, workspace, `service-test-${name}-private-draft`, document, f.users.maintainer]);
       await client.query("insert into scene_asset_ref(scene_id,organization_id,resource_alias,asset_id) values($1,$2,'model',$3)",
-        [id, f.organizations.team, f.assets.shared]);
-    }
-    for (const [name, id] of Object.entries(f.revisions)) {
-      const scene = f.scenes[name as keyof typeof f.revisions];
-      await client.query("insert into scene_revision(id,scene_id,organization_id,revision_no,source_lock_version,name,document) values($1,$2,$3,1,1,$4,$5::jsonb)",
-        [id, scene, f.organizations.team, `service-test-${name}-published`, document]);
-      await client.query("insert into scene_revision_asset_ref(scene_revision_id,organization_id,resource_alias,asset_id) values($1,$2,'model',$3)",
         [id, f.organizations.team, f.assets.shared]);
     }
     for (const id of [f.placements.first, f.placements.second]) {
@@ -134,9 +126,9 @@ export async function seedServicesFixture(client: Client, f: ServicesFixture): P
         values($1,$2,$3,'direct',$4,ST_SetSRID(ST_MakePoint(121.5,31.2),4326),'active')`,
       [id, f.organizations.team, f.workspaces.b, f.assets.shared]);
     }
-    await client.query(`insert into placement(id,organization_id,workspace_id,name,scene_revision_id,location,status)
+    await client.query(`insert into placement(id,organization_id,workspace_id,name,scene_id,location,status)
       values($1,$2,$3,'scene',$4,ST_SetSRID(ST_MakePoint(121.5,31.2),4326),'active')`,
-    [f.placements.scene, f.organizations.team, f.workspaces.a, f.revisions.a]);
+    [f.placements.scene, f.organizations.team, f.workspaces.a, f.scenes.a]);
     for (const [name, id] of Object.entries(f.receipts)) {
       await client.query(`insert into upload_receipt(id,organization_id,workspace_id,created_by,storage_key,content_hash,size_bytes,purpose,expires_at)
         values($1,$2,$3,$4,$5,$6,128,$7,now()+$8::interval)`,
@@ -157,7 +149,7 @@ export async function cleanupServicesFixture(client: Client, f: ServicesFixture)
       "select id from organization where created_by=any($1::uuid[])", [users])).rows.map((row) => row.id)];
     const workspaces = (await client.query<{ id: string }>("select id from workspace where organization_id=any($1::uuid[])", [organizations])).rows.map((row) => row.id);
     await client.query("delete from placement_tag where workspace_id=any($1::uuid[])", [workspaces]);
-    for (const table of ["placement", "scene_asset_ref", "scene_revision_asset_ref", "scene_revision", "scene"]) {
+    for (const table of ["placement", "scene_asset_ref", "scene"]) {
       await client.query(`delete from ${table} where organization_id=any($1::uuid[])`, [organizations]);
     }
     await client.query("delete from asset where organization_id=any($1::uuid[])", [organizations]);

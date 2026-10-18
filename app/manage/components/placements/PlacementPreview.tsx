@@ -26,7 +26,7 @@ export function PlacementPreview({ placement }: { placement: PlacementDto }) {
   const { tx, organizationId, workspaceId } = usePlacementMap();
   const contents = usePlacementStore((state) => state.placementContents);
   const scopeKey = placementScopeKey(organizationId, workspaceId);
-  if (placement.target.kind === "scene_revision") return null;
+  if (placement.target.kind === "scene") return null;
   const version = assetContentOf(placement, contents, scopeKey);
   if (!version) return <Text as="p" variant="bodySm" tone="subdued">{tx("contentModel.integration.map.source.previewUnavailable")}</Text>;
 

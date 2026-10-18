@@ -1023,7 +1023,11 @@
     "dragModel": "Drag into the scene, or click + to add",
     "dropModel": "Release to place model",
     "dropOnGround": "Drag onto the scene ground",
-    "dropUnavailable": "Models cannot be added right now"
+    "dropUnavailable": "Models cannot be added right now",
+    "qrButton": "Preview in WeChat",
+    "qrTitle": "Scan to preview this scene",
+    "qrHint": "Opens the saved scene in front of you after 2 seconds of stable AR tracking.",
+    "qrUnsaved": "You have unsaved changes. The code opens the last saved scene."
   },
   "contentModel": {
     "action": {
@@ -1044,13 +1048,7 @@
     },
     "badge": {
       "archived": "Archived",
-      "fileMissing": "File missing",
-      "unpublished": "Unpublished",
-      "published": "Published",
-      "publishedNumbered": "Published v{{number}}",
-      "changed": "Unpublished changes",
-      "outdated": "Newer version",
-      "outdatedNumbered": "v{{number}} available"
+      "fileMissing": "File missing"
     },
     "filter": {
       "type": "Type",
@@ -1079,9 +1077,8 @@
       "count_other": "{{count}} uses",
       "none": "Unused",
       "kind": {
-        "published": "Published scenes",
-        "placement": "Map placements",
-        "draft": "Scene drafts"
+        "scene": "Scenes",
+        "placement": "Map placements"
       },
       "restricted_one": "{{count}} more reference is not listed",
       "restricted_other": "{{count}} more references are not listed",
@@ -1100,17 +1097,15 @@
       "archiveBody": "Archiving retains the content and files. You can restore it anytime.",
       "keepsWorking": "Keeps working",
       "impact": {
-        "published_one": "{{count}} published scene",
-        "published_other": "{{count}} published scenes",
+        "scene": "{{count}} scene references",
         "placement_one": "{{count}} direct placement",
-        "placement_other": "{{count}} direct placements",
-        "draft_one": "The same reference in {{count}} scene draft",
-        "draft_other": "The same reference in {{count}} scene drafts"
+        "placement_other": "{{count}} direct placements"
       },
       "noImpact": "Nothing references it right now.",
       "stops": "Stops",
       "stopsBody": "The asset is hidden from pickers and can't be newly referenced, placed or copied into a new draft.",
-      "archiveAction": "Archive"
+      "archiveAction": "Archive",
+      "fileMissingBody": "Scenes using this asset cannot play. Edit its file or ask an administrator to repair storage."
     },
     "detail": {
       "type": "Type",
@@ -1123,24 +1118,24 @@
       "archivedTitle": "This asset is archived",
       "archivedBody": "Existing scenes and placements keep using the asset; new references are blocked.",
       "fileMissingTitle": "Asset file missing",
-      "fileMissingBody": "Scenes using this asset cannot be published. Replace its file or ask an administrator to repair storage.",
+      "fileMissingBody": "Scenes using this asset cannot play. Replace its file or ask an administrator to repair storage.",
       "updated": "Updated"
     },
     "scene": {
       "name": "Scene name",
       "createTitle": "New scene",
-      "createBody": "The scene belongs to the whole team: everyone on the team can view it, and members and above can edit, publish and place it. The editor opens once it's created.",
+      "createBody": "Scenes belong to the team. Members can edit and place them in map collections. Saving makes changes live.",
       "createAction": "Create and open",
       "copy": "Copy",
       "moreNamed": "More actions for “{{name}}”",
       "copyTitle": "Copy scene",
-      "copyBody": "The copy is a new team scene referencing the same current assets, without publications or placements.",
+      "copyBody": "The copy is a new team scene using the same current assets, without placements.",
       "copyDefaultName": "{{name}} copy",
       "copyAction": "Create copy",
       "archive": "Archive scene",
       "restore": "Restore scene",
       "archiveTitle": "Archive “{{name}}”?",
-      "archiveBody": "Existing placements keep playing their revision. Once archived it can't be edited, published or placed in new collections; you can restore it at any time.",
+      "archiveBody": "Existing placements keep using the saved scene. Restore it to edit, scan its preview or create placements.",
       "archivePlacements_one": "This scene has {{count}} placement ({{active}} active); it is not affected.",
       "archivePlacements_other": "This scene has {{count}} placements ({{active}} active); they are not affected.",
       "placements_one": "{{count}} placement · {{active}} active",
@@ -1151,12 +1146,6 @@
       "archivePlacementsTotal_other": "This scene has {{count}} placements; they are not affected."
     },
     "placement": {
-      "revision": "Placed scene revision",
-      "choose": "Choose a version",
-      "latest": "Latest",
-      "pinnedHint": "The placement stays on the selected version; new versions of “{{name}}” don't replace it automatically.",
-      "newerAvailable": "“{{name}}” has v{{number}}; switch when you're ready.",
-      "noRevisions": "This scene hasn't been published. Publish it before placing it.",
       "status": {
         "draft": "Draft",
         "active": "Active",
@@ -1165,9 +1154,6 @@
       }
     },
     "integration": {
-      "publish": {
-        "refreshed": "Placements changed meanwhile; the list now shows their latest state. Check your selection and try again."
-      },
       "sceneRoute": {
         "notFound": "Scene not found or you do not have access.",
         "back": "Back to scenes"
@@ -1217,7 +1203,7 @@
       "copied": "Copied as “{{name}}”",
       "empty": {
         "sceneTitle": "No scenes yet",
-        "sceneBody": "Create a scene, then add models, animate them and publish. Published scenes can go into any map collection.",
+        "sceneBody": "Create a scene, add models and animate them. Save to use it in map collections or scan its preview.",
         "typeTitle": "No {{type}} yet",
         "assetBody": "Uploads appear here and can be used right away in scenes and map collections.",
         "archivedTitle": "Nothing archived",
@@ -1228,7 +1214,7 @@
     },
     "collections": {
       "title": "Map collections",
-      "subtitle": "Organize assets and published scenes on maps.",
+      "subtitle": "Organize assets and scenes on maps.",
       "kind": {
         "map": "Map collection"
       },
@@ -1239,7 +1225,7 @@
       "restore": "Restore collection",
       "create": "New collection",
       "createTitle": "New map collection",
-      "createBody": "Open the collection's map afterwards to place team assets and published scenes.",
+      "createBody": "Open the collection's map afterwards to place team assets and scenes.",
       "editTitle": "Edit collection",
       "editBody": "Changing the name or description doesn't affect placed content or the QR code.",
       "name": "Name",
@@ -1250,7 +1236,7 @@
       "archiveBody": "Its placements stop showing everywhere and the collection becomes read-only. Team assets and scenes are untouched and can still go into other collections. You can restore it at any time.",
       "empty": {
         "title": "No map collections yet",
-        "body": "Create a collection to put the team's published scenes and assets on a map.",
+        "body": "Create a collection to put the team's scenes and assets on a map.",
         "viewerBody": "Collections appear here once team members create them.",
         "archivedTitle": "No archived collections",
         "archivedBody": "Archived collections show up here and can be restored at any time."
@@ -1283,7 +1269,7 @@
       },
       "scene": {
         "title": "Scenes",
-        "subtitle": "Compose, preview and publish scenes from {{team}} to map collections.",
+        "subtitle": "Compose and save scenes from {{team}}, preview them and place them in map collections.",
         "viewerBody": "Scenes appear here once team members create them.",
         "archivedBody": "Archived scenes appear here and can be restored at any time."
       }

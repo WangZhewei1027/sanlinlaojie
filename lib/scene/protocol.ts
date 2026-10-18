@@ -100,7 +100,7 @@ export interface ValidationResult {
 }
 
 /**
- * Playback manifest compiled from a fixed SceneRevision.
+ * Playback manifest compiled from a fixed Scene.
  * `assetId` is the discovered placement ID.
  */
 export interface SceneAssetManifest extends SceneDefinition {

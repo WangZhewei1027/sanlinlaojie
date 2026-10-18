@@ -68,11 +68,8 @@ export function WorkbenchThumbnail({ item, iconClassName }: { item: WorkbenchIte
 /** Publication and lifecycle badges; assets show only exceptional states. */
 export function WorkbenchBadges({ item }: { item: WorkbenchItem }) {
   const archived = item.state === "archived";
-  const sceneStatus = item.kind === "scene" && item.sceneStatus && item.sceneStatus !== "archived" ? item.sceneStatus : null;
-  if (!sceneStatus && !archived && !item.fileMissing) return null;
   return (
     <span className="flex flex-wrap items-center gap-1">
-      {sceneStatus && <ContentStatusBadge kind={sceneStatus} number={sceneStatus === "published" ? item.latestRevisionNo : undefined} />}
       {archived && <ContentStatusBadge kind="archived" />}
       {item.fileMissing && <ContentStatusBadge kind="fileMissing" />}
     </span>

@@ -33,5 +33,3 @@ export { AssetArchiveDialog } from "./AssetArchiveDialog";
 export { SceneNameDialog } from "./SceneNameDialog";
 export { SceneCopyDialog } from "./SceneCopyDialog";
 export { SceneArchiveDialog } from "./SceneArchiveDialog";
-
-export { PlacementTargetSelect } from "./PlacementTargetSelect";

@@ -121,11 +121,11 @@ async function main(): Promise<void> {
 
     await check("T02 usage lists every same-team dependency by name; other tenants only get counts", async () => {
       const impact = await usage.computeImpact(db, actors.editor, f.assets.shared);
-      const total = impact.drafts + impact.revisions + impact.placements;
+      const total = impact.scenes + impact.placements;
       assert.equal(impact.restricted_count, 0);
       assert.equal(impact.items.length, total);
       assert.ok(JSON.stringify(impact.items).includes("secret"), "formerly private collections are part of the team");
-      const draftCollections = new Set(impact.items.flatMap((item) => (item.kind === "scene_draft" ? [item.workspace_id] : [])));
+      const draftCollections = new Set(impact.items.flatMap((item) => (item.kind === "scene" ? [item.workspace_id] : [])));
       assert.ok([f.workspaces.a, f.workspaces.b, f.workspaces.secret].every((id) => draftCollections.has(id)));
       const outside = await usage.computeImpact(db, actors.foreign, f.assets.shared);
       assert.equal(outside.items.length, 0);
@@ -140,8 +140,8 @@ async function main(): Promise<void> {
           [{ role: "primary", externalUrl: "https://fixture.invalid/replaced.glb" }]);
         const draft = await sceneService.resolveSceneResources(trx, [{resource_alias:"model",asset_id:f.assets.shared}]);
         assert.equal(draft[0].url, "https://fixture.invalid/replaced.glb");
-        assert.equal((await sceneService.loadRevisionForPlayback(trx, f.revisions.a))?.resources[0].url, "https://fixture.invalid/replaced.glb");
-        for (const table of ["scene_asset_ref", "scene_revision_asset_ref", "placement"] as const) {
+        assert.equal((await sceneService.loadSceneForPlayback(trx, f.scenes.a))?.resources[0].url, "https://fixture.invalid/replaced.glb");
+        for (const table of ["scene_asset_ref", "placement"] as const) {
           const refs = await trx.selectFrom(table).select("asset_id").where("asset_id", "=", f.assets.shared).execute();
           assert.ok(refs.length > 0);
         }
@@ -162,9 +162,8 @@ async function main(): Promise<void> {
 
     await check("T08/T09 asset content shape, tenant FKs and Placement XOR reject invalid SQL", async () => {
       await rejectSql("update asset set payload='{}'::jsonb where id=$1", [f.assets.shared], "23514");
-      await rejectSql("delete from scene_revision where id=$1", [f.revisions.a], "55000");
-      await rejectSql("insert into placement(organization_id,workspace_id,asset_id,scene_revision_id) values($1,$2,$3,$4)",
-        [f.organizations.team, f.workspaces.b, f.assets.shared, f.revisions.a], "23514");
+      await rejectSql("insert into placement(organization_id,workspace_id,asset_id,scene_id) values($1,$2,$3,$4)",
+        [f.organizations.team, f.workspaces.b, f.assets.shared, f.scenes.a], "23514");
       await rejectSql("insert into placement(organization_id,workspace_id) values($1,$2)", [f.organizations.team, f.workspaces.b], "23514");
       await rejectSql("insert into placement(organization_id,workspace_id,asset_id) values($1,$2,$3)",
         [f.organizations.team, f.workspaces.b, f.assets.foreign], "23503");
@@ -255,7 +254,6 @@ async function main(): Promise<void> {
       assert.equal(scene.capabilities.can_edit, true);
       assert.equal((await sceneService.createOrganizationScene(actors.unassigned, solo, sceneBody)).id, scene.id, "idempotent replay");
       await rejectCode(() => sceneService.createOrganizationScene(actors.viewer, solo, { name: "viewer scene" }), "FORBIDDEN");
-      const published = await sceneService.publishScene(actors.owner, scene.id, { expectedLockVersion: scene.lock_version });
       const v2 = await assetService.updateAsset(actors.owner, created.asset.id, {
         payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/solo-v2.glb" }],
         expectedLockVersion: created.asset.lock_version,
@@ -265,7 +263,7 @@ async function main(): Promise<void> {
       assert.equal(draft.referenced_resources[0].asset_id, created.asset.id, "the draft keeps its asset identity after an edit");
       assert.equal(draft.referenced_resources[0].url, "https://external-fixture.invalid/solo-v2.glb");
       assert.equal(draft.capabilities.can_edit, false, "viewers read but do not edit");
-      assert.equal((await sceneService.loadRevisionForPlayback(db, published.revision.id))?.resources[0].asset_id, created.asset.id);
+      assert.equal((await sceneService.loadSceneForPlayback(db, scene.id))?.resources[0].asset_id, created.asset.id);
       const saved = await sceneService.saveScene(actors.unassigned, scene.id, { expectedLockVersion: scene.lock_version, name: "solo scene renamed" });
       await rejectCode(() => sceneService.saveScene(actors.owner, scene.id, { expectedLockVersion: scene.lock_version, name: "stale tab" }), "LOCK_VERSION_CONFLICT");
       await rejectCode(() => sceneService.saveScene(actors.viewer, scene.id, { expectedLockVersion: saved.lock_version, name: "viewer" }), "FORBIDDEN");
@@ -394,10 +392,10 @@ async function main(): Promise<void> {
       const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "two-version composition" });
       assert.equal(scene.workspace_id, null, "scenes belong directly to the team");
       assert.equal(scene.organization_id, f.organizations.team);
-      assert.equal(scene.draft_document.schemaVersion, 4);
-      assert.equal(scene.draft_document.content.durationSeconds, 10);
-      assert.equal(scene.draft_document.content.loop, false);
-      assert.deepEqual(scene.draft_document.content.assets, {});
+      assert.equal(scene.document.schemaVersion, 4);
+      assert.equal(scene.document.content.durationSeconds, 10);
+      assert.equal(scene.document.content.loop, false);
+      assert.deepEqual(scene.document.content.assets, {});
       await rejectCode(() => sceneService.saveScene(actors.editor, scene.id, { name: "missing lock" }), "LOCK_VERSION_REQUIRED");
       const dual = assetDocument(f.assets.shared);
       dual.content.assets.newer = { assetId: f.assets.shared };
@@ -421,28 +419,33 @@ async function main(): Promise<void> {
       assert.equal((await sceneService.getScene(actors.editor, scene.id)).lock_version, saved.lock_version, "failed clip validation cannot mutate the draft");
     });
 
-    await check("T06 concurrent Scene publication freezes exact references once per source lock", async () => {
-      const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, {
-        name: "publish frozen draft", document: assetDocument(f.assets.shared),
+    await check("Scene saves update every map and direct QR preview; empty saves and archive behavior are explicit", async () => {
+      const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "live scene", document: assetDocument(f.assets.shared) });
+      const placed = await Promise.all([f.workspaces.a, f.workspaces.b].map((workspace) => placementService.createPlacement(actors.editor, workspace, {
+        target: { kind: "scene", sceneId: scene.id }, location: { longitude: 121.5, latitude: 31.2 }, renderConfig: { config: { scale: 2 } },
+      })));
+      const document = assetDocument(f.assets.shared); document.content.durationSeconds = 23;
+      const saved = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document });
+      for (const item of placed) {
+        const manifest = await runtime.sceneManifest(item.placement.id, { workspaceId: item.placement.workspace_id, organizationId: f.organizations.team });
+        assert.equal(manifest.content.durationSeconds, 23);
+        assert.equal((await placementService.getPlacement(actors.editor, item.placement.id)).lock_version, item.placement.lock_version);
+      }
+      const preview = await runtime.previewSceneManifest(scene.id, f.organizations.team);
+      assert.equal(preview.assetId, scene.id); assert.equal(preview.content.durationSeconds, 23);
+      await assert.rejects(() => runtime.previewSceneManifest(scene.id, f.organizations.foreign), runtime.RuntimeNotFound);
+      const empty = { ...document, content: { ...document.content, assets: {}, instances: [] } };
+      const cleared = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: saved.lock_version, document: empty });
+      assert.equal((await runtime.previewSceneManifest(scene.id, f.organizations.team)).content.instances.length, 0);
+      assert.equal((await runtime.sceneManifest(placed[0].placement.id, { workspaceId: f.workspaces.a, organizationId: f.organizations.team })).content.instances.length, 0);
+      await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: cleared.lock_version, state: "archived" });
+      await assert.rejects(() => runtime.previewSceneManifest(scene.id, f.organizations.team), runtime.RuntimeNotFound);
+      // Existing map references survive archival; new references do not.
+      assert.equal((await runtime.sceneManifest(placed[0].placement.id, { workspaceId: f.workspaces.a, organizationId: f.organizations.team })).content.instances.length, 0);
+      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "scene", sceneId: scene.id }, location: { longitude: 1, latitude: 1 } }), "ARCHIVED");
+      await rollback(async (trx) => {
+        await trx.updateTable("organization").set({ archived_at: new Date() }).where("id", "=", f.organizations.team).execute();
       });
-      const published = await Promise.all([
-        sceneService.publishScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version }),
-        sceneService.publishScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version }),
-      ]);
-      assert.equal(published[0].revision.id, published[1].revision.id);
-      assert.equal(published.filter((item) => item.created).length, 1);
-      assert.equal((await sceneService.listRevisions(actors.editor, scene.id)).length, 1);
-      const fixed = await sceneService.loadRevisionForPlayback(db, published[0].revision.id);
-      assert.equal(fixed?.resources[0].asset_id, f.assets.shared);
-      assert.ok(fixed?.resources[0].url?.endsWith("current.glb"));
-      const changedDocument = assetDocument(f.assets.shared);
-      changedDocument.content.durationSeconds = 20;
-      const changed = await sceneService.saveScene(actors.editor, scene.id, {
-        expectedLockVersion: scene.lock_version, document: changedDocument,
-      });
-      assert.equal(changed.publish_status, "modified");
-      assert.equal((await sceneService.loadRevisionForPlayback(db, published[0].revision.id))?.resources[0].asset_id, f.assets.shared);
-      await rejectCode(() => sceneService.publishScene(actors.viewer, scene.id, { expectedLockVersion: changed.lock_version }), "FORBIDDEN");
     });
 
     await check("T08 an archive committed while a new Scene reference waits on the asset row refuses that reference", async () => {
@@ -491,9 +494,8 @@ async function main(): Promise<void> {
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/collection.glb" }], idempotencyKey: `${f.run}-collection-model`,
       });
       const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "collection scene", document: assetDocument(model.asset.id) });
-      const revision = (await sceneService.publishScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version })).revision;
       const placed = (await placementService.createPlacement(actors.unassigned, created.id, {
-        target: { kind: "scene_revision", sceneRevisionId: revision.id }, location: { longitude: 121.51, latitude: 31.21 },
+        target: { kind: "scene", sceneId: scene.id }, location: { longitude: 121.51, latitude: 31.21 },
       })).placement;
       const direct = (await placementService.createPlacement(actors.unassigned, created.id, {
         target: { kind: "asset", assetId: model.asset.id }, location: { longitude: 121.52, latitude: 31.21 },
@@ -506,7 +508,6 @@ async function main(): Promise<void> {
         await db.selectFrom("asset").selectAll().where("id", "=", model.asset.id).executeTakeFirstOrThrow(),
         await db.selectFrom("scene").selectAll().where("id", "=", scene.id).executeTakeFirstOrThrow(),
         await db.selectFrom("asset").select("id").where("id", "=", model.asset.id).execute(),
-        await db.selectFrom("scene_revision").select("id").where("scene_id", "=", scene.id).execute(),
       ]);
       const before = await fingerprint();
       await rejectCode(() => projects.setWorkspaceArchived(actors.viewer, created.id, true), "FORBIDDEN");
@@ -535,7 +536,7 @@ async function main(): Promise<void> {
     });
 
 
-    await check("T21 a real sign-up bootstraps a v2 personal team with zero collections; scenes keep a direct tenant FK", async () => {
+    await check("T21 a real sign-up bootstraps a personal team with zero collections; scenes keep a direct tenant FK", async () => {
       const newcomer = randomUUID();
       let personal: string | undefined;
       try {
@@ -551,16 +552,13 @@ async function main(): Promise<void> {
           name: "first model", fileType: "model", payload: { kind: "model" },
           resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/newcomer.glb" }], idempotencyKey: `${f.run}-newcomer-asset`,
         });
-        const scene = await sceneService.createOrganizationScene(actor, personal, { name: "first scene", document: assetDocument(asset.asset.id) });
-        await sceneService.publishScene(actor, scene.id, { expectedLockVersion: scene.lock_version });
+        await sceneService.createOrganizationScene(actor, personal, { name: "first scene", document: assetDocument(asset.asset.id) });
         assert.deepEqual(await projects.listCollections(actor, personal, { state: "all" }), []);
-        await rejectSql("insert into scene(organization_id,name,draft_document) values($1,'orphan','{}'::jsonb)", [randomUUID()], "23503");
+        await rejectSql("insert into scene(organization_id,name,document) values($1,'orphan','{}'::jsonb)", [randomUUID()], "23503");
         await rejectSql("delete from organization where id=$1", [personal], "23503");
         await client.query("begin");
         try {
           await client.query("select set_config('content_model.writer','purge',true)");
-          await client.query("delete from scene_revision_asset_ref where organization_id=$1", [personal]);
-          await client.query("delete from scene_revision where organization_id=$1", [personal]);
           await client.query("delete from scene_asset_ref where organization_id=$1", [personal]);
           await client.query("delete from asset where organization_id=$1", [personal]);
           await client.query("savepoint only_scene");
@@ -571,25 +569,6 @@ async function main(): Promise<void> {
         if (personal) await client.query("select purge_organizations(array[$1]::uuid[])", [personal]);
         await client.query("delete from auth.users where id=$1", [newcomer]);
       }
-    });
-
-    await check("T05/T07 publishing with placement updates cannot omit each placement's optimistic lock", async () => {
-      const source = await sceneService.getScene(actors.maintainer, f.scenes.a);
-      const changed = await sceneService.saveScene(actors.maintainer, source.id, { expectedLockVersion: source.lock_version, name: "new source draft" });
-      const prior = await db.selectFrom("placement").select(["scene_revision_id", "lock_version"]).where("id", "=", f.placements.scene).executeTakeFirstOrThrow();
-      await rejectCode(() => sceneService.publishScene(actors.maintainer, source.id, {
-        expectedLockVersion: changed.lock_version, updatePlacementIds: [f.placements.scene],
-      }), "VALIDATION_FAILED");
-      const after = await db.selectFrom("placement").select(["scene_revision_id", "lock_version"]).where("id", "=", f.placements.scene).executeTakeFirstOrThrow();
-      assert.deepEqual(after, prior);
-      const published = await sceneService.publishScene(actors.maintainer, source.id, {
-        expectedLockVersion: changed.lock_version,
-        updatePlacements: [{ placementId: f.placements.scene, expectedLockVersion: prior.lock_version }],
-      });
-      const updated = await db.selectFrom("placement").select(["scene_revision_id", "lock_version"]).where("id", "=", f.placements.scene).executeTakeFirstOrThrow();
-      assert.equal(updated.scene_revision_id, published.revision.id);
-      assert.equal(updated.lock_version, prior.lock_version + 1);
-      assert.equal(published.updated_placements[0]?.id, f.placements.scene);
     });
 
     await check("T07 independent placements move/pause/copy/upgrade/archive without mutating their sibling or source", async () => {
@@ -646,7 +625,7 @@ async function main(): Promise<void> {
       assert.ok(result.every((item) => item.location?.latitude === 32));
     });
 
-    await check("T02/T07 a team SceneRevision is placed into two collections by any writers without copying the Scene; placements stay independent", async () => {
+    await check("T02/T07 a saved team Scene is placed into two collections by any writers without copying the Scene; placements stay independent", async () => {
       const sourceAsset = await assetService.createAssetInOrganization(actors.maintainer, f.organizations.team, {
         name: "team scene model", fileType: "model", visibility: "restricted", payload: { kind: "model" },
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/team-scene-v1.glb" }], idempotencyKey: `${f.run}-team-scene-asset`,
@@ -655,16 +634,15 @@ async function main(): Promise<void> {
         name: "team fixed work", document: assetDocument(sourceAsset.asset.id),
       });
       assert.equal(scene.workspace_id, null);
-      const revision = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
       const scenesBefore = await sceneCount(f.organizations.team);
-      const at = (longitude: number) => ({ target: { kind: "scene_revision", sceneRevisionId: revision.id }, location: { longitude, latitude: 31.2 } });
+      const at = (longitude: number) => ({ target: { kind: "scene", sceneId: scene.id }, location: { longitude, latitude: 31.2 } });
       const inB = await placementService.createPlacement(actors.editor, f.workspaces.b, at(121.5));
       const inA = await placementService.createPlacement(actors.unassigned, f.workspaces.a, at(121.6));
       await rejectCode(() => placementService.createPlacement(actors.viewer, f.workspaces.b, at(121.7)), "FORBIDDEN");
       assert.equal(await sceneCount(f.organizations.team), scenesBefore, "placing never copies the Scene");
       assert.notEqual(inA.placement.id, inB.placement.id);
       for (const placed of [inA, inB])
-        assert.ok(placed.placement.target.kind === "scene_revision" && placed.placement.target.scene_revision_id === revision.id && placed.placement.target.scene_workspace_id === null);
+        assert.ok(placed.placement.target.kind === "scene" && placed.placement.target.scene_id === scene.id && placed.placement.target.scene_workspace_id === null);
       assert.equal((await sceneService.getScene(actors.editor, scene.id)).placement_count, 2);
       const paused = await placementService.updatePlacement(actors.editor, inB.placement.id, {
         expectedLockVersion: inB.placement.lock_version, location: { longitude: 121.55, latitude: 31.25 }, status: "paused",
@@ -674,17 +652,14 @@ async function main(): Promise<void> {
       await assetService.updateAsset(actors.editor, sourceAsset.asset.id, {
         payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/team-scene-v2.glb" }], expectedLockVersion: sourceAsset.asset.lock_version,
       });
-      const fixed = await sceneService.loadRevisionForPlayback(db, revision.id);
+      const fixed = await sceneService.loadSceneForPlayback(db, scene.id);
       assert.equal(fixed?.resources[0].asset_id, sourceAsset.asset.id, "asset edits retain publication identities");
       assert.ok(fixed?.resources[0].url?.endsWith("team-scene-v2.glb"));
       const newer = await sceneService.saveScene(actors.unassigned, scene.id, { expectedLockVersion: scene.lock_version, name: "later draft" });
-      const next = (await sceneService.publishScene(actors.unassigned, scene.id, { expectedLockVersion: newer.lock_version })).revision;
-      const switched = await placementService.updatePlacement(actors.editor, paused.id, {
-        expectedLockVersion: paused.lock_version, target: { kind: "scene_revision", sceneRevisionId: next.id },
-      });
-      assert.ok(switched.target.kind === "scene_revision" && switched.target.scene_revision_id === next.id);
       const sibling = await placementService.getPlacement(actors.editor, inA.placement.id);
-      assert.ok(sibling.target.kind === "scene_revision" && sibling.target.scene_revision_id === revision.id && sibling.target.upgrade_available);
+      assert.ok(sibling.target.kind === "scene" && sibling.target.scene_name === "later draft");
+      assert.equal(sibling.lock_version, inA.placement.lock_version, "scene edits do not overwrite placement settings or locks");
+      const switched = await placementService.getPlacement(actors.editor, paused.id);
       await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: newer.lock_version, state: "archived" });
       await rejectCode(() => placementService.createPlacement(actors.owner, f.workspaces.secret, at(121.8)), "ARCHIVED");
       const existing = await placementService.updatePlacement(actors.editor, switched.id, { expectedLockVersion: switched.lock_version, status: "active" });
@@ -809,34 +784,6 @@ async function main(): Promise<void> {
       }
     });
 
-    await check("T08 boundary-regression: retrying an older publication cannot retarget a placement after Scene archival", async () => {
-      const scene = await sceneService.createOrganizationScene(actors.maintainer, f.organizations.team, {
-        name: "archived publication retry", document: assetDocument(f.assets.shared),
-      });
-      const first = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
-      const changed = await sceneService.saveScene(actors.maintainer, scene.id, {
-        expectedLockVersion: scene.lock_version, document: assetDocument(f.assets.shared),
-      });
-      const second = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: changed.lock_version })).revision;
-      assert.notEqual(first.id, second.id);
-      const placed = (await placementService.createPlacement(actors.maintainer, f.workspaces.a, {
-        target: { kind: "scene_revision", sceneRevisionId: second.id }, location: { longitude: 121.5, latitude: 31.2 },
-      })).placement;
-      await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: changed.lock_version, state: "archived" });
-      const before = await placementService.getPlacement(actors.maintainer, placed.id);
-      let rejection: unknown;
-      try {
-        await sceneService.publishScene(actors.maintainer, scene.id, {
-          expectedLockVersion: first.source_lock_version,
-          updatePlacements: [{ placementId: placed.id, expectedLockVersion: before.lock_version }],
-        });
-      } catch (error) { rejection = error; }
-      const after = await placementService.getPlacement(actors.maintainer, placed.id);
-      assert.deepEqual(after.target, before.target, "archived Scene publication replay must leave Placement on R2, not retarget it to the existing R1");
-      assert.equal(after.lock_version, before.lock_version);
-      assert.ok(rejection instanceof ContentError && rejection.code === "ARCHIVED", "an existing revision does not bypass the Scene archived guard");
-    });
-
     await check("T02 boundary-regression: same organization alone does not register an Anchor in a different collection", async () => {
       const anchor = await seedRuntimeProjectionFixture(client, f, { kind: "anchor", payload: { kind: "anchor" }, location: false });
       const permitted = await placementService.createPlacement(actors.maintainer, f.workspaces.a, {
@@ -946,7 +893,7 @@ async function main(): Promise<void> {
       await rejectCode(() => placementService.getPlacementContent(actors.foreign, ids.placement), "NOT_FOUND");
     });
 
-    await check("T02 probe-content-regression: shared Scene Placement preview resolves current asset resources; the draft is team content", async () => {
+    await check("T02 probe-content-regression: shared Scene Placement preview resolves current asset resources; the scene is team content", async () => {
       const asset = await assetService.createAssetForCollection(actors.maintainer, f.workspaces.a, {
         name: "private scene model", fileType: "model", visibility: "restricted", payload: { kind: "model" },
         resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/fixed-scene-model.glb" }], idempotencyKey: `${f.run}-fixed-scene-model`,
@@ -955,30 +902,28 @@ async function main(): Promise<void> {
         name: "published preview", document: assetDocument(asset.asset.id),
       });
       assert.equal(scene.workspace_id, null);
-      const revision = (await sceneService.publishScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version })).revision;
       const placed = (await placementService.createPlacement(actors.maintainer, f.workspaces.a, {
-        target: { kind: "scene_revision", sceneRevisionId: revision.id }, location: { longitude: 121.5, latitude: 31.2 },
+        target: { kind: "scene", sceneId: scene.id }, location: { longitude: 121.5, latitude: 31.2 },
       })).placement;
       const publicId = placed.id;
       const newest = await assetService.updateAsset(actors.maintainer, asset.asset.id, {
         payload: { kind: "model" }, resources: [{ role: "primary", externalUrl: "https://external-fixture.invalid/private-scene-model-new.glb" }], expectedLockVersion: asset.asset.lock_version,
       });
-      await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version, name: "unpublished secret name", document: assetDocument(asset.asset.id) });
+      await sceneService.saveScene(actors.maintainer, scene.id, { expectedLockVersion: scene.lock_version, name: "saved scene name", document: assetDocument(asset.asset.id) });
       const fixed = await placementService.getPlacementContent(actors.editor, placed.id, f.workspaces.a);
-      assert.equal(fixed.kind, "scene_revision");
-      if (fixed.kind !== "scene_revision") throw new Error("Expected fixed SceneRevision content");
+      assert.equal(fixed.kind, "scene");
+      if (fixed.kind !== "scene") throw new Error("Expected fixed SceneRevision content");
       assert.equal(fixed.public_id, publicId);
-      assert.equal(fixed.scene_revision_id, revision.id);
-      assert.equal(fixed.name, "published preview");
+      assert.equal(fixed.scene_id, scene.id);
+      assert.equal(fixed.name, "saved scene name");
       assert.equal(fixed.document.content.assets.model.assetId, asset.asset.id);
       assert.equal(fixed.resources[0].asset_id, asset.asset.id);
       assert.equal(fixed.resources[0].url, "https://external-fixture.invalid/private-scene-model-new.glb");
-      assert.equal(JSON.stringify(fixed).includes("unpublished secret name"), false, "placement content never carries the draft");
+      assert.equal(JSON.stringify(fixed).includes("saved scene name"), true, "placement content follows saved changes");
       assert.equal(JSON.stringify(fixed).includes(newest.id), true);
       const draft = await sceneService.getScene(actors.editor, scene.id);
-      assert.equal(draft.name, "unpublished secret name", "team members read the draft itself");
+      assert.equal(draft.name, "saved scene name", "team members read the draft itself");
       assert.equal(draft.referenced_resources[0].asset_id, newest.id);
-      assert.ok((await sceneService.listRevisions(actors.editor, scene.id)).some((item) => item.id === revision.id));
       const copied = await sceneService.copyScene(actors.editor, scene.id, { targetWorkspaceId: f.workspaces.b, idempotencyKey: `${f.run}-scene-copy-b` });
       assert.equal(copied.workspace_id, f.workspaces.b);
       const teamCopy = await sceneService.copyScene(actors.editor, scene.id, { idempotencyKey: `${f.run}-scene-copy-team` });

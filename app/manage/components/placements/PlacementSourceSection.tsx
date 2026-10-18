@@ -13,7 +13,6 @@ import { placementFileType, placementScopeKey } from "../../lib/placement-to-vie
 import { usePlacementStore } from "../../lib/placement-store";
 import { usePlacementMap } from "./PlacementMapContext";
 import { PlacementPreview } from "./PlacementPreview";
-import { PlacementRevisionSwitch } from "./PlacementRevisionSwitch";
 
 interface PlacementSourceSectionProps {
   placement: PlacementDto;
@@ -23,14 +22,14 @@ interface PlacementSourceSectionProps {
 
 /**
  * Read-only facts about the content the placement plays: the source asset or
- * scene, the pinned version/revision, and where to maintain the source.
+ * scene, its saved content, and where to maintain the source.
  */
-export function PlacementSourceSection({ placement, editable, formDirty }: PlacementSourceSectionProps) {
+export function PlacementSourceSection({ placement }: PlacementSourceSectionProps) {
   const { tx, organizationId, workspaceId } = usePlacementMap();
   const target = placement.target;
   const scopeKey = placementScopeKey(organizationId, workspaceId);
   const detail = usePlacementStore((state) => (state.scopeKey === scopeKey && target.kind === "asset" ? state.assetDetails[target.asset_id] : undefined));
-  const canReadSource = target.kind === "scene_revision" || detail?.capabilities.can_read === true;
+  const canReadSource = target.kind === "scene" || detail?.capabilities.can_read === true;
   const type = placementFileType(placement);
   const sourceArchived = target.kind === "asset" ? target.asset_state === "archived" : target.scene_state === "archived";
   const href = target.kind === "asset"
@@ -49,11 +48,8 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
         <Text as="p" variant="bodySm" tone="subdued">
           {target.kind === "asset"
             ? tx("contentModel.integration.map.source.liveAsset")
-            : tx("contentModel.integration.map.source.pinnedRevision", { number: target.revision_no })}
+            : tx("contentModel.integration.map.source.liveScene")}
         </Text>
-        {target.kind === "scene_revision" && target.upgrade_available && (
-          <ContentStatusBadge kind="outdated"  />
-        )}
       </div>
 
       {canReadSource && <div className="flex flex-wrap gap-2">
@@ -72,7 +68,6 @@ export function PlacementSourceSection({ placement, editable, formDirty }: Place
       </div>}
 
       <PlacementPreview placement={placement} />
-      {target.kind === "scene_revision" && <PlacementRevisionSwitch placement={{ ...placement, target }} editable={editable} formDirty={formDirty} />}
     </FieldSection>
   );
 }

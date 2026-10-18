@@ -53,7 +53,7 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
         // Both Strict Mode runs may use the route's prefetch; only an explicit reload refetches.
         const prefetched = retry === 0 ? initialRef.current : null;
         const scene = prefetched ?? await sceneApi.get(sceneId, abort.signal);
-        const loaded: SceneDocument = { title: scene.name, definition: fromDocument(scene.draft_document) };
+        const loaded: SceneDocument = { title: scene.name, definition: fromDocument(scene.document) };
         if (cancelled) return;
         setDetail(scene); setResources(indexResolved(scene.referenced_resources)); lock.current = scene.lock_version;
       active = await createTheatreSession(sceneId, loaded.definition);
@@ -123,7 +123,7 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
     latest.current = next; setDocument(next); setError("");
   };
   const onClips = useCallback((id: string, value: ClipInfo[]) => setClips((current) => ({ ...current, [id]: value })), []);
-  /** Saves the draft only; publishing is a separate, explicit command. Resolves true on success. */
+  /** Saves the current scene; all references read this saved content. Resolves true on success. */
   const save = useCallback(async () => {
     const snapshot = latest.current;
     if (!snapshot || !session || savingRef.current || readOnly) return false;

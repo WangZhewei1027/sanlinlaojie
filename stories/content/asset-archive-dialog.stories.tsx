@@ -12,4 +12,4 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WithDependencies: Story = {};
-export const Unused: Story = { args: { impact: { published: 0, placement: 0, draft: 0 } } };
+export const Unused: Story = { args: { impact: { scene: 0, placement: 0 } } };

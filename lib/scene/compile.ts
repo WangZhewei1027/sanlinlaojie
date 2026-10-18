@@ -1,7 +1,7 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
 import type { SceneAssetManifest, SceneDocument } from "./protocol";
 
-/** Compile a published layout with current asset resources into playback schema 2. */
+/** Compile a saved scene with current asset resources into playback schema 2. */
 export function compileSceneManifest(
   publicId: string,
   document: SceneDocument,

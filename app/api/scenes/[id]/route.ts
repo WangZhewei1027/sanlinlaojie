@@ -4,7 +4,7 @@ import { getScene, saveScene } from "@/lib/scene/service.server";
 
 type Context = { params: Promise<{ id: string }> };
 
-// GET   /api/scenes/[id] → { data: SceneDetailDto } (draft + pinned resources)
+// GET   /api/scenes/[id] → { data: SceneDetailDto } (saved document + current resources)
 // PATCH /api/scenes/[id] SaveSceneRequest → { data: SceneDetailDto }; 428 without expectedLockVersion, 409 when stale
 export async function GET(request: Request, { params }: Context) {
   const { id } = await params;

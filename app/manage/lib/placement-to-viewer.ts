@@ -22,7 +22,7 @@ export interface ViewerPlacementItem {
   anchor_id: string | null;
   metadata: { longitude: number; latitude: number; height: number; duration?: number };
   sourceAssetId: string | null;
-  sceneRevisionId: string | null;
+  sceneId: string | null;
   workspace_id: string;
 }
 
@@ -35,7 +35,7 @@ export function placementScopeKey(organizationId: string, workspaceId: string | 
 /** A fixed target read in one project never supplies content in another. */
 export function placementContentKey(scopeKey: string, placement: PlacementDto): string {
   const target = placement.target;
-  return `${scopeKey}|${placement.id}|${target.kind}|${target.kind === "asset" ? `${target.asset_id}:${target.asset_lock_version}` : target.scene_revision_id}`;
+  return `${scopeKey}|${placement.id}|${target.kind}|${target.kind === "asset" ? `${target.asset_id}:${target.asset_lock_version}` : target.scene_id}`;
 }
 
 export function contentMatchesPlacement(content: PlacementContentDto, placement: PlacementDto): boolean {
@@ -43,8 +43,8 @@ export function contentMatchesPlacement(content: PlacementContentDto, placement:
   if (content.placement_id !== placement.id) return false;
   return content.kind === "asset" && target.kind === "asset"
     ? content.asset_id === target.asset_id && content.asset_lock_version === target.asset_lock_version
-    : content.kind === "scene_revision" && target.kind === "scene_revision"
-      && content.scene_id === target.scene_id && content.scene_revision_id === target.scene_revision_id;
+    : content.kind === "scene" && target.kind === "scene"
+      && content.scene_id === target.scene_id && content.scene_id === target.scene_id;
 }
 
 export function placementContentOf(placement: PlacementDto, contents: PlacementContentIndex, scopeKey: string | null): PlacementContentDto | null {
@@ -54,11 +54,11 @@ export function placementContentOf(placement: PlacementDto, contents: PlacementC
 
 /** "scene" for scene revisions, otherwise the source asset's file type. */
 export function placementFileType(placement: PlacementDto): string {
-  return placement.target.kind === "scene_revision" ? "scene" : placement.target.file_type;
+  return placement.target.kind === "scene" ? "scene" : placement.target.file_type;
 }
 
 export function placementSourceName(placement: PlacementDto): string | null {
-  return placement.target.kind === "scene_revision" ? placement.target.scene_name : placement.target.asset_name;
+  return placement.target.kind === "scene" ? placement.target.scene_name : placement.target.asset_name;
 }
 
 export function placementDisplayName(placement: PlacementDto): string {
@@ -115,7 +115,7 @@ export function toViewerItems(placements: readonly PlacementDto[], contents: Pla
         ...(content.duration !== undefined ? { duration: content.duration } : {}),
       },
       sourceAssetId: target.kind === "asset" ? target.asset_id : null,
-      sceneRevisionId: target.kind === "scene_revision" ? target.scene_revision_id : null,
+      sceneId: target.kind === "scene" ? target.scene_id : null,
       workspace_id: placement.workspace_id,
     });
   }

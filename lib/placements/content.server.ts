@@ -3,16 +3,16 @@ import type { AssetFileType, AssetContentDto, SceneResolvedResourceDto } from "@
 import type { Executor } from "@/lib/content-model/tx.server";
 import { loadAssetContents } from "@/lib/assets/dto.server";
 import type { SceneDocument } from "@/lib/scene/protocol";
-import { loadRevisionForPlayback } from "@/lib/scene/service.server";
+import { loadSceneForPlayback } from "@/lib/scene/service.server";
 
-/** A placement resolves a live asset or a published scene layout with live asset references. */
+/** A placement resolves a live asset or a saved scene with live asset references. */
 export type StaticPlacementTarget =
   | { kind: "asset"; assetId: string }
-  | { kind: "scene_revision"; sceneRevisionId: string };
+  | { kind: "scene"; sceneId: string };
 
 export type ResolvedPlacementContent =
   | { kind: "asset"; fileType: AssetFileType; asset: AssetContentDto }
-  | { kind: "scene_revision"; sceneRevisionId: string; sceneId: string; document: SceneDocument; resources: SceneResolvedResourceDto[] };
+  | { kind: "scene"; sceneId: string; document: SceneDocument; resources: SceneResolvedResourceDto[] };
 
 export async function resolvePlacementContent(exec: Executor, target: StaticPlacementTarget): Promise<ResolvedPlacementContent | null> {
   if (target.kind === "asset") {
@@ -20,13 +20,12 @@ export async function resolvePlacementContent(exec: Executor, target: StaticPlac
     if (!asset) return null;
     return { kind: "asset", fileType: asset.file_type, asset };
   }
-  const playback = await loadRevisionForPlayback(exec, target.sceneRevisionId);
+  const playback = await loadSceneForPlayback(exec, target.sceneId);
   if (!playback) return null;
   return {
-    kind: "scene_revision",
-    sceneRevisionId: playback.revision.id,
-    sceneId: playback.revision.scene_id,
-    document: playback.revision.document as unknown as SceneDocument,
+    kind: "scene",
+    sceneId: playback.scene.id,
+    document: playback.scene.document as unknown as SceneDocument,
     resources: playback.resources,
   };
 }

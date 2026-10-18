@@ -204,7 +204,7 @@ export interface Placement {
   name: string | null;
   organization_id: string;
   render_config: Generated<Json>;
-  scene_revision_id: string | null;
+  scene_id: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   updated_by: string | null;
@@ -221,7 +221,7 @@ export interface Scene {
   archived_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
-  draft_document: Json;
+  document: Json;
   id: Generated<string>;
   lock_version: Generated<number>;
   name: string;
@@ -237,25 +237,6 @@ export interface SceneAssetRef {
   organization_id: string;
   resource_alias: string;
   scene_id: string;
-}
-
-export interface SceneRevision {
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  document: Json;
-  id: Generated<string>;
-  name: string;
-  organization_id: string;
-  revision_no: number;
-  scene_id: string;
-  source_lock_version: number;
-}
-
-export interface SceneRevisionAssetRef {
-  asset_id: string;
-  organization_id: string;
-  resource_alias: string;
-  scene_revision_id: string;
 }
 
 export interface SchemaMigrations {
@@ -340,8 +321,6 @@ export interface DB {
   placement_tag: PlacementTag;
   scene: Scene;
   scene_asset_ref: SceneAssetRef;
-  scene_revision: SceneRevision;
-  scene_revision_asset_ref: SceneRevisionAssetRef;
   schema_migrations: SchemaMigrations;
   storage_hold: StorageHold;
   tag: Tag;

@@ -17,7 +17,7 @@ export interface SceneArchiveDialogProps {
   onArchive: ContentAction<[sceneId: string]>;
 }
 
-/** Archive keeps existing placements playing their pinned revision. */
+/** Archive keeps existing placements playing the saved scene. */
 export function SceneArchiveDialog({ scene, onOpenChange, onArchive }: SceneArchiveDialogProps) {
   const { t } = useTranslation();
   const placementText = useScenePlacementText();

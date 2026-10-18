@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
-import { ArrowLeft, Box, Eye, LoaderCircle, Redo2, Save, Send, SlidersHorizontal, Undo2 } from "lucide-react";
+import { ArrowLeft, Box, Eye, LoaderCircle, Redo2, Save, SlidersHorizontal, Undo2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,14 +11,11 @@ export interface SceneToolbarProps {
   onTitle: (value: string) => void; onPreview: () => void; onSave: () => void; onUndo: () => void; onRedo: () => void;
   /** Where the back arrow leads; defaults to the map workspace. */
   backHref?: string;
-  /** Viewer or archived scene: no title edit, save, undo or publish. */
+  /** Viewer or archived scene: no title edit, save, undo or redo. */
   readOnly?: boolean;
-  /** Publication state shown beside the save state (scenes). */
+  /** Archive state shown beside the save state (scenes). */
   status?: ReactNode;
-  /** Separate publish command (scenes); saving never publishes. */
-  onPublish?: () => void;
-  publishLabel?: string;
-  publishDisabled?: boolean;
+  qr?: ReactNode;
 }
 export function SceneToolbar(props: SceneToolbarProps) {
   const { t } = useTranslation();
@@ -35,7 +32,7 @@ export function SceneToolbar(props: SceneToolbarProps) {
     {!props.readOnly && <><Button variant="ghost" size="icon" disabled={!props.canUndo} aria-label={t("sceneEditor.undo")} title={`${t("sceneEditor.undo")} (Ctrl/⌘ Z)`} onClick={props.onUndo}><Undo2 /></Button>
     <Button variant="ghost" size="icon" disabled={!props.canRedo} aria-label={t("sceneEditor.redo")} title={`${t("sceneEditor.redo")} (Ctrl/⌘ Shift Z)`} onClick={props.onRedo}><Redo2 /></Button></>}
     <Button variant={props.preview ? "secondary" : "ghost"} size="sm" aria-pressed={props.preview} onClick={props.onPreview}>{props.preview ? <SlidersHorizontal /> : <Eye />}<span className="hidden sm:inline">{t(props.preview ? "sceneEditor.arrange" : "sceneEditor.preview")}</span><span className="sr-only sm:hidden">{t(props.preview ? "sceneEditor.arrange" : "sceneEditor.preview")}</span></Button>
-    {!props.readOnly && <Button size="sm" variant={props.onPublish && !props.dirty ? "outline" : "default"} disabled={props.saving || !draft.trim()} onClick={() => { props.onTitle(draft); props.onSave(); }} title="Ctrl/⌘ S">{props.saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t(props.saving ? "sceneEditor.saving" : "common.save")}</Button>}
-    {props.onPublish && <Button size="sm" variant={props.dirty ? "outline" : "default"} disabled={props.publishDisabled} onClick={props.onPublish}><Send /><span className="max-sm:sr-only">{props.publishLabel}</span></Button>}
+    {!props.readOnly && <Button size="sm" variant="default" disabled={props.saving || !draft.trim()} onClick={() => { props.onTitle(draft); props.onSave(); }} title="Ctrl/⌘ S">{props.saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t(props.saving ? "sceneEditor.saving" : "common.save")}</Button>}
+    {props.qr}
   </header>;
 }

@@ -42,8 +42,7 @@ export function PlaceExistingForm() {
     if (!point) return setProblem(tx("contentModel.integration.map.create.locationRequired"));
     const target = source.kind === "asset"
       ? { kind: "asset" as const, assetId: source.asset.id }
-      : source.scene.latest_revision && { kind: "scene_revision" as const, sceneRevisionId: source.scene.latest_revision.id };
-    if (!target) return setProblem(tx("contentModel.integration.map.create.noVersion"));
+      : { kind: "scene" as const, sceneId: source.scene.id };
     const created = await create.submit(async () => ({ target, name: name.trim() || undefined, location: point, status: "active" }));
     if (created) {
       setSource(null);

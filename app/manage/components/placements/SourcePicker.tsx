@@ -20,7 +20,7 @@ type Loaded<T> = { key: string; items: T[]; error: string | null };
 
 /**
  * Picker over the whole team: every active asset (search, current version)
- * or every published scene. The same scene may be placed in many collections.
+ * or every saved scene. The same scene may be placed in many collections.
  */
 export function SourcePicker({ value, onChange }: { value: PickedSource | null; onChange: (value: PickedSource | null) => void }) {
   const { tx, organizationId } = usePlacementMap();
@@ -51,7 +51,7 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
     const abort = new AbortController();
     organizationApi
       .scenes(organizationId, { state: "active" }, abort.signal)
-      .then((list) => setScenes({ key: organizationId, items: list.items.filter((scene) => scene.latest_revision), error: null }))
+      .then((list) => setScenes({ key: organizationId, items: list.items, error: null }))
       .catch((error) => !abort.signal.aborted && setScenes({ key: organizationId, items: [], error: errorMessage(error, tx) }));
     return () => abort.abort();
   }, [organizationId, kind, tx]);
@@ -101,7 +101,7 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
             return (
               <Row key={scene.id} selected={selected} onSelect={() => onChange({ kind: "scene", scene })}>
                 <span className="flex size-16 shrink-0 items-center justify-center rounded-md bg-muted"><Clapperboard className="size-6 text-muted-foreground" aria-hidden /></span>
-                <RowText title={scene.name} meta={tx("contentModel.integration.map.source.pinnedRevision", { number: scene.latest_revision?.revision_no ?? "—" })} />
+                <RowText title={scene.name} meta={tx("contentModel.integration.map.source.liveScene")} />
               </Row>
             );
           })
@@ -111,7 +111,7 @@ export function SourcePicker({ value, onChange }: { value: PickedSource | null; 
         <Text as="p" variant="bodyXs" tone="subdued">
           {value.kind === "asset"
             ? tx("contentModel.integration.map.source.liveAsset")
-            : tx("contentModel.integration.map.create.pinsRevision", { number: value.scene.latest_revision?.revision_no ?? "—" })}
+            : tx("contentModel.integration.map.source.liveScene")}
         </Text>
       )}
     </div>

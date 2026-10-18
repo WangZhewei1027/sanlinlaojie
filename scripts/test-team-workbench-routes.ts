@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     assetUsage: await import("../app/api/assets/[id]/usage/route"),
     byHash: await import("../app/api/assets/by-hash/route"),
     scene: await import("../app/api/scenes/[id]/route"),
-    scenePublish: await import("../app/api/scenes/[id]/publish/route"),
+    miniScenePreview: await import("../app/api/miniapp/scenes/preview/route"),
     sceneCopy: await import("../app/api/scenes/[id]/copy/route"),
     upload: await import("../app/api/upload/route"),
     invitation: await import("../app/api/invitations/[token]/route"),
@@ -242,14 +242,13 @@ async function main(): Promise<void> {
         body: { payload: { kind: "model" }, resources: [{ role: "primary", receiptId: withCollection.data.id }], expectedLockVersion: created.asset.lock_version } }), 400, "RECEIPT_INVALID");
     });
 
-    await check("R08 placements: a team SceneRevision goes into two collections; duplicate needs no target; mini-program sees both", async () => {
+    await check("R08 placements: a saved team Scene goes into two collections; duplicate needs no target; mini-program sees both", async () => {
       const team = { id: f.organizations.team };
       const asset = expect(await call(routes.orgAssets.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/assets`, params: team, body: modelBody("placement-model") }), 201).data;
       const scene = expect(await call(routes.orgScenes.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/scenes`, params: team,
         body: { name: "route placed scene", document: assetDocument(asset.asset.id) } }), 201).data;
-      const published = expect(await call(routes.scenePublish.POST, { user: u.unassigned, method: "POST", url: `/api/scenes/${scene.id}/publish`, params: { id: scene.id }, body: { expectedLockVersion: scene.lock_version } }), 201).data;
       const place = (workspace: string, user: string, longitude: number) => call(routes.collectionPlacements.POST, { user, method: "POST", url: `/api/collections/${workspace}/placements`, params: { id: workspace },
-        body: { target: { kind: "scene_revision", sceneRevisionId: published.revision.id }, location: { longitude, latitude: 31.2 } } });
+        body: { target: { kind: "scene", sceneId: scene.id }, location: { longitude, latitude: 31.2 } } });
       const first = expect(await place(f.workspaces.empty, u.unassigned, 121.5), 201).data.placement;
       const second = expect(await place(f.workspaces.secret, u.maintainer, 121.5001), 201).data.placement;
       expect(await place(f.workspaces.b, u.viewer, 121.5), 403, "FORBIDDEN");
@@ -278,11 +277,43 @@ async function main(): Promise<void> {
         body: { name: "headerless client", expectedLockVersion: patched.lock_version } }), 200);
     });
 
+    await check("R12 scene QR shares saved content, enforces team access on generation and rejects closed public scopes", async () => {
+      const qr = await import("../app/manage/actions/wechat-qr");
+      const keys = await import("../lib/wechat-qr");
+      const scene = expect(await call(routes.orgScenes.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/scenes`, params: { id: f.organizations.team },
+        body: { name: "QR saved scene", document: assetDocument(f.assets.shared) } }), 201).data;
+      const key = keys.buildSceneQrObjectKey(f.organizations.team, scene.id); oss.seedStubObject(key);
+      auth.setStubSessionUser(null); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
+      auth.setStubSessionUser({ id: u.foreign, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
+      auth.setStubSessionUser({ id: u.viewer, email: null, name: null, emailVerified: true }); assert.equal((await qr.getOrCreateSceneQRCode(scene.id)).url, oss.mediaUrl(key));
+      const path = keys.buildSceneMiniProgramPath(f.organizations.team, scene.id);
+      assert.ok(path.length <= 128); assert.ok(path.startsWith("pages/index/index?"));
+      const params = new URLSearchParams(path.split("?")[1]); assert.equal(params.get("sceneId"), scene.id);
+      assert.equal(params.get("organizationId"), f.organizations.team); assert.equal(params.has("workspaceId"), false);
+      const collectionKey = keys.buildQrObjectKey(f.organizations.team, f.workspaces.a); oss.seedStubObject(collectionKey);
+      assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a })).url, oss.mediaUrl(collectionKey));
+      assert.ok((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.foreign })).error);
+      const preview = (body: unknown) => call(routes.miniScenePreview.POST, { user: null, method: "POST", url: "/api/miniapp/scenes/preview", body });
+      const body = { scene_id: scene.id, organization_id: f.organizations.team };
+      const first = expect(await preview(body), 200); assert.equal(first.assetId, scene.id); assert.equal(first.schemaVersion, 2);
+      expect(await preview({ ...body, scene_id: "invalid" }), 400);
+      expect(await preview({ ...body, organization_id: f.organizations.foreign }), 404);
+      const document = assetDocument(f.assets.shared); document.content.durationSeconds = 34;
+      const saved = expect(await call(routes.scene.PATCH, { user: u.editor, method: "PATCH", url: `/api/scenes/${scene.id}`, params: { id: scene.id }, body: { expectedLockVersion: scene.lock_version, document } }), 200).data;
+      assert.equal(expect(await preview(body),200).content.durationSeconds,34);
+      await call(routes.scene.PATCH, { user: u.editor, method: "PATCH", url: `/api/scenes/${scene.id}`, params: { id: scene.id }, body: { expectedLockVersion: saved.lock_version, state: "archived" } });
+      expect(await preview(body),404);
+      auth.setStubSessionUser({ id: u.editor, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
+      await client.query("update organization set archived_at=now() where id=$1",[f.organizations.team]);
+      try { expect(await preview({ scene_id: f.scenes.a, organization_id: f.organizations.team }),404); }
+      finally { await client.query("update organization set archived_at=null where id=$1",[f.organizations.team]); }
+    });
+
     await check("R10 super-admin clean-rows derives a collection's files from its placements, not from grants", async () => {
       const placed = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
         body: { target: { kind: "asset", assetId: f.assets.restricted }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
       const viaRevision = expect(await call(routes.collectionPlacements.POST, { user: u.unassigned, method: "POST", url: `/api/collections/${f.workspaces.empty}/placements`, params: { id: f.workspaces.empty },
-        body: { target: { kind: "scene_revision", sceneRevisionId: f.revisions.a }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
+        body: { target: { kind: "scene", sceneId: f.scenes.a }, location: { longitude: 121.5, latitude: 31.2 } } }), 201).data;
       assert.ok(placed.placement.id && viaRevision.placement.id);
       expect(await call(routes.adminClean.POST, { user: u.owner, method: "POST", url: "/api/admin/clean", body: { action: "clean-rows", workspaceId: f.workspaces.empty } }), 403);
       await client.query("update users set role='super_admin' where user_id=$1", [u.owner]);

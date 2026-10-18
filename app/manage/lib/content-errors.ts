@@ -10,8 +10,7 @@ import { isContentApiError } from "./content-api";
 import type { IntegrationT, IntegrationTexts } from "./integration-text";
 
 export const ERROR_TEXTS: IntegrationTexts = {
-  "contentModel.integration.impact.draft": ["场景 {{scene}}（草稿）", "Scene {{scene}} (draft)"],
-  "contentModel.integration.impact.revision": ["场景 {{scene}}（发布 #{{revision}}）", "Scene {{scene}} (revision #{{revision}})"],
+  "contentModel.integration.impact.scene": ["场景 {{scene}}", "Scene {{scene}}"],
   "contentModel.integration.impact.placement": ["{{collection}} · {{name}}（投放）", "{{collection}} · {{name}} (placement)"],
   "contentModel.integration.impact.restricted": ["另有 {{count}} 处引用未列出", "{{count}} more not listed"],
   "contentModel.integration.impact.noCollection": ["地图合集", "Map collection"],
@@ -30,8 +29,7 @@ export function impactLines(impact: DependencyImpact | undefined, tx: Integratio
 }
 
 function impactLine(item: DependencyItem, tx: IntegrationT) {
-  if (item.kind === "scene_draft") return tx("contentModel.integration.impact.draft", { scene: item.scene_name });
-  if (item.kind === "scene_revision") return tx("contentModel.integration.impact.revision", { scene: item.scene_name, revision: item.revision_no });
+  if (item.kind === "scene") return tx("contentModel.integration.impact.scene", { scene: item.scene_name });
   return tx("contentModel.integration.impact.placement", {
     collection: item.workspace_name || tx("contentModel.integration.impact.noCollection"),
     name: item.placement_name ?? tx("contentModel.integration.impact.unnamed"),

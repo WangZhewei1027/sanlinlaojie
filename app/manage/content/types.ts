@@ -12,7 +12,6 @@ export type ContentAssetType =
 
 export type ContentLifecycle = "active" | "archived";
 export type AssetOrigin = "team_upload" | "public_submission" | "legacy";
-export type SceneStatus = "unpublished" | "published" | "changed" | "archived";
 export type PlacementStatus = "draft" | "active" | "paused" | "archived";
 export type TeamRole = "owner" | "admin" | "member" | "viewer";
 
@@ -49,8 +48,6 @@ export interface WorkbenchItem {
   updatedAt: string;
   updatedBy?: ContentPerson | null;
   /** Scenes only: draft/publication state. */
-  sceneStatus?: SceneStatus;
-  latestRevisionNo?: number | null;
   /** Scenes only: placements across all collections. */
   placementCount?: number;
   activePlacementCount?: number | null;
@@ -82,7 +79,7 @@ export interface AssetDetailData {
   fileMissing?: boolean;
 }
 
-export type AssetUsageKind = "draft" | "published" | "placement";
+export type AssetUsageKind = "scene" | "placement";
 
 export interface AssetUsageEntry {
   id: string;
@@ -130,12 +127,6 @@ export interface CollectionInput {
   description: string;
 }
 
-export interface PinnedTargetOption {
-  id: string;
-  number: number;
-  createdAt: string;
-}
-
 export type ContentLoadStatus = "loading" | "ready" | "error";
 
 /** Outcome of a mutating callback. `void` is treated as success. */
@@ -152,14 +143,3 @@ export type ContentActionResult =
 export type ContentAction<Args extends unknown[] = []> = (
   ...args: Args
 ) => Promise<ContentActionResult | void>;
-
-/** Draft lock compared with the lock version the latest revision was published from. */
-export function deriveSceneStatus(input: {
-  archived: boolean;
-  draftLockVersion: number;
-  latestRevisionSourceLockVersion: number | null;
-}): SceneStatus {
-  if (input.archived) return "archived";
-  if (input.latestRevisionSourceLockVersion === null) return "unpublished";
-  return input.latestRevisionSourceLockVersion === input.draftLockVersion ? "published" : "changed";
-}

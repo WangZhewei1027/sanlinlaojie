@@ -95,8 +95,6 @@ export type AssetState = "active" | "archived";
 export type AssetOrigin = "team_upload" | "public_submission" | "legacy";
 export type SceneState = "active" | "archived";
 export type PlacementStatus = "draft" | "active" | "paused" | "archived";
-/** Derived from draft lock + revisions, never stored (plan §4.3). */
-export type ScenePublishStatus = "unpublished" | "published" | "modified" | "archived";
 
 /** Media types an asset content can carry. `scene` lives in its own table. */
 export type AssetFileType = "image" | "video" | "audio" | "document" | "model" | "text" | "link" | "shop" | "anchor";
@@ -135,7 +133,6 @@ export interface AssetCapabilities {
 export interface SceneCapabilities {
   can_read: boolean;
   can_edit: boolean;
-  can_publish: boolean;
   can_archive: boolean;
 }
 
@@ -312,7 +309,7 @@ export interface AssetDto extends AssetContentDto {
   create_at: string | null;
   updated_at: string;
   archived_at: string | null;
-  /** Visible + restricted dependency count (drafts, revisions, placements). */
+  /** Visible + restricted dependency count (scenes and placements). */
   usage_count: number;
   capabilities: AssetCapabilities;
 }
@@ -409,8 +406,7 @@ export interface DuplicateAssetRequest {
 }
 
 export interface DependencyImpact {
-  drafts: number;
-  revisions: number;
+  scenes: number;
   placements: number;
   /** Every same-team dependency. */
   items: DependencyItem[];
@@ -420,8 +416,7 @@ export interface DependencyImpact {
 
 /** Scene items carry the scene's origin collection (null for team scenes); placements their collection. */
 export type DependencyItem =
-  | { kind: "scene_draft"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
-  | { kind: "scene_revision"; scene_id: string; scene_name: string; scene_revision_id: string; revision_no: number; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
+  | { kind: "scene"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
   | { kind: "placement"; placement_id: string; placement_name: string | null; status: PlacementStatus; workspace_id: string; workspace_name: string };
 
 /** GET /api/assets/[id]/usage → { data: AssetUsageDto } */
@@ -437,17 +432,6 @@ export interface AssetRef {
   assetId: string;
 }
 
-export interface SceneRevisionSummaryDto {
-  id: string;
-  scene_id: string;
-  revision_no: number;
-  source_lock_version: number;
-  name: string;
-  created_by: string | null;
-  created_at: string;
-  placement_count: number;
-}
-
 export interface SceneSummaryDto {
   id: string;
   organization_id: string;
@@ -456,8 +440,6 @@ export interface SceneSummaryDto {
   name: string;
   state: SceneState;
   lock_version: number;
-  publish_status: ScenePublishStatus;
-  latest_revision: SceneRevisionSummaryDto | null;
   placement_count: number;
   created_by: string | null;
   updated_by: string | null;
@@ -481,7 +463,7 @@ export interface SceneResolvedResourceDto {
 /** GET /api/scenes/[id] → { data: SceneDetailDto } */
 export interface SceneDetailDto extends SceneSummaryDto {
   /** schemaVersion 4 document (see lib/scene/protocol.ts SceneDocument). */
-  draft_document: SceneDocumentJson;
+  document: SceneDocumentJson;
   referenced_resources: SceneResolvedResourceDto[];
 }
 
@@ -521,22 +503,6 @@ export interface SaveSceneRequest {
   state?: SceneState;
 }
 
-/** POST /api/scenes/[id]/publish → { data: PublishSceneResult } (201 when created) */
-export interface PublishSceneRequest {
-  expectedLockVersion: number;
-  /**
-   * "Publish and update current placements": switch these placements of this
-   * scene to the new revision, each guarded by its own lock version.
-   */
-  updatePlacements?: { placementId: string; expectedLockVersion: number }[];
-}
-
-export interface PublishSceneResult {
-  revision: SceneRevisionSummaryDto;
-  created: boolean;
-  updated_placements: PlacementDto[];
-}
-
 /** POST /api/scenes/[id]/copy → 201 { data: SceneDetailDto } (always inside the same team) */
 export interface CopySceneRequest {
   /** Optional origin collection (metadata, must be an open collection of the team); omit for a team scene. */
@@ -545,7 +511,6 @@ export interface CopySceneRequest {
   idempotencyKey?: string;
 }
 
-// GET /api/scenes/[id]/revisions → { data: SceneRevisionSummaryDto[] }
 
 // ───────────────────────── placements ─────────────────────────
 
@@ -574,7 +539,7 @@ export interface PlacementRenderConfig {
 
 export type PlacementTargetInput =
   | { kind: "asset"; assetId: string }
-  | { kind: "scene_revision"; sceneRevisionId: string };
+  | { kind: "scene"; sceneId: string };
 
 export type PlacementTargetDto =
   | {
@@ -586,16 +551,12 @@ export type PlacementTargetDto =
       asset_lock_version: number;
             }
   | {
-      kind: "scene_revision";
+      kind: "scene";
       scene_id: string;
-      scene_revision_id: string;
-      revision_no: number;
       scene_name: string;
       /** Scene's origin collection; null for team scenes. */
       scene_workspace_id: string | null;
       scene_state: SceneState;
-      latest_revision_id: string | null;
-      upgrade_available: boolean;
         };
 
 export interface PlacementDto {
@@ -629,7 +590,7 @@ export interface PlacementDto {
 
 /**
  * POST /api/collections/[id]/placements → 201 { data: CreatePlacementResult }
- * Any same-team Asset or SceneRevision can be placed into any open
+ * Any same-team Asset or Scene can be placed into any open
  * collection; a scene is never copied to be placed in another collection.
  */
 export type CreatePlacementRequest =
@@ -683,14 +644,12 @@ export interface PlacementAssetContentDto {
 }
 
 export interface PlacementSceneContentDto {
-  kind: "scene_revision";
+  kind: "scene";
   placement_id: string;
   public_id: string;
   scene_id: string;
-  scene_revision_id: string;
-  revision_no: number;
   name: string;
-  /** Frozen schema-4 document of the revision. */
+  /** Current saved schema-4 document. */
   document: SceneDocumentJson;
   /** One entry per alias, resolved from current asset files. */
   resources: ScenePlaybackResourceDto[];

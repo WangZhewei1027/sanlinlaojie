@@ -21,7 +21,7 @@ export interface AssetMaintenancePanelProps {
   onRestore: ContentAction;
 }
 
-/** Lifecycle of one team asset. Archiving is reversible and never breaks pinned references. */
+/** Lifecycle of one team asset. Archiving is reversible and never breaks existing references. */
 export function AssetMaintenancePanel(props: AssetMaintenancePanelProps) {
   const { t } = useTranslation();
   const [archiveOpen, setArchiveOpen] = useState(false);

@@ -1,4 +1,4 @@
-/** Map state scoped to one team and collection, including pinned playable content. */
+/** Map state scoped to one team and collection, including resolved playable content. */
 import type { AssetDetailDto, PlacementContentDto, PlacementDto, PlacementStatus } from "@/lib/content-model/contracts";
 import { create } from "zustand";
 import { contentMatchesPlacement, placementContentKey } from "./placement-to-viewer";
@@ -40,7 +40,7 @@ interface PlacementStore {
   clickedLocation: MapPoint | null;
   notice: PlacementMapNotice | null;
 
-  /** Fixed playable content by scope + placement + pinned target. */
+  /** Resolved playable content by scope, placement and target. */
   placementContents: Record<string, PlacementContentDto>;
   /** Separately authorized catalog details for source actions, never preview. */
   assetDetails: Record<string, AssetDetailDto>;

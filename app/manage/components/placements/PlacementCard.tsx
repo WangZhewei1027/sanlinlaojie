@@ -1,6 +1,5 @@
 "use client";
 
-import { ContentStatusBadge } from "@/app/manage/content/ContentStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +23,7 @@ interface PlacementCardProps {
   onSelect: (placement: PlacementDto) => void;
 }
 
-/** One placement row: identity, pinned version, status and discovery facts. */
+/** One placement row: identity, current content, status and discovery facts. */
 export function PlacementCard({ placement, tags, selected, selectMode, checked, onSelect }: PlacementCardProps) {
   const { t } = useTranslation();
   const { tx, focusPlacement, organizationId, workspaceId } = usePlacementMap();
@@ -32,8 +31,6 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
   const content = resolvedContentOf(placement, contents, placementScopeKey(organizationId, workspaceId));
   const name = placementDisplayName(placement);
   const type = placementFileType(placement);
-  const target = placement.target;
-  const revisionLabel = target.kind === "scene_revision" ? `#${target.revision_no}` : null;
   const mappable = isMappable(placement);
 
   const focus = (event: MouseEvent) => {
@@ -65,11 +62,10 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
         <p className="truncate text-sm font-medium leading-tight" title={name}>{name}</p>
         <div className="flex flex-wrap items-center gap-1">
           <Badge variant="secondary" className="px-1.5 py-0 text-xs">{tx(`contentModel.integration.map.type.${type}`)}</Badge>
-          {revisionLabel && <span className="text-xs tabular-nums text-muted-foreground">{revisionLabel}</span>}
           {placement.status !== "active" && (
             <Badge variant="outline" className="px-1.5 py-0 text-xs">{t(`contentModel.placement.status.${placement.status}`)}</Badge>
           )}
-          {target.kind === "scene_revision" && target.upgrade_available && <ContentStatusBadge kind="outdated" />}
+
           {placement.directory_only && <Badge variant="outline" className="px-1.5 py-0 text-xs">{tx("contentModel.integration.map.card.directoryOnly")}</Badge>}
         </div>
         {placement.tag_ids.length > 0 && (

@@ -89,14 +89,12 @@ export function primaryResource(content: AssetContentDto | undefined | null): As
 
 // ───────────────────────── assets ─────────────────────────
 
-/** Visible + restricted dependency count per asset (drafts + revisions + placements). */
+/** Visible + restricted dependency count per asset (scenes + placements). */
 async function usageCounts(exec: Executor, assetIds: string[]): Promise<Map<string, number>> {
   if (!assetIds.length) return new Map();
   const { rows } = await sql<{ asset_id: string; n: number }>`
     select asset_id, sum(n)::int as n from (
       select asset_id, count(*) as n from scene_asset_ref where asset_id = any(${assetIds}::uuid[]) group by asset_id
-      union all
-      select asset_id, count(*) from scene_revision_asset_ref where asset_id = any(${assetIds}::uuid[]) group by asset_id
       union all
       select asset_id, count(*) from placement where asset_id = any(${assetIds}::uuid[]) and status <> 'archived' group by asset_id
     ) t group by asset_id

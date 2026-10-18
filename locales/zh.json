@@ -1023,7 +1023,11 @@
     "dragModel": "拖入场景，或点击 + 添加",
     "dropModel": "松手放置模型",
     "dropOnGround": "请拖到场景地面内",
-    "dropUnavailable": "当前无法添加模型"
+    "dropUnavailable": "当前无法添加模型",
+    "qrButton": "微信扫码预览",
+    "qrTitle": "微信扫码预览场景",
+    "qrHint": "展示最近保存的场景。AR 稳定加载 2 秒后显示在前方。",
+    "qrUnsaved": "当前有未保存的修改，扫码展示上次保存的内容。"
   },
   "contentModel": {
     "action": {
@@ -1044,13 +1048,7 @@
     },
     "badge": {
       "archived": "已归档",
-      "fileMissing": "文件缺失",
-      "unpublished": "未发布",
-      "published": "已发布",
-      "publishedNumbered": "已发布 v{{number}}",
-      "changed": "有未发布修改",
-      "outdated": "有新版本",
-      "outdatedNumbered": "可升级到 v{{number}}"
+      "fileMissing": "文件缺失"
     },
     "filter": {
       "type": "类型",
@@ -1075,9 +1073,8 @@
       "count": "{{count}} 处使用",
       "none": "未使用",
       "kind": {
-        "published": "已发布场景",
-        "placement": "地图投放",
-        "draft": "场景草稿"
+        "scene": "场景",
+        "placement": "地图投放"
       },
       "restricted": "另有 {{count}} 处引用未列出",
       "showMore": "显示其余 {{count}} 处",
@@ -1094,14 +1091,14 @@
       "archiveBody": "归档会保留素材内容和文件，可以随时恢复。",
       "keepsWorking": "继续工作",
       "impact": {
-        "published": "{{count}} 个已发布场景",
-        "placement": "{{count}} 处直接投放",
-        "draft": "{{count}} 个场景草稿中的相同引用"
+        "scene": "{{count}} 个场景引用",
+        "placement": "{{count}} 处直接投放"
       },
       "noImpact": "目前没有任何引用。",
       "stops": "停止",
       "stopsBody": "素材从选择器中隐藏，不能新增引用、投放或复制为新草稿的引用。",
-      "archiveAction": "归档"
+      "archiveAction": "归档",
+      "fileMissingBody": "引用此素材的场景无法播放。请编辑素材文件，或联系管理员修复存储。"
     },
     "detail": {
       "type": "类型",
@@ -1114,36 +1111,30 @@
       "archivedTitle": "此素材已归档",
       "archivedBody": "已有场景和投放继续使用该素材；不能新增引用。",
       "fileMissingTitle": "素材文件缺失",
-      "fileMissingBody": "引用此素材的场景不能发布。请编辑素材文件，或联系管理员修复存储。",
+      "fileMissingBody": "引用此素材的场景无法播放。请编辑素材文件，或联系管理员修复存储。",
       "updated": "最近更新"
     },
     "scene": {
       "name": "场景名称",
       "createTitle": "新建场景",
-      "createBody": "场景属于整个团队：所有成员都能查看，成员及以上角色可以编辑、发布和放进合集。创建后会打开编辑器。",
+      "createBody": "场景属于整个团队：所有成员都能查看，成员及以上角色可以编辑并放进地图合集。保存后立即生效。",
       "createAction": "创建并打开",
       "copy": "复制",
       "moreNamed": "“{{name}}”的更多操作",
       "copyTitle": "复制场景",
-      "copyBody": "副本是团队里的一个新场景，引用相同素材的最新内容，不包含发布记录和投放。",
+      "copyBody": "副本是团队里的一个新场景，引用相同素材的最新内容，不包含投放。",
       "copyDefaultName": "{{name}} 副本",
       "copyAction": "创建副本",
       "archive": "归档场景",
       "restore": "恢复场景",
       "archiveTitle": "归档“{{name}}”？",
-      "archiveBody": "已有投放继续播放保留的发布版本。归档后不能编辑、发布或放进新的合集，可以随时恢复。",
+      "archiveBody": "已有投放继续使用保存的场景。归档后不能编辑、扫码预览或放进新的合集，可以随时恢复。",
       "archivePlacements": "此场景有 {{count}} 处投放（{{active}} 处启用），它们不受影响。",
       "placements": "{{count}} 处投放 · {{active}} 处启用",
       "placementsTotal": "{{count}} 处投放",
       "archivePlacementsTotal": "此场景有 {{count}} 处投放，它们不受影响。"
     },
     "placement": {
-      "revision": "投放的场景发布版本",
-      "choose": "选择版本",
-      "latest": "最新",
-      "pinnedHint": "投放固定在所选版本，“{{name}}”的新版本不会自动替换它。",
-      "newerAvailable": "“{{name}}”已有 v{{number}}，需要时可切换。",
-      "noRevisions": "此场景还没有发布，发布后才能投放。",
       "status": {
         "draft": "草稿",
         "active": "启用",
@@ -1152,9 +1143,6 @@
       }
     },
     "integration": {
-      "publish": {
-        "refreshed": "投放已被他人修改，列表已刷新为最新状态。确认勾选后重试。"
-      },
       "sceneRoute": {
         "notFound": "场景不存在或你没有访问权限。",
         "back": "返回场景"
@@ -1204,7 +1192,7 @@
       "copied": "已复制为“{{name}}”",
       "empty": {
         "sceneTitle": "还没有场景",
-        "sceneBody": "新建场景后，在编辑器中添加模型、编排动画并发布。发布后就能放进任意地图合集。",
+        "sceneBody": "新建场景后，在编辑器中添加模型、编排动画并保存。保存后就能放进任意地图合集。",
         "typeTitle": "还没有{{type}}",
         "assetBody": "上传后会出现在这里，可以直接用于场景和地图合集。",
         "archivedTitle": "没有已归档的内容",
@@ -1215,7 +1203,7 @@
     },
     "collections": {
       "title": "地图合集",
-      "subtitle": "将素材和已发布场景放到地图上，按合集管理。",
+      "subtitle": "将素材和场景放到地图上，按合集管理。",
       "kind": {
         "map": "地图合集"
       },
@@ -1226,7 +1214,7 @@
       "restore": "恢复合集",
       "create": "新建合集",
       "createTitle": "新建地图合集",
-      "createBody": "创建后打开合集地图，把团队的素材和已发布场景放到具体位置。",
+      "createBody": "创建后打开合集地图，把团队的素材和场景放到具体位置。",
       "editTitle": "编辑合集",
       "editBody": "修改名称和说明不影响合集里已放置的内容和二维码。",
       "name": "名称",
@@ -1237,7 +1225,7 @@
       "archiveBody": "归档后，这个合集里的投放会在所有入口停止展示，合集变为只读。团队的素材和场景不受影响，也可以继续放进其他合集。可以随时恢复。",
       "empty": {
         "title": "还没有地图合集",
-        "body": "新建一个合集，把团队已发布的场景和素材放到地图上。",
+        "body": "新建一个合集，把团队场景和素材放到地图上。",
         "viewerBody": "团队成员创建合集后，会显示在这里。",
         "archivedTitle": "没有已归档的合集",
         "archivedBody": "归档的合集会显示在这里，可以随时恢复。"
@@ -1269,7 +1257,7 @@
       },
       "scene": {
         "title": "场景",
-        "subtitle": "{{team}} 的场景作品，可编排、预览并发布到地图合集。",
+        "subtitle": "{{team}} 的场景作品，可编排、预览并放入地图合集。",
         "viewerBody": "团队成员创建场景后，会显示在这里。",
         "archivedBody": "已归档的场景会显示在这里，可以随时恢复。"
       }

@@ -47,7 +47,7 @@ async function workspaceObjects(workspaceId: string): Promise<{ id: string; url:
   const versionIds = sql<string>`(
     select p.asset_id from placement p where p.workspace_id = ${workspaceId}::uuid and p.asset_id is not null
     union
-    select ra.asset_id from placement p join scene_revision_asset_ref ra on ra.scene_revision_id = p.scene_revision_id where p.workspace_id = ${workspaceId}::uuid
+    select ra.asset_id from placement p join scene_asset_ref ra on ra.scene_id = p.scene_id where p.workspace_id = ${workspaceId}::uuid
 
   )`;
   const versions = await db

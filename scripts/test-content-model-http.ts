@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
-import type { AssetDetailDto, CreateAssetResult, CreatePlacementResult, PlacementContentDto, PlacementDto, PublishSceneResult, SceneDetailDto } from "../lib/content-model/contracts";
+import type { AssetDetailDto, CreateAssetResult, CreatePlacementResult, PlacementContentDto, PlacementDto, SceneDetailDto } from "../lib/content-model/contracts";
 
 // Allow a second local port when a pre-existing validation server owns :13000.
 // Never accept a remote host, credentials, path, query or fragment.
@@ -108,10 +108,7 @@ async function checks() {
   const usage = await request<{ data: { impact: { restricted_count: number; items: unknown[] } } }>(a, `/api/assets/${created.asset.id}/usage`);
   assert.equal(usage.data.impact.restricted_count, 0);
   assert.equal(JSON.stringify(usage).includes("社区入口"), true, "every team member sees every same-team dependency");
-  const publication = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
-  const publishRetry = await data(request<{ data: PublishSceneResult }>(b, `/api/scenes/${scene.id}/publish`, "POST", { expectedLockVersion: scene.lock_version }));
-  assert.equal(publication.revision.id, publishRetry.revision.id);
-  const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/collections/${ids.projectB}/placements`, "POST", { target: { kind: "scene_revision", sceneRevisionId: publication.revision.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
+  const placed = await data(request<{ data: CreatePlacementResult }>(b, `/api/collections/${ids.projectB}/placements`, "POST", { target: { kind: "scene", sceneId: scene.id }, location: { longitude: 121.5, latitude: 31.2 }, status: "active", idempotencyKey: `${marker}-place` }));
   const next = await data(request<{ data: { id: string } }>(b, `/api/assets/${created.asset.id}`, "PATCH", {
     expectedLockVersion: teammate.lock_version, payload: body.payload,
     resources: [{ role: "primary", externalUrl: "https://fixture.invalid/tree-v2.glb" }],
@@ -126,10 +123,10 @@ async function checks() {
   assert.ok([1, 2].includes(manifest.schemaVersion));
   assert.equal(manifest.resources.tree.url, "https://fixture.invalid/tree-v2.glb");
   const pinnedContent = await data(request<{ data: PlacementContentDto }>(b, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`));
-  assert.equal(pinnedContent.kind, "scene_revision");
-  if (pinnedContent.kind === "scene_revision") {
-    assert.equal(pinnedContent.scene_revision_id, publication.revision.id);
-    assert.equal(pinnedContent.resources[0].url, "https://fixture.invalid/tree-v1.glb");
+  assert.equal(pinnedContent.kind, "scene");
+  if (pinnedContent.kind === "scene") {
+    assert.equal(pinnedContent.scene_id, scene.id);
+    assert.equal(pinnedContent.resources[0].url, "https://fixture.invalid/tree-v2.glb");
     assert.equal("draft" in pinnedContent, false);
   }
   await request(outsider, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`, "GET", undefined, [404]);

@@ -245,8 +245,6 @@ begin
 
   -- content model rows (dependency order; everything is organization-scoped)
   delete from public.placement where organization_id = any(_org_ids);
-  delete from public.scene_revision_asset_ref where organization_id = any(_org_ids);
-  delete from public.scene_revision where organization_id = any(_org_ids);
   delete from public.scene where organization_id = any(_org_ids);
   delete from public.upload_receipt where organization_id = any(_org_ids);
   delete from public.content_command_idempotency where organization_id = any(_org_ids);
@@ -271,17 +269,6 @@ begin
 end;
 $$;
 
-CREATE FUNCTION public.reject_immutable_content_change() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO ''
-    AS $$
-begin
-  if tg_op = 'DELETE' and current_setting('content_model.writer', true) = 'purge' then
-    return old;
-  end if;
-  raise exception '% rows are immutable', tg_table_name using errcode = '55000';
-end;
-$$;
 
 CREATE FUNCTION public.set_asset_updated_at() RETURNS trigger
     LANGUAGE plpgsql
@@ -547,7 +534,7 @@ CREATE TABLE public.placement (
     workspace_id uuid NOT NULL,
     name text,
     asset_id uuid,
-    scene_revision_id uuid,
+    scene_id uuid,
     location public.geometry(Point,4326),
     altitude double precision,
     anchor_id uuid,
@@ -560,7 +547,7 @@ CREATE TABLE public.placement (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT placement_render_config_check CHECK ((jsonb_typeof(render_config) = 'object'::text)),
     CONSTRAINT placement_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text]))),
-    CONSTRAINT placement_target_xor CHECK ((num_nonnulls(asset_id, scene_revision_id) = 1))
+    CONSTRAINT placement_target_xor CHECK ((num_nonnulls(asset_id, scene_id) = 1))
 );
 
 CREATE TABLE public.placement_tag (
@@ -574,7 +561,7 @@ CREATE TABLE public.scene (
     organization_id uuid NOT NULL,
     workspace_id uuid,
     name text NOT NULL,
-    draft_document jsonb NOT NULL,
+    document jsonb NOT NULL,
     lock_version integer DEFAULT 1 NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
     created_by uuid,
@@ -582,7 +569,7 @@ CREATE TABLE public.scene (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     archived_at timestamp with time zone,
-    CONSTRAINT scene_draft_document_check CHECK ((jsonb_typeof(draft_document) = 'object'::text)),
+    CONSTRAINT scene_document_check CHECK ((jsonb_typeof(document) = 'object'::text)),
     CONSTRAINT scene_name_check CHECK (((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 200))),
     CONSTRAINT scene_state_check CHECK ((state = ANY (ARRAY['active'::text, 'archived'::text])))
 );
@@ -594,26 +581,7 @@ CREATE TABLE public.scene_asset_ref (
     asset_id uuid NOT NULL
 );
 
-CREATE TABLE public.scene_revision (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    scene_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    revision_no integer NOT NULL,
-    source_lock_version integer NOT NULL,
-    name text NOT NULL,
-    document jsonb NOT NULL,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT scene_revision_document_check CHECK ((jsonb_typeof(document) = 'object'::text)),
-    CONSTRAINT scene_revision_revision_no_check CHECK ((revision_no > 0))
-);
 
-CREATE TABLE public.scene_revision_asset_ref (
-    scene_revision_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    resource_alias text NOT NULL,
-    asset_id uuid NOT NULL
-);
 
 CREATE TABLE public.schema_migrations (
     name text NOT NULL,
@@ -775,20 +743,10 @@ ALTER TABLE ONLY public.scene
 ALTER TABLE ONLY public.scene
     ADD CONSTRAINT scene_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.scene_revision_asset_ref
-    ADD CONSTRAINT scene_revision_asset_ref_pkey PRIMARY KEY (scene_revision_id, resource_alias);
 
-ALTER TABLE ONLY public.scene_revision
-    ADD CONSTRAINT scene_revision_id_organization_unique UNIQUE (id, organization_id);
 
-ALTER TABLE ONLY public.scene_revision
-    ADD CONSTRAINT scene_revision_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.scene_revision
-    ADD CONSTRAINT scene_revision_scene_no_unique UNIQUE (scene_id, revision_no);
 
-ALTER TABLE ONLY public.scene_revision
-    ADD CONSTRAINT scene_revision_source_lock_unique UNIQUE (scene_id, source_lock_version);
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (name);
@@ -858,7 +816,7 @@ CREATE INDEX placement_location_gix ON public.placement USING gist (((location):
 
 CREATE INDEX placement_organization_idx ON public.placement USING btree (organization_id);
 
-CREATE INDEX placement_scene_revision_idx ON public.placement USING btree (scene_revision_id) WHERE (scene_revision_id IS NOT NULL);
+CREATE INDEX placement_scene_idx ON public.placement USING btree (scene_id) WHERE (scene_id IS NOT NULL);
 
 CREATE INDEX placement_workspace_idx ON public.placement USING btree (workspace_id);
 
@@ -866,7 +824,6 @@ CREATE INDEX scene_asset_ref_asset_idx ON public.scene_asset_ref USING btree (as
 
 CREATE INDEX scene_organization_idx ON public.scene USING btree (organization_id, updated_at DESC);
 
-CREATE INDEX scene_revision_asset_ref_asset_idx ON public.scene_revision_asset_ref USING btree (asset_id);
 
 CREATE INDEX scene_workspace_idx ON public.scene USING btree (workspace_id);
 
@@ -880,9 +837,7 @@ CREATE TRIGGER on_auth_user_email_changed AFTER UPDATE OF email ON auth.users FO
 
 CREATE TRIGGER trg_session_touch_last_sign_in AFTER INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION public.touch_last_sign_in();
 
-CREATE TRIGGER scene_revision_asset_ref_immutable BEFORE DELETE OR UPDATE ON public.scene_revision_asset_ref FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_content_change();
 
-CREATE TRIGGER scene_revision_immutable BEFORE DELETE OR UPDATE ON public.scene_revision FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_content_change();
 
 CREATE TRIGGER trg_asset_set_updated_at BEFORE UPDATE ON public.asset FOR EACH ROW EXECUTE FUNCTION public.set_asset_updated_at();
 
@@ -947,7 +902,7 @@ ALTER TABLE ONLY public.placement
     ADD CONSTRAINT placement_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY public.placement
-    ADD CONSTRAINT placement_scene_revision_fk FOREIGN KEY (scene_revision_id, organization_id) REFERENCES public.scene_revision(id, organization_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT placement_scene_fk FOREIGN KEY (scene_id, organization_id) REFERENCES public.scene(id, organization_id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.placement_tag
     ADD CONSTRAINT placement_tag_placement_fk FOREIGN KEY (placement_id, workspace_id) REFERENCES public.placement(id, workspace_id) ON DELETE CASCADE;
@@ -973,14 +928,8 @@ ALTER TABLE ONLY public.scene
 ALTER TABLE ONLY public.scene
     ADD CONSTRAINT scene_organization_fk FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
-ALTER TABLE ONLY public.scene_revision_asset_ref
-    ADD CONSTRAINT scene_revision_asset_ref_asset_fk FOREIGN KEY (asset_id, organization_id) REFERENCES public.asset(id, organization_id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.scene_revision_asset_ref
-    ADD CONSTRAINT scene_revision_asset_ref_revision_fk FOREIGN KEY (scene_revision_id, organization_id) REFERENCES public.scene_revision(id, organization_id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.scene_revision
-    ADD CONSTRAINT scene_revision_scene_fk FOREIGN KEY (scene_id, organization_id) REFERENCES public.scene(id, organization_id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.scene
     ADD CONSTRAINT scene_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(user_id) ON DELETE SET NULL;
@@ -1024,4 +973,5 @@ INSERT INTO public.schema_migrations(name) VALUES
  ('20261015000000_content_model_foundation.sql'),
  ('20261017120000_team_workbench.sql'),
  ('20261017180000_single_content_model.sql'),
- ('20261017220000_mutable_assets.sql');
+ ('20261017220000_mutable_assets.sql'),
+ ('20261018000000_mutable_scenes.sql');

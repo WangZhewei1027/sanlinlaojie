@@ -83,7 +83,7 @@ function PlacementController({ placementRef }: { placementRef: React.RefObject<P
   return null;
 }
 
-export function SceneViewport({ session, instances, resolveUrl, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; /** URL per instance: resolved by pinned version; a preview may override one instance. */ resolveUrl: (instance: CompositionInstance) => string | null | undefined; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
+export function SceneViewport({ session, instances, resolveUrl, onClips, fitRef, placementRef, selectedId, onSelect, grid, tool, editable, onTransform }: { placementRef: React.RefObject<PlacementReader | null>; fitRef: React.RefObject<(() => void) | null>; session: TheatreSession; instances: CompositionInstance[]; /** URL per instance: resolved from the current asset; a preview may override one instance. */ resolveUrl: (instance: CompositionInstance) => string | null | undefined; onClips: (id: string, clips: ClipInfo[]) => void; selectedId: string | null; onSelect: (id: string | null) => void; grid: boolean; editable: boolean; tool: "translate" | "rotate" | "scale"; onTransform: (id: string, values: TransformValues) => void }) {
   const { t } = useTranslation();
   const roots = useMemo(() => new Map<string, Group>(), []);
   const onReady = useMemo(() => () => { requestAnimationFrame(() => fitRef.current?.()); }, [fitRef]);

@@ -10,7 +10,6 @@ import type {
   CollectionItem,
   ContentAssetType,
   ContentPerson,
-  SceneStatus,
   WorkbenchItem,
 } from "@/app/manage/content/types";
 import type {
@@ -100,7 +99,7 @@ export function toDetailData(asset: AssetDetailDto): AssetDetailData {
 }
 
 export function usageByKind(impact: DependencyImpact | null | undefined): Record<AssetUsageKind, number> {
-  return { draft: impact?.drafts ?? 0, published: impact?.revisions ?? 0, placement: impact?.placements ?? 0 };
+  return { scene: impact?.scenes ?? 0, placement: impact?.placements ?? 0 };
 }
 
 /** Collection name of a dependency; scenes belong to the team and may report none. */
@@ -125,21 +124,17 @@ export function toUsageSummary(impact: DependencyImpact | null | undefined, orga
     }
     return {
       id: `${item.kind}:${item.scene_id}:${item.resource_alias}:${index}`,
-      kind: item.kind === "scene_draft" ? ("draft" as const) : ("published" as const),
-      targetName: item.kind === "scene_revision" ? `${item.scene_name} #${item.revision_no}` : item.scene_name,
+      kind: "scene" as const,
+      targetName: item.scene_name,
       href: teamHref(`/manage/scenes/${item.scene_id}`, organizationId),
     };
   });
-  const total = impact.drafts + impact.revisions + impact.placements;
+  const total = impact.scenes + impact.placements;
   return {
     entries,
     totalCount: total,
     restrictedCount: impact.restricted_count,
   };
-}
-
-export function sceneStatus(scene: Pick<SceneSummaryDto, "publish_status">): SceneStatus {
-  return scene.publish_status === "modified" ? "changed" : scene.publish_status;
 }
 
 export function toWorkbenchScene(scene: SceneSummaryDto, people: ReadonlyMap<string, ContentPerson>): WorkbenchItem {
@@ -149,8 +144,6 @@ export function toWorkbenchScene(scene: SceneSummaryDto, people: ReadonlyMap<str
     name: scene.name,
     type: "scene",
     state: scene.state,
-    sceneStatus: sceneStatus(scene),
-    latestRevisionNo: scene.latest_revision?.revision_no ?? null,
     placementCount: scene.placement_count,
     // SceneSummaryDto has no active/paused split: leave the active count unknown instead of guessing.
     updatedAt: scene.updated_at,
