@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NavbarSidebar } from "@/components/navbar-sidebar";
@@ -5,6 +8,10 @@ import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { UserAvatarMenu } from "@/components/user-avatar-menu";
 
 export function Navbar() {
+  const pathname = usePathname();
+  // Map and scene editors have their own full-window toolbars.
+  if (/^\/manage\/(collections|scenes)\/[^/]+\/?$/.test(pathname)) return null;
+
   return (
     <nav className="w-full flex justify-center border-b border-b-foreground/10 h-14">
       <div className="w-full flex justify-between items-center px-3 sm:px-5 text-sm gap-2">

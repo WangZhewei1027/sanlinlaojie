@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Text } from "@/components/ui/typography";
 import { CollectionArchiveDialog } from "./CollectionArchiveDialog";
 import { CollectionFormDialog } from "./CollectionFormDialog";
-import { CollectionRow } from "./CollectionRow";
-import { ContentEmptyState, ContentErrorState, ContentFailureNotice, ContentListSkeleton } from "./ContentFeedback";
+import { CollectionCard } from "./CollectionCard";
+import { ContentEmptyState, ContentErrorState, ContentFailureNotice } from "./ContentFeedback";
+import { LIBRARY_GRID, LibraryGridSkeleton } from "./LibraryCard";
 import type { ContentActionFailure } from "./useContentAction";
 import type { CollectionInput, CollectionItem, ContentAction, ContentLifecycle, ContentLoadStatus, TeamSummary } from "./types";
 
@@ -22,7 +23,7 @@ export interface CollectionListProps {
   onRetry?: () => void;
   collections: CollectionItem[];
   getHref: (collectionId: string) => string;
-  /** Team-level write access for creating collections; per-row rights come from each item. */
+  /** Team-level write access for creating collections; per-card rights come from each item. */
   canCreate: boolean;
   readOnlyReason?: string;
   onCreate: ContentAction<[input: CollectionInput]>;
@@ -88,13 +89,15 @@ export function CollectionList(props: CollectionListProps) {
       </div>
       {failure && <ContentFailureNotice failure={failure} />}
 
-      <div className="overflow-hidden rounded-lg border bg-background">
-        {status === "loading" ? (
-          <ContentListSkeleton rows={4} label={t("contentModel.state.loading")} />
-        ) : status === "error" ? (
+      {status === "loading" ? (
+        <LibraryGridSkeleton count={6} label={t("contentModel.state.loading")} />
+      ) : status === "error" ? (
+        <div className="rounded-lg border bg-background">
           <ContentErrorState headingAs="h2" message={props.errorMessage} onRetry={props.onRetry} />
-        ) : collections.length === 0 ? (
-          state === "archived" ? (
+        </div>
+      ) : collections.length === 0 ? (
+        <div className="rounded-lg border border-dashed bg-background">
+          {state === "archived" ? (
             <ContentEmptyState headingAs="h2" title={t("contentModel.collections.empty.archivedTitle")} description={t("contentModel.collections.empty.archivedBody")} />
           ) : (
             <ContentEmptyState
@@ -103,23 +106,23 @@ export function CollectionList(props: CollectionListProps) {
               description={t(props.canCreate ? "contentModel.collections.empty.body" : "contentModel.collections.empty.viewerBody")}
               actions={props.canCreate && <Button size="sm" onClick={() => openForm(null)}><Plus aria-hidden />{t("contentModel.collections.create")}</Button>}
             />
-          )
-        ) : (
-          <ul className="divide-y" aria-label={t("contentModel.collections.title")}>
-            {collections.map((collection) => (
-              <CollectionRow
-                key={collection.id}
-                collection={collection}
-                href={props.getHref(collection.id)}
-                onEdit={collection.canEdit && !collection.archived ? openForm : undefined}
-                onArchive={collection.canArchive && !collection.archived ? setArchiving : undefined}
-                onRestore={collection.canArchive && collection.archived ? restore : undefined}
-                busy={restoring === collection.id}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        <ul className={LIBRARY_GRID} aria-label={t("contentModel.collections.title")}>
+          {collections.map((collection) => (
+            <CollectionCard
+              key={collection.id}
+              collection={collection}
+              href={props.getHref(collection.id)}
+              onEdit={collection.canEdit && !collection.archived ? openForm : undefined}
+              onArchive={collection.canArchive && !collection.archived ? setArchiving : undefined}
+              onRestore={collection.canArchive && collection.archived ? restore : undefined}
+              busy={restoring === collection.id}
+            />
+          ))}
+        </ul>
+      )}
 
       <CollectionFormDialog
         open={formOpen}

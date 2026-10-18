@@ -30,7 +30,7 @@
 | `/manage/assets/[id]` | 素材详情：预览、直接编辑内容、使用记录（场景与各合集中的投放）、重命名、另存副本、归档/恢复。 |
 | `/manage/scenes/[id]` | 场景编辑器：团队模型选择器（本场景 / 团队模型）、保存、发布（可同时更新任意合集中的投放）。返回场景列表。 |
 | `/manage/collections` | 合集列表：新建、编辑、归档/恢复地图合集；页头提供团队级小程序二维码（原“全部项目”二维码）。 |
-| `/manage/collections/[id]` | 合集地图：原 PlacementMapView/Cesium 布局，顶部细栏显示返回、合集名、归档状态和该合集的小程序二维码。选择与多选只在本页有效。 |
+| `/manage/collections/[id]` | 合集卡片在新标签页打开全窗口地图编辑器，不显示主页 navbar。保留 PlacementMapView/Cesium 布局，顶部细栏显示返回、合集名、归档状态和该合集的小程序二维码；合集主页不显示二维码。选择与多选只在本页有效。 |
 | `/upload-onsite` | 现场上传：在页面内选择团队和一个地图合集（本页局部状态），确认位置后一步上传并投放。链接指定的合集（`collectionId`/`workspaceId`）不会被替换：已归档或不存在时提示原因并要求重新选择；只有未指定目标时才自动选中团队唯一的合集。 |
 | `/admin/*` | 团队设置：设置、成员。`/admin` 落到当前角色可见的第一页。 |
 
@@ -76,7 +76,7 @@
 
 ## 7 组件与 Storybook
 
-展示层位于 `app/manage/content/`，只接收 props 与 `ContentAction` 回调：`ContentWorkbench`、`WorkbenchToolbar`、`WorkbenchItems`、`WorkbenchCard`、`WorkbenchRow`、`WorkbenchEmpty`、`CollectionList`、`CollectionRow`、`CollectionFormDialog`、`CollectionArchiveDialog`、`CollectionHeaderBar`。数据、权限与跳转在 `app/manage/workbench/`、`app/manage/collections/components/` 等路由组件中。
+展示层位于 `app/manage/content/`，只接收 props 与 `ContentAction` 回调：`ContentWorkbench`、`WorkbenchToolbar`、`WorkbenchItems`、`WorkbenchCard`、`WorkbenchRow`、`WorkbenchEmpty`、`CollectionList`、`CollectionCard`、`LibraryCard`、`CollectionFormDialog`、`CollectionArchiveDialog`、`CollectionHeaderBar`。数据、权限与跳转在 `app/manage/workbench/`、`app/manage/collections/components/` 等路由组件中。
 
 Storybook：`stories/content/content-workbench.stories.tsx`（网格、列表、类型筛选、归档、查看者只读、团队归档、加载、错误、空团队、无匹配、手机）、`workbench-card`、`workbench-row`、`workbench-toolbar`、`collection-list`、`collection-form-dialog`、`collection-archive-dialog`、`collection-header-bar`，以及 `stories/manage/content-integration/content-nav.stories.tsx` 和 `team-frame.stories.tsx`（三类页面、空态、只读、英文、窄屏）。
 

@@ -8,7 +8,7 @@ const meta = {
   title: "Manage/Content/Workbench Card",
   component: WorkbenchCard,
   parameters: { layout: "centered" },
-  decorators: [(Story) => <ul className="w-56"><Story /></ul>],
+  decorators: [(Story) => <ul className="w-48"><Story /></ul>],
   args: { item: byId("asset-bridge"), href: "#", actions: { onCopy: noop, onArchive: noop, onRestore: noop } },
 } satisfies Meta<typeof WorkbenchCard>;
 export default meta;

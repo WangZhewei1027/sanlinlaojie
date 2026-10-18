@@ -97,7 +97,7 @@ unless `app_config.managed_object_deletion.enabled` is explicitly true.
 - **Scenes**: team-owned schema-4 documents reference asset IDs. Saving immediately updates map references and QR preview; playback resolves current assets. There is no publication or revision model. Old asset-backed scenes are converted by the database migration.
 - **Activity extension**: static placement content resolves a current Asset or current Scene layout. Activity/topic/reply/reward storage and a generic rule engine are not implemented; keep future business content outside Asset and Scene documents.
 - **Anchor matching**: `lib/anchor/*` + PAI-EAS (`SAGE_EAS_*`); reference images must live on our media host (`lib/anchor/reference.server.ts`).
-- **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`. Teams get the collection QR on `/manage/collections/[id]` and the team QR on `/manage/collections`.
+- **WeChat QR codes**: `app/manage/actions/wechat-qr.ts` (server action, signed-in users only) generates QR codes that deep-link the mini-program to a specific org/workspace and stores them in OSS under `wechat-qrcodes/`. Collection QR codes appear only inside `/manage/collections/[id]`; the collection library has no QR entry. Collection cards open the full-window map editor in a new tab, without the global navbar.
 
 ### Database
 

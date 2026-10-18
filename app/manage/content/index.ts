@@ -18,7 +18,7 @@ export { WorkbenchRow } from "./WorkbenchRow";
 export { WorkbenchEmpty } from "./WorkbenchEmpty";
 
 export { CollectionList, type CollectionListProps } from "./CollectionList";
-export { CollectionRow } from "./CollectionRow";
+export { CollectionCard } from "./CollectionCard";
 export { CollectionFormDialog } from "./CollectionFormDialog";
 export { CollectionArchiveDialog } from "./CollectionArchiveDialog";
 export { CollectionHeaderBar } from "./CollectionHeaderBar";

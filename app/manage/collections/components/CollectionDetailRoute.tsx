@@ -49,7 +49,7 @@ function CollectionDetailView({ id }: { id: string }) {
 
   const archived = !!collection?.archived_at;
   const frame = (body: ReactNode) => (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    <main className="flex h-dvh flex-col overflow-hidden bg-background">
       <CollectionHeaderBar
         name={collection?.name ?? null}
         archived={archived}
@@ -57,7 +57,7 @@ function CollectionDetailView({ id }: { id: string }) {
         actions={organizationId && collection && settled ? <WorkspaceQrButton organizationId={organizationId} workspaceId={id} /> : undefined}
       />
       <div className="relative min-h-0 flex-1">{body}</div>
-    </div>
+    </main>
   );
 
   if (info.status === "loading" || info.status === "idle") return frame(<ManageLayoutSkeleton fill />);

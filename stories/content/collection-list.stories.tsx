@@ -27,6 +27,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const MapCollections: Story = {};
+export const ManyCollections: Story = { args: { collections: Array.from({ length: 12 }, (_, index) => ({ ...collections[index % collections.length], id: `collection-example-${index}`, name: `${collections[index % collections.length].name} ${index + 1}` })) } };
+export const SingleCollection: Story = { args: { collections: collections.slice(0, 1) } };
 export const ArchivedCollections: Story = { args: { state: "archived", collections: archivedCollections } };
 export const ViewerReadOnly: Story = {
   args: { team: viewerTeam, canCreate: false, readOnlyReason: "你是团队查看者：可以浏览和预览，不能上传或编辑。", collections: readOnly(collections) },

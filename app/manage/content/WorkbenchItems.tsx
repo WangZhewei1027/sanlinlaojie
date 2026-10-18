@@ -2,14 +2,12 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ContentErrorState, ContentListSkeleton } from "./ContentFeedback";
+import { LIBRARY_GRID, LibraryGridSkeleton } from "./LibraryCard";
 import { WorkbenchCard } from "./WorkbenchCard";
 import type { SceneItemActions } from "./WorkbenchItemParts";
 import { WORKBENCH_ROW_GRID, WorkbenchRow } from "./WorkbenchRow";
 import type { ContentLoadStatus, WorkbenchItem, WorkbenchView } from "./types";
-
-export const WORKBENCH_GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
 
 export interface WorkbenchItemsProps {
   view: WorkbenchView;
@@ -31,17 +29,7 @@ export function WorkbenchItems({ view, status, errorMessage, onRetry, items, get
 
   if (status === "loading") {
     return view === "grid" ? (
-      <ul role="status" aria-label={t("contentModel.state.loading")} className={WORKBENCH_GRID}>
-        {Array.from({ length: 10 }, (_, index) => (
-          <li key={index} className="overflow-hidden rounded-lg border">
-            <Skeleton className="aspect-[4/3] rounded-none" />
-            <div className="space-y-2 p-3">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          </li>
-        ))}
-      </ul>
+      <LibraryGridSkeleton label={t("contentModel.state.loading")} />
     ) : (
       <div className="overflow-hidden rounded-lg border bg-background">
         <ContentListSkeleton label={t("contentModel.state.loading")} />
@@ -59,7 +47,7 @@ export function WorkbenchItems({ view, status, errorMessage, onRetry, items, get
 
   if (view === "grid") {
     return (
-      <ul aria-label={label} className={WORKBENCH_GRID}>
+      <ul aria-label={label} className={LIBRARY_GRID}>
         {items.map((item) => (
           <WorkbenchCard key={`${item.kind}:${item.id}`} item={item} href={getItemHref(item)} actions={actions} busy={busyId === item.id} />
         ))}
