@@ -194,6 +194,15 @@ uses Better Auth's built-in provider with server-only `GOOGLE_CLIENT_ID` and
 Missing Google credentials leave phone and existing email login available and
 show a translated error when Google login is requested.
 
+Production uses `lib/auth/google-relay.server.ts`, a Better Auth init plugin,
+when `GOOGLE_RELAY_URL` is configured. It replaces only Google's token exchange,
+refresh and JWKS transport with an authenticated Hong Kong FC endpoint. Google
+JWT signatures, issuer, audience and expiry are verified in the web server
+before profile data is accepted; state, PKCE, provider ID `google`, account
+linking and session storage remain Better Auth's responsibility. Without relay
+configuration the original direct Google transport is used. See
+[Google relay operations](google-auth-relay.md).
+
 Phone accounts keep the virtual-email scheme (`lib/phone-email.ts`): login is
 `signIn.email` with the virtual email; sign-up / reset go through the server
 actions in `lib/auth/sms.ts`, which call `lib/auth/users.server.ts` after the

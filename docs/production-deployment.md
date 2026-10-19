@@ -37,6 +37,8 @@ flowchart TB
         GPU["阿里云 PAI-EAS · SAGE 推理<br/>GU30 / L20 / A10 按需选择<br/>核对时均已停止，等待请求启动"]
         WX["微信开放接口<br/>生成小程序二维码"]
         SMS["阿里云号码认证服务<br/>手机验证码"]
+        GOOGLE_RELAY["函数计算 · 中国香港<br/>Google 认证中转"]
+        GOOGLE["Google OAuth<br/>令牌与签名公钥"]
     end
 
     WEB -->|"HTTPS"| CADDY
@@ -46,6 +48,8 @@ flowchart TB
     APP -->|"上传文件、缓存二维码"| MEDIA
     APP --> WX
     APP --> SMS
+    APP -->|"HTTPS + 独立调用密钥"| GOOGLE_RELAY
+    GOOGLE_RELAY --> GOOGLE
     SAGE -->|"启动、调用、空闲后停止"| GPU
     BACKUP -.->|"上传备份"| ARCHIVE
     CI -.->|"SSH 更新 Compose、Caddy 配置"| CADDY
@@ -69,6 +73,7 @@ Web 主机是阿里云**轻量应用服务器**，地域 `cn-shanghai`，部署�
 | OSS 备份桶 | 保存用于恢复的数据库 dump | 私有桶 `sanlinlaojie-backups`，对象前缀 `db/`；由备份脚本上传 | 已接入；不是运行中的数据库或热备副本 |
 | 微信开放接口 | 获取 access token、生成合集和 Scene 的小程序码 | Next.js 服务端调用微信 API；生成图片按 `release/trial/develop` 分开缓存在 OSS，access token 缓存在应用进程内 | 已配置；二维码环境在 `/admin/settings` 浏览器端选择，默认 `release` |
 | 阿里云号码认证服务 | 发送、校验手机号验证码 | Next.js 内的 `lib/auth/sms.ts` 调用 Dypnsapi；使用服务端 RAM 凭据，不额外部署短信进程 | 已接入；本次未发送真实短信测试 |
+| Google 认证中转 | Google 令牌交换、刷新与签名公钥获取 | FC 3.0 中国香港函数 `sanlin-google-oauth-relay`，Node.js 20；配置和维护见 [中转说明](google-auth-relay.md) | 上海生产容器至中转、Google 两段网络已验证 |
 | 微信小程序 | 扫码入口、地图内容与 Scene 播放、手机端 AR | 兄弟项目 `xr-frame-plant-trees` 通过微信开发者工具独立编译、上传和发布；通过 `/api/miniapp/*` 访问 Web 后端 | 配套 Scene / 新内容模型版本仍待用户另行发布 |
 | GitHub Actions | 质量检查、镜像构建、Web 部署和冒烟检查 | [Deploy 工作流](../.github/workflows/deploy.yml)，push `main` 或手动触发 | 已启用；不发布小程序或 SAGE |
 
@@ -129,7 +134,7 @@ pgAdmin 的首次 secret 和数据库角色需按 [部署说明](pgadmin.md) 初
 
 Google 的 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` 保存于服务器 `/opt/sanlin/.env`，回调地址为 `https://www.spatialmemory.online/api/auth/callback/google`。生产凭据已于 2026-10-19 配置，重建应用容器后生效；凭据不进入仓库或镜像。
 
-**发布时的已知限制（2026-10-19）：** 上海生产主机和应用容器访问 `oauth2.googleapis.com`、`www.googleapis.com` 均超时，尚无可用出站代理。生成 Google 授权链接成功并不代表登录可完成；恢复这些接口的出站连通性并验证完整回调后，才能确认 Google 登录可用。
+上海主机无法直连 Google，因此服务端请求通过中国香港 FC 中转。`GOOGLE_RELAY_URL` 和 `GOOGLE_RELAY_SECRET` 保存在 `/opt/sanlin/.env`，网站仍负责 OAuth state、PKCE、Google JWT 验签、账号关联与会话。香港函数没有数据库访问权限。用户浏览器仍须能打开 Google 授权页；真实账号授权与自动化测试的验证范围见 [中转说明](google-auth-relay.md)。
 
 ## 数据库迁移、备份与恢复边界
 

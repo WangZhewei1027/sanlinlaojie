@@ -37,6 +37,7 @@ Next.js 16 App Router + React 19 + TypeScript. UI is ShadcnUI/Radix + Tailwind (
 | SQL | `lib/db` — Kysely over `pg`; types generated into `lib/db/types.ts`; `sql` tag for Postgres functions and PostGIS |
 | Session (server) | `lib/auth/server.ts` → `getSessionUser()` (Better Auth; `auth` schema tables) |
 | Session (browser) | `lib/auth/client.ts` → `authClient` (`useSession`, `signIn.email`, `signOut`, …) |
+| Google OAuth transport | `lib/auth/google-relay.server.ts` + Hong Kong FC; [operations](docs/google-auth-relay.md) |
 | Account admin | `lib/auth/users.server.ts` — create user with password, set password, delete user |
 | Phone sign-up / reset | `lib/auth/sms.ts` (Aliyun SMS) + `lib/auth/sms-ticket.server.ts` |
 | Media | `lib/storage/oss.ts` (server) and `lib/storage/public-url.ts` (client-safe URL helpers) |
