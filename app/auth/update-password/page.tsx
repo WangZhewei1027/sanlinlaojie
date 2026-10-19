@@ -1,14 +1,6 @@
-import { Suspense } from "react";
-import { UpdatePasswordForm } from "@/components/update-password-form";
+import { redirect } from "next/navigation";
 
+// Old reset links use this route. All password recovery now requires SMS verification.
 export default function Page() {
-  return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <Suspense fallback={null}>
-          <UpdatePasswordForm />
-        </Suspense>
-      </div>
-    </div>
-  );
+  redirect("/auth/forgot-password");
 }

@@ -28,10 +28,24 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 // env (no BETTER_AUTH_SECRET / DATABASE_URL), and betterAuth() validates the
 // secret eagerly.
 function createAuth() {
+  const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   return betterAuth({
     appName: "三林老街",
     baseURL: siteUrl,
     secret: process.env.BETTER_AUTH_SECRET,
+    // Password recovery is SMS-only, including for previously issued email tokens.
+    disabledPaths: ["/request-password-reset", "/reset-password"],
+    socialProviders: {
+      ...(googleClientId && googleClientSecret
+        ? {
+            google: {
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+            },
+          }
+        : {}),
+    },
     trustedOrigins: [
       siteUrl,
       ...(process.env.AUTH_TRUSTED_ORIGINS?.split(",") ?? []),
@@ -97,6 +111,9 @@ function createAuth() {
     },
     emailAndPassword: {
       enabled: true,
+      // Keep password login for existing accounts and SMS-created users.
+      // New users must register through Google or verified phone server actions.
+      disableSignUp: true,
       minPasswordLength: 6,
       // Only enforce confirmation when we can actually send the mail.
       requireEmailVerification:
@@ -106,14 +123,6 @@ function createAuth() {
         hash: (password) => bcrypt.hash(password, BCRYPT_ROUNDS),
         verify: ({ hash, password }) => bcrypt.compare(password, hash),
       },
-      sendResetPassword: async ({ user, url }) => {
-        await sendMail({
-          to: user.email,
-          subject: "重置密码 / Reset your password",
-          text: `点击以下链接重置密码（1 小时内有效）：\n${url}\n\n如果不是你本人操作，请忽略本邮件。`,
-        });
-      },
-      resetPasswordTokenExpiresIn: 60 * 60,
     },
     emailVerification: {
       sendOnSignUp: isMailConfigured(),
@@ -126,8 +135,6 @@ function createAuth() {
         });
       },
     },
-    // `name` is required by Better Auth but the sign-up form doesn't collect one;
-    // clients send "" and handle_new_user() stores it as NULL (as before).
     plugins: [nextCookies()],
   });
 }

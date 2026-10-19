@@ -171,10 +171,8 @@ Browser (`"use client"`):
 import { authClient } from "@/lib/auth/client";
 const { data: session, isPending } = authClient.useSession();   // session?.user
 await authClient.signIn.email({ email, password });              // { data, error }
-await authClient.signUp.email({ email, password, name: "" });
+await authClient.signIn.social({ provider: "google", callbackURL: "/manage" });
 await authClient.signOut();
-await authClient.requestPasswordReset({ email, redirectTo: "/auth/update-password" });
-await authClient.resetPassword({ newPassword, token });          // token from ?token= in the reset link
 await authClient.changePassword({ currentPassword, newPassword });
 ```
 
@@ -183,6 +181,19 @@ codes such as `INVALID_EMAIL_OR_PASSWORD`, `USER_ALREADY_EXISTS`,
 `EMAIL_NOT_VERIFIED`, `PASSWORD_TOO_SHORT`, `INVALID_TOKEN`. `lib/auth/auth-error.ts`
 maps them to i18n keys.
 
+Public registration supports Google and mainland China mobile numbers only.
+`emailAndPassword.disableSignUp` blocks the email sign-up API, while password
+sign-in remains enabled for existing email accounts. Password recovery is
+SMS-only: the email reset request and token reset HTTP endpoints are disabled,
+including previously issued tokens. The legacy `/auth/update-password` route
+redirects to the phone recovery flow; there is no session-only reset action. Google
+uses Better Auth's built-in provider with server-only `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET`; set the authorized redirect URI to
+`${NEXT_PUBLIC_SITE_URL}/api/auth/callback/google` in Google Cloud Console
+([provider setup](https://www.better-auth.com/docs/authentication/google)).
+Missing Google credentials leave phone and existing email login available and
+show a translated error when Google login is requested.
+
 Phone accounts keep the virtual-email scheme (`lib/phone-email.ts`): login is
 `signIn.email` with the virtual email; sign-up / reset go through the server
 actions in `lib/auth/sms.ts`, which call `lib/auth/users.server.ts` after the
@@ -190,9 +201,12 @@ SMS ticket check. Admin creation (`POST /api/users`, batch script) uses
 `createUserWithPassword()`; deletion uses `deleteAuthUser()` (cascades to
 `public.users` and memberships). `last_sign_in_at` lives on `public.users`
 (maintained by a trigger on `auth.session`).
+All phone server actions validate mainland China numbers and normalize an
+optional +86 prefix to the existing 11-digit account identifier before sending
+SMS, issuing/checking tickets, creating accounts or resetting passwords.
 
-Email confirmation and password-reset mail need SMTP (`lib/email.ts`); without
-it sign-up still works and reset-by-email reports that mail is unavailable.
+Legacy email confirmation needs SMTP (`lib/email.ts`). Google/phone registration
+and SMS password recovery do not depend on SMTP.
 
 ## Storage
 

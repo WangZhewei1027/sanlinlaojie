@@ -1,33 +1,15 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth/client";
 import { safeNext } from "@/lib/safe-next";
 import { formatAuthError } from "@/lib/auth/auth-error";
 import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Link from "next/link";
+import { normalizeChinaPhone } from "@/lib/auth/china-phone";
+import { useGoogleSignIn } from "@/lib/auth/use-google-sign-in";
+import { LoginFormView } from "@/components/login-form-view";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-
-// 判断输入是否为手机号（纯数字），是则拼接虚拟邮箱
-function resolveEmail(input: string): string {
-  const trimmed = input.trim();
-  if (/^\d{7,15}$/.test(trimmed)) {
-    return `${trimmed}@${PHONE_EMAIL_DOMAIN}`;
-  }
-  return trimmed;
-}
 
 export function LoginForm({
   className,
@@ -42,15 +24,24 @@ export function LoginForm({
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
   const { t } = useTranslation();
+  const google = useGoogleSignIn(next);
+  const busy = isLoading || google.isLoading;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    const trimmedAccount = account.trim();
+    const phone = normalizeChinaPhone(account);
+    if (!trimmedAccount.includes("@") && !phone) {
+      setError(t("auth.errors.invalidPhone"));
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
     try {
       const { error } = await authClient.signIn.email({
-        email: resolveEmail(account),
+        email: phone ? `${phone}@${PHONE_EMAIL_DOMAIN}` : trimmedAccount,
         password,
       });
       if (error) throw error;
@@ -66,71 +57,26 @@ export function LoginForm({
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">{t("auth.signIn")}</CardTitle>
-          <CardDescription>{t("auth.enterEmailOrPhone")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="account">{t("auth.emailOrPhone")}</Label>
-                <Input
-                  id="account"
-                  type="text"
-                  autoComplete="username"
-                  placeholder="m@example.com / 13800138000"
-                  required
-                  value={account}
-                  onChange={(e) => setAccount(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">{t("auth.password")}</Label>
-                  <Link
-                    href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    {t("auth.forgotPassword")}
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isRedirecting
-                  ? t("auth.redirecting")
-                  : isLoading
-                    ? t("auth.loggingIn")
-                    : t("auth.signIn")}
-              </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              {t("auth.dontHaveAccount")}{" "}
-              <Link
-                href={
-                  next !== "/"
-                    ? `/auth/sign-up?next=${encodeURIComponent(next)}`
-                    : "/auth/sign-up"
-                }
-                className="underline underline-offset-4"
-              >
-                {t("auth.signUp")}
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <LoginFormView
+      {...props}
+      className={className}
+      account={account}
+      password={password}
+      onAccountChange={setAccount}
+      onPasswordChange={setPassword}
+      onLogin={handleLogin}
+      onGoogleSignIn={google.signIn}
+      isLoading={isLoading}
+      isRedirecting={isRedirecting}
+      isGoogleLoading={google.isLoading}
+      error={error}
+      googleError={
+        google.error ??
+        (searchParams.get("error") ? t("auth.errors.googleFailed") : null)
+      }
+      signUpHref={
+        next !== "/" ? `/auth/sign-up?next=${encodeURIComponent(next)}` : "/auth/sign-up"
+      }
+    />
   );
 }

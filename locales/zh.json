@@ -816,6 +816,10 @@
     "phoneHint": "手机号无法修改"
   },
   "auth": {
+    "welcomeBack": "欢迎回来",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
+    "or": "或",
     "signIn": "登录",
     "signUp": "注册",
     "email": "邮箱",
@@ -825,7 +829,6 @@
     "repeatPassword": "确认密码",
     "forgotPassword": "忘记密码？",
     "resetPassword": "重置密码",
-    "sendResetEmail": "发送重置邮件",
     "dontHaveAccount": "还没有账户？",
     "alreadyHaveAccount": "已有账户？",
     "enterEmailOrPhone": "输入你的邮箱或手机号登录",
@@ -847,10 +850,7 @@
     "newPassword": "新密码",
     "confirmNewPassword": "确认新密码",
     "enterNewPassword": "输入你的新密码",
-    "enterEmailOrPhoneToReset": "输入你的邮箱或手机号来重置密码",
-    "checkEmailForLink": "查看你的邮箱",
-    "passwordResetSent": "密码重置说明已发送",
-    "passwordResetSentDetail": "如果你使用邮箱和密码注册，你将收到一封密码重置邮件。",
+    "enterPhoneToReset": "输入注册时使用的手机号，通过短信验证码重置密码",
     "passwordResetSuccess": "密码重置成功！你现在可以登录了。",
     "loggingIn": "登录中...",
     "creatingAccount": "正在创建账户...",
@@ -878,12 +878,20 @@
       "sessionExpired": "登录状态已过期，请重新操作",
       "unknown": "操作失败，请稍后重试",
       "smsRateLimited": "验证码发送过于频繁，请稍后再试",
-      "invalidPhone": "手机号格式不正确，请检查输入",
+      "invalidPhone": "仅支持中国大陆手机号，请输入有效的 11 位手机号码",
       "smsSendFailed": "验证码发送失败，请稍后重试",
       "phoneNotRegistered": "该手机号尚未注册",
       "accountCreatedLoginFailed": "账号已创建成功，但自动登录失败，请返回登录页手动登录",
-      "resetLinkInvalid": "重置链接无效或已过期，请重新发送重置邮件"
-    }
+      "resetLinkInvalid": "重置链接已不可用，请使用手机号验证并重置密码",
+      "googleUnavailable": "Google 登录暂不可用，请使用手机号或稍后重试",
+      "googleFailed": "Google 登录未完成，请重试或使用其他登录方式",
+      "emailSignUpDisabled": "不再支持邮箱注册，请使用 Google 或手机号注册"
+    },
+    "signUpMethods": "使用 Google 或手机号注册",
+    "continueWithGoogle": "使用 Google 继续",
+    "connectingGoogle": "正在连接 Google…",
+    "chinaPhoneOnly": "仅支持中国大陆手机号（+86）",
+    "countryCode": "国家区号"
   },
   "matching": {
     "referenceImage": "匹配图片（1 张）",

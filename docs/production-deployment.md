@@ -123,6 +123,14 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 
 pgAdmin 的首次 secret 和数据库角色需按 [部署说明](pgadmin.md) 初始化；后续 Web 部署同步其公开配置与镜像，保留账号配置卷和私有凭据。
 
+### 登录配置与 Google 网络依赖
+
+新用户通过 Google 或中国大陆手机号注册，存量邮箱保留密码登录；密码重置仅支持手机号验证码。此改动不需要数据库迁移，认证回归由 `scripts/test-sms-auth.cjs` 纳入 CI。
+
+Google 的 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` 保存于服务器 `/opt/sanlin/.env`，回调地址为 `https://www.spatialmemory.online/api/auth/callback/google`。生产凭据已于 2026-10-19 配置，重建应用容器后生效；凭据不进入仓库或镜像。
+
+**发布时的已知限制（2026-10-19）：** 上海生产主机和应用容器访问 `oauth2.googleapis.com`、`www.googleapis.com` 均超时，尚无可用出站代理。生成 Google 授权链接成功并不代表登录可完成；恢复这些接口的出站连通性并验证完整回调后，才能确认 Google 登录可用。
+
 ## 数据库迁移、备份与恢复边界
 
 生产数据库已在 2026-10-19 完成团队内容模型迁移。后续改表仍需遵循以下顺序，部署脚本不会自动执行迁移：

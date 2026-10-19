@@ -63,5 +63,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - name: Verify registration policy and existing account login
+        run: node --test scripts/test-sms-auth.cjs
       - run: npm run build
       - run: npm run build-storybook

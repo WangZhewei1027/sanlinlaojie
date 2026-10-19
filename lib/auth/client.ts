@@ -4,10 +4,8 @@ import { createAuthClient } from "better-auth/react";
 // `createClient().auth.*` from supabase-js in Client Components:
 //   authClient.useSession()                → { data: { user, session } | null, isPending }
 //   authClient.signIn.email({ email, password })
-//   authClient.signUp.email({ email, password, name })
+//   authClient.signIn.social({ provider: "google", callbackURL })
 //   authClient.signOut()
-//   authClient.requestPasswordReset({ email, redirectTo })
-//   authClient.resetPassword({ newPassword, token })
 //   authClient.changePassword({ currentPassword, newPassword })
 // Every call resolves to { data, error } — it never throws on auth errors.
 export const authClient = createAuthClient();

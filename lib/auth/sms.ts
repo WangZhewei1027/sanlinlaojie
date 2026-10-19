@@ -8,6 +8,7 @@ import { Config } from "@alicloud/openapi-client";
 import { RuntimeOptions } from "@alicloud/tea-util";
 import Credential from "@alicloud/credentials";
 import { PHONE_EMAIL_DOMAIN } from "@/lib/phone-email";
+import { normalizeChinaPhone } from "@/lib/auth/china-phone";
 import { issueSmsTicket, verifySmsTicket } from "@/lib/auth/sms-ticket.server";
 import {
   createUserWithPassword,
@@ -49,13 +50,13 @@ function mapAliyunSendCode(code: string | undefined): string {
 
 /**
  * 发送短信验证码（阿里云号码认证服务）
- * phone 格式为不带 + 的纯数字，如 8613800138000
+ * 仅支持中国大陆手机号；可带 +86，发送前统一为 11 位本地号码。
  */
 export async function SendSmsVerifyCode(
   phone: string,
 ): Promise<{ success: boolean; code?: string; error?: string }> {
-  // 去掉 + 号前缀，阿里云接口需要纯数字
-  const phoneNumber = phone.replace(/^\+/, "");
+  const phoneNumber = normalizeChinaPhone(phone);
+  if (!phoneNumber) return { success: false, ...INVALID_PHONE };
 
   try {
     const client = createDypnsClient();
@@ -103,7 +104,11 @@ export async function CheckSmsVerifyCode(
   code?: string;
   error?: string;
 }> {
-  const phoneNumber = phone.replace(/^\+/, "");
+  const phoneNumber = normalizeChinaPhone(phone);
+  if (!phoneNumber) return { success: false, ...INVALID_PHONE };
+  if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
+    return { success: false, code: "code_invalid", error: "Invalid code" };
+  }
 
   try {
     const client = createDypnsClient();
@@ -116,7 +121,7 @@ export async function CheckSmsVerifyCode(
     const resp = await client.checkSmsVerifyCodeWithOptions(request, runtime);
 
     if (resp.body?.code === "OK" && resp.body?.model?.verifyResult === "PASS") {
-      return { success: true, ticket: issueSmsTicket(phoneToEmail(phone)) };
+      return { success: true, ticket: issueSmsTicket(phoneToEmail(phoneNumber)) };
     }
 
     // 阿里云对过期/错误的验证码统一返回非 PASS；带 EXPIRE 字样的归为过期
@@ -139,13 +144,21 @@ export async function CheckSmsVerifyCode(
 // ─── 手机号注册（服务端）──────────────────────────────────────
 
 /**
- * 将手机号转为唯一邮箱，用作账号的登录邮箱
- * 例如 +8613800138000 → 8613800138000@phone.sanlinlaojie.local
+ * 将已校验并归一化的 11 位手机号转为账号邮箱。
  */
 function phoneToEmail(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  return `${digits}@${PHONE_EMAIL_DOMAIN}`;
+  return `${phone}@${PHONE_EMAIL_DOMAIN}`;
 }
+
+const INVALID_PHONE = {
+  code: "invalid_phone",
+  error: "Only mainland China mobile numbers (+86) are supported",
+} as const;
+
+const INVALID_PASSWORD = {
+  code: "password_too_short",
+  error: "Password must be at least 8 characters",
+} as const;
 
 /** 凭证缺失、伪造或过期时的统一返回；前端据此让用户重新获取验证码 */
 const TICKET_REJECTED = {
@@ -163,9 +176,14 @@ export async function resetPasswordByPhone(params: {
   ticket: string;
 }): Promise<{ success: boolean; code?: string; error?: string }> {
   const { phone, newPassword, ticket } = params;
-  const email = phoneToEmail(phone);
+  const phoneNumber = normalizeChinaPhone(phone);
+  if (!phoneNumber) return { success: false, ...INVALID_PHONE };
+  const email = phoneToEmail(phoneNumber);
   if (!verifySmsTicket(ticket, email)) {
     return { success: false, ...TICKET_REJECTED };
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    return { success: false, ...INVALID_PASSWORD };
   }
 
   try {
@@ -195,9 +213,14 @@ export async function createUserByPhone(params: {
   error?: string;
 }> {
   const { phone, password, ticket } = params;
-  const email = phoneToEmail(phone);
+  const phoneNumber = normalizeChinaPhone(phone);
+  if (!phoneNumber) return { userId: null, email: "", ...INVALID_PHONE };
+  const email = phoneToEmail(phoneNumber);
   if (!verifySmsTicket(ticket, email)) {
     return { userId: null, email, ...TICKET_REJECTED };
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return { userId: null, email, ...INVALID_PASSWORD };
   }
 
   try {

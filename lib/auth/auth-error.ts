@@ -4,7 +4,7 @@ import type { TFunction } from "i18next";
 // 覆盖三类来源：
 // 1. Better Auth 客户端返回的 error（{ code / status / message }，见 lib/auth/client.ts）
 // 2. 浏览器网络层错误（fetch 失败、server action 调用失败）
-// 3. 服务端 server action 返回的机器码（lib/auth/sms.ts、lib/auth/password.server.ts 的 code 字段）
+// 3. 服务端 server action 返回的机器码（lib/auth/sms.ts 的 code 字段）
 //
 // UI 上永远只显示映射后的文案，绝不透出原始英文报错；
 // 未识别的错误原文通过 /api/errors 静默上报到 error_log 供排查。
@@ -61,6 +61,10 @@ export function authErrorKey(error: unknown): string {
 
   // Better Auth 的 BASE_ERROR_CODES（@better-auth/core/error）
   switch (code) {
+    case "PROVIDER_NOT_FOUND":
+      return "auth.errors.googleUnavailable";
+    case "EMAIL_PASSWORD_SIGN_UP_DISABLED":
+      return "auth.errors.emailSignUpDisabled";
     case "INVALID_EMAIL_OR_PASSWORD":
     case "INVALID_PASSWORD":
     case "USER_NOT_FOUND":
@@ -130,7 +134,7 @@ export function formatAuthError(t: TFunction, error: unknown): string {
   return t(key);
 }
 
-/** 服务端 server action 返回的机器码 → i18n key（见 lib/auth/sms.ts、lib/auth/password.server.ts） */
+/** 服务端 server action 返回的机器码 → i18n key（见 lib/auth/sms.ts） */
 const SERVER_CODE_KEYS: Record<string, string> = {
   sms_rate_limited: "auth.errors.smsRateLimited",
   invalid_phone: "auth.errors.invalidPhone",

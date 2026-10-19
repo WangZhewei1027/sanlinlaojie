@@ -41,7 +41,7 @@ Next.js 16 App Router + React 19 + TypeScript. UI is ShadcnUI/Radix + Tailwind (
 | Phone sign-up / reset | `lib/auth/sms.ts` (Aliyun SMS) + `lib/auth/sms-ticket.server.ts` |
 | Media | `lib/storage/oss.ts` (server) and `lib/storage/public-url.ts` (client-safe URL helpers) |
 | Uploads | browser → `POST /api/upload` (content-hash dedup, writes to OSS) via `lib/upload/service.ts` |
-| Email | `lib/email.ts` (SMTP; optional — without it email confirmation/reset are disabled) |
+| Email | `lib/email.ts` (SMTP; optional — without it email confirmation is disabled; password recovery is SMS-only) |
 
 There is one database connection with full access. **Every permission decision is made in application code**; there is no RLS. Modules ending in `.server.ts` (and `lib/db`) start with `import "server-only"` and must never be imported from Client Components.
 

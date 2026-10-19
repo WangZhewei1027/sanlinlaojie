@@ -816,6 +816,10 @@
     "phoneHint": "Phone number cannot be changed"
   },
   "auth": {
+    "welcomeBack": "Welcome back",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "or": "OR",
     "signIn": "Sign in",
     "signUp": "Sign up",
     "email": "Email",
@@ -825,7 +829,6 @@
     "repeatPassword": "Repeat Password",
     "forgotPassword": "Forgot your password?",
     "resetPassword": "Reset Password",
-    "sendResetEmail": "Send reset email",
     "dontHaveAccount": "Don't have an account?",
     "alreadyHaveAccount": "Already have an account?",
     "enterEmailOrPhone": "Enter your email or phone to sign in",
@@ -847,10 +850,7 @@
     "newPassword": "New Password",
     "confirmNewPassword": "Confirm New Password",
     "enterNewPassword": "Enter your new password",
-    "enterEmailOrPhoneToReset": "Enter your email or phone to reset your password",
-    "checkEmailForLink": "Check Your Email",
-    "passwordResetSent": "Password reset instructions sent",
-    "passwordResetSentDetail": "If you registered using your email and password, you will receive a password reset email.",
+    "enterPhoneToReset": "Enter your registered phone number to reset your password with an SMS code",
     "passwordResetSuccess": "Password reset successfully! You can now sign in.",
     "loggingIn": "Logging in...",
     "creatingAccount": "Creating an account...",
@@ -878,12 +878,20 @@
       "sessionExpired": "Your session has expired. Please try again",
       "unknown": "Something went wrong. Please try again later",
       "smsRateLimited": "Too many verification code requests. Please try again later",
-      "invalidPhone": "Invalid phone number. Please check your input",
+      "invalidPhone": "Enter a valid 11-digit mainland China mobile number",
       "smsSendFailed": "Failed to send verification code. Please try again later",
       "phoneNotRegistered": "This phone number is not registered",
       "accountCreatedLoginFailed": "Your account was created, but automatic sign-in failed. Please sign in manually from the login page",
-      "resetLinkInvalid": "This reset link is invalid or has expired. Please request a new one"
-    }
+      "resetLinkInvalid": "This reset link is no longer available. Use SMS verification to reset your password",
+      "googleUnavailable": "Google sign-in is unavailable. Use your phone number or try again later",
+      "googleFailed": "Google sign-in was not completed. Try again or use another sign-in method",
+      "emailSignUpDisabled": "Email sign-up is no longer available. Sign up with Google or your phone number"
+    },
+    "signUpMethods": "Sign up with Google or your phone number",
+    "continueWithGoogle": "Continue with Google",
+    "connectingGoogle": "Connecting to Google…",
+    "chinaPhoneOnly": "Only mainland China mobile numbers (+86) are supported",
+    "countryCode": "Country code"
   },
   "matching": {
     "referenceImage": "Reference image (one)",

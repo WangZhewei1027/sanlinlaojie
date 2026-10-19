@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth/client";
 import { safeNext } from "@/lib/safe-next";
 import {
@@ -9,120 +8,14 @@ import {
   createUserByPhone,
 } from "@/lib/auth/sms";
 import { formatAuthError, formatServerAuthError } from "@/lib/auth/auth-error";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Link from "next/link";
+import { normalizeChinaPhone } from "@/lib/auth/china-phone";
+import { useGoogleSignIn } from "@/lib/auth/use-google-sign-in";
+import { SignUpFormView } from "@/components/sign-up-form-view";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-// ─── 邮箱注册表单（保留原有邮件确认流程）───────────────────────
-
-function EmailSignUpForm({ next }: { next: string }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [repeatPassword, setRepeatPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-  const { t } = useTranslation();
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-
-    if (password !== repeatPassword) {
-      setError(t("auth.passwordsMustMatch"));
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await authClient.signUp.email({
-        email,
-        password,
-        // Better Auth 要求 name 字段；表单不收集，传空串由 DB 触发器存为 NULL
-        name: "",
-        // 邮件确认链接点击后的落地页（配置了 SMTP 才会发信）
-        callbackURL: next,
-      });
-      if (error) throw error;
-      // 不要求邮件确认时 Better Auth 会直接建立会话（返回 token），此时无需
-      // 让用户去查邮件，直接进入目标页；需要确认时才展示"请查收邮件"
-      if (data?.token) {
-        router.refresh();
-        router.push(next);
-        return;
-      }
-      router.push("/auth/sign-up-success");
-    } catch (error: unknown) {
-      setError(formatAuthError(t, error));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSignUp}>
-      <div className="flex flex-col gap-6">
-        <div className="grid gap-2">
-          <Label htmlFor="email">{t("auth.email")}</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="m@example.com"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="email-password">{t("auth.password")}</Label>
-          <Input
-            id="email-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="email-repeat-password">
-            {t("auth.repeatPassword")}
-          </Label>
-          <Input
-            id="email-repeat-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={repeatPassword}
-            onChange={(e) => setRepeatPassword(e.target.value)}
-          />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? t("auth.creatingAccount") : t("auth.signUp")}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-// ─── 手机号注册表单（阿里云短信验证码）─────────────────────────
-
-function PhoneSignUpForm({ next }: { next: string }) {
+export function SignUpForm(props: React.ComponentPropsWithoutRef<"div">) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -131,26 +24,42 @@ function PhoneSignUpForm({ next }: { next: string }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [showOtpVerification, setShowOtpVerification] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
+  const google = useGoogleSignIn(next);
+  const loginHref =
+    next !== "/"
+      ? `/auth/login?next=${encodeURIComponent(next)}`
+      : "/auth/login";
   const router = useRouter();
   const { t } = useTranslation();
 
-  const fullPhone = `${phone}`;
+  const fullPhone = normalizeChinaPhone(phone) ?? "";
+  const setBusy = (busy: boolean) => {
+    setIsLoading(busy);
+  };
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setBusy(true);
     setError(null);
+
+    if (!fullPhone) {
+      setError(t("auth.errors.invalidPhone"));
+      setBusy(false);
+      return;
+    }
 
     if (password !== repeatPassword) {
       setError(t("auth.passwordsMustMatch"));
-      setIsLoading(false);
+      setBusy(false);
       return;
     }
 
     if (password.length < 8) {
       setError(t("auth.passwordTooShort"));
-      setIsLoading(false);
+      setBusy(false);
       return;
     }
 
@@ -161,18 +70,17 @@ function PhoneSignUpForm({ next }: { next: string }) {
         return;
       }
 
-      setOtpSent(true);
       setShowOtpVerification(true);
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setBusy(true);
     setError(null);
     let redirecting = false;
 
@@ -196,6 +104,8 @@ function PhoneSignUpForm({ next }: { next: string }) {
         return;
       }
 
+      setAccountCreated(true);
+
       // 3. 用创建好的账号登录（使用手机号对应的虚拟邮箱）
       const { error: signInError } = await authClient.signIn.email({
         email: createResult.email,
@@ -216,12 +126,14 @@ function PhoneSignUpForm({ next }: { next: string }) {
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
     } finally {
-      if (!redirecting) setIsLoading(false);
+      if (!redirecting) {
+        setBusy(false);
+      }
     }
   };
 
   const handleResendOtp = async () => {
-    setIsLoading(true);
+    setBusy(true);
     setError(null);
 
     try {
@@ -235,198 +147,42 @@ function PhoneSignUpForm({ next }: { next: string }) {
     } catch (error: unknown) {
       setError(formatAuthError(t, error));
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
-  if (showOtpVerification) {
-    return (
-      <form onSubmit={handleVerifyOtp}>
-        <div className="flex flex-col gap-6">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("auth.phoneOtpSentMessage", { phone: fullPhone })}
-            </p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="phone-otp-code">{t("auth.verificationCode")}</Label>
-            <Input
-              id="phone-otp-code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-              required
-              maxLength={6}
-              value={otpCode}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setOtpCode(value);
-              }}
-              className="text-center text-lg tracking-widest"
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isRedirecting
-              ? t("auth.redirecting")
-              : isLoading
-                ? t("auth.verifyingCode")
-                : t("auth.verifyAndSignUp")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleResendOtp}
-            disabled={isLoading}
-          >
-            {t("auth.resendCode")}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full"
-            onClick={() => {
-              setShowOtpVerification(false);
-              setOtpSent(false);
-              setOtpCode("");
-              setError(null);
-            }}
-          >
-            {t("auth.changePhone")}
-          </Button>
-        </div>
-      </form>
-    );
-  }
-
   return (
-    <form onSubmit={handleSendOtp}>
-      <div className="flex flex-col gap-6">
-        <div className="grid gap-2">
-          <Label htmlFor="phone">{t("auth.phone")}</Label>
-          <div className="flex gap-2">
-            <Input
-              value="+86"
-              disabled
-              className="w-16 shrink-0 text-center"
-              tabIndex={-1}
-            />
-            <Input
-              id="phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel-national"
-              placeholder="13800138000"
-              required
-              value={phone}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setPhone(value);
-              }}
-              maxLength={11}
-              disabled={otpSent}
-            />
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="phone-password">{t("auth.password")}</Label>
-          <Input
-            id="phone-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={otpSent}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="phone-repeat-password">
-            {t("auth.repeatPassword")}
-          </Label>
-          <Input
-            id="phone-repeat-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={repeatPassword}
-            onChange={(e) => setRepeatPassword(e.target.value)}
-            disabled={otpSent}
-          />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? t("auth.sendingCode") : t("auth.sendVerificationCode")}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-// ─── 主注册表单（含 Tabs 切换）─────────────────────────────
-
-export function SignUpForm({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<"div">) {
-  const [activeTab, setActiveTab] = useState<string>("phone");
-  const searchParams = useSearchParams();
-  const next = safeNext(searchParams.get("next"));
-  const { t } = useTranslation();
-
-  const description =
-    activeTab === "email"
-      ? t("auth.enterEmailAndPassword")
-      : t("auth.enterPhoneAndPassword");
-
-  return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">{t("auth.signUp")}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className="mb-6 w-full">
-              <TabsTrigger value="phone" className="flex-1">
-                {t("auth.phoneTab")}
-              </TabsTrigger>
-              <TabsTrigger value="email" className="flex-1">
-                {t("auth.emailTab")}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="phone">
-              <PhoneSignUpForm next={next} />
-            </TabsContent>
-
-            <TabsContent value="email">
-              <EmailSignUpForm next={next} />
-            </TabsContent>
-          </Tabs>
-
-          <div className="mt-4 text-center text-sm">
-            {t("auth.alreadyHaveAccount")}{" "}
-            <Link
-              href={
-                next !== "/"
-                  ? `/auth/login?next=${encodeURIComponent(next)}`
-                  : "/auth/login"
-              }
-              className="underline underline-offset-4"
-            >
-              {t("auth.signIn")}
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <SignUpFormView
+      {...props}
+      stage={
+        accountCreated && !isLoading
+          ? "created"
+          : showOtpVerification
+            ? "otp"
+            : "details"
+      }
+      phone={phone}
+      password={password}
+      confirmation={repeatPassword}
+      code={otpCode}
+      onPhoneChange={setPhone}
+      onPasswordChange={setPassword}
+      onConfirmationChange={setRepeatPassword}
+      onCodeChange={setOtpCode}
+      onSubmit={showOtpVerification ? handleVerifyOtp : handleSendOtp}
+      onResend={handleResendOtp}
+      onChangePhone={() => {
+        setShowOtpVerification(false);
+        setOtpCode("");
+        setError(null);
+      }}
+      onGoogleSignIn={google.signIn}
+      loginHref={loginHref}
+      isLoading={isLoading}
+      isRedirecting={isRedirecting}
+      isGoogleLoading={google.isLoading}
+      error={error}
+      googleError={google.error}
+    />
   );
 }
