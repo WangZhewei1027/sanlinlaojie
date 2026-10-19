@@ -105,6 +105,8 @@ PostgreSQL 17 + **PostGIS** in a Docker container next to the app. Geo coordinat
 
 ### Deployment
 
+Current production topology, service responsibilities, independent SAGE/mini-program deployment, ports and backup operations are documented in `docs/production-deployment.md`. Keep it in sync when changing production infrastructure; `docs/aliyun-migration-plan.md` is a historical plan, not the current deployment inventory.
+
 `Dockerfile` (Next standalone, built for linux/amd64), `deploy/docker-compose.yml` (caddy + app + db), `deploy/Caddyfile`, `deploy/env.example`. `scripts/deploy.sh` builds locally and ships over SSH; `.github/workflows/deploy.yml` does the same on every push to `main` (needs the `DEPLOY_SSH_KEY` secret and `DEPLOY_HOST` / `NEXT_PUBLIC_*` variables). The server keeps `/opt/sanlin/.env`; migrations are run from a workstation through `scripts/db-tunnel.sh`. Deployment waits for the reusable quality workflow (including migration regression tests), then runs `scripts/db/deployment-check.mjs` against the target database read-only. Missing migrations or obsolete runtime structures block shipping; deployment never migrates automatically. For this breaking release, follow `docs/release-readiness-20261019.md` and `docs/content-model-migration-runbook.md`.
 
 ## Environment

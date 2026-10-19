@@ -1,0 +1,145 @@
+# 线上部署与服务说明
+
+最后核对：**2026-10-19（北京时间）**。依据线上 Docker、systemd、端口、备份日志、PAI-EAS 服务状态，以及本仓库部署脚本整理；核对时 Web 部署提交为 `fbcb189`。运行状态是当时的快照，变更部署后应同步更新本文。
+
+正式入口：**<https://www.spatialmemory.online/>**。整体由一台 Web 主机、OSS 文件存储、按需启动的 GPU 推理服务，以及微信和短信接口组成。地图合集、Scene、基础素材属于同一个 Next.js 应用，共用同一个数据库。
+
+## 部署关系图
+
+实线表示业务访问，虚线表示部署或备份。
+
+```mermaid
+flowchart TB
+    WEB["浏览器<br/>网站与管理后台"]
+    MINI["微信小程序<br/>地图、Scene、AR 展示"]
+    CI["GitHub Actions<br/>main 分支构建与部署"]
+
+    subgraph SERVER["阿里云轻量应用服务器 · 上海 · 139.196.189.102"]
+        CADDY["Caddy 容器 · HTTPS 入口<br/>www.spatialmemory.online<br/>证书自动续期"]
+        APP["Next.js 容器 · 网站 + 后端 API<br/>登录、地图合集、Scene、基础素材"]
+        DB[("PostgreSQL + PostGIS 容器<br/>用户、业务数据、空间位置<br/>仅内部访问")]
+        SAGE["SAGE 网关 · systemd 服务<br/>选择 GPU、按需启动、故障切换"]
+        BACKUP["定时备份任务<br/>每天北京时间 03:30"]
+
+        CADDY -->|"页面和 API 请求"| APP
+        APP -->|"读写数据"| DB
+        APP -->|"图片特征提取"| SAGE
+        CADDY -->|"/_sage 路由"| SAGE
+        DB -.->|"pg_dump"| BACKUP
+    end
+
+    subgraph CLOUD["独立云服务"]
+        MEDIA[("OSS 素材存储<br/>sanlinlaojie-media<br/>图片、视频、音频、模型、二维码")]
+        ARCHIVE[("OSS 私有备份存储<br/>sanlinlaojie-backups<br/>数据库备份文件")]
+        GPU["阿里云 PAI-EAS · SAGE 推理<br/>GU30 / L20 / A10 按需选择<br/>核对时均已停止，等待请求启动"]
+        WX["微信开放接口<br/>生成小程序二维码"]
+        SMS["阿里云号码认证服务<br/>手机验证码"]
+    end
+
+    WEB -->|"HTTPS"| CADDY
+    MINI -->|"HTTPS API"| CADDY
+    WEB -->|"加载素材"| MEDIA
+    MINI -->|"加载素材"| MEDIA
+    APP -->|"上传文件、缓存二维码"| MEDIA
+    APP --> WX
+    APP --> SMS
+    SAGE -->|"启动、调用、空闲后停止"| GPU
+    BACKUP -.->|"上传备份"| ARCHIVE
+    CI -.->|"SSH 更新 Compose、Caddy 配置"| CADDY
+    CI -.->|"SSH 部署镜像与 Compose 配置"| APP
+```
+
+## 服务用途与部署方式
+
+Web 主机是阿里云**轻量应用服务器**，地域 `cn-shanghai`，部署目录 `/opt/sanlin`。Docker Compose 项目名为 `sanlin`，网络为 `sanlin_default`。
+
+| 服务 | 用途 | 部署方式与位置 | 核对时状态 |
+| --- | --- | --- | --- |
+| Caddy | HTTPS、域名跳转、反向代理、证书自动续期 | Compose 的 `caddy`；容器 `sanlin-caddy-1`，镜像 `caddy:2-alpine`；挂载 `/opt/sanlin/Caddyfile`，证书保存在 `sanlin_caddy-data` 卷 | 运行中 |
+| Next.js | Web 页面、管理 API、小程序 API、Better Auth 登录鉴权、上传与识别编排 | Compose 的 `app`；容器 `sanlin-app-1`，镜像 `sanlin-web:latest`；Node.js 22 + Next standalone，`linux/amd64` | 运行且健康 |
+| PostgreSQL + PostGIS | 账号会话、团队、地图合集、素材、Scene、投放和空间查询 | Compose 的 `db`；容器 `sanlin-db-1`，镜像 `postgis/postgis:17-3.5`；数据库 `sanlin`，数据卷 `sanlin_db-data` | 运行且健康；唯一生产业务数据库 |
+| SAGE 网关 | 管理 GPU 生命周期、选择合格候选、预热校验和转发图片向量请求 | 主机 Python 虚拟环境 + `sage-fallback.service`，代码位于 `/opt/sanlin/sage-fallback`；独立于 Docker Compose | 运行中；控制器因空闲处于 `off` |
+| SAGE 推理 | 将参考图、相机图片转为特征向量，供后端匹配；AR 渲染仍在手机端完成 | 阿里云 PAI-EAS 上海服务，GPU 由网关按需启动；详情见下节 | 所有候选 `Stopped`，运行实例数为 0 |
+| OSS 素材桶 | 保存媒体、3D 模型、二维码和部分静态资源 | 上海桶 `sanlinlaojie-media`；应用经 OSS SDK 上传，客户端经公开 HTTPS 地址读取 | 已接入；使用 OSS 原始域名，未配置独立媒体 CDN |
+| 数据库备份任务 | 导出生产数据库并上传到主机外的存储 | 主机 cron 执行 `/opt/sanlin/backup.sh`；`/etc/cron.d/sanlin-backup` 配置每天 03:30，服务器时区 `Asia/Shanghai` | 最近核对的 2026-10-19 定时备份成功 |
+| OSS 备份桶 | 保存用于恢复的数据库 dump | 私有桶 `sanlinlaojie-backups`，对象前缀 `db/`；由备份脚本上传 | 已接入；不是运行中的数据库或热备副本 |
+| 微信开放接口 | 获取 access token、生成合集和 Scene 的小程序码 | Next.js 服务端调用微信 API；生成图片按 `release/trial/develop` 分开缓存在 OSS，access token 缓存在应用进程内 | 已配置；二维码环境在 `/admin/settings` 浏览器端选择，默认 `release` |
+| 阿里云号码认证服务 | 发送、校验手机号验证码 | Next.js 内的 `lib/auth/sms.ts` 调用 Dypnsapi；使用服务端 RAM 凭据，不额外部署短信进程 | 已接入；本次未发送真实短信测试 |
+| 微信小程序 | 扫码入口、地图内容与 Scene 播放、手机端 AR | 兄弟项目 `xr-frame-plant-trees` 通过微信开发者工具独立编译、上传和发布；通过 `/api/miniapp/*` 访问 Web 后端 | 配套 Scene / 新内容模型版本仍待用户另行发布 |
+| GitHub Actions | 质量检查、镜像构建、Web 部署和冒烟检查 | [Deploy 工作流](../.github/workflows/deploy.yml)，push `main` 或手动触发 | 已启用；不发布小程序或 SAGE |
+
+SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`。Better Auth 运行在 Next.js 内，没有单独的认证容器。当前主链路不通过 Vercel 或 Supabase；历史迁移记录不代表仍在使用那些服务。
+
+## 域名、端口与请求路径
+
+`www.spatialmemory.online` 和 `spatialmemory.online` 的 DNS A 记录都指向 `139.196.189.102`。HTTP 跳转 HTTPS；裸域名再跳转到 `www`，保留路径与查询参数。原 IP 的 HTTPS 入口仍保留，供客户端域名切换过渡使用。
+
+| 入口 | 可达范围 | 作用 |
+| --- | --- | --- |
+| TCP 80、TCP/UDP 443 | 公网 → Caddy | HTTP 跳转、HTTPS / HTTP/3 |
+| TCP 22 | 运维与 CI → 主机 SSH | 部署、只读检查、数据库隧道 |
+| `app:3000` | Docker 内部网络 | Caddy 转发到 Next.js；未映射为主机公网端口 |
+| `db:5432` / `127.0.0.1:5432` | 应用容器 / 主机回环 | 应用数据库访问；外部运维通过 SSH 隧道进入 |
+| `172.18.0.1:18080` | 主机 Docker 网桥 | SAGE 网关；应用的 `SAGE_EAS_ENDPOINT` 指向此地址 |
+| `/_sage/*` | 经 Caddy 的 HTTPS 入口 | 去掉前缀后转发至网关；`/health`、`/embed`、`/status` 仍需网关 Token |
+
+典型请求路径：
+
+- 管理与扫码：客户端 → Caddy → Next.js → PostgreSQL。素材和 Scene 保存即生效，引用通过 ID 读取当前内容。
+- 文件：浏览器上传 → Next.js `/api/upload` → OSS；浏览器和小程序按媒体 URL 加载文件，网页部分图片也经过 Next.js 图片优化接口。
+- 识别：小程序 → Next.js 识别接口 → SAGE 网关 → PAI-EAS 返回向量 → 后端匹配并返回结果。
+
+## SAGE 独立部署与运行策略
+
+网关与模型源码位于兄弟项目 `ai-location`，主要说明在 `ai-location/deploy/sage/fallback/README.md`。**Web 的 GitHub Actions 和 `npm run deploy` 不会更新这两项服务。**
+
+- 网关：Python 程序、虚拟环境和依赖部署到 `/opt/sanlin/sage-fallback`，由 systemd 管理；私有配置与云凭据在 `/etc/sage-fallback/`，恢复状态在 `/var/lib/sage-fallback/state.json`。更新后通过 systemd 重启并核对状态。
+- 模型：通过 `ai-location/deploy/sage/` 的部署工具与阿里云 PAI-EAS 管理接口更新。模型、容器、规格或挂载变化需重新验证候选资格并更新网关注册表，不能只更新某个推理服务就视为全部发布完成。
+- 正式候选按顺序尝试：GU30 32 核 `sage_qual_gu30_32_1014` → L20 `sage_qual_l20_1014` → A10 `sage_anchor_gpu`。名字含 `qual` 的前两项已用于正式调度。
+- 两个未通过资格验证的服务 `sage_qual_gu30_1014`（8 核）、`sage_qual_gu30_16_1014`（16 核）保持停止，不参与自动启动。
+- 顺序启动与回退，确认旧实例释放后才启动下一个；有需求时启动，空闲 1800 秒后释放。首次请求可能经历冷启动或缺货等待，不代表模型随时已就绪。
+- `/readyz` 仅检查网关存活；带 Token 的 `/status` 只读状态。**`/health` 和 `/embed` 会登记需求，不能用作保持空闲时的定时巡检。**
+
+## Web 发布方式
+
+日常自动部署以 [Deploy](../.github/workflows/deploy.yml) 和 [质量检查](../.github/workflows/ui-quality.yml) 为准：
+
+1. push `main` 或手动运行工作流，先完成 typecheck、lint、生产构建、Storybook 和隔离 PostGIS 迁移回归。
+2. 构建 `linux/amd64` 的 `sanlin-web:<commit SHA>` 镜像。`NEXT_PUBLIC_*` 在构建时写入前端包，修改这类配置需要重新构建。
+3. 经 SSH 对目标数据库运行只读部署门禁，核对迁移账本和实际结构；缺迁移或残留旧结构时阻止部署。
+4. 使用 `docker save | gzip` 经 SSH 传输镜像，再在服务器 `docker load`；当前链路不使用镜像仓库。复制 Compose、Caddy 和备份脚本，保留服务器 `/opt/sanlin/.env`。
+5. 将目标镜像标为 `sanlin-web:latest`，执行 Compose 更新、Caddy reload，最后访问首页做 HTTP 200 冒烟检查。
+
+手工发布入口是 [`scripts/deploy.sh`](../scripts/deploy.sh)（`npm run deploy`）：本地构建后走相同的 SSH 传输方式，并安装备份 cron。与 CI 不同，**手工脚本会用所选环境文件覆盖服务器 `.env`**；应先核对该文件，避免覆盖现有域名、SAGE 或凭据配置。
+
+部署配置索引：[`Dockerfile`](../Dockerfile)、[`docker-compose.yml`](../deploy/docker-compose.yml)、[`Caddyfile`](../deploy/Caddyfile)、[`env.example`](../deploy/env.example)。密钥、服务器 `.env`、SAGE 私有注册表和数据库 dump 均不提交 Git。
+
+## 数据库迁移、备份与恢复边界
+
+生产数据库已在 2026-10-19 完成团队内容模型迁移。后续改表仍需遵循以下顺序，部署脚本不会自动执行迁移：
+
+1. 获取目标库完整备份，在隔离副本验证迁移及数据保留；需要破坏性升级时安排停写，并在停写后获取最新备份。
+2. 经 [`scripts/db-tunnel.sh`](../scripts/db-tunnel.sh) 连接目标库，按 [迁移手册](content-model-migration-runbook.md) 执行 `npm run db:migrate`，核对迁移账本、引用和归档。
+3. 运行只读部署门禁，再发布匹配结构的 Web；涉及客户端协议变化时协调小程序独立发布和验收。
+
+[`deploy/backup.sh`](../deploy/backup.sh) 使用 PostgreSQL custom 格式压缩导出，保存为 `/opt/sanlin/backups/sanlin-<时间>.dump`，随后上传到私有 OSS 的 `db/` 前缀；本地通过 `find -mtime +3` 清理旧 dump。OSS 保留周期由桶生命周期配置管理，本文不将历史文档中的周期当作已重新核验值。
+
+这些 dump 备份数据库内容，不包含 OSS 媒体文件、服务器配置或 SAGE 凭据。数据库文件与 Caddy 证书使用持久卷；替换应用容器不会清空它们。恢复时需匹配数据库结构与应用版本，删表删列之后不能只回滚旧应用镜像；详见迁移手册。
+
+目前 Web 与数据库共用一台主机，没有自动接管的备用主机或数据库副本。OSS 备份用于恢复，不能替代高可用。
+
+## 只读巡检与文档维护
+
+以下命令不会迁移数据库或唤醒 GPU：
+
+```bash
+ssh root@139.196.189.102 'cd /opt/sanlin && docker compose ps'
+ssh root@139.196.189.102 'systemctl status sage-fallback --no-pager'
+ssh root@139.196.189.102 'curl --fail --silent --show-error http://172.18.0.1:18080/readyz'
+ssh root@139.196.189.102 'tail -n 10 /var/log/sanlin-backup.log'
+curl --head https://www.spatialmemory.online/
+```
+
+`/readyz` 成功只表示网关存活，不表示 GPU 已启动；首页成功也不覆盖短信、识别或手机 AR 全链路。更新域名、端口、Compose、GPU 候选、备份策略或小程序发布状态时，同时更新本文的核对日期与对应条目。
+
+[阿里云迁移计划](aliyun-migration-plan.md) 保留历史方案与过程；[2026-10-19 上线检查](release-readiness-20261019.md) 是上线前审计快照。当前部署位置与服务职责以本文及实际配置为准。

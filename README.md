@@ -11,7 +11,7 @@
 | **sanlinlaojie** | `sanlinlaojie/` | Web 管理平台 |
 | **xr-frame-plant-trees** | `xr-frame-plant-trees/` | 微信小程序 GPS AR 体验 |
 
-两者共享同一套数据模型（素材库、组织、工作区、弹幕等）；自建后端的迁移过程见 `docs/aliyun-migration-plan.md`。
+两者共享团队、地图合集、素材、Scene 与投放数据。正式网站为 <https://www.spatialmemory.online/>；服务关系图、用途、部署方式、备份和发布流程见 [线上部署说明](docs/production-deployment.md)，历史迁移过程见 [阿里云迁移记录](docs/aliyun-migration-plan.md)。
 
 ---
 
@@ -34,9 +34,9 @@
 
 #### 用户端
 - `/` — 首页
-- `/manage` — 团队工作台：全部素材与场景，按类型筛选；`/manage/assets/[id]` 素材详情（固定版本与使用记录）
-- `/manage/scenes/[id]` — 场景编排、预览与发布（场景属于团队，无需项目）
-- `/manage/collections` — 地图合集；`/manage/collections/[id]` 在地图上放置素材与已发布场景（尚未迁移的团队，`/manage` 仍是旧素材地图）
+- `/manage` — 默认进入 `/manage/assets`；侧边栏区分地图合集、Scene 与基础素材，`/manage/assets/[id]` 查看和修改当前素材
+- `/manage/scenes`、`/manage/scenes/[id]` — 场景库与独立编辑器；场景属于团队，保存即生效，可扫码在小程序预览
+- `/manage/collections`、`/manage/collections/[id]` — 地图合集库与独立地图编辑器；放置素材或 Scene，合集二维码仅在编辑器内展示
 - `/auth/*` — 登录 / 注册 / 找回与修改密码
 - `/invite/[token]` — 接受团队邀请链接
 - `/settings` — 个人设置
@@ -45,7 +45,7 @@
 #### 管理端（`/admin`）
 - Settings — 团队设置
 - Members — 成员与团队角色
-- Collections — v2 团队跳转到 `/manage/collections`；尚未迁移的团队保留工作区管理
+- 地图合集统一在 `/manage/collections` 管理
 
 #### 超级管理员（`/super-admin`）
 - User Management — 全局用户管理
@@ -217,14 +217,13 @@ xr-frame-plant-trees/
 
 结构以 `db/schema.sql` 为准（含全部函数与触发器）。核心表包括：
 
-- **organization / organization_member** — 团队所有权、组织角色与内容模型切换状态。
-- **workspace** — 地图合集（界面称“合集”），拥有投放；保留二维码参数和原 UUID。`workspace_assignment` 仅作历史记录。
-- **asset / asset_version / asset_version_resource** — 素材身份、不可变内容版本与文件保留清单。
-- **asset_workspace_grant** — 旧的项目使用授权，现仅作历史记录，不参与权限。
-- **scene / scene_revision** — 编排草稿、固定发布版本与派生依赖索引。
-- **placement** — 一次空间投放，固定引用素材版本或场景发布版本。
+- **organization / organization_member** — 团队所有权、成员和团队角色。
+- **workspace** — 地图合集，拥有投放；迁移保留原 UUID 和合集二维码上下文。
+- **asset / asset_resource** — 可直接修改的当前素材内容与文件引用。
+- **scene** — 团队场景的 schema-4 编排文档，保存即生效，通过素材 ID 读取当前内容。
+- **placement** — 合集中的空间投放，通过 ID 引用当前素材或 Scene；位置、标签与展示设置独立保存。
 
-这些是 v2 模型。组织状态为 `legacy/preparing` 时保留旧 Asset 写入，`readonly` 为切换窗口，`v2` 才启用新写源。数据库迁移不会自动切换业务；旧匿名文字、Anchor、Shop 和公开 ID 通过兼容层处理。见 [数据层](docs/data-layer.md)。
+线上只运行这一套内容模型，不保留素材版本、场景发布或按团队切换的兼容分支。历史数据通过数据库迁移转换，恢复归档不参与运行时读取。见 [数据层](docs/data-layer.md) 与 [迁移手册](docs/content-model-migration-runbook.md)。
 
 ---
 
@@ -253,14 +252,15 @@ npm run dev
 
 | 文档 | 说明 |
 |---|---|
+| [docs/production-deployment.md](docs/production-deployment.md) | 当前线上部署图、服务用途与部署方式、域名端口、发布和备份流程 |
 | [docs/team-assets-scenes-refactor-plan.md](docs/team-assets-scenes-refactor-plan.md) | 团队素材复用与场景管理改造方案：目标、迁移顺序与验收依据；实现说明见下列专题文档 |
 | [docs/content-model-validation.md](docs/content-model-validation.md) | 首期实现结果、隔离环境验证与上线边界 |
 | [docs/content-model-migration-runbook.md](docs/content-model-migration-runbook.md) | 旧数据审计、回填、核验、切换和回退操作手册 |
-| [docs/scene-asset.md](docs/scene-asset.md) | 独立场景、固定版本发布与 legacy 场景兼容 |
+| [docs/scene-asset.md](docs/scene-asset.md) | 独立场景、保存即生效与当前素材引用 |
 | [docs/api.md](docs/api.md) | API 接口说明 |
 | [docs/i18n-guide.md](docs/i18n-guide.md) | 国际化使用指南 |
-| [docs/team-workbench.md](docs/team-workbench.md) | 团队工作台、地图合集与兼容链接（前端） |
-| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 合集地图 ID、消息适配与 legacy 素材交互 |
+| [docs/team-workbench.md](docs/team-workbench.md) | 团队工作台与地图合集（前端） |
+| [docs/map-asset-interaction.md](docs/map-asset-interaction.md) | 合集投放 ID、地图消息与素材交互 |
 | [docs/3d-model-preview.md](docs/3d-model-preview.md) | 3D 模型预览方案 |
 | [docs/text-asset-miniapp-style.md](docs/text-asset-miniapp-style.md) | 文本素材小程序样式 |
 | [docs/wechat-qr-code.md](docs/wechat-qr-code.md) | 微信 QR 码生成与跳转 |
