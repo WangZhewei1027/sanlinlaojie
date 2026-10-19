@@ -43,6 +43,7 @@ next-env.d.ts
 
 # server env files (scripts/deploy.sh)
 deploy/.env*
+/deploy/pgadmin/private/
 
 # one-shot migration exports (scripts/migrate/)
 .migration/

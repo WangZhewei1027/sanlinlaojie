@@ -5,6 +5,7 @@
 #   app    — Next.js standalone server (image built locally, loaded over SSH)
 #   db     — PostgreSQL 17 + PostGIS; data in the db-data volume, bound to
 #            127.0.0.1 only so migrations run through an SSH tunnel
+#   pgadmin — browser database console, reached only through Caddy
 
 services:
   db:
@@ -57,6 +58,7 @@ services:
       SITE_DOMAIN: ${SITE_DOMAIN:-}
       SITE_IP: ${SITE_IP:-}
       SAGE_GATEWAY_UPSTREAM: ${SAGE_GATEWAY_UPSTREAM:-172.18.0.1:18080}
+      PGADMIN_DOMAIN: ${PGADMIN_DOMAIN:-db.spatialmemory.online}
     ports:
       - "80:80"
       - "443:443"
@@ -68,7 +70,46 @@ services:
     depends_on:
       - app
 
+  pgadmin:
+    image: dpage/pgadmin4:9.18
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@spatialmemory.online}
+      PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_login_password
+      PGADMIN_DISABLE_POSTFIX: "1"
+      GUNICORN_THREADS: "4"
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_SESSION_COOKIE_SECURE: "True"
+      PGADMIN_CONFIG_PROXY_X_PROTO_COUNT: "1"
+      PGADMIN_CONFIG_PROXY_X_HOST_COUNT: "1"
+      PGADMIN_CONFIG_PROXY_X_FOR_COUNT: "1"
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"
+      PGADMIN_CONFIG_LOGIN_BANNER: "'Spatial Memory — production database'"
+    secrets:
+      - pgadmin_login_password
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    expose:
+      - "80"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/venv/bin/python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1/misc/ping', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+secrets:
+  pgadmin_login_password:
+    file: ./pgadmin/private/login-password
+
 volumes:
   db-data:
   caddy-data:
   caddy-config:
+  pgadmin-data:

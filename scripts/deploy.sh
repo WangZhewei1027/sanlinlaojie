@@ -50,13 +50,20 @@ ship_image() {
 
 ship_image postgis/postgis:17-3.5
 ship_image caddy:2-alpine
+PGADMIN_IMAGE=$(awk '/^  pgadmin:$/ {found=1; next} found && $1=="image:" {print $2; exit}' deploy/docker-compose.yml)
+if ! ssh "$HOST" "docker image inspect '$PGADMIN_IMAGE' >/dev/null 2>&1"; then
+  docker image inspect "$PGADMIN_IMAGE" >/dev/null 2>&1 || docker pull --platform linux/amd64 "$PGADMIN_IMAGE"
+  ship_image "$PGADMIN_IMAGE"
+fi
 echo "▶ shipping $IMAGE:$TAG"
 docker save "$IMAGE:$TAG" | gzip -1 | ssh "$HOST" "gunzip | docker load"
 
 echo "▶ copying compose files"
 ssh "$HOST" "mkdir -p $DIR"
+ssh "$HOST" "test -s $DIR/pgadmin/private/login-password || { echo 'Provision pgAdmin first (docs/pgadmin.md)'; exit 1; }"
 CADDYFILE=$(env_value CADDYFILE); CADDYFILE=${CADDYFILE:-Caddyfile}
 scp -q deploy/docker-compose.yml deploy/backup.sh "$HOST:$DIR/"
+scp -q deploy/pgadmin/servers.json deploy/pgadmin/provision.py "$HOST:$DIR/pgadmin/"
 scp -q "deploy/$CADDYFILE" "$HOST:$DIR/Caddyfile"
 scp -q "$ENV_FILE" "$HOST:$DIR/.env"
 ssh "$HOST" "chmod 600 $DIR/.env; chmod +x $DIR/backup.sh"
@@ -66,4 +73,4 @@ ssh "$HOST" 'command -v ossutil >/dev/null || (curl -fsSL https://gosspublic.ali
 printf "30 3 * * * root /opt/sanlin/backup.sh >> /var/log/sanlin-backup.log 2>&1\n" > /etc/cron.d/sanlin-backup && chmod 644 /etc/cron.d/sanlin-backup'
 
 echo "▶ starting"
-ssh "$HOST" "cd $DIR && docker tag $IMAGE:$TAG $IMAGE:latest && docker compose up -d --remove-orphans && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && docker image prune -f >/dev/null && docker compose ps"
+ssh "$HOST" "cd $DIR && docker tag $IMAGE:$TAG $IMAGE:latest && docker compose up -d --wait --wait-timeout 180 --remove-orphans && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && docker image prune -f >/dev/null && docker compose ps"

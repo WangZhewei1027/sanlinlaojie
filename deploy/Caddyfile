@@ -40,3 +40,12 @@
 	}
 	import site_proxy
 }
+
+{$PGADMIN_DOMAIN:db.spatialmemory.online} {
+	encode zstd gzip
+	reverse_proxy pgadmin:80
+	log {
+		output stdout
+		format console
+	}
+}

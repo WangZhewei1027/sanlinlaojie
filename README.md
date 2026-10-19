@@ -253,6 +253,7 @@ npm run dev
 | 文档 | 说明 |
 |---|---|
 | [docs/production-deployment.md](docs/production-deployment.md) | 当前线上部署图、服务用途与部署方式、域名端口、发布和备份流程 |
+| [docs/pgadmin.md](docs/pgadmin.md) | 浏览器数据库管理入口、只读与维护连接、部署和凭据维护 |
 | [docs/team-assets-scenes-refactor-plan.md](docs/team-assets-scenes-refactor-plan.md) | 团队素材复用与场景管理改造方案：目标、迁移顺序与验收依据；实现说明见下列专题文档 |
 | [docs/content-model-validation.md](docs/content-model-validation.md) | 首期实现结果、隔离环境验证与上线边界 |
 | [docs/content-model-migration-runbook.md](docs/content-model-migration-runbook.md) | 旧数据审计、回填、核验、切换和回退操作手册 |

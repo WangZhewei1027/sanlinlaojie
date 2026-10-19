@@ -17,11 +17,14 @@ flowchart TB
     subgraph SERVER["阿里云轻量应用服务器 · 上海 · 139.196.189.102"]
         CADDY["Caddy 容器 · HTTPS 入口<br/>www.spatialmemory.online<br/>证书自动续期"]
         APP["Next.js 容器 · 网站 + 后端 API<br/>登录、地图合集、Scene、基础素材"]
+        PGADMIN["pgAdmin 4 容器 · 数据库管理<br/>db.spatialmemory.online<br/>独立登录 / 只读与维护连接"]
         DB[("PostgreSQL + PostGIS 容器<br/>用户、业务数据、空间位置<br/>仅内部访问")]
         SAGE["SAGE 网关 · systemd 服务<br/>选择 GPU、按需启动、故障切换"]
         BACKUP["定时备份任务<br/>每天北京时间 03:30"]
 
         CADDY -->|"页面和 API 请求"| APP
+        CADDY -->|"db 子域名"| PGADMIN
+        PGADMIN -->|"内部连接"| DB
         APP -->|"读写数据"| DB
         APP -->|"图片特征提取"| SAGE
         CADDY -->|"/_sage 路由"| SAGE
@@ -58,6 +61,7 @@ Web 主机是阿里云**轻量应用服务器**，地域 `cn-shanghai`，部署�
 | Caddy | HTTPS、域名跳转、反向代理、证书自动续期 | Compose 的 `caddy`；容器 `sanlin-caddy-1`，镜像 `caddy:2-alpine`；挂载 `/opt/sanlin/Caddyfile`，证书保存在 `sanlin_caddy-data` 卷 | 运行中 |
 | Next.js | Web 页面、管理 API、小程序 API、Better Auth 登录鉴权、上传与识别编排 | Compose 的 `app`；容器 `sanlin-app-1`，镜像 `sanlin-web:latest`；Node.js 22 + Next standalone，`linux/amd64` | 运行且健康 |
 | PostgreSQL + PostGIS | 账号会话、团队、地图合集、素材、Scene、投放和空间查询 | Compose 的 `db`；容器 `sanlin-db-1`，镜像 `postgis/postgis:17-3.5`；数据库 `sanlin`，数据卷 `sanlin_db-data` | 运行且健康；唯一生产业务数据库 |
+| pgAdmin 4 | 浏览表格、JSON、执行 SQL 和维护数据 | Compose 的 `pgadmin`；镜像 `dpage/pgadmin4:9.18`，独立配置卷 `sanlin_pgadmin-data`，512 MiB 内存上限；Caddy 提供 `db.spatialmemory.online` HTTPS | 2026-10-19 新增；登录与运维见 [pgAdmin 说明](pgadmin.md) |
 | SAGE 网关 | 管理 GPU 生命周期、选择合格候选、预热校验和转发图片向量请求 | 主机 Python 虚拟环境 + `sage-fallback.service`，代码位于 `/opt/sanlin/sage-fallback`；独立于 Docker Compose | 运行中；控制器因空闲处于 `off` |
 | SAGE 推理 | 将参考图、相机图片转为特征向量，供后端匹配；AR 渲染仍在手机端完成 | 阿里云 PAI-EAS 上海服务，GPU 由网关按需启动；详情见下节 | 所有候选 `Stopped`，运行实例数为 0 |
 | OSS 素材桶 | 保存媒体、3D 模型、二维码和部分静态资源 | 上海桶 `sanlinlaojie-media`；应用经 OSS SDK 上传，客户端经公开 HTTPS 地址读取 | 已接入；使用 OSS 原始域名，未配置独立媒体 CDN |
@@ -74,11 +78,14 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 
 `www.spatialmemory.online` 和 `spatialmemory.online` 的 DNS A 记录都指向 `139.196.189.102`。HTTP 跳转 HTTPS；裸域名再跳转到 `www`，保留路径与查询参数。原 IP 的 HTTPS 入口仍保留，供客户端域名切换过渡使用。
 
+`db.spatialmemory.online` 同样指向此主机，由 Caddy 独立路由到 pgAdmin，不经过网站的登录系统。
+
 | 入口 | 可达范围 | 作用 |
 | --- | --- | --- |
 | TCP 80、TCP/UDP 443 | 公网 → Caddy | HTTP 跳转、HTTPS / HTTP/3 |
 | TCP 22 | 运维与 CI → 主机 SSH | 部署、只读检查、数据库隧道 |
 | `app:3000` | Docker 内部网络 | Caddy 转发到 Next.js；未映射为主机公网端口 |
+| `pgadmin:80` | Docker 内部网络 | Caddy 转发到数据库管理页面；未映射主机端口 |
 | `db:5432` / `127.0.0.1:5432` | 应用容器 / 主机回环 | 应用数据库访问；外部运维通过 SSH 隧道进入 |
 | `172.18.0.1:18080` | 主机 Docker 网桥 | SAGE 网关；应用的 `SAGE_EAS_ENDPOINT` 指向此地址 |
 | `/_sage/*` | 经 Caddy 的 HTTPS 入口 | 去掉前缀后转发至网关；`/health`、`/embed`、`/status` 仍需网关 Token |
@@ -113,6 +120,8 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 手工发布入口是 [`scripts/deploy.sh`](../scripts/deploy.sh)（`npm run deploy`）：本地构建后走相同的 SSH 传输方式，并安装备份 cron。与 CI 不同，**手工脚本会用所选环境文件覆盖服务器 `.env`**；应先核对该文件，避免覆盖现有域名、SAGE 或凭据配置。
 
 部署配置索引：[`Dockerfile`](../Dockerfile)、[`docker-compose.yml`](../deploy/docker-compose.yml)、[`Caddyfile`](../deploy/Caddyfile)、[`env.example`](../deploy/env.example)。密钥、服务器 `.env`、SAGE 私有注册表和数据库 dump 均不提交 Git。
+
+pgAdmin 的首次 secret 和数据库角色需按 [部署说明](pgadmin.md) 初始化；后续 Web 部署同步其公开配置与镜像，保留账号配置卷和私有凭据。
 
 ## 数据库迁移、备份与恢复边界
 
