@@ -1,8 +1,8 @@
 # 线上部署与服务说明
 
-最后核对：**2026-10-19（北京时间）**。依据线上 Docker、systemd、端口、备份日志、PAI-EAS 服务状态，以及本仓库部署脚本整理；核对时 Web 部署提交为 `fbcb189`。运行状态是当时的快照，变更部署后应同步更新本文。
+最后核对：**2026-10-19（北京时间）**。依据线上 Docker、systemd、端口、备份日志、PAI-EAS 服务状态，以及本仓库部署脚本整理；Web 与 Google 登录中转已核对至部署提交 `d855e8f`，其余服务运行状态沿用当天巡检快照。变更部署后应同步更新本文。
 
-正式入口：**<https://www.spatialmemory.online/>**。整体由一台 Web 主机、OSS 文件存储、按需启动的 GPU 推理服务，以及微信和短信接口组成。地图合集、Scene、基础素材属于同一个 Next.js 应用，共用同一个数据库。
+正式入口：**<https://www.spatialmemory.online/>**。整体由上海 Web 主机、OSS 文件存储、按需启动的 GPU 推理服务、中国香港 Google 登录中转函数，以及 Google、微信和短信接口组成。地图合集、Scene、基础素材属于同一个 Next.js 应用，共用同一个数据库。
 
 ## 部署关系图
 
@@ -13,6 +13,7 @@ flowchart TB
     WEB["浏览器<br/>网站与管理后台"]
     MINI["微信小程序<br/>地图、Scene、AR 展示"]
     CI["GitHub Actions<br/>main 分支构建与部署"]
+    FC_DEPLOY["函数独立部署脚本<br/>deploy-google-auth-relay.mjs"]
 
     subgraph SERVER["阿里云轻量应用服务器 · 上海 · 139.196.189.102"]
         CADDY["Caddy 容器 · HTTPS 入口<br/>www.spatialmemory.online<br/>证书自动续期"]
@@ -37,24 +38,31 @@ flowchart TB
         GPU["阿里云 PAI-EAS · SAGE 推理<br/>GU30 / L20 / A10 按需选择<br/>核对时均已停止，等待请求启动"]
         WX["微信开放接口<br/>生成小程序二维码"]
         SMS["阿里云号码认证服务<br/>手机验证码"]
-        GOOGLE_RELAY["函数计算 · 中国香港<br/>Google 认证中转"]
-        GOOGLE["Google OAuth<br/>令牌与签名公钥"]
+        GOOGLE["Google OAuth<br/>授权页、令牌与签名公钥"]
     end
 
-    WEB -->|"HTTPS"| CADDY
+    subgraph HONG_KONG["阿里云函数计算 · 中国香港 · cn-hongkong"]
+        GOOGLE_RELAY["FC 3.0 · Google 登录中转<br/>sanlin-google-oauth-relay<br/>按需运行 · 128 MiB / 0.05 vCPU"]
+    end
+
+    WEB -->|"HTTPS · 页面、API、Google 授权回调"| CADDY
+    WEB -->|"访问 Google 授权页"| GOOGLE
     MINI -->|"HTTPS API"| CADDY
     WEB -->|"加载素材"| MEDIA
     MINI -->|"加载素材"| MEDIA
     APP -->|"上传文件、缓存二维码"| MEDIA
     APP --> WX
     APP --> SMS
-    APP -->|"HTTPS + 独立调用密钥"| GOOGLE_RELAY
-    GOOGLE_RELAY --> GOOGLE
+    APP -->|"POST /token、GET /jwks<br/>HTTPS + 独立调用密钥"| GOOGLE_RELAY
+    GOOGLE_RELAY -->|"令牌交换 / 刷新、获取签名公钥"| GOOGLE
     SAGE -->|"启动、调用、空闲后停止"| GPU
     BACKUP -.->|"上传备份"| ARCHIVE
     CI -.->|"SSH 更新 Compose、Caddy 配置"| CADDY
     CI -.->|"SSH 部署镜像与 Compose 配置"| APP
+    FC_DEPLOY -.->|"阿里云 API · 独立发布"| GOOGLE_RELAY
 ```
+
+Google 授权页由用户浏览器直接访问，授权码随浏览器回调网站 `/api/auth/callback/google`。上海 Next.js 经香港函数交换令牌、获取 Google 公钥，再在上海完成验签、账号关联与会话创建；用户数据仍保存在上海 PostgreSQL，香港函数没有数据库访问权限。
 
 ## 服务用途与部署方式
 
@@ -73,9 +81,9 @@ Web 主机是阿里云**轻量应用服务器**，地域 `cn-shanghai`，部署�
 | OSS 备份桶 | 保存用于恢复的数据库 dump | 私有桶 `sanlinlaojie-backups`，对象前缀 `db/`；由备份脚本上传 | 已接入；不是运行中的数据库或热备副本 |
 | 微信开放接口 | 获取 access token、生成合集和 Scene 的小程序码 | Next.js 服务端调用微信 API；生成图片按 `release/trial/develop` 分开缓存在 OSS，access token 缓存在应用进程内 | 已配置；二维码环境在 `/admin/settings` 浏览器端选择，默认 `release` |
 | 阿里云号码认证服务 | 发送、校验手机号验证码 | Next.js 内的 `lib/auth/sms.ts` 调用 Dypnsapi；使用服务端 RAM 凭据，不额外部署短信进程 | 已接入；本次未发送真实短信测试 |
-| Google 认证中转 | Google 令牌交换、刷新与签名公钥获取 | FC 3.0 中国香港函数 `sanlin-google-oauth-relay`，Node.js 20；配置和维护见 [中转说明](google-auth-relay.md) | 上海生产容器至中转、Google 两段网络已验证 |
+| Google 认证中转 | Google 令牌交换、刷新与签名公钥获取 | FC 3.0 中国香港 `cn-hongkong` 函数 `sanlin-google-oauth-relay`；Node.js 20、128 MiB、0.05 vCPU，按需运行；由 [独立脚本](../scripts/deploy-google-auth-relay.mjs) 发布，配置见 [中转说明](google-auth-relay.md) | 已上线；生产容器获取公钥、无效授权码回调与中转鉴权检查通过，真实账号授权仍需用户验证 |
 | 微信小程序 | 扫码入口、地图内容与 Scene 播放、手机端 AR | 兄弟项目 `xr-frame-plant-trees` 通过微信开发者工具独立编译、上传和发布；通过 `/api/miniapp/*` 访问 Web 后端 | 配套 Scene / 新内容模型版本仍待用户另行发布 |
-| GitHub Actions | 质量检查、镜像构建、Web 部署和冒烟检查 | [Deploy 工作流](../.github/workflows/deploy.yml)，push `main` 或手动触发 | 已启用；不发布小程序或 SAGE |
+| GitHub Actions | 质量检查、镜像构建、Web 部署和冒烟检查 | [Deploy 工作流](../.github/workflows/deploy.yml)，push `main` 或手动触发 | 已启用；不发布小程序、SAGE 或香港 FC 函数 |
 
 SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`。Better Auth 运行在 Next.js 内，没有单独的认证容器。当前主链路不通过 Vercel 或 Supabase；历史迁移记录不代表仍在使用那些服务。
 
@@ -94,12 +102,14 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 | `db:5432` / `127.0.0.1:5432` | 应用容器 / 主机回环 | 应用数据库访问；外部运维通过 SSH 隧道进入 |
 | `172.18.0.1:18080` | 主机 Docker 网桥 | SAGE 网关；应用的 `SAGE_EAS_ENDPOINT` 指向此地址 |
 | `/_sage/*` | 经 Caddy 的 HTTPS 入口 | 去掉前缀后转发至网关；`/health`、`/embed`、`/status` 仍需网关 Token |
+| `sanlin-th-relay-vchqmnnrvk.cn-hongkong.fcapp.run` | 公网 HTTPS 入口，函数校验独立调用密钥 | 香港 Google 中转，仅支持 `POST /token` 和 `GET /jwks`；调用密钥只在服务端配置 |
 
 典型请求路径：
 
 - 管理与扫码：客户端 → Caddy → Next.js → PostgreSQL。素材和 Scene 保存即生效，引用通过 ID 读取当前内容。
 - 文件：浏览器上传 → Next.js `/api/upload` → OSS；浏览器和小程序按媒体 URL 加载文件，网页部分图片也经过 Next.js 图片优化接口。
 - 识别：小程序 → Next.js 识别接口 → SAGE 网关 → PAI-EAS 返回向量 → 后端匹配并返回结果。
+- Google 登录：浏览器访问 Google 授权页 → 浏览器回调 Caddy / Next.js → 香港 FC → Google 令牌与公钥接口 → Next.js 验签并在 PostgreSQL 中创建或关联账号、保存会话。
 
 ## SAGE 独立部署与运行策略
 
