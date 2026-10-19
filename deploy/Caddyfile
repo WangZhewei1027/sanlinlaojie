@@ -1,12 +1,11 @@
-# SITE_ADDRESS comes from .env: ":80" while testing by IP, the domain(s) in
-# production (e.g. "spatialmemory.online, www.spatialmemory.online"); Caddy
-# then obtains Let's Encrypt certificates automatically. SITE_DOMAIN is the
-# canonical host: requests for www.<SITE_DOMAIN> are redirected to it.
-{$SITE_ADDRESS} {
-	encode zstd gzip
+# SITE_ADDRESS lists the domain hosts; SITE_DOMAIN is the canonical host.
+# SITE_IP keeps the existing API entry reachable while clients change domains.
+{
+	default_sni {$SITE_IP}
+}
 
-	@www host www.{$SITE_DOMAIN}
-	redir @www https://{$SITE_DOMAIN}{uri} permanent
+(site_proxy) {
+	encode zstd gzip
 
 	# uploads go through the app (5 MiB files + multipart overhead)
 	request_body {
@@ -23,4 +22,21 @@
 		output stdout
 		format console
 	}
+}
+
+{$SITE_ADDRESS} {
+	@alias not host {$SITE_DOMAIN}
+	redir @alias https://{$SITE_DOMAIN}{uri} permanent
+	import site_proxy
+}
+
+# IP certificates use the short-lived ACME profile and renew automatically.
+{$SITE_IP} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+		issuer internal
+	}
+	import site_proxy
 }

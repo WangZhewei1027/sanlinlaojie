@@ -66,4 +66,4 @@ ssh "$HOST" 'command -v ossutil >/dev/null || (curl -fsSL https://gosspublic.ali
 printf "30 3 * * * root /opt/sanlin/backup.sh >> /var/log/sanlin-backup.log 2>&1\n" > /etc/cron.d/sanlin-backup && chmod 644 /etc/cron.d/sanlin-backup'
 
 echo "▶ starting"
-ssh "$HOST" "cd $DIR && docker tag $IMAGE:$TAG $IMAGE:latest && docker compose up -d --remove-orphans && docker image prune -f >/dev/null && docker compose ps"
+ssh "$HOST" "cd $DIR && docker tag $IMAGE:$TAG $IMAGE:latest && docker compose up -d --remove-orphans && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && docker image prune -f >/dev/null && docker compose ps"
