@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { Client } from "pg";
 import { loadEnvFile, requireEnv } from "../lib/env";
 import { migrateUnversionedContent } from "../migrate/content-model/unify";
+import { parseArchiveReview } from "../migrate/content-model/archive-review";
 
 /**
  * Apply the database schema.
@@ -15,6 +16,11 @@ import { migrateUnversionedContent } from "../migrate/content-model/unify";
  * lists it. Each file runs in its own transaction.
  */
 async function main() {
+  const args = process.argv.slice(2);
+  if (args.length && (args.length !== 2 || args[0] !== "--archive-review")) {
+    throw new Error("Usage: db:migrate [--archive-review path/to/review.json]");
+  }
+  const archiveReview = args.length ? parseArchiveReview(JSON.parse(readFileSync(resolve(args[1]), "utf8"))) : [];
   loadEnvFile();
   const client = new Client({ connectionString: requireEnv("DATABASE_URL") });
   await client.connect();
@@ -64,7 +70,7 @@ async function main() {
       console.log(`applying ${file}`);
       await client.query("begin");
       try {
-        if (file === "20261017180000_single_content_model.sql") await migrateUnversionedContent(client, process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "");
+        if (file === "20261017180000_single_content_model.sql") await migrateUnversionedContent(client, process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "", archiveReview);
         await client.query(readFileSync(resolve("db/migrations", file), "utf8"));
         await client.query("insert into schema_migrations (name) values ($1)", [file]);
         await client.query("commit");

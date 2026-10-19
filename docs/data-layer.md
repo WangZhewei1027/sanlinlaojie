@@ -205,11 +205,11 @@ import { putObject, deleteObjects, headObject, listObjects, mediaUrl, assetKeyFr
   `assetKeyFromUrl(url)` → key or null; `storagePathFromUrl` in
   `lib/storage-cleanup.server.ts` is the same thing.
 - Managed-file retention is centralized in `lib/storage/retention.server.ts`.
-  It protects version resources, migration holds, Anchor reference versions, audio
+  It protects current asset resources, migration holds, Anchor reference images, audio
   compatibility siblings and unexpired receipts across all organizations.
   Physical deletion is opt-in via `app_config.managed_object_deletion` and
   performs its final check under the same object lock used by commit/reuse.
-- V2 versions accept upload receipts or authorized source-version resources,
+- Asset updates accept upload receipts or authorized current-asset resources,
   not arbitrary managed URLs. Dedup is organization-scoped; identity and
   ownership are independent of a shared physical file. See
   [asset-storage-lifecycle.md](asset-storage-lifecycle.md).

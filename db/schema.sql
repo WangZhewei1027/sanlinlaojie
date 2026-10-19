@@ -974,4 +974,5 @@ INSERT INTO public.schema_migrations(name) VALUES
  ('20261017120000_team_workbench.sql'),
  ('20261017180000_single_content_model.sql'),
  ('20261017220000_mutable_assets.sql'),
- ('20261018000000_mutable_scenes.sql');
+ ('20261018000000_mutable_scenes.sql'),
+ ('20261019000000_restore_anchor_placement_tags.sql');

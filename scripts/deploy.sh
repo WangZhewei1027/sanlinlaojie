@@ -23,6 +23,10 @@ IMAGE=sanlin-web
 
 env_value() { grep -E "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2- ; }
 
+echo "▶ checking target database migrations (read-only)"
+node scripts/db/deployment-check.mjs | ssh "$HOST" \
+  "cd $DIR && docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U sanlin -d sanlin"
+
 if [ -z "${SKIP_BUILD:-}" ]; then
   echo "▶ building $IMAGE:$TAG (linux/amd64)"
   docker buildx build --platform linux/amd64 --load \

@@ -46,3 +46,10 @@ deploy/.env*
 
 # one-shot migration exports (scripts/migrate/)
 .migration/
+
+# Local migration backups and temporary UI review evidence
+/.local-db-backups/
+/.impeccable/review/
+*.dump
+*.dump.gz
+*.backup

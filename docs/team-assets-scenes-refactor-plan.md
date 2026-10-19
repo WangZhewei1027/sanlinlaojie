@@ -1,6 +1,6 @@
 # 团队素材复用与场景管理改造方案
 
-> **2026-10-17 后续决策（团队工作台）**：用户对照 Kivicube 确认“素材与场景共用一个工作台、按类型筛选”和“团队成员共享全部内容与合集、不再细分权限”。本方案中的项目授权（`asset_workspace_grant`）、项目角色与成员分配、维护者门禁、“Workspace 对外称为项目”及项目级素材库/场景列表，已由 [团队工作台（前端）](team-workbench.md) 与 [团队工作台后端契约](team-workbench-backend-contract.md) 取代：组织称为团队并是唯一权限边界，Workspace 成为承载投放的地图合集。版本固定、独立 Scene、Placement 与迁移状态机等其余决策保持有效。以下正文保留原方案记录，不再随实现更新。
+> **历史方案，已被后续决策取代**：当前团队是唯一权限边界，Workspace 是地图合集，Asset 直接修改、Scene 保存即生效，Placement 引用当前内容；版本固定、发布、项目授权、模型状态机和运行时兼容层均已移除。以下正文仅保留设计历史。当前实现见 [数据层](data-layer.md)、[团队工作台后端契约](team-workbench-backend-contract.md)，上线必须按 [迁移手册](content-model-migration-runbook.md) 执行。
 
 日期：2026-10-15。状态：首期代码已实现并完成隔离环境验证；尚未执行生产迁移。首期目标是团队协作、跨项目素材复用和可控更新；种树等活动只预留业务接入边界。实现结果与验证范围见 [实施与验证记录](content-model-validation.md)，上线操作见 [迁移手册](content-model-migration-runbook.md)。
 

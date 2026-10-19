@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Client } from "pg";
 import { migrateUnversionedContent } from "./migrate/content-model/unify";
+import { auditSnapshot } from "./migrate/content-model/audit";
+import { parseArchiveReview, type ArchiveReviewEntry } from "./migrate/content-model/archive-review";
 
 const uuid = (n: number) => `17180000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const base = "https://single-migration.invalid";
@@ -14,11 +16,12 @@ async function main() {
   assert.equal(url.pathname, "/content_single_migration");
   const client = new Client({ connectionString: url.toString() });
   await client.connect();
-  const upgrade = async () => {
+  const upgrade = async (review: ArchiveReviewEntry[] = []) => {
     await client.query("begin");
     try {
-      await migrateUnversionedContent(client, base);
+      await migrateUnversionedContent(client, base, review);
       await client.query(readFileSync("db/migrations/20261017180000_single_content_model.sql", "utf8"));
+      await client.query(readFileSync("db/migrations/20261019000000_restore_anchor_placement_tags.sql", "utf8"));
       await client.query("insert into schema_migrations(name) values('20261017180000_single_content_model.sql')");
       await client.query("commit");
     } catch (error) { await client.query("rollback"); throw error; }
@@ -43,13 +46,22 @@ async function main() {
       [orphan,"image",[],`${base}/assets/orphan.jpg`,null,{}],
       [bad,"scene",[wsA],null,"{broken",{}],
     ] as const) await client.query(`insert into asset(id,name,file_type,workspace_id,file_url,text_content,metadata,location,tag_ids)
-      values($1,'source',$2,$3,$4,$5,$6,ST_SetSRID(ST_MakePoint(121.5,31.2),4326),$7)`, [id,kind,workspaces,file,body,metadata,id===model?[tagA,tagB]:[]]);
-    await client.query("insert into content_migration_map(source_kind,source_id,source_row_hash,status,reason) values('asset',$1,'orphan','quarantined','No surviving workspace')", [orphan]);
-    await assert.rejects(upgrade, /Cannot migrate/, "invalid unreviewed sources abort the upgrade");
+      values($1,'source',$2,$3,$4,$5,$6,ST_SetSRID(ST_MakePoint(121.5,31.2),4326),$7)`, [id,kind,workspaces,file,body,metadata,id===model||id===anchor?[tagA,tagB]:[]]);
+    const report = await auditSnapshot(client, { environment: "local", organizations: [orgA, orgB], runId: uuid(99), apply: false });
+    const sourceHash = report.mappings.find((entry) => entry.source_id === orphan)!.source_hash;
+    const reviewFile = { format: "content-model-orphan-review-v1", assets: [{ assetId: orphan, sourceHash, reason: "No surviving workspace; preserve complete row and file" }] };
+    const review = parseArchiveReview(reviewFile);
+    assert.throws(() => parseArchiveReview({ ...reviewFile, assets: [...review, ...review] }), /duplicate/);
+    assert.throws(() => parseArchiveReview({ ...reviewFile, assets: [{ ...review[0], sourceHash: "unknown" }] }), /Invalid/);
+    await assert.rejects(() => upgrade(), /Cannot migrate/, "unreviewed orphan sources abort the upgrade");
+    await assert.rejects(() => upgrade([{ ...review[0], sourceHash: "0".repeat(64) }]), /stale/, "changed sources require a new review");
+    await assert.rejects(() => upgrade([{ ...review[0], assetId: model, sourceHash: report.mappings.find((entry) => entry.source_id === model)!.source_hash }]), /cannot quarantine owned/, "owned content cannot be hidden by a review");
+    await assert.rejects(() => upgrade(review), /Cannot migrate/, "reviewed orphans do not bypass other invalid sources");
+    assert.equal((await client.query("select count(*)::int n from content_migration_map where status='quarantined'")).rows[0].n, 0, "archive decisions roll back with a failed migration");
     assert.equal((await client.query("select count(*)::int n from asset_version")).rows[0].n, 0, "no partial version writes survive");
     assert.equal((await client.query("select to_regclass('public.workspace_assignment') relation")).rows[0].relation, "workspace_assignment");
     await client.query("delete from asset where id=$1", [bad]);
-    await upgrade();
+    await upgrade(review);
     assert.equal((await client.query("select count(*)::int n from workspace")).rows[0].n, 3, "workspace IDs are unchanged collections");
     for (const id of [model,scene,text]) {
       const rows = (await client.query(`select p.* from placement p left join scene_revision r on r.id=p.scene_revision_id
@@ -62,7 +74,11 @@ async function main() {
     const refs = (await client.query("select r.*,a.organization_id asset_org from scene_asset_ref r join asset a on a.id=r.asset_id")).rows;
     assert.equal(refs.length, 2);
     assert.ok(refs.every(r=>r.organization_id===r.asset_org && r.asset_version_id), "scene references are pinned inside their own team");
-    assert.equal((await client.query("select count(*)::int n from placement_tag")).rows[0].n, 2, "collection-specific tags survive");
+    assert.equal((await client.query("select count(*)::int n from placement_tag")).rows[0].n, 4, "collection-specific tags survive, including anchors");
+    const edited = (await client.query("update placement set lock_version=2 where asset_id=$1 and workspace_id=$2 returning id", [anchor, wsA])).rows[0].id;
+    await client.query("delete from placement_tag where placement_id=$1", [edited]);
+    await client.query(readFileSync("db/migrations/20261019000000_restore_anchor_placement_tags.sql", "utf8"));
+    assert.equal((await client.query("select count(*)::int n from placement_tag where placement_id=$1", [edited])).rows[0].n, 0, "recovery never overwrites edits after migration");
     const placedModel = (await client.query("select * from placement where asset_id=$1 limit 1",[model])).rows[0];
     assert.deepEqual(placedModel.render_config.display.dimensions, {width:2});
     assert.equal(placedModel.altitude, 7);

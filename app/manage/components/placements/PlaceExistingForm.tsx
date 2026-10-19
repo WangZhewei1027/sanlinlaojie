@@ -16,8 +16,8 @@ import { EMPTY_LOCATION, parseLocation, useCreatePlacement, type LocationInput }
 export type PickedSource = { kind: "asset"; asset: AssetDto } | { kind: "scene"; scene: SceneSummaryDto };
 
 /**
- * "Place existing content": a project asset (pins its current version) or a
- * published project scene (pins its latest revision) at an explicit location.
+ * "Place existing content": a team asset or saved scene at an explicit location.
+ * Placements resolve the current content by asset or scene ID.
  */
 export function PlaceExistingForm() {
   const { tx } = usePlacementMap();

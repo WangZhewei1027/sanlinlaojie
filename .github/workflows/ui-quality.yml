@@ -2,13 +2,55 @@ name: UI quality
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
+  database-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_PASSWORD: migration-test
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:migration-test@127.0.0.1:55439/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Verify fresh database and deployment gate
+        run: node --import tsx scripts/test-deployment-check.ts
+      - name: Create isolated migration fixture databases
+        run: |
+          node --input-type=module <<'JS'
+          import { Client } from 'pg';
+          const db = new Client({ connectionString: process.env.DATABASE_URL });
+          await db.connect();
+          for (const name of ['content_single_migration', 'content_mutable_migration', 'content_scene_migration']) {
+            await db.query(`create database ${name}`);
+          }
+          await db.end();
+          JS
+      - name: Verify upgrade, rollback and content preservation
+        run: |
+          DATABASE_URL="${DATABASE_URL%/postgres}/content_single_migration" node --import tsx --conditions react-server scripts/test-single-content-model-migration.ts
+          DATABASE_URL="${DATABASE_URL%/postgres}/content_mutable_migration" node --import tsx --conditions react-server scripts/test-mutable-assets-migration.ts
+          DATABASE_URL="${DATABASE_URL%/postgres}/content_scene_migration" node --import tsx --conditions react-server scripts/test-mutable-scenes-migration.ts
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
