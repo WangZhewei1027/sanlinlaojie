@@ -8,7 +8,7 @@
     "build": "next build --webpack && node scripts/check-client-bundles.mjs",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "check": "npm run typecheck && npm run lint && npm run build && npm run build-storybook",

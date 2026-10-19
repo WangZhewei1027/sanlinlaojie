@@ -14,7 +14,7 @@ The web side runs on **self-hosted infrastructure on Aliyun** (migrated from Ver
 npm run dev          # dev server on localhost:3000 (needs the local DB, see below)
 npm run build        # production build (also the way to typecheck the whole app)
 npm run lint         # eslint (flat config, eslint.config.mjs)
-npm run typecheck    # tsc --noEmit
+npm run typecheck    # next typegen + tsc --noEmit (also works on a fresh checkout)
 npm run db:migrate   # apply db/schema.sql (fresh DB) + db/migrations/*.sql to DATABASE_URL
 npm run db:codegen   # regenerate lib/db/types.ts from DATABASE_URL (run after schema changes)
 npm run deploy       # scripts/deploy.sh — build image, ship over SSH, docker compose up
