@@ -427,7 +427,18 @@
       "confirmDelete": "输入 \"{{name}}\" 确认删除",
       "deleteOrg": "删除团队",
       "noPermission": "你没有权限管理此团队设置",
-      "loadFailed": "加载团队信息失败，请刷新重试"
+      "loadFailed": "加载团队信息失败，请刷新重试",
+      "wechatQr": {
+        "title": "微信二维码",
+        "label": "扫码打开的小程序版本",
+        "description": "切换后立即生效，仅保存在当前浏览器，适用于所有团队的地图合集和场景二维码。",
+        "currentVersion": "扫码打开：{{version}}。",
+        "versions": {
+          "release": "正式版（release）",
+          "trial": "体验版（trial）",
+          "develop": "开发版（develop）"
+        }
+      }
     },
     "workspaces": {
       "selectOrgFirst": "请先选择一个团队",
@@ -1026,7 +1037,7 @@
     "dropUnavailable": "当前无法添加模型",
     "qrButton": "微信扫码预览",
     "qrTitle": "微信扫码预览场景",
-    "qrHint": "展示最近保存的场景。AR 稳定加载 2 秒后显示在前方。",
+    "qrHint": "展示最近保存的场景。AR 加载后，点击放置按钮显示在前方。",
     "qrUnsaved": "当前有未保存的修改，扫码展示上次保存的内容。"
   },
   "contentModel": {

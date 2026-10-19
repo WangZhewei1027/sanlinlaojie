@@ -11,6 +11,8 @@ import { isSuperAdmin, hasOrgPermission } from "@/lib/permissions";
 import { fetchJson } from "@/lib/fetch-json";
 import { OrgSettingsForm } from "@/components/org-settings/OrgSettingsForm";
 import { SettingsFormSkeleton } from "./components/SettingsFormSkeleton";
+import { WeChatQrSettings } from "./components/WeChatQrSettings";
+import { useWeChatQrEnvironment } from "@/hooks/use-wechat-qr-environment";
 import type {
   OrgSettingsPayload,
   OrgSettingsSource,
@@ -19,6 +21,7 @@ import { Text } from "@/components/ui/typography";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
+  const [qrEnvironment, setQrEnvironment] = useWeChatQrEnvironment();
   const selectedOrganization = useManageStore(
     (state) => state.selectedOrganization,
   );
@@ -137,6 +140,10 @@ export default function SettingsPage() {
             { name: selectedOrganization.name },
           )}
         </Text>
+      </div>
+
+      <div className="mb-6">
+        <WeChatQrSettings environment={qrEnvironment} onEnvironmentChange={setQrEnvironment} />
       </div>
 
       {/* Org settings（与 super-admin 组织详情面板共用的表单） */}

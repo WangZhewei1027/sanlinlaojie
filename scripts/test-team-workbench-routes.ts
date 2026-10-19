@@ -67,6 +67,7 @@ async function main(): Promise<void> {
     byHash: await import("../app/api/assets/by-hash/route"),
     scene: await import("../app/api/scenes/[id]/route"),
     miniScenePreview: await import("../app/api/miniapp/scenes/preview/route"),
+    miniSceneNames: await import("../app/api/miniapp/scenes/route"),
     sceneCopy: await import("../app/api/scenes/[id]/copy/route"),
     upload: await import("../app/api/upload/route"),
     invitation: await import("../app/api/invitations/[token]/route"),
@@ -282,17 +283,28 @@ async function main(): Promise<void> {
       const keys = await import("../lib/wechat-qr");
       const scene = expect(await call(routes.orgScenes.POST, { user: u.editor, method: "POST", url: `/api/organizations/${f.organizations.team}/scenes`, params: { id: f.organizations.team },
         body: { name: "QR saved scene", document: assetDocument(f.assets.shared) } }), 201).data;
-      const key = keys.buildSceneQrObjectKey(f.organizations.team, scene.id); oss.seedStubObject(key);
-      auth.setStubSessionUser(null); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
-      auth.setStubSessionUser({ id: u.foreign, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
-      auth.setStubSessionUser({ id: u.viewer, email: null, name: null, emailVerified: true }); assert.equal((await qr.getOrCreateSceneQRCode(scene.id)).url, oss.mediaUrl(key));
+      const key = keys.buildSceneQrObjectKey(f.organizations.team, scene.id, "release"); oss.seedStubObject(key);
+      auth.setStubSessionUser(null); assert.ok((await qr.getOrCreateSceneQRCode(scene.id, "release")).error);
+      auth.setStubSessionUser({ id: u.foreign, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id, "release")).error);
+      auth.setStubSessionUser({ id: u.viewer, email: null, name: null, emailVerified: true }); assert.equal((await qr.getOrCreateSceneQRCode(scene.id, "release")).url, oss.mediaUrl(key));
       const path = keys.buildSceneMiniProgramPath(f.organizations.team, scene.id);
       assert.ok(path.length <= 128); assert.ok(path.startsWith("pages/index/index?"));
       const params = new URLSearchParams(path.split("?")[1]); assert.equal(params.get("sceneId"), scene.id);
       assert.equal(params.get("organizationId"), f.organizations.team); assert.equal(params.has("workspaceId"), false);
-      const collectionKey = keys.buildQrObjectKey(f.organizations.team, f.workspaces.a); oss.seedStubObject(collectionKey);
-      assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a })).url, oss.mediaUrl(collectionKey));
-      assert.ok((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.foreign })).error);
+      const collectionKey = keys.buildQrObjectKey(f.organizations.team, f.workspaces.a, "release"); oss.seedStubObject(collectionKey);
+      assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a, environment: "release" })).url, oss.mediaUrl(collectionKey));
+      assert.ok((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.foreign, environment: "release" })).error);
+      for (const environment of keys.WECHAT_QR_ENVIRONMENTS) {
+        const sceneKey = keys.buildSceneQrObjectKey(f.organizations.team, scene.id, environment);
+        const mapKey = keys.buildQrObjectKey(f.organizations.team, f.workspaces.a, environment);
+        oss.seedStubObject(sceneKey); oss.seedStubObject(mapKey);
+        assert.equal((await qr.getOrCreateSceneQRCode(scene.id, environment)).url, oss.mediaUrl(sceneKey));
+        assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a, environment })).url, oss.mediaUrl(mapKey));
+      }
+      // Runtime input can bypass TypeScript; reject unknown versions before cache lookup.
+      const invalid = "invalid" as Parameters<typeof qr.getOrCreateSceneQRCode>[1];
+      assert.equal((await qr.getOrCreateSceneQRCode(scene.id, invalid)).error, "无效的小程序版本");
+      assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a, environment: invalid })).error, "无效的小程序版本");
       const preview = (body: unknown) => call(routes.miniScenePreview.POST, { user: null, method: "POST", url: "/api/miniapp/scenes/preview", body });
       const body = { scene_id: scene.id, organization_id: f.organizations.team };
       const first = expect(await preview(body), 200); assert.equal(first.assetId, scene.id); assert.equal(first.schemaVersion, 2);
@@ -303,10 +315,35 @@ async function main(): Promise<void> {
       assert.equal(expect(await preview(body),200).content.durationSeconds,34);
       await call(routes.scene.PATCH, { user: u.editor, method: "PATCH", url: `/api/scenes/${scene.id}`, params: { id: scene.id }, body: { expectedLockVersion: saved.lock_version, state: "archived" } });
       expect(await preview(body),404);
-      auth.setStubSessionUser({ id: u.editor, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id)).error);
+      auth.setStubSessionUser({ id: u.editor, email: null, name: null, emailVerified: true }); assert.ok((await qr.getOrCreateSceneQRCode(scene.id, "release")).error);
       await client.query("update organization set archived_at=now() where id=$1",[f.organizations.team]);
       try { expect(await preview({ scene_id: f.scenes.a, organization_id: f.organizations.team }),404); }
       finally { await client.query("update organization set archived_at=null where id=$1",[f.organizations.team]); }
+    });
+
+    await check("R09c miniapp Scene names are current, team-scoped and exclude archives", async () => {
+      const id = f.scenes.b;
+      const original = (await client.query("select name,state from scene where id=$1", [id])).rows[0];
+      const names = (query: string) => call(routes.miniSceneNames.GET, { user: null, url: `/api/miniapp/scenes?${query}` });
+      const query = `ids=${id}&organization_id=${f.organizations.team}`;
+      try {
+        await client.query("update scene set name='Scene name one',state='active' where id=$1", [id]);
+        assert.deepEqual(expect(await names(query), 200), [{ id, name: "Scene name one" }]);
+        await client.query("update scene set name='Scene name two' where id=$1", [id]);
+        assert.deepEqual(expect(await names(query), 200), [{ id, name: "Scene name two" }]);
+        assert.deepEqual(expect(await names(`ids=${id}&organization_id=${f.organizations.foreign}`), 200), []);
+        expect(await names(`ids=${id}`), 400);
+        expect(await names(`ids=invalid&organization_id=${f.organizations.team}`), 400);
+        expect(await names(`ids=${id}&organization_id=invalid`), 400);
+        await client.query("update scene set state='archived' where id=$1", [id]);
+        assert.deepEqual(expect(await names(query), 200), []);
+        await client.query("update scene set state='active' where id=$1", [id]);
+        await client.query("update organization set archived_at=now() where id=$1", [f.organizations.team]);
+        assert.deepEqual(expect(await names(query), 200), []);
+      } finally {
+        await client.query("update organization set archived_at=null where id=$1", [f.organizations.team]);
+        await client.query("update scene set name=$2,state=$3 where id=$1", [id, original.name, original.state]);
+      }
     });
 
     await check("R10 super-admin clean-rows derives a collection's files from its placements, not from grants", async () => {

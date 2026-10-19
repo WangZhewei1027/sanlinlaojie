@@ -427,7 +427,18 @@
       "confirmDelete": "Type \"{{name}}\" to confirm deletion",
       "deleteOrg": "Delete Team",
       "noPermission": "You don't have permission to manage this team's settings",
-      "loadFailed": "Failed to load team info, please refresh"
+      "loadFailed": "Failed to load team info, please refresh",
+      "wechatQr": {
+        "title": "WeChat QR codes",
+        "label": "Mini program version to open",
+        "description": "Changes apply immediately and are saved only in this browser, for map collection and scene QR codes across all teams.",
+        "currentVersion": "Opens: {{version}}.",
+        "versions": {
+          "release": "Release (release)",
+          "trial": "Trial (trial)",
+          "develop": "Development (develop)"
+        }
+      }
     },
     "workspaces": {
       "selectOrgFirst": "Please select a team first",
@@ -1026,7 +1037,7 @@
     "dropUnavailable": "Models cannot be added right now",
     "qrButton": "Preview in WeChat",
     "qrTitle": "Scan to preview this scene",
-    "qrHint": "Opens the saved scene in front of you after 2 seconds of stable AR tracking.",
+    "qrHint": "Opens the saved scene. Once AR is ready, tap Place to show it in front of you.",
     "qrUnsaved": "You have unsaved changes. The code opens the last saved scene."
   },
   "contentModel": {

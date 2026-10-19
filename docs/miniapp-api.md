@@ -6,6 +6,7 @@
 | --- | --- |
 | GET `/organizations?ids=a,b` | 最多 50 个团队，返回 id/name 和小程序配置 |
 | GET `/workspaces?ids=a,b` | 最多 50 个地图合集，返回 id/name；workspace UUID 就是 collection ID |
+| GET `/scenes?ids=a,b&organization_id=…` | 最多 50 个指定团队的 Scene，返回 id/name；仅包含未归档团队中的 active 场景，供扫码历史展示名称 |
 | POST `/assets/nearby` | `{user_lat,user_lng,max_distance_meters,p_workspace_id?,p_organization_id?}`；GPS 范围内启用投放 |
 | POST `/assets/huge` | `{p_organization_id,p_workspace_id?}`；启用的巨大模型投放 |
 | POST `/assets/scene` | `{asset_id,p_workspace_id?,p_organization_id?}`；asset_id 是 Placement ID，至少一个范围；返回其当前场景的 schema 2 清单 |

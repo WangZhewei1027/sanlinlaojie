@@ -1,9 +1,6 @@
 import "server-only";
 import { headObject, mediaUrl, putObject } from "@/lib/storage/oss";
-import { WECHAT_QR_ENV_VERSION } from "@/lib/wechat-qr";
-// QR content never changes for a given collection or scene, so let browsers/CDN
-// cache the image long-term (1 year).
-const QR_CACHE_CONTROL = "public, max-age=31536000";
+import type { WeChatQrEnvironment } from "@/lib/wechat-qr";
 const QR_WIDTH = 430;
 
 const TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token";
@@ -52,7 +49,7 @@ async function getAccessToken(): Promise<string> {
   return tokenCache.token;
 }
 
-async function fetchQrFromWeChat(path: string): Promise<Buffer> {
+async function fetchQrFromWeChat(path: string, environment: WeChatQrEnvironment): Promise<Buffer> {
   const token = await getAccessToken();
   const res = await fetch(
     `${GETWXACODE_URL}?access_token=${encodeURIComponent(token)}`,
@@ -61,7 +58,7 @@ async function fetchQrFromWeChat(path: string): Promise<Buffer> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         path,
-        env_version: WECHAT_QR_ENV_VERSION,
+        env_version: environment,
         width: QR_WIDTH,
       }),
       cache: "no-store",
@@ -89,8 +86,10 @@ async function fetchQrFromWeChat(path: string): Promise<Buffer> {
 
 
 /** Both map collections and scenes share token caching, OSS caching and generation. */
-export async function getOrCreateQr(key: string, path: string): Promise<string> {
+export async function getOrCreateQr(key: string, path: string, environment: WeChatQrEnvironment): Promise<string> {
   try { if (await headObject(key)) return mediaUrl(key); } catch { /* regenerate a missing cache entry */ }
-  const buffer = await fetchQrFromWeChat(path);
-  return putObject(key, buffer, { contentType: "image/png", cacheControl: QR_CACHE_CONTROL });
+  const buffer = await fetchQrFromWeChat(path, environment);
+  // All versions reuse OSS objects. For debug versions, avoid stale browser/CDN images.
+  const cacheControl = environment === "release" ? "public, max-age=31536000" : "no-store";
+  return putObject(key, buffer, { contentType: "image/png", cacheControl });
 }
