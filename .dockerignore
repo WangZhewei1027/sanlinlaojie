@@ -6,8 +6,6 @@ out
 !.env.example
 deploy
 docs
-stories
-storybook-static
 supabase
 *.md
 .DS_Store

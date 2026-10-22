@@ -1,8 +1,0 @@
-/* Match the app's body typography, including portaled dialogs and menus. */
-:root {
-  --font-geist-sans: ui-sans-serif;
-}
-
-body {
-  @apply font-sans;
-}

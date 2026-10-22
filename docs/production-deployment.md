@@ -126,7 +126,7 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 
 日常自动部署以 [Deploy](../.github/workflows/deploy.yml) 和 [质量检查](../.github/workflows/ui-quality.yml) 为准：
 
-1. push `main` 或手动运行工作流，先完成 typecheck、lint、生产构建、Storybook 和隔离 PostGIS 迁移回归。
+1. push `main` 或手动运行工作流，先完成 typecheck、lint、生产构建和隔离 PostGIS 迁移回归。
 2. 构建 `linux/amd64` 的 `sanlin-web:<commit SHA>` 镜像。`NEXT_PUBLIC_*` 在构建时写入前端包，修改这类配置需要重新构建。
 3. 经 SSH 对目标数据库运行只读部署门禁，核对迁移账本和实际结构；缺迁移或残留旧结构时阻止部署。
 4. 使用 `docker save | gzip` 经 SSH 传输镜像，再在服务器 `docker load`；当前链路不使用镜像仓库。复制 Compose、Caddy 和备份脚本，保留服务器 `/opt/sanlin/.env`。

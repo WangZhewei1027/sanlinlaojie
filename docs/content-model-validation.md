@@ -26,7 +26,6 @@ Claude 分别承担后端、展示组件和页面接线；Codex 负责实际差�
 | `npm run typecheck` | 通过 |
 | `npm run lint` | 通过 |
 | `npm run build` | 通过，206 个客户端 bundle 语法检查通过 |
-| `npm run build-storybook` | 通过 |
 | `npm run db:codegen` | 从最新一次性 fresh 库生成 34 张表的类型 |
 | `test-content-model-services.ts` | 40/40 集成组通过：使用/维护权限、版本固定、冲突、发布重试、投放独立性、文件保护、冻结竞态、匿名文字、共享固定内容、hash 权限、旧暂存数据退役 |
 | `test-content-model-http.ts` | 真实登录和 HTTP 闭环通过：跨项目复用、403/404/409/428、依赖名称隔离、固定内容接口、发布、复制、暂停、公开发现和归档保留 |

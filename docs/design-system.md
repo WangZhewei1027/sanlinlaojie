@@ -1,6 +1,6 @@
 # UI 规范体系与实践
 
-本项目的 UI 规范采用业内通用的分层模型：**Token（词汇）→ 组件（语法）→ Storybook（活文档）→ 强制（lint/review）**。设计决策的唯一事实源在代码仓库内：人通过 Storybook 阅读，AI 与 lint 读取对应源码文件——不允许出现“文档说一套、代码是另一套”。
+本项目的 UI 规范采用分层模型：**Token（词汇）→ 组件（语法）→ 强制（lint/review）**。设计决策的唯一事实源在代码仓库内，规范文档与对应源码保持一致。
 
 ## 一、体系分层
 
@@ -20,32 +20,7 @@
 - **基础组件**：`components/ui/`（shadcn/Radix），自带刻度内的字号字重，使用时不手写文字样式。禁止直接 import `@radix-ui/*` 原始包。
 - **文字组件**：`components/ui/typography.tsx` 的 `<Text>`，Polaris 风格 API（详见下文）。
 
-### 3. 活文档层 —— Storybook
-
-正式 Storybook 配置位于 `.storybook/`，内容位于 `stories/`。应用内不再提供 `/design-system` 路由。Storybook 按标准 CSF 与 Autodocs 组织为三层：
-
-- **Foundations / Tokens**：Colors、Typography（刻度、字体栈、API 规则的可视化）
-- **Foundations / Principles**：颜色语义、布局嵌套、移动端适配、加载态——do/don't 对比 + 成文规则
-- **Components**：每个 `components/ui/*` 组件拥有独立 CSF 文件与 Docs 页面
-
-目录职责：
-
-- `stories/**/*.stories.tsx`：Storybook 导航、meta、Autodocs 和独立状态声明；每个可命名状态拥有自己的 Story URL。
-- `stories/_components/`：只保留跨多个原则 Story 复用的纯文档版式组件。
-
-Story 编写约定：
-- 简单组件以 `args` 为事实来源，提供 `Playground` 和有意义的状态 Story，Controls 自动编辑公开 props。
-- 复合组件使用显式 `render` 组合子组件；不要为了 Storybook 修改正式组件 API。
-- 一个 Story 只表达一个状态或规则，不再创建集合式 `Overview` 页面。
-- 状态名使用产品语义（如 `DestructiveConfirmation`、`CardLoading`），不使用 `Example1`。
-- Story 只负责展示和文档，不使用 `play` 函数或测试运行器。
-
-实践约定：
-- PR 里出现设计争议，直接贴对应 Storybook story URL 作为依据。
-- 规则变更走 PR：改规则文案 + 对应 story 同一个 commit。
-- 新增 `<Text>` variant 时，`stories/foundations/typography.stories.tsx` 的 `SCALE` 是 `Record<TextVariant, …>`，不同步更新该 story 会**编译失败**——这是有意设计，保持它。
-
-### 4. 强制层 —— 现状与缺口
+### 3. 强制层 —— 现状与缺口
 
 - 已有：`npm run build`（TS strict）+ code review + 本文档/CLAUDE.md 对 AI 生效。
 - **lint（warn 级，不阻塞 build）**：`eslint.config.mjs` 内置四条设计规范检查——禁任意值字号 `text-[..px]`、禁刻度外字号（text-xl/4xl/5xl…）、禁 Text 的 className 携带文字类、禁绕过 `components/ui` 直接 import `@radix-ui/*`。warn 是有意选择：提示违规但由 review 决定是否放行（豁免场景如落地页 display 会命中）。
@@ -109,9 +84,9 @@ Story 编写约定：
 
 ## 五、协作实践
 
-- **人**：新人第一天运行 `npm run storybook` 并过一遍 Design System；review 引用 story URL；设计决策变更由 story + 规则同 PR 修订。
-- **AI**：CLAUDE.md 指向本文档与 `stories/`；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
-- **验证**：改动共享层（token、ui 组件、Text）属于高杠杆操作——合规不等于视觉无损，改完至少人工检查受影响的 Storybook Docs 页面与明暗主题。
+- **人**：新人先阅读本文档和现有组件；设计决策变更由实现与规则在同一 PR 中修订。
+- **AI**：CLAUDE.md 指向本文档与组件源码；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
+- **验证**：改动共享层（token、ui 组件、Text）属于高杠杆操作——合规不等于视觉无损，改完至少人工检查受影响的应用页面与明暗主题。
 
 ## 六、路线图（按优先级）
 
@@ -119,12 +94,11 @@ Story 编写约定：
 2. ~~lint 上牙齿~~（已完成：四条规则以 warn 级落地 `eslint.config.mjs`，不阻塞 build）。
 3. ~~状态色 token~~（已完成：`--success`/`--warning` 上线，约 50 处状态色已迁移，分类标识色按豁免清单保留）。
 4. ~~Text 小修~~（已完成：tone 缺省继承、alignment 改逻辑属性 `text-start/end`、CardTitle 移除 `tracking-tight`）。
-5. **Storybook 内容维护**：公共组件新增或 API 变化时同步更新对应 CSF、展示状态和 Docs 描述。
 
 ## 第三方场景编排界面
 
 Three.js Editor 的嵌入视口、相机操作、坐标轴与变换工具栏属于第三方边界；保留上游交互，外层限定布局与资源路径。应用直接在同一 DOM 中呈现标题、保存、素材库、对象/片段设置和变换时间轴，遵守本设计系统及 zh/en 规范。属性、关键帧和撤销由应用管理，按钮不重复实现原生视口的变换工具。
 
-2026-10-22 起，场景工作台固定使用 Light 主题。`app/globals.css` 的 `:root` 与 `.scene-workspace-theme` 共用全站浅色语义 token；`scene-workspace-theme.css` 设置 `color-scheme: light`、6px 圆角，并局部覆盖 `muted-foreground: hsl(0 0% 42%)` 与 `destructive: hsl(0 62.8% 30.6%)`：辅助文字在选中浅灰背景上满足 AA 对比度，错误文字在浅底上保持可读。标题栏、侧栏、时间轴和浮层共用此主题；后台其他页面的主题偏好保持独立。Three 视口通过 `viewport/theme: light` 使用上游浅色背景/网格，工具图标保留原色。时间轴播放头使用深色 `primary`，结束区域使用 `muted-foreground` 的浅灰透明遮罩。对应状态见 Foundations / Colors / Scene Workspace。
+2026-10-22 起，场景工作台固定使用 Light 主题。`app/globals.css` 的 `:root` 与 `.scene-workspace-theme` 共用全站浅色语义 token；`scene-workspace-theme.css` 设置 `color-scheme: light`、6px 圆角，并局部覆盖 `muted-foreground: hsl(0 0% 42%)` 与 `destructive: hsl(0 62.8% 30.6%)`：辅助文字在选中浅灰背景上满足 AA 对比度，错误文字在浅底上保持可读。标题栏、侧栏、时间轴和浮层共用此主题；后台其他页面的主题偏好保持独立。Three 视口通过 `viewport/theme: light` 使用上游浅色背景/网格，工具图标保留原色。时间轴播放头使用深色 `primary`，结束区域使用 `muted-foreground` 的浅灰透明遮罩。
 
 浮层通过 PopoverContent 的 `portalContainer` 挂到触发器所在的工作台容器，并继承 Light 主题；二维码在视口点击、Escape 和卸载时关闭并清理监听。桌面侧栏与底部时间轴延续紧凑工作区布局；窄屏默认收起侧栏，时间轴保留独立滚动。页面行为约定见 `app/manage/scenes/DESIGN.md`。

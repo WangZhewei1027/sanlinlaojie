@@ -20,7 +20,7 @@ npm run db:codegen   # regenerate lib/db/types.ts from DATABASE_URL (run after s
 npm run deploy       # scripts/deploy.sh — build image, ship over SSH, docker compose up
 ```
 
-Validation uses `npm run check` (typecheck, lint, build and Storybook), plus focused scripts under `scripts/test-*.ts`. Content-model scripts cover contracts, services, HTTP and migration behavior; read their fixture/environment requirements before running database tests. Passing a build does not establish migration or runtime correctness. Path alias: `@/*` → repo root.
+Validation uses `npm run check` (typecheck, lint and build), plus focused scripts under `scripts/test-*.ts`. Content-model scripts cover contracts, services, HTTP and migration behavior; read their fixture/environment requirements before running database tests. Passing a build does not establish migration or runtime correctness. Path alias: `@/*` → repo root.
 
 Local database: `docker run -d --name sanlin-dev-db --platform linux/amd64 -e POSTGRES_PASSWORD=sanlin -e POSTGRES_DB=sanlin -p 55432:5432 postgis/postgis:17-3.5`, then `npm run db:migrate` (`.env.local` already points `DATABASE_URL` at it).
 
@@ -67,7 +67,7 @@ UI gating (sidebar, buttons) uses the pure matrix and DTO capabilities; **it is 
 Front-end model: `docs/team-workbench.md`. Sidebar navigation is 地图合集 / 场景 / 基础素材, with 团队设置 as a secondary entry (`app/manage/components/ContentNav.tsx`); there is no global workspace selector .
 
 - `/manage` opens `/manage/assets`. **Assets** and **scenes** use separate thumbnail libraries at `/manage/assets` and `/manage/scenes`; only assets have a type filter. Upload, create/import/copy scene never ask for a collection.
-- Presentational components live in `app/manage/content/` (props + `ContentAction` callbacks, stories in `stories/content/`); data and permissions live in the route components (`app/manage/workbench/`, `app/manage/collections/components/`, `app/manage/assets/components/`).
+- Presentational components live in `app/manage/content/` (props + `ContentAction` callbacks); data and permissions live in the route components (`app/manage/workbench/`, `app/manage/collections/components/`, `app/manage/assets/components/`).
 
 ### The collection map
 
@@ -127,7 +127,7 @@ Current production topology, service responsibilities, independent SAGE/mini-pro
 
 ## Reference docs
 
-**Before writing or changing any UI code, read `docs/design-system.md`** — it defines the design tokens, the six-level type scale, the `<Text>` component rules, and the three-zone boundary for who styles what. Visual examples live in Storybook under `stories/`. Exceptions require amending the rules first, never silently deviating.
+**Before writing or changing any UI code, read `docs/design-system.md`** — it defines the design tokens, the six-level type scale, the `<Text>` component rules, and the three-zone boundary for who styles what. Exceptions require amending the rules first, never silently deviating.
 
 Deeper design notes live in `docs/` — notably `docs/team-workbench.md` (team workbench, collections, compatibility URLs), `docs/team-workbench-backend-contract.md` (team permission model and routes), `docs/data-layer.md` (SQL / auth / storage conventions), `docs/permissions.md`, `docs/map-asset-interaction.md`, `docs/asset-pipeline.md`, `docs/i18n-guide.md`, `docs/wechat-qr-code.md`, `docs/3d-model-preview.md`, `docs/audio-compatibility.md`, `docs/asset-storage-lifecycle.md` (content-hash dedup and deletion safety), `docs/saas-role-refactor.md`, and `docs/aliyun-migration-plan.md` (why the stack looks the way it does).
 

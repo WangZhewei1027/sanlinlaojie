@@ -46,4 +46,4 @@ The management client refreshes resources after successful mutations, across sam
 
 See [content-model-migration-runbook.md](content-model-migration-runbook.md). The SQL baseline describes the final schema; upgrades convert data and remove old tables/columns in one transaction. `migration_archive` retains evidence without serving application reads.
 
-Focused checks: `test-single-content-model-migration.ts`, `test-mutable-assets-migration.ts`, `test-content-model-services.ts`, `test-team-workbench-routes.ts`, `test-content-model-contracts.ts`, `test-scene-add-model.ts`. UI checks are typecheck, lint, production build and Storybook build.
+Focused checks: `test-single-content-model-migration.ts`, `test-mutable-assets-migration.ts`, `test-content-model-services.ts`, `test-team-workbench-routes.ts`, `test-content-model-contracts.ts`, `test-scene-add-model.ts`. UI checks are typecheck, lint and production build.

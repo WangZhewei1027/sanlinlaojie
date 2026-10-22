@@ -77,7 +77,7 @@
 
 验收发现空场景首次添加模型会读取尚未注册到渲染状态的资源，导致 `resource.assetId` 报错。已修复为使用此次选中的资源；`scripts/test-scene-add-model.ts` 回归通过，浏览器重新加载空场景后的首次添加、同版本多实例及保存发布通过。
 
-随后加入 `VIEWER_READY` 握手，在异步 viewer 初始化后补发最新投放状态。包含该变更的最终源码已在构建镜像目录完成 `npm run check`，退出码为 0，覆盖 typecheck、lint、生产构建和 Storybook 构建；最终证据为 `final-build-check.log`。`final-verification.json` 确认 709 项镜像清单中的非文档源码及记录的关键源码哈希与最终检查版本一致。
+随后加入 `VIEWER_READY` 握手，在异步 viewer 初始化后补发最新投放状态。包含该变更的最终源码已在构建镜像目录完成 `npm run check`，退出码为 0，覆盖 typecheck、lint 和生产构建；最终证据为 `final-build-check.log`。`final-verification.json` 确认 709 项镜像清单中的非文档源码及记录的关键源码哈希与最终检查版本一致。
 
 地图对照验收已通过：通过原生 Chrome 操作，在未由 BrowserTab API 获取或附着的新普通标签中打开实际 `/manage`，地图正常加载；原生 Cmd+R 刷新、场景页返回投放地图的客户端导航均正常。页面可访问性树包含 DJI 地形加载器、CesiumJS iframe、Cesium ion 与 Bing imagery 控件。页面往返后选择旧“小星星⭐️”投放，地图影像及固定 v1 模型预览正常显示，截图为 `local3000-native-map.png` 和 `local3000-native-client-navigation.png`。此前也已验证测试场景定位、地图点击坐标回传、旧模型详情和预览。
 

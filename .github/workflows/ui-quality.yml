@@ -68,4 +68,3 @@ jobs:
       - name: Verify Google relay authorization and OAuth callbacks
         run: node --import tsx --conditions react-server --test scripts/test-google-relay-function.mjs scripts/test-google-relay.mjs
       - run: npm run build
-      - run: npm run build-storybook

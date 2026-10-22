@@ -74,11 +74,9 @@
 
 网格/列表偏好按设备保存在 `localStorage` 的 `sanlin.workbench.view`；类型筛选由 URL 决定，搜索和归档状态保留在当前页面状态中。
 
-## 7 组件与 Storybook
+## 7 组件
 
 展示层位于 `app/manage/content/`，只接收 props 与 `ContentAction` 回调：`ContentWorkbench`、`WorkbenchToolbar`、`WorkbenchItems`、`WorkbenchCard`、`WorkbenchRow`、`WorkbenchEmpty`、`CollectionList`、`CollectionCard`、`LibraryCard`、`CollectionFormDialog`、`CollectionArchiveDialog`、`CollectionHeaderBar`。数据、权限与跳转在 `app/manage/workbench/`、`app/manage/collections/components/` 等路由组件中。
-
-Storybook：`stories/content/content-workbench.stories.tsx`（网格、列表、类型筛选、归档、查看者只读、团队归档、加载、错误、空团队、无匹配、手机）、`workbench-card`、`workbench-row`、`workbench-toolbar`、`collection-list`、`collection-form-dialog`、`collection-archive-dialog`、`collection-header-bar`，以及 `stories/manage/content-integration/content-nav.stories.tsx` 和 `team-frame.stories.tsx`（三类页面、空态、只读、英文、窄屏）。
 
 已删除的展示组件：素材库行与工具栏、场景列表、项目上下文行、素材共享/授权面板、维护者转交对话框、项目角色选择器，以及管理后台的项目成员对话框。
 
@@ -86,4 +84,4 @@ Storybook：`stories/content/content-workbench.stories.tsx`（网格、列表、
 
 API 和可空字段以 [后端契约](team-workbench-backend-contract.md) 为准。迁移步骤见 [单一模型迁移说明](content-model-migration-runbook.md)。后端能力控制合集与投放操作；前端角色提示不能代替服务端授权。
 
-变更后运行类型检查、lint、生产构建、Storybook，以及迁移、服务和路由集成测试。历史双模型验收结果不作为当前分支的通过证据。
+变更后运行类型检查、lint、生产构建，以及迁移、服务和路由集成测试。历史双模型验收结果不作为当前分支的通过证据。

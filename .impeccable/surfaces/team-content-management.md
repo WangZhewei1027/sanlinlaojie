@@ -2,7 +2,7 @@
 version: 1
 slug: "team-content-management"
 primary_target: "app/manage/content"
-related_targets: ["app/manage/workbench","app/manage/collections","app/manage/assets","app/manage/scenes/components","app/manage/components/placements","app/upload-onsite/components","stories/content","docs/team-workbench.md"]
+related_targets: ["app/manage/workbench","app/manage/collections","app/manage/assets","app/manage/scenes/components","app/manage/components/placements","app/upload-onsite/components","docs/team-workbench.md"]
 ---
 
 # Team workbench and map collections
@@ -15,5 +15,5 @@ related_targets: ["app/manage/workbench","app/manage/collections","app/manage/as
 
 - Version, maintainer and dependency mechanics recede into asset detail (versions, usage with collection names, archive). Scene copy is same-team, name only. Placing content happens only inside a collection; the source picker lists all team assets and published scenes.
 - States: grid and list skeletons, team-empty that teaches upload and scene creation, type-empty with the matching action, archived-empty, filtered-empty with clear filters, error with retry, viewer and migration-frozen read-only explanations in plain Chinese (English localized), legacy-team feature notices, collection not found, archived collection with restore.
-- Component boundary: `app/manage/content` stays presentational (props + `ContentAction` callbacks, no fetches or DTOs). Route components (`app/manage/workbench`, `app/manage/collections/components`, `app/manage/assets/components`) own team context, API calls, mapping and capabilities. Stories in `stories/content` cover workbench, card, row, toolbar, collection list/dialogs/header with mock data, including viewer, empty, loading, error and mobile.
+- Component boundary: `app/manage/content` stays presentational (props + `ContentAction` callbacks, no fetches or DTOs). Route components (`app/manage/workbench`, `app/manage/collections/components`, `app/manage/assets/components`) own team context, API calls, mapping and capabilities.
 - Product boundary: first release has only map collections. No activity, topic or tree UI.

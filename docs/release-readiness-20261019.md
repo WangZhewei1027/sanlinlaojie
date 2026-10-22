@@ -47,7 +47,7 @@
 | 部署门禁 | 新结构通过，原线上结构被拒绝；缺账本、漏迁移、结构不符和旧版本表均有回归 |
 | 升级回归 | single-content-model、mutable-assets、mutable-scenes：回滚、内容选择、资源、租户约束、归档和旧结构移除通过 |
 | 服务与路由 | 34 组内容服务集成、11 组团队工作台路由通过 |
-| 构建 | typecheck、lint、production build、客户端 bundle 检查、Storybook 均通过；lint 有 15 条既有 warning、0 error |
+| 构建 | typecheck、lint、production build、客户端 bundle 检查均通过；lint 有 15 条既有 warning、0 error |
 | 小程序 | `npm --ignore-scripts test` 全部通过；跳过会重写本地地址的 pretest；本次未做手机端发布后的验收 |
 
 ## Docker 与冗余内容

@@ -297,7 +297,7 @@ Placement 两种目标互斥。Scene Object 继续作为 JSON 内对象，不为
 
 地图适配暂时可以保留 `SET_ASSETS / ASSET_CLICKED / ASSETS_MOVED` 等消息名，由 `placement-to-viewer` 单点转译。发给 iframe 的 `id` 始终是 Placement ID，另外保存 `sourceAssetId/sceneRevisionId`。接收旧名 `assetId` 时解释为适配器发出的投放 ID，禁止再直接调用 Asset 移动接口。地图集合与选中状态独立于素材目录。
 
-新增共享组件配 Storybook；遵守 `docs/design-system.md` 和 `docs/ui/architecture.md`。此次是领域改造，API/权限变化由独立实施步骤承担，不能混在纯展示组件提取中。
+新增共享组件遵守 `docs/design-system.md` 和 `docs/ui/architecture.md`。此次是领域改造，API/权限变化由独立实施步骤承担，不能混在纯展示组件提取中。
 
 ## 7 服务层与 API 改造
 
@@ -466,7 +466,7 @@ DDL 写入 `db/migrations/<timestamp>_content_model_*.sql`，基线同步 `db/sc
 
 自动化优先覆盖权限、引用完整性、并发、迁移幂等、旧 DTO 与清理竞态。复用并修改现有 `scripts/test-scene-asset.ts`、`test-scene-editor-api.ts`、timeline/authoring 测试；其中“替换 URL 立即影响播放、删除后失败”的旧断言要改为新版本固定和依赖保护，不能把旧测试全绿当作新模型正确。
 
-UI 变更执行 `npm run typecheck`、`npm run lint`、`npm run build`、`npm run build-storybook`；涉及播放端执行 sibling 项目的 `npm test` 并做 iOS/Android 真机验收。数据库测试只使用可识别的一次性本地数据，分别验证 fresh install、历史 upgrade、回填重跑和约束拒绝。
+UI 变更执行 `npm run typecheck`、`npm run lint`、`npm run build`；涉及播放端执行 sibling 项目的 `npm test` 并做 iOS/Android 真机验收。数据库测试只使用可识别的一次性本地数据，分别验证 fresh install、历史 upgrade、回填重跑和约束拒绝。
 
 上线观察草稿冲突、发布失败、依赖缺失、旧 ID 解析失败、匿名写入错误、识别失败及回收候选数量；相对 M0 基线出现异常时暂停扩大切换范围。
 

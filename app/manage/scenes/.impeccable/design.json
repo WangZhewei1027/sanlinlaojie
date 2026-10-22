@@ -428,7 +428,7 @@
       "Do keep selection and current time consistent across every pane and task tab.",
       "Do keep save state visible as text and a status marker at narrow widths.",
       "Do preserve named controls, visible focus, numeric editing, and keyboard timeline operations.",
-      "Do document new component states in props-driven Storybook stories alongside the implementation."
+      "Do document new component states alongside the implementation."
     ],
     "donts": [
       "Don't replace the global management design system with this scoped workbench composition.",
