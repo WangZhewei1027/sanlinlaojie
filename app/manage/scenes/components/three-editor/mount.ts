@@ -33,7 +33,7 @@ export function mountThreeEditor(host: HTMLDivElement, initial: ThreeViewportPro
   editor.signals.rendererCreated.dispatch(renderer);
   editor.signals.objectSelected.add((object: unknown) => { if (!closed) props.onSelect(instanceId(object as Object3D | null)); });
   function select() {
-    const root = props.selectedId ? models.entries.get(props.selectedId)?.root : null;
+    const root = props.selectedId ? models.object(props.selectedId) : null;
     if (props.selectedId && !root) return;
     editor.select(root ?? null);
   }
@@ -43,7 +43,7 @@ export function mountThreeEditor(host: HTMLDivElement, initial: ThreeViewportPro
     props.session.pause(); draggingId = instanceId(viewport.transformControls.object);
   };
   const end = () => {
-    const root = draggingId && models.entries.get(draggingId)?.root;
+    const root = draggingId && models.object(draggingId);
     const value = draggingId && props.session.sample(draggingId);
     draggingId = null;
     if (root && value) applyTransform(root, value);

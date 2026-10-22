@@ -1,126 +1,121 @@
 "use client";
-import { useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Diamond, Maximize2, Pause, Play, Repeat, SkipBack, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/typography';
-import { sampleInstance } from '@spatial-memory/scene-core';
-import { COMPOSITION_LIMITS, TRANSFORM_CHANNELS, type CompositionInstance, type TransformChannel } from '@/lib/scene/protocol';
-import { editChannel, frameAt, removeKey, roundTime, setKey } from '@/lib/scene/transform-authoring';
-import { SceneNumberField } from './SceneFields';
+import type { CompositionContent } from '@/lib/scene/protocol';
+import { findNode, isGroup, trackRows, type SceneNode } from '@/lib/scene/hierarchy-authoring';
+import { roundTime, type TransformGroup } from '@/lib/scene/transform-authoring';
 import { SceneTimelineRuler } from './SceneTimelineRuler';
-import { gridSteps, MIN_SCENE_DURATION, snapTime, TIMELINE_LABEL_WIDTH, TIMELINE_LEAD } from './timeline-scale';
+import { SceneTimelineToolbar } from './SceneTimelineToolbar';
+import { SceneTrack } from './SceneTrack';
+import type { DropPlace } from './SceneTrackHeader';
+import { unkeyAll } from './SceneKeyLane';
+import { interpolationOf, setInterpolation, type KeySelection } from './timeline-keys';
+import { TimelineContext, type TimelineView } from './timeline-context';
+import { gridSteps, snapTime, TIMELINE_LABEL_WIDTH, TIMELINE_LEAD } from './timeline-scale';
+import { useTimelineHeight } from './useTimelineHeight';
 import { useTimelineView } from './useTimelineView';
+import type { SceneTrackActions } from './useSceneTracks';
+import type { ClipInfo } from './types';
 
 export interface SceneTimelineProps {
-  instance?: CompositionInstance; name?: string; time: number; duration: number; loop: boolean; playing: boolean; readOnly: boolean;
+  content: Pick<CompositionContent, 'instances' | 'groups' | 'assets'>; clips: Record<string, ClipInfo[] | undefined>;
+  nameOf(node: SceneNode): string; selectedIds: string[]; onSelect(ids: string[]): void;
+  time: number; duration: number; loop: boolean; playing: boolean; readOnly: boolean;
   onSeek(time: number): void; onPlay(): void; onDuration(time: number): void; onLoop(loop: boolean): void;
-  onEdit(edit: (instance: CompositionInstance) => CompositionInstance): void;
+  tracks: SceneTrackActions;
 }
+const toggle = <T,>(set: ReadonlySet<T>, value: T) => { const next = new Set(set); if (!next.delete(value)) next.add(value); return next; };
+
+/** Logic-style arrange area: one track per object, groups as stacks, keyframes in lanes revealed under a track. */
 export function SceneTimeline(p: SceneTimelineProps) {
   const { i18n } = useTranslation();
   const text = (zh: string, en: string) => i18n.language.startsWith('zh') ? zh : en;
-  const [selected, setSelected] = useState<{ channel: TransformChannel; time: number } | null>(null);
-  const [drag, setDrag] = useState<{ channel: TransformChannel; from: number; to: number } | null>(null);
-  const dragging = useRef<typeof drag>(null);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [automation, setAutomation] = useState<ReadonlySet<string>>(new Set());
+  const [params, setParams] = useState<ReadonlySet<string>>(new Set());
+  const [selectedKey, selectKey] = useState<KeySelection | null>(null);
   const [endDraft, setEndDraft] = useState<number | null>(null);
-  const disabled = p.readOnly || p.playing;
-  const end = endDraft ?? p.duration;
-  const lastKey = Math.max(0, ...Object.values(p.instance?.tracks ?? {}).map(frames => frames?.at(-1)?.time ?? 0));
+  const [dragId, setDragId] = useState<string | null>(null);
+  const height = useTimelineHeight();
+  const disabled = p.readOnly || p.playing, end = endDraft ?? p.duration;
+  const rows = useMemo(() => trackRows(p.content), [p.content]);
+  const visible = rows.filter(row => { for (let at = row.node.parent; at; at = findNode(p.content, at)?.parent) if (collapsed.has(at)) return false; return true; });
+  const lastKey = Math.max(0, ...rows.flatMap(row => Object.values(row.node.tracks ?? {}).map(frames => frames?.at(-1)?.time ?? 0)));
   const { scroller, span, laneWidth, zoom, canZoomIn, zoomBy, fit } = useTimelineView(Math.max(end, lastKey), p.time, p.playing);
-  const steps = gridSteps(laneWidth / span);
-  const x = (time: number) => time / span * laneWidth;
-  const left = (time: number) => TIMELINE_LABEL_WIDTH + TIMELINE_LEAD + x(time);
-  const pct = (time: number) => `${time / span * 100}%`;
-  const values = p.instance ? sampleInstance(p.instance, p.time) : null;
-  const labels = { position: text('位置', 'Position'), rotation: text('旋转', 'Rotation'), scale: text('缩放', 'Scale') };
-  const currentKey = selected && p.instance?.tracks?.[selected.channel]?.find(f => f.time === selected.time);
-  const selectedFrames = selected ? p.instance?.tracks?.[selected.channel] : undefined;
-  const nextKey = selectedFrames && currentKey ? selectedFrames[selectedFrames.indexOf(currentKey) + 1] : undefined;
-  const interpolation = !currentKey?.connectedRight ? 'hold' : currentKey.handles[2] === currentKey.handles[3] && (!nextKey || nextKey.handles[0] === nextKey.handles[1]) ? 'linear' : currentKey.handles[2] === .42 && currentKey.handles[3] === 0 && (!nextKey || (nextKey.handles[0] === .58 && nextKey.handles[1] === 1)) ? 'ease' : 'custom';
+  const steps = gridSteps(laneWidth / span), x = (time: number) => time / span * laneWidth, left = (time: number) => TIMELINE_LABEL_WIDTH + TIMELINE_LEAD + x(time);
+  const keyNode = selectedKey ? findNode(p.content, selectedKey.nodeId) : undefined;
+  const primary = p.selectedIds.at(-1), primaryNode = primary ? findNode(p.content, primary) : undefined;
+  const shortcuts = useRef({ automation: () => {}, group: () => {}, ungroup: () => {} });
+  shortcuts.current = {
+    automation: () => setAutomation(current => p.selectedIds.reduce(toggle, current)),
+    group: () => { if (!disabled && p.selectedIds.length) p.tracks.group(); },
+    ungroup: () => { if (!disabled && primaryNode && isGroup(primaryNode)) p.tracks.ungroup(primaryNode.id); },
+  };
+  useEffect(() => {
+    // A shows/hides keyframe lanes of the selected tracks; ⌘G / ⇧⌘G stack and unstack them.
+    const keydown = (event: KeyboardEvent) => {
+      if (event.altKey || (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable="true"]'))) return;
+      const key = event.key.toLowerCase(), command = event.metaKey || event.ctrlKey;
+      if (key === 'a' && !command) shortcuts.current.automation();
+      else if (key === 'g' && command) { event.preventDefault(); shortcuts.current[event.shiftKey ? 'ungroup' : 'group'](); }
+    };
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, []);
 
-  const onEnd = (time: number | null, commit?: boolean) => {
-    if (time !== null) { setEndDraft(time); return; }
-    if (commit && endDraft !== null && endDraft !== p.duration) p.onDuration(endDraft);
-    setEndDraft(null);
+  const view: TimelineView = {
+    span, end, time: p.time, steps, disabled, text, selectedKey, selectKey, onSeek: p.onSeek, onEditNode: p.tracks.edit,
+    pct: time => `${time / span * 100}%`,
+    laneTime: (event, lane, max) => {
+      const rect = lane.getBoundingClientRect(), raw = Math.max(0, Math.min(max, (event.clientX - rect.left) / rect.width * span));
+      return event.altKey ? roundTime(raw) : Math.min(max, snapTime(raw, steps.minor));
+    },
   };
-  const laneTime = (event: { clientX: number; altKey: boolean }, lane: HTMLElement, max: number) => {
-    const rect = lane.getBoundingClientRect(), raw = Math.max(0, Math.min(max, (event.clientX - rect.left) / rect.width * span));
-    return event.altKey ? roundTime(raw) : Math.min(max, snapTime(raw, steps.minor));
+  const select = (event: MouseEvent, id: string) => {
+    if (event.metaKey || event.ctrlKey) return p.onSelect(p.selectedIds.includes(id) ? p.selectedIds.filter(item => item !== id) : [...p.selectedIds, id]);
+    const from = visible.findIndex(row => row.id === primary), to = visible.findIndex(row => row.id === id);
+    if (event.shiftKey && from >= 0) return p.onSelect(visible.slice(Math.min(from, to), Math.max(from, to) + 1).map(row => row.id));
+    if (!p.selectedIds.includes(id) || p.selectedIds.length > 1) p.onSelect([id]);
   };
-  const deleteSelected = () => {
-    if (!selected || disabled) return;
-    p.onEdit(instance => removeKey(instance, selected.channel, selected.time)); setSelected(null);
+  const drop = (targetId: string, place: DropPlace) => {
+    const target = rows.find(row => row.id === targetId);
+    if (!dragId || !target || dragId === targetId) return;
+    if (place === 'inside') return p.tracks.move(dragId, { parent: targetId });
+    if (place === 'before') return p.tracks.move(dragId, { parent: target.node.parent, before: targetId });
+    const siblings = rows.filter(row => row.node.parent === target.node.parent && row.id !== dragId);
+    p.tracks.move(dragId, { parent: target.node.parent, before: siblings[siblings.indexOf(target) + 1]?.id });
   };
   const gridStyle = { gridTemplateColumns: `${TIMELINE_LABEL_WIDTH}px ${laneWidth + TIMELINE_LEAD}px`, '--lead': `${TIMELINE_LEAD}px`, '--major': `${x(steps.major)}px`, '--minor': `${x(steps.minor)}px` } as CSSProperties;
-  return <section className="scene-timeline" aria-label={text('变换时间轴', 'Transform timeline')}>
-    <div className="scene-timeline-toolbar">
-      <Button variant="ghost" size="icon" className="size-8" aria-label={text('回到起点', 'Go to start')} onClick={() => p.onSeek(0)}><SkipBack /></Button>
-      <Button variant="secondary" size="icon" className="size-8" aria-label={text(p.playing ? '暂停' : '播放', p.playing ? 'Pause' : 'Play')} onClick={p.onPlay}>{p.playing ? <Pause /> : <Play />}</Button>
-      <Button variant="ghost" size="icon" className="size-8 aria-pressed:bg-secondary aria-pressed:text-foreground" aria-label={text('循环播放', 'Loop playback')} aria-pressed={p.loop} disabled={disabled} onClick={() => p.onLoop(!p.loop)}><Repeat /></Button>
-      <div className="w-20"><SceneNumberField label={text('播放时间（秒）', 'Time (seconds)')} value={p.time} min={0} max={p.duration} step={.1} onCommit={p.onSeek} /></div>
-      <span className="text-xs text-muted-foreground">/</span>
-      <div className="w-20"><SceneNumberField label={text('场景时长（秒）', 'Duration (seconds)')} value={end} min={MIN_SCENE_DURATION} max={COMPOSITION_LIMITS.maxDurationSeconds} step={1} disabled={disabled} onCommit={p.onDuration} /></div>
-      <span className="text-xs text-muted-foreground">s</span>
-      <div className="ml-auto flex items-center gap-1">
-        {currentKey && <><select className="scene-select" aria-label={text('关键帧插值', 'Keyframe interpolation')} disabled={disabled} value={interpolation} onChange={e => {
-          const mode = e.target.value;
-          p.onEdit(instance => {
-            const frames = [...instance.tracks![selected!.channel]!];
-            const index = frames.findIndex(f => f.time === selected!.time);
-            frames[index] = { ...frames[index], connectedRight: mode !== 'hold', handles: [frames[index].handles[0], frames[index].handles[1], mode === 'ease' ? .42 : 2 / 3, mode === 'ease' ? 0 : 2 / 3] };
-            if (frames[index + 1]) frames[index + 1] = { ...frames[index + 1], handles: [mode === 'ease' ? .58 : 1 / 3, mode === 'ease' ? 1 : 1 / 3, frames[index + 1].handles[2], frames[index + 1].handles[3]] };
-            return { ...instance, tracks: { ...instance.tracks, [selected!.channel]: frames } };
-          });
-        }}>{interpolation === "custom" && <option value="custom" disabled>{text("原有曲线", "Existing curve")}</option>}<option value="linear">{text('线性', 'Linear')}</option><option value="ease">{text('缓动', 'Ease')}</option><option value="hold">{text('保持', 'Hold')}</option></select><Button variant="ghost" size="icon" className="size-8" disabled={disabled} aria-label={text('删除选中关键帧', 'Delete selected keyframe')} onClick={deleteSelected}><Trash2 /></Button><span className="mx-1 h-5 border-l" aria-hidden="true" /></>}
-        <Button variant="ghost" size="icon" className="size-8" aria-label={text('缩小时间轴', 'Zoom out')} disabled={zoom <= 1} onClick={() => zoomBy(1 / 1.5)}><ZoomOut /></Button>
-        <Button variant="ghost" size="icon" className="size-8" aria-label={text('放大时间轴', 'Zoom in')} disabled={!canZoomIn} onClick={() => zoomBy(1.5)}><ZoomIn /></Button>
-        <Button variant="ghost" size="icon" className="size-8" aria-label={text('适应全部内容', 'Fit to content')} onClick={fit}><Maximize2 /></Button>
-      </div>
-    </div>
+  return <section className="scene-timeline" style={{ height: height.value }} aria-label={text('时间轴', 'Timeline')}>
+    <div className="scene-timeline-resizer" role="separator" aria-orientation="horizontal" aria-label={text('调整时间轴高度', 'Resize timeline')} tabIndex={0} {...height.handlers} />
+    <SceneTimelineToolbar text={text} time={p.time} duration={p.duration} end={end} loop={p.loop} playing={p.playing} disabled={disabled}
+      onSeek={p.onSeek} onPlay={p.onPlay} onLoop={p.onLoop} onDuration={p.onDuration}
+      interpolation={keyNode && selectedKey ? interpolationOf(keyNode, selectedKey) : null}
+      onInterpolation={mode => selectedKey && p.tracks.edit(selectedKey.nodeId, node => setInterpolation(node, selectedKey, mode))}
+      onDeleteKey={() => { if (selectedKey) p.tracks.edit(selectedKey.nodeId, node => unkeyAll(node, selectedKey.channels, selectedKey.time)); selectKey(null); }}
+      canGroup={p.selectedIds.length > 0} canUngroup={!!primaryNode && isGroup(primaryNode)} onGroup={p.tracks.group} onUngroup={() => primary && p.tracks.ungroup(primary)}
+      zoom={zoom} canZoomIn={canZoomIn} onZoom={zoomBy} onFit={fit} />
     <div className="scene-timeline-body">
-    <div className="scene-timeline-scroll" ref={scroller}>
-      <div className="scene-timeline-grid" style={gridStyle}>
-        <div className="scene-track-heading"><Text as="span" variant="bodyXs" fontWeight="semibold" className="truncate">{p.name ?? text('未选择对象', 'No object selected')}</Text><span className="text-xs text-muted-foreground">{text('变换', 'Transform')}</span></div>
-        <SceneTimelineRuler span={span} end={end} time={p.time} loop={p.loop} steps={steps} canResize={!disabled} text={text} onSeek={p.onSeek} onEnd={onEnd} onDuration={p.onDuration} />
-        {p.instance && <>
-          <i className="scene-timeline-outside" style={{ left: left(end) }} />
-          <i className="scene-end-line" style={{ left: left(end) }} />
-          <i className="scene-playhead" style={{ left: left(p.time) }} />
-        </>}
-        {p.instance && TRANSFORM_CHANNELS.map(channel => {
-          const [group, axis] = channel.split('.') as ['position' | 'rotation' | 'scale', 'x' | 'y' | 'z'];
-          const value = values![group][axis], factor = group === 'rotation' ? 180 / Math.PI : 1;
-          const name = `${labels[group]} ${axis.toUpperCase()}${group === 'rotation' ? ' (°)' : group === 'position' ? ' (m)' : ''}`;
-          const keyed = frameAt(p.instance!.tracks?.[channel], p.time) >= 0;
-          return <div className="scene-track-row" key={channel}>
-            <div className="scene-track-property"><span className="scene-track-label">{name}</span><SceneNumberField label={name} value={value * factor} min={group === 'scale' ? .001 : -100 * factor} max={100 * factor} step={group === 'rotation' ? 1 : .1} disabled={disabled} onCommit={n => p.onEdit(instance => editChannel(instance, channel, p.time, n / factor))} /><Button variant="ghost" size="icon" className="size-7" disabled={disabled} aria-label={text(`${keyed ? '移除' : '添加'} ${name} 关键帧`, `${keyed ? 'Remove' : 'Add'} ${name} keyframe`)} aria-pressed={keyed} onClick={() => p.onEdit(instance => keyed ? removeKey(instance, channel, p.time) : setKey(instance, channel, p.time, value))}><Diamond className={keyed ? 'fill-primary text-primary' : ''} /></Button></div>
-            <div className="scene-track-lane" onDoubleClick={e => { if (disabled) return; const at = laneTime(e, e.currentTarget, end); p.onSeek(at); p.onEdit(instance => setKey(instance, channel, at, sampleInstance(instance, at)[group][axis])); }}>
-              {p.instance!.tracks?.[channel]?.map(frame => {
-                const at = drag?.channel === channel && drag.from === frame.time ? drag.to : frame.time;
-                return <button type="button" key={frame.time} className="scene-keyframe" data-outside={at > end || undefined} data-dragging={at !== frame.time || undefined} aria-label={`${name} · ${frame.time}s`} aria-pressed={selected?.channel === channel && selected.time === frame.time} title={`${frame.time}s · ${Number((frame.value * factor).toFixed(3))}`} disabled={disabled} style={{ left: pct(at) }} onClick={() => { setSelected({ channel, time: frame.time }); p.onSeek(Math.min(frame.time, end)); }} onKeyDown={e => {
-                  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); p.onEdit(instance => removeKey(instance, channel, frame.time)); setSelected(null); }
-                }} onPointerDown={e => { if (e.button) return; e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); dragging.current = { channel, from: frame.time, to: frame.time }; setDrag(dragging.current); }} onPointerMove={e => {
-                  if (!e.currentTarget.hasPointerCapture(e.pointerId) || !dragging.current) return;
-                  dragging.current = { ...dragging.current, to: laneTime(e, e.currentTarget.parentElement!, Math.min(span, COMPOSITION_LIMITS.maxDurationSeconds)) }; setDrag(dragging.current);
-                }} onPointerCancel={() => { dragging.current = null; setDrag(null); }} onPointerUp={e => {
-                  const move = dragging.current; dragging.current = null; setDrag(null); e.currentTarget.releasePointerCapture(e.pointerId);
-                  if (!move || move.from === move.to) return;
-                  p.onEdit(instance => {
-                    const frames = [...instance.tracks![channel]!];
-                    if (frameAt(frames, move.to) >= 0) return instance;
-                    const index = frames.findIndex(f => f.time === move.from); frames[index] = { ...frames[index], time: move.to }; frames.sort((a, b) => a.time - b.time);
-                    return { ...instance, tracks: { ...instance.tracks, [channel]: frames } };
-                  });
-                  setSelected({ channel, time: move.to }); p.onSeek(Math.min(move.to, end));
-                }}><Diamond aria-hidden="true" /></button>;
-              })}
-            </div>
-          </div>;
-        })}
+      <div className="scene-timeline-scroll" ref={scroller}>
+        <TimelineContext.Provider value={view}>
+          <div className="scene-timeline-grid" style={gridStyle}>
+            <div className="scene-track-heading"><Text as="span" variant="bodyXs" fontWeight="semibold">{text('轨道', 'Tracks')}</Text><span className="text-xs text-muted-foreground">{p.content.instances.length}</span></div>
+            <SceneTimelineRuler span={span} end={end} time={p.time} loop={p.loop} steps={steps} canResize={!disabled} text={text} onSeek={p.onSeek}
+              onEnd={(time, commit) => { if (time !== null) return setEndDraft(time); if (commit && endDraft !== null && endDraft !== p.duration) p.onDuration(endDraft); setEndDraft(null); }} onDuration={p.onDuration} />
+            {visible.length > 0 && <><i className="scene-timeline-outside" style={{ left: left(end) }} /><i className="scene-end-line" style={{ left: left(end) }} /><i className="scene-playhead" style={{ left: left(p.time) }} /></>}
+            {visible.map(row => <SceneTrack key={row.id} row={row} name={p.nameOf(row.node)} clips={p.clips[row.id]} selected={p.selectedIds.includes(row.id)}
+              collapsed={collapsed.has(row.id)} automation={automation.has(row.id)} draggable={!p.readOnly}
+              expandedParams={new Set((['position', 'rotation', 'scale'] as TransformGroup[]).filter(group => params.has(`${row.id}:${group}`)))}
+              onParam={group => setParams(current => toggle(current, `${row.id}:${group}`))}
+              onSelect={event => select(event, row.id)} onStack={() => setCollapsed(current => toggle(current, row.id))}
+              onAutomation={() => setAutomation(current => toggle(current, row.id))} onRename={name => p.tracks.rename(row.id, name)}
+              onDragStart={() => setDragId(row.id)} onDrop={place => { drop(row.id, place); setDragId(null); }}
+              onDelete={() => p.tracks.remove(p.selectedIds.includes(row.id) ? p.selectedIds : [row.id])} />)}
+          </div>
+        </TimelineContext.Provider>
       </div>
-    </div>
-    {!p.instance && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('选择视口中的模型，编辑变换或添加关键帧。', 'Select a model in the viewport to edit its transform or add keyframes.')}</Text></div>}
+      {!rows.length && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('从素材库添加模型，每个模型会成为这里的一条轨道。', 'Add models from the library; each one becomes a track here.')}</Text></div>}
     </div>
   </section>;
 }

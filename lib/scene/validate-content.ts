@@ -15,7 +15,8 @@ import {
 // Pure structure validation. Asset references are checked by service.server.ts;
 // clip existence is checked by the player against the loaded model.
 
-const INSTANCE_KEYS = ["id", "asset", "position", "rotation", "scale", "animation", "tracks"];
+const INSTANCE_KEYS = ["id", "asset", "name", "parent", "position", "rotation", "scale", "animation", "tracks"];
+const GROUP_KEYS = ["id", "name", "parent", "position", "rotation", "scale", "tracks"];
 const ANIMATION_KEYS = ["clipIndex", "clipName", "startSeconds", "loop"];
 
 interface ParsedAnimation {
@@ -60,6 +61,7 @@ function validateAnimation(
 export function validateCompositionContent(
   issues: IssueList,
   content: Record<string, unknown>,
+  options: { groups: boolean } = { groups: true },
 ): void {
   rejectUnknownKeys(issues, "content", content, [
     "kind",
@@ -68,6 +70,7 @@ export function validateCompositionContent(
     "loop",
     "assets",
     "instances",
+    "groups",
   ]);
   if (content.units !== "meters") issues.error("content.units", '必须是 "meters"');
   requireBoolean(issues, "content.loop", content.loop);
@@ -118,31 +121,30 @@ export function validateCompositionContent(
     issues.error("content.instances", `实例数量不能超过 ${COMPOSITION_LIMITS.maxInstances}`);
   }
   const seenIds = new Set<string>();
+  const nodeId = (path: string, id: unknown) => {
+    if (typeof id !== "string" || (!ALIAS_RE.test(id) || ["constructor", "prototype", "__proto__"].includes(id))) {
+      issues.error(`${path}.id`, "id 必须以字母开头，只含字母、数字、_、-，最长 32");
+    } else if (seenIds.has(id)) {
+      issues.error(`${path}.id`, `id "${id}" 重复`);
+    } else {
+      seenIds.add(id);
+    }
+  };
+  const nodeName = (path: string, name: unknown) => {
+    if (typeof name !== "string" || !name.trim() || name.length > COMPOSITION_LIMITS.maxNameLength)
+      issues.error(`${path}.name`, `名称必须是 1–${COMPOSITION_LIMITS.maxNameLength} 个字符`);
+  };
   let anyAnimation = false;
   let keyframeCount = 0;
-  instances.forEach((raw, index) => {
-    const path = `content.instances[${index}]`;
-    const inst = requireObject(issues, path, raw);
-    if (!inst) return;
-    rejectUnknownKeys(issues, path, inst, INSTANCE_KEYS);
-    if (typeof inst.id !== "string" || (!ALIAS_RE.test(inst.id) || ["constructor", "prototype", "__proto__"].includes(inst.id))) {
-      issues.error(`${path}.id`, "实例 id 必须以字母开头，只含字母、数字、_、-，最长 32");
-    } else if (seenIds.has(inst.id)) {
-      issues.error(`${path}.id`, `实例 id "${inst.id}" 重复`);
-    } else {
-      seenIds.add(inst.id);
-    }
-    if (typeof inst.asset !== "string" || !aliasToAssetId.has(inst.asset)) {
-      issues.error(`${path}.asset`, "引用的资源别名不存在");
-    }
-    const position = requireNumberTuple(issues, `${path}.position`, inst.position, 3);
+  const transform = (path: string, node: Record<string, unknown>) => {
+    const position = requireNumberTuple(issues, `${path}.position`, node.position, 3);
     if (position && position.some((v) => Math.abs(v) > COMPOSITION_LIMITS.maxPositionAbs)) {
       issues.error(`${path}.position`, `每个分量的绝对值不能超过 ${COMPOSITION_LIMITS.maxPositionAbs}`);
     }
-    const rotation = requireNumberTuple(issues, `${path}.rotation`, inst.rotation, 3);
+    const rotation = requireNumberTuple(issues, `${path}.rotation`, node.rotation, 3);
     if (rotation?.some(v => Math.abs(v) > 100)) issues.error(`${path}.rotation`, "旋转分量绝对值不能超过 100 弧度");
-    if (inst.tracks !== undefined) {
-      const tracks = requireObject(issues, `${path}.tracks`, inst.tracks);
+    if (node.tracks !== undefined) {
+      const tracks = requireObject(issues, `${path}.tracks`, node.tracks);
       if (tracks) {
         rejectUnknownKeys(issues, `${path}.tracks`, tracks, [...TRANSFORM_CHANNELS]);
         for (const [channel, frames] of Object.entries(tracks)) {
@@ -166,10 +168,58 @@ export function validateCompositionContent(
         }
       }
     }
-    const scale = requireNumberTuple(issues, `${path}.scale`, inst.scale, 3);
+    const scale = requireNumberTuple(issues, `${path}.scale`, node.scale, 3);
     if (scale && scale.some((v) => v <= 0 || v > COMPOSITION_LIMITS.maxScale)) {
       issues.error(`${path}.scale`, `每个分量必须大于 0 且不超过 ${COMPOSITION_LIMITS.maxScale}`);
     }
+  };
+
+  // groups: transform parents; references are checked once every ID is known.
+  const parents = new Map<string, unknown>(), groupPaths = new Map<string, string>();
+  if (content.groups !== undefined) {
+    if (!options.groups) issues.error("content.groups", "该版本不支持分组");
+    else if (!Array.isArray(content.groups)) issues.error("content.groups", "必须是数组");
+    else {
+      if (content.groups.length > COMPOSITION_LIMITS.maxGroups) issues.error("content.groups", `分组数量不能超过 ${COMPOSITION_LIMITS.maxGroups}`);
+      (content.groups as unknown[]).forEach((raw, index) => {
+        const path = `content.groups[${index}]`;
+        const group = requireObject(issues, path, raw);
+        if (!group) return;
+        rejectUnknownKeys(issues, path, group, GROUP_KEYS);
+        nodeId(path, group.id);
+        nodeName(path, group.name);
+        transform(path, group);
+        if (typeof group.id === "string") { parents.set(group.id, group.parent); groupPaths.set(group.id, path); }
+      });
+    }
+  }
+  const checkParent = (path: string, parent: unknown) => {
+    if (parent === undefined) return;
+    if (!options.groups) issues.error(`${path}.parent`, "该版本不支持分组");
+    else if (typeof parent !== "string" || !parents.has(parent)) issues.error(`${path}.parent`, "引用的分组不存在");
+  };
+  for (const [id, parent] of parents) {
+    const path = groupPaths.get(id)!;
+    checkParent(path, parent);
+    let depth = 1;
+    for (let at = parent; typeof at === "string" && parents.has(at); at = parents.get(at)) {
+      if (at === id) { issues.error(`${path}.parent`, "分组不能包含自己"); break; }
+      if (++depth > COMPOSITION_LIMITS.maxGroupDepth) { issues.error(`${path}.parent`, `分组最多嵌套 ${COMPOSITION_LIMITS.maxGroupDepth} 层`); break; }
+    }
+  }
+
+  instances.forEach((raw, index) => {
+    const path = `content.instances[${index}]`;
+    const inst = requireObject(issues, path, raw);
+    if (!inst) return;
+    rejectUnknownKeys(issues, path, inst, INSTANCE_KEYS);
+    nodeId(path, inst.id);
+    if (inst.name !== undefined) nodeName(path, inst.name);
+    checkParent(path, inst.parent);
+    if (typeof inst.asset !== "string" || !aliasToAssetId.has(inst.asset)) {
+      issues.error(`${path}.asset`, "引用的资源别名不存在");
+    }
+    transform(path, inst);
     if (inst.animation === null) return;
     if (inst.animation === undefined) {
       issues.error(`${path}.animation`, "必须显式写 null 或动画对象");
@@ -181,7 +231,6 @@ export function validateCompositionContent(
     if (durationValue !== null && anim.startSeconds >= durationValue) {
       issues.error(`${path}.animation.startSeconds`, "必须小于 durationSeconds");
     }
-
   });
   if (duration === null && anyAnimation) {
     issues.error("content.durationSeconds", "有实例带动画时必须设置 durationSeconds");

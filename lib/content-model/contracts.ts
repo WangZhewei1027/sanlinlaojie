@@ -477,6 +477,7 @@ export interface SceneDocumentJson {
     loop: boolean;
     assets: Record<string, AssetRef>;
     instances: unknown[];
+    groups?: unknown[];
   };
 }
 

@@ -2,17 +2,46 @@ import { AnimationMixer, Group, LoopOnce, type AnimationAction, type AnimationCl
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { applyTransform, clipTime } from '@spatial-memory/scene-core';
 import type { Editor } from '@/vendor/three-editor';
-import type { CompositionInstance } from '@/lib/scene/protocol';
+import type { CompositionGroup, CompositionInstance } from '@/lib/scene/protocol';
 import { ModelPool, disposeModel } from './model-pool';
 import { registerInstance } from './transform-bridge';
 import type { ThreeViewportProps } from './types';
 
 type Entry = { instance: CompositionInstance; url: string; release(): void; stop?: () => void; root?: Group; model?: Object3D; clips?: AnimationClip[]; mixer?: AnimationMixer; action?: AnimationAction; clip?: AnimationClip; animationKey?: string };
+type GroupEntry = { group: CompositionGroup; object: Group; stop(): void };
 export class EditorModels {
   readonly entries = new Map<string, Entry>();
+  readonly groups = new Map<string, GroupEntry>();
   constructor(private editor: Editor, private props: () => ThreeViewportProps, private dragging: (id: string) => boolean, private ready: () => void, private pool = new ModelPool()) {}
+  /** The transform root of an instance or group. */
+  object(id: string): Object3D | undefined { return this.entries.get(id)?.root ?? this.groups.get(id)?.object; }
+  /** Groups are empty transform parents; members are re-parented without changing their local transform. */
+  private syncGroups() {
+    const groups = this.props().groups ?? [];
+    for (const [id, entry] of this.groups) if (!groups.some(group => group.id === id)) {
+      entry.stop(); for (const child of [...entry.object.children]) this.editor.scene.add(child);
+      if (this.editor.selected === entry.object) this.editor.select(null);
+      this.editor.removeObject(entry.object); this.groups.delete(id);
+    }
+    for (const group of groups) {
+      const existing = this.groups.get(group.id);
+      if (existing) { existing.group = group; continue; }
+      const object = new Group(); object.name = group.id; registerInstance(object, group.id);
+      const stop = this.props().session.observe(group.id, value => { if (!this.dragging(group.id)) { applyTransform(object, value); if (this.editor.selected === object) this.editor.signals.objectChanged.dispatch(object); } });
+      this.groups.set(group.id, { group, object, stop });
+      this.editor.addObject(object);
+    }
+    for (const { group, object } of this.groups.values()) this.attach(object, group.parent);
+    for (const entry of this.entries.values()) if (entry.root) this.attach(entry.root, entry.instance.parent);
+  }
+  private attach(object: Object3D, parent: string | undefined) {
+    const target = (parent && this.groups.get(parent)?.object) || this.editor.scene;
+    if (object.parent === target) return;
+    target.add(object); this.editor.signals.sceneGraphChanged.dispatch();
+  }
   sync() {
     const props = this.props();
+    this.syncGroups();
     for (const [id, entry] of this.entries) {
       const current = props.instances.find(item => item.id === id);
       if (!current || props.resolveUrl(current) !== entry.url) this.remove(id);
@@ -33,7 +62,7 @@ export class EditorModels {
         const object = this.props().session.sample(instance.id);
         if (!object) { this.remove(instance.id); return; }
         entry.stop = this.props().session.observe(instance.id, value => { if (!this.dragging(instance.id)) { applyTransform(root, value); if (this.editor.selected === root) this.editor.signals.objectChanged.dispatch(root); } });
-        this.editor.addObject(root);
+        this.editor.addObject(root); this.attach(root, entry.instance.parent);
         this.animation(entry);
         this.props().onClips(instance.id, gltf.animations.map(clip => ({ name: clip.name, duration: clip.duration })));
         this.ready();
@@ -73,5 +102,9 @@ export class EditorModels {
     this.editor.geometries = {};
     this.editor.scene.traverse(node => { const geometry = (node as import('three').Mesh).geometry; if (geometry) this.editor.geometries[geometry.uuid] = geometry; });
   }
-  dispose() { for (const id of [...this.entries.keys()]) this.remove(id); this.pool.dispose(); }
+  dispose() {
+    for (const id of [...this.entries.keys()]) this.remove(id);
+    for (const entry of this.groups.values()) { entry.stop(); this.editor.removeObject(entry.object); }
+    this.groups.clear(); this.pool.dispose();
+  }
 }

@@ -1,4 +1,6 @@
-export const SCENE_SCHEMA_VERSION = 4 as const;
+export const SCENE_SCHEMA_VERSION = 5 as const;
+/** Playback schema for scenes without groups; released mini-programs only accept this one. */
+export const SCENE_FLAT_SCHEMA_VERSION = 4 as const;
 export const SCENE_DOCUMENT_VERSION = 6 as const;
 export const MAX_SCENE_BYTES = 1024 * 1024;
 
@@ -20,9 +22,29 @@ export interface InstanceAnimation {
   loop: boolean;
 }
 
+/** Position, Euler XYZ rotation, scale and optional tracks, local to the parent group. */
+export interface TransformNode {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  tracks?: Partial<Record<TransformChannel, TransformKeyframe[]>>;
+}
+
+/** Transform parent for instances and nested groups; it renders nothing itself. */
+export interface CompositionGroup extends TransformNode {
+  id: string;
+  name: string;
+  /** Parent group ID; omitted at the scene root. */
+  parent?: string;
+}
+
 export interface CompositionInstance {
   id: string;
   asset: string;
+  /** Track name; the asset name is shown when omitted. */
+  name?: string;
+  /** Parent group ID; omitted at the scene root. */
+  parent?: string;
   position: [number, number, number];
   /** Euler XYZ radians; UI displays degrees. Multi-turn values are retained. */
   rotation: [number, number, number];
@@ -48,11 +70,13 @@ export interface CompositionContent<Ref = CompositionAssetRef> {
   durationSeconds: number | null;
   loop: boolean;
   assets: Record<string, Ref>;
+  /** Instance order is the timeline track order; group members are contiguous. */
   instances: CompositionInstance[];
+  groups?: CompositionGroup[];
 }
 
 export interface SceneDefinition {
-  schemaVersion: typeof SCENE_SCHEMA_VERSION;
+  schemaVersion: typeof SCENE_SCHEMA_VERSION | typeof SCENE_FLAT_SCHEMA_VERSION;
   content: CompositionContent;
 }
 
@@ -68,10 +92,13 @@ export const COMPOSITION_LIMITS = {
   maxScale: 100,
   maxPositionAbs: 100,
   maxKeyframes: 2400,
+  maxGroups: 16,
+  maxGroupDepth: 4,
+  maxNameLength: 64,
 } as const;
 
 export function createBlankScene(): SceneDefinition {
-  return { schemaVersion: SCENE_SCHEMA_VERSION, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false, assets: {}, instances: [] } };
+  return { schemaVersion: SCENE_FLAT_SCHEMA_VERSION, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false, assets: {}, instances: [] } };
 }
 
 /** Server factory for a new independent Scene draft (10 s, no loop, empty). */

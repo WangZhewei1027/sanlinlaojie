@@ -53,36 +53,63 @@
   .scene-three-tools button, .scene-view-actions button { width: 36px; height: 36px; }
 }
 
-/* Existing props-only object hierarchy previews. */
-.scene-left { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid hsl(var(--border)); }
-.scene-hierarchy { display: flex; flex-direction: column; min-height: 100px; flex: 1; overflow: hidden; }
-.scene-scroll { min-height: 0; overflow-y: auto; }
-.scene-tree-root { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 0 12px; text-align: left; }
-.scene-object-row { width: 100%; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 30px; text-align: left; border: 1px solid transparent; }
-.scene-object-row:hover, .scene-tree-root:hover { background: hsl(var(--muted)); }
-.scene-object-row[aria-selected=true] { background: hsl(var(--primary) / .09); border-color: hsl(var(--primary) / .18); }
-
 .scene-native-stage { display: flex; flex-direction: column; }
 .scene-workbench { position: relative; display: flex; flex: 1; min-height: 0; }
 .scene-stage-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.scene-timeline { height: min(38vh, 360px); min-height: 172px; display: flex; flex-direction: column; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.scene-timeline { position: relative; height: min(38vh, 360px); min-height: 140px; display: flex; flex-direction: column; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
 .scene-timeline-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid hsl(var(--border)); flex: none; overflow-x: auto; }
 .scene-timeline-toolbar > * { flex-shrink: 0; }
 .scene-timeline-body { position: relative; flex: 1; min-height: 0; }
 .scene-timeline-scroll { height: 100%; overflow: auto; overscroll-behavior-x: contain; scrollbar-color: hsl(var(--border)) transparent; }
 /* Columns are set inline: sticky channel column + lanes in px so the lanes can zoom and scroll. */
 .scene-timeline-grid { position: relative; display: grid; width: max-content; min-width: 100%; padding-right: 16px; }
-.scene-track-heading, .scene-track-property { position: sticky; left: 0; z-index: 4; padding: 0 10px; display: flex; align-items: center; gap: 8px; height: 30px; border-bottom: 1px solid hsl(var(--border) / .5); border-right: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
-.scene-track-heading { top: 0; z-index: 6; justify-content: space-between; height: 32px; border-bottom-color: hsl(var(--border)); }
+.scene-track-heading, .scene-track-heading-cell, .scene-track-property { position: sticky; left: 0; z-index: 4; display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 calc(26px + var(--depth, 0) * 14px); border-bottom: 1px solid hsl(var(--border) / .5); border-right: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.scene-track-heading { top: 0; z-index: 6; justify-content: space-between; height: 32px; padding: 0 10px; border-bottom-color: hsl(var(--border)); }
 .scene-track-row { display: contents; }
 .scene-track-lane, .scene-time-ruler { margin-left: var(--lead); }
-.scene-track-label { flex: 1; white-space: nowrap; font-size: 12px; }
-.scene-track-property input { width: 80px; height: 24px; font-size: 12px; }
-.scene-track-row:hover > .scene-track-property { background: hsl(var(--muted)); }
-.scene-track-lane { position: relative; height: 30px; border-bottom: 1px solid hsl(var(--border) / .5);
+
+/* Track header: Logic-style name cell; selection, stack disclosure, rename and drag to reorder. */
+.scene-track-heading-cell { height: 32px; padding-left: calc(6px + var(--depth, 0) * 14px); cursor: default; user-select: none; border-bottom-color: hsl(var(--border)); }
+.scene-track-heading-cell:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.scene-track-heading-cell[data-selected] { background: hsl(var(--accent)); }
+.scene-track-heading-cell[draggable=true] { cursor: grab; }
+.scene-track-heading-cell[data-drop=before] { box-shadow: inset 0 2px 0 hsl(var(--primary)); }
+.scene-track-heading-cell[data-drop=after] { box-shadow: inset 0 -2px 0 hsl(var(--primary)); }
+.scene-track-heading-cell[data-drop=inside] { box-shadow: inset 0 0 0 2px hsl(var(--primary)); }
+.scene-stack-toggle, .scene-stack-spacer { flex: none; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 3px; color: hsl(var(--muted-foreground)); }
+.scene-stack-toggle:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.scene-stack-toggle svg, .scene-param-toggle svg { width: 14px; height: 14px; transition: transform .12s; }
+.scene-stack-toggle[aria-expanded=true] svg, .scene-param-toggle[aria-expanded=true] svg { transform: rotate(90deg); }
+.scene-stack-toggle:focus-visible, .scene-param-toggle:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+.scene-track-icon { flex: none; width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+.scene-track-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; }
+.scene-track-count { flex: none; padding: 0 5px; border-radius: 999px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.scene-track-row[data-kind=group] .scene-track-name { font-weight: 600; }
+
+/* Automation lanes revealed under a track: tinted so they read as part of the track above. */
+.scene-track-property { background: hsl(var(--muted)); }
+.scene-param-toggle { flex: none; width: 76px; display: flex; align-items: center; gap: 2px; min-width: 0; font-size: 12px; text-align: left; border-radius: 3px; }
+.scene-param-fields { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+.scene-track-property input { width: 100%; height: 22px; padding: 0 4px; font-size: 12px; }
+.scene-axis-label { flex: 1; padding-left: 16px; white-space: nowrap; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.scene-track-lane { position: relative; height: 28px; border-bottom: 1px solid hsl(var(--border) / .5);
   background-image: linear-gradient(to right, hsl(var(--border) / .55) 0 1px, transparent 1px), linear-gradient(to right, hsl(var(--border) / .22) 0 1px, transparent 1px);
   background-size: var(--major) 100%, var(--minor) 100%; }
-.scene-track-row:hover > .scene-track-lane { background-color: hsl(var(--muted) / .45); }
+.scene-track-row[data-param] > .scene-track-lane { background-color: hsl(var(--muted) / .45); }
+.scene-region-lane { height: 32px; border-bottom-color: hsl(var(--border)); }
+.scene-track-row[data-selected] > .scene-region-lane { background-color: hsl(var(--accent) / .45); }
+.scene-track-row:hover > .scene-track-lane { background-color: hsl(var(--muted) / .6); }
+
+/* Regions on the track lane; collapsed tracks show faint ticks where keys exist. */
+.scene-clip-region { position: absolute; top: 4px; bottom: 4px; min-width: 4px; display: flex; align-items: center; padding: 0 6px; overflow: hidden; border: 1px solid hsl(var(--primary) / .35); border-radius: 4px; background: hsl(var(--primary) / .12); cursor: grab; touch-action: none; }
+.scene-clip-region[data-dragging] { cursor: grabbing; background: hsl(var(--primary) / .2); }
+.scene-clip-region[aria-disabled=true] { cursor: default; }
+.scene-clip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; pointer-events: none; }
+.scene-clip-repeat { position: absolute; top: 0; bottom: 0; border-left: 1px dashed hsl(var(--primary) / .4); pointer-events: none; }
+.scene-key-tick { position: absolute; bottom: 3px; width: 2px; height: 6px; transform: translateX(-1px); border-radius: 1px; background: hsl(var(--muted-foreground) / .5); pointer-events: none; }
+.scene-key-tick[data-outside] { opacity: .45; }
+.scene-timeline-resizer { position: absolute; top: -3px; left: 0; right: 0; z-index: 10; height: 6px; cursor: row-resize; touch-action: none; }
+.scene-timeline-resizer:hover, .scene-timeline-resizer:focus-visible { outline: none; background: hsl(var(--ring) / .35); }
 
 /* Ruler: labels on top, ticks at the bottom, playhead head and scene end marker on the lane edge. */
 .scene-time-ruler { position: sticky; top: 0; z-index: 5; height: 32px; touch-action: none; user-select: none; border-bottom: 1px solid hsl(var(--border)); background-color: hsl(var(--card)); box-shadow: calc(-1 * var(--lead)) 0 0 hsl(var(--card));
@@ -106,13 +133,14 @@
 .scene-end-marker:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; border-radius: 2px; }
 .scene-end-label { position: absolute; right: 16px; top: 15px; padding: 0 4px; border-radius: 3px; background: hsl(var(--foreground)); color: hsl(var(--background)); font-size: 11px; line-height: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
 
-.scene-keyframe { position: absolute; top: 3px; z-index: 1; height: 24px; width: 24px; transform: translateX(-50%); display: grid; place-items: center; color: hsl(var(--muted-foreground)); cursor: grab; touch-action: none; }
+.scene-keyframe { position: absolute; top: 2px; z-index: 1; height: 24px; width: 24px; transform: translateX(-50%); display: grid; place-items: center; color: hsl(var(--muted-foreground)); cursor: grab; touch-action: none; }
 .scene-keyframe:hover { color: hsl(var(--foreground)); }
 .scene-keyframe[data-dragging] { cursor: grabbing; color: hsl(var(--foreground)); }
 .scene-keyframe[data-outside] { opacity: .45; }
 .scene-keyframe:disabled { cursor: default; }
 .scene-keyframe svg { width: 11px; height: 11px; fill: currentColor; }
 .scene-keyframe[aria-pressed=true] { color: hsl(var(--primary)); }
+.scene-keyframe[data-partial] svg { fill: hsl(var(--background)); stroke-width: 2.5; }
 .scene-keyframe:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
 .scene-timeline-empty { position: absolute; inset: 32px 0 0; display: grid; place-items: center; padding: 16px; pointer-events: none; }
 @media (max-width: 639px) { .scene-timeline { height: 36vh; } .scene-timeline-toolbar { padding-inline: 6px; } }

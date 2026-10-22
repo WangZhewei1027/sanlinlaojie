@@ -1,6 +1,6 @@
 # Scene：保存即生效
 
-Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排，资源别名只引用 `{ assetId }`；实例保存初始 position/rotation/scale、可选数值轨道和 GLB 片段配置。`scene_asset_ref` 是同一保存事务重建的依赖索引。Asset 和 Scene 都只有一份当前内容，没有发布或版本切换流程。
+Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排，资源别名只引用 `{ assetId }`；实例保存初始 position/rotation/scale、可选数值轨道和 GLB 片段配置；可选 `groups` 是带变换和轨道的父节点（Logic Track Stack 式分组），实例与分组通过 `parent` 组成最多 4 层的层级，`instances` 的顺序即时间轴轨道顺序。`scene_asset_ref` 是同一保存事务重建的依赖索引。Asset 和 Scene 都只有一份当前内容，没有发布或版本切换流程。
 
 ## 保存、引用和归档
 
@@ -23,11 +23,11 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 ## 协议与共享 Core
 
-`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放 schema 4。`manifest.assetId` 是播放实例标识：地图入口为 Placement ID，直接扫码入口为 Scene ID；资源里的 assetId 才是基础素材 ID。实时 API 与播放器只接受当前协议。
+`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放清单：没有分组的场景保持平铺的 schema 4（已发布的小程序只接受它），有分组的场景输出 schema 5。两端从各节点的 `parent` 搭建 Object3D 层级，变换值都相对父分组。`manifest.assetId` 是播放实例标识：地图入口为 Placement ID，直接扫码入口为 Scene ID；资源里的 assetId 才是基础素材 ID。实时 API 与播放器只接受当前协议。
 
 - 实例使用米制 `position`、Euler XYZ 弧度 `rotation` 和 `scale`。可选 `tracks` 的键为 `position.x/y/z`、`rotation.x/y/z`、`scale.x/y/z`；每个关键帧为 `{ time, value, handles: [inX, inY, outX, outY], connectedRight }`，time 单位为秒。相邻帧使用左帧出柄与右帧入柄做 Bezier 插值；`connectedRight: false` 保持到下一帧，精确关键帧时间返回该帧值。没有轨道的通道使用静态姿态。
 - 保存限制 1 MiB、8 素材、24 实例、2400 关键帧，时长大于 0 且不超过 600 秒；静态场景可用 null 时长，新场景默认 10 秒。校验允许 Bezier 纵向超调。
-- `packages/scene-core` 2.0.0 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样和 `clipTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
+- `packages/scene-core` 2.1.0 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样和 `clipTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
 - 每个播放器独立创建 Core；`dispose()` 停止播放并清空订阅、对象绑定与内容引用。GLB 骨骼/节点动画仍由各端 Three.AnimationMixer 求值，Core 只共享片段时间映射。
 - Web 使用本地 npm 包；小程序提交 npm pack 快照与 esbuild 产物。当前小程序压缩 bundle 为 2461 字节（小程序仓库的 `miniprogram/lib/scene-runtime/vendor/build-info.json` 记录版本、源码哈希和字节数）。更新命令见 [Scene Core README](../packages/scene-core/README.md)。
 
@@ -39,7 +39,7 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 `vendor/three-editor` 固定 r183 官方源码；Editor、Viewport、Selector、EditorControls、Toolbar、ViewHelper 和原生变换命令负责视口交互。`app/manage/scenes/components/three-editor/` 将子网格选取映射回实例，将完成的变换写入应用文档历史。模型模板缓存在当前视口按引用释放，关闭时清理 renderer、RAF、监听器和辅助资源。上游来源与补丁见 [集成说明](../vendor/three-editor/README.md)。
 
-仅开放现有协议可保存、两端可播放的能力。原生 Editor 的独立文件/JSON、任意材质/灯光/脚本、层级重排未开放；增加能力应先扩展共享协议和 runtime。
+仅开放现有协议可保存、两端可播放的能力。原生 Editor 的独立文件/JSON、任意材质/灯光/脚本未开放；层级只能通过时间轴轨道头部的分组编辑，不使用原生大纲树；增加能力应先扩展共享协议和 runtime。
 
 ## 一次性迁移
 
@@ -64,6 +64,6 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 | 数据库迁移 | 回滚、原文归档、锁递增、重复执行与协议约束测试通过 |
 | 完整回归 | Web `npm run check` 与小程序 `npm test` 通过；Web 保留 15 个既有 lint warning |
 
-相关命令：Web `npx tsx scripts/test-scene-core.ts`、`test-transform-migration.ts`（需测试数据库）、`test-scene-playback-parity.ts`（需相邻小程序仓库）、`test-three-editor.ts`；小程序 `npm run test:scene-memory`。UI 证据在 `.impeccable/review/desktop.png`、`mobile.png`，finish review disposition 为 `ship`。
+相关命令：Web `npx tsx scripts/test-scene-core.ts`、`test-scene-hierarchy.ts`、`test-transform-migration.ts`（需测试数据库）、`test-scene-playback-parity.ts`（需相邻小程序仓库）、`test-three-editor.ts`；小程序 `npm run test:scene-memory`。UI 证据在 `.impeccable/review/desktop.png`、`mobile.png`，finish review disposition 为 `ship`。
 
 此前协议 3 的 100 次模拟器 GPU 检查和 10 次 iframe 退出记录属于历史验收，不能作为当前实现的重跑结果。其证据仍在 `/Users/wangzhewei/.codex/visualizations/2026/10/19/01a154ad-3006-74b0-a293-fb8306341ebd/` 的 `scene-memory-*` 与 `three-editor-*` 文件。本轮内存数字仅代表当前 fixture 与运行环境。

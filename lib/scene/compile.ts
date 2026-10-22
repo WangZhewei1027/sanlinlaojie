@@ -1,7 +1,10 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
-import type { SceneAssetManifest, SceneDocument } from "./protocol";
+import { SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, type SceneAssetManifest, type SceneDocument } from "./protocol";
 
-/** Compile a saved scene with current asset resources into playback schema 4. */
+/**
+ * Compile a saved scene with current asset resources. Scenes without groups stay on
+ * flat playback schema 4, which released mini-programs play; groups require schema 5.
+ */
 export function compileSceneManifest(
   publicId: string,
   document: SceneDocument,
@@ -14,8 +17,8 @@ export function compileSceneManifest(
   }
   return {
     assetId: publicId,
-    schemaVersion: 4,
-    content: { ...document.content, assets },
+    schemaVersion: document.content.groups?.length ? SCENE_SCHEMA_VERSION : SCENE_FLAT_SCHEMA_VERSION,
+    content: flatten({ ...document.content, assets }),
     resources,
   };
 }
@@ -44,4 +47,11 @@ export function clipIssues(
     }
   });
   return issues;
+}
+
+/** An empty group list compiles to the flat format; it never reaches a flat manifest. */
+function flatten<T extends { groups?: unknown[] }>(content: T): T {
+  if (content.groups?.length) return content;
+  const { groups: _groups, ...rest } = content;
+  return rest as T;
 }

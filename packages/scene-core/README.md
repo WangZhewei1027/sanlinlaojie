@@ -8,6 +8,8 @@ independent player, without a global registry, DOM, timers, RAF or dynamic code 
 has a time, value, incoming/outgoing Bezier handles and `connectedRight` (false holds until
 the next key). Linear handles produce linear interpolation. Exact keys return exact values.
 No tracks means the instance's static transform. The editor displays rotation in degrees.
+Optional `groups` share the instance ID space and are sampled the same way; values are local
+to the parent group, and hosts build the Object3D hierarchy from each node's `parent`.
 
 Use `play`, `pause`, `seek`, `advance(seconds)`, `sync(content)`, `sample(id)` and
 `bind(id, object3D)`. `dispose` stops playback and clears all callbacks and object bindings.
@@ -20,7 +22,7 @@ Update the mini-program snapshot from the Web repository:
 ```sh
 npm pack ./packages/scene-core --pack-destination ../xr-frame-plant-trees/vendor
 cd ../xr-frame-plant-trees
-npm install --ignore-scripts ./vendor/spatial-memory-scene-core-2.0.0.tgz
+npm install --ignore-scripts ./vendor/spatial-memory-scene-core-2.1.0.tgz
 npm run build:scene-core
 npm run test:scene-memory
 ```

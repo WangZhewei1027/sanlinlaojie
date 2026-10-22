@@ -17,7 +17,7 @@ const { THREE } = require(`${miniRoot}/lib/three-runtime/runtime`);
 const { ModelCache } = require(`${miniRoot}/lib/three-runtime/resources`);
 const { createCompositionPlayer } = require(`${miniRoot}/lib/scene-runtime/composition`);
 const miniCore = require(`${miniRoot}/lib/scene-runtime/vendor/scene-core`);
-function content(loop: boolean): CompositionContent {
+function content(loop: boolean, grouped = false): CompositionContent {
   const instances: CompositionInstance[] = [false, true].map((clipLoop, i) => ({ id: `model${i}`, asset: 'model', position: [i, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: { clipIndex: 0, startSeconds: i + 1, loop: clipLoop } }));
   for (const instance of instances) {
     instance.tracks = {};
@@ -28,24 +28,32 @@ function content(loop: boolean): CompositionContent {
       }));
     }
   }
-  return { kind: 'composition', units: 'meters', durationSeconds: 10, loop, assets: { model: { assetId: '11111111-1111-4111-8111-111111111111' } }, instances };
+  const base: CompositionContent = { kind: 'composition', units: 'meters', durationSeconds: 10, loop, assets: { model: { assetId: '11111111-1111-4111-8111-111111111111' } }, instances };
+  if (!grouped) return base;
+  // Second model inside a nested, animated group: parents must compose identically on both hosts.
+  instances[1].parent = 'inner';
+  const bezier = (values: number[]) => values.map((value, i) => ({ time: i * 4, value, handles: [0.3, 0.1, 0.6, 0.9] as [number, number, number, number], connectedRight: true }));
+  return { ...base, groups: [
+    { id: 'rig', name: 'Rig', position: [0, 1, 0], rotation: [0, 0.4, 0], scale: [1.5, 1.5, 1.5], tracks: { 'rotation.y': bezier([0, 2, 4]), 'position.z': bezier([0, -1, 1]) } },
+    { id: 'inner', name: 'Inner', parent: 'rig', position: [0.5, 0, 0], rotation: [0.2, 0, 0], scale: [1, 2, 1], tracks: { 'scale.x': bezier([1, 2, 0.5]) } },
+  ] };
 }
 async function main() {
   let comparisons = 0, maximumError = 0;
   const near = (a: number, b: number) => { const error = Math.abs(a - b); maximumError = Math.max(maximumError, error); comparisons++; assert.ok(error < 1e-7, `${a} != ${b}`); };
-  for (const loop of [false, true]) {
-    const definition = content(loop);
+  for (const [loop, grouped] of [[false, false], [true, false], [false, true], [true, true]]) {
+    const definition = content(loop, grouped);
     const bytes = createFixtureGLB();
     const webGLB = await new GLTFLoader().parseAsync(bytes.slice(0), '');
     const miniGLB = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(bytes.slice(0), '', resolve, reject));
     const cache = new ModelCache(null, 8, async () => miniGLB);
-    const player = createCompositionPlayer({ schemaVersion: 4, assetId: 'parity', content: JSON.parse(JSON.stringify(definition)), resources: { model: { url: 'fixture.glb' } } }, { modelCache: cache });
+    const player = createCompositionPlayer({ schemaVersion: grouped ? 5 : 4, assetId: 'parity', content: JSON.parse(JSON.stringify(definition)), resources: { model: { url: 'fixture.glb' } } }, { modelCache: cache });
     await player.load(); assert.equal(player.state, 'ready');
     const web = await createSceneCore({ content: definition });
     const nativeEditor = new Editor({ config: { getKey: () => 'en', setKey() {} }, history: { execute() {}, clear() {} } });
     let readyCount = 0, resolveReady!: () => void, rejectReady!: (error: Error) => void;
     const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
-    const props = { session: web, instances: definition.instances, resolveUrl: () => 'fixture.glb', onClips() {}, onError(message: string) { rejectReady(new Error(message)); } } as unknown as ThreeViewportProps;
+    const props = { session: web, instances: definition.instances, groups: definition.groups, resolveUrl: () => 'fixture.glb', onClips() {}, onError(message: string) { rejectReady(new Error(message)); } } as unknown as ThreeViewportProps;
     const models = new EditorModels(nativeEditor, () => props, () => false, () => { if (++readyCount === definition.instances.length) resolveReady(); }, new ModelPool(async () => webGLB));
     models.sync(); await ready;
     for (const time of [0, 0.02, 0.3, 0.99, 1, 1.001, 1.5, 2, 3.99, 4, 4.001, 7.99, 8, 9.99, 10, 10.02, 22.5]) {
@@ -54,7 +62,7 @@ async function main() {
       models.frame();
       for (const [i, instance] of definition.instances.entries()) {
         const item = models.entries.get(instance.id)!;
-        item.root!.updateMatrixWorld(true); player.instances[i].instanceRoot.updateMatrixWorld(true);
+        item.root!.updateWorldMatrix(true, true); player.instances[i].instanceRoot.updateWorldMatrix(true, true);
         const webValues: number[] = [], miniValues: number[] = [];
         item.root!.traverse(node => webValues.push(...node.matrixWorld.elements));
         player.instances[i].instanceRoot.traverse((node: Group) => miniValues.push(...node.matrixWorld.elements));
@@ -72,6 +80,6 @@ async function main() {
   void first.play(false); void second.play(false); first.advance(3); second.advance(1);
   near(first.time, 3); near(second.time, 1);
   first.dispose(); second.advance(1); near(second.time, 2); second.dispose();
-  console.log(JSON.stringify({ result: 'PASS', webThree: '0.183.2', miniThree: THREE.REVISION, samples: 34, comparisons, maximumError, coverage: 'native Three Editor adapter vs mini CompositionPlayer; 9 transform channels, Bezier/hold, real GLB node animation, delayed/looping clips, scene loop/end, pause, isolated simultaneous players' }));
+  console.log(JSON.stringify({ result: 'PASS', webThree: '0.183.2', miniThree: THREE.REVISION, samples: 68, comparisons, maximumError, coverage: 'native Three Editor adapter vs mini CompositionPlayer; nested animated groups, 9 transform channels, Bezier/hold, real GLB node animation, delayed/looping clips, scene loop/end, pause, isolated simultaneous players' }));
 }
 main().then(() => process.exit(0), error => { console.error(error); process.exit(1); });

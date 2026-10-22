@@ -3,7 +3,7 @@ export type TransformValues = { position: Vector; rotation: Vector; scale: Vecto
 export type TransformChannel = `${keyof TransformValues}.${keyof Vector}`;
 export type Keyframe = { time: number; value: number; handles: [number, number, number, number]; connectedRight: boolean };
 export type Instance = { id: string; position: number[]; rotation: number[]; scale: number[]; tracks?: Partial<Record<TransformChannel, Keyframe[]>> };
-export type Content = { durationSeconds: number | null; loop: boolean; instances: Instance[] };
+export type Content = { durationSeconds: number | null; loop: boolean; instances: Instance[]; groups?: Instance[] };
 export type TransformRoot = { position: { set(x: number, y: number, z: number): unknown }; rotation: { set(x: number, y: number, z: number, order?: 'XYZ'): unknown }; scale: { set(x: number, y: number, z: number): unknown } };
 export function instanceValues(instance: Instance): TransformValues;
 export function sampleInstance(instance: Instance, time: number): TransformValues;

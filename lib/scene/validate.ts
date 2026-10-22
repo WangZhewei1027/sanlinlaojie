@@ -1,4 +1,4 @@
-import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_SCHEMA_VERSION, type SceneDefinition, type SceneDocument, type ValidationResult } from "./protocol";
+import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, type SceneDefinition, type SceneDocument, type ValidationResult } from "./protocol";
 import { IssueList, rejectUnknownKeys, requireObject } from "./validate-utils";
 import { validateCompositionContent } from "./validate-content";
 
@@ -13,9 +13,11 @@ export function validateSceneDefinition(def: unknown): ValidationResult {
   const root = requireObject(issues, "$", def);
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
-    if (root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 4");
+    const flat = root.schemaVersion === SCENE_FLAT_SCHEMA_VERSION;
+    if (!flat && root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 4 或 5");
     const content = requireObject(issues, "content", root.content);
-    if (content?.kind === "composition") validateCompositionContent(issues, content);
+    // Schema 4 is the flat format released mini-programs play; groups need schema 5.
+    if (content?.kind === "composition") validateCompositionContent(issues, content, { groups: !flat });
     else if (content) issues.error("content.kind", "场景素材仅支持 composition");
   }
   return { ok: !issues.hasErrors, issues: issues.issues };
@@ -32,7 +34,7 @@ export function parseSceneText(text: unknown): SceneDefinition {
   return value as SceneDefinition;
 }
 
-/** Internal schema 6: transform tracks and direct asset references. */
+/** Internal schema 6: transform tracks, optional groups and direct asset references. */
 export function validateSceneDocument(def: unknown): ValidationResult {
   const issues = new IssueList();
   const root = requireObject(issues, "$", def);

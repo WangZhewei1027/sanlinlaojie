@@ -1,8 +1,8 @@
 import { COMPOSITION_LIMITS } from '@/lib/scene/protocol';
 import { roundTime } from '@/lib/scene/transform-authoring';
 
-/** Width of the sticky channel column; lanes start right after it. */
-export const TIMELINE_LABEL_WIDTH = 240;
+/** Width of the sticky track-header column; lanes start right after it. */
+export const TIMELINE_LABEL_WIDTH = 300;
 /** Gutter before 0s so the playhead head is never clipped by the channel column. */
 export const TIMELINE_LEAD = 12;
 export const MIN_SCENE_DURATION = 0.1;

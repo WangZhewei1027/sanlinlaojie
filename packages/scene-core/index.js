@@ -43,9 +43,11 @@ function clipTime(time, animation, duration) {
   const local = Math.max(0, time - animation.startSeconds);
   return duration > 0 ? (animation.loop ? local % duration : Math.min(local, duration)) : 0;
 }
+// Groups and instances share one ID space; each node is sampled in its parent's space.
+const nodeMap = content => new Map([...(content.groups || []), ...content.instances].map(node => [node.id, node]));
 function createSceneCore({ content }) {
   let current = content, time = 0, playing = false, looping = false, disposed = false;
-  let instances = new Map(current.instances.map(instance => [instance.id, instance]));
+  let instances = nodeMap(current);
   const listeners = new Set(), bindings = new Map();
   const duration = () => current.durationSeconds;
   const sample = id => { const instance = instances.get(id); return instance ? sampleInstance(instance, time) : undefined; };
@@ -59,7 +61,7 @@ function createSceneCore({ content }) {
     sample,
     sync(next) {
       if (disposed) return;
-      current = next; instances = new Map(next.instances.map(instance => [instance.id, instance]));
+      current = next; instances = nodeMap(next);
       for (const id of bindings.keys()) if (!instances.has(id)) bindings.delete(id);
       if (duration() !== null) time = Math.min(time, duration());
       if (duration() !== null && time >= duration()) playing = false;
@@ -68,7 +70,7 @@ function createSceneCore({ content }) {
     subscribe(callback) { if (disposed) return () => {}; listeners.add(callback); callback(); return () => listeners.delete(callback); },
     observe(id, callback) {
       if (disposed) return () => {};
-      const value = sample(id); if (!value) throw new Error(`Unknown scene instance: ${id}`);
+      const value = sample(id); if (!value) throw new Error(`Unknown scene node: ${id}`);
       let callbacks = bindings.get(id); if (!callbacks) bindings.set(id, callbacks = new Set());
       callbacks.add(callback); callback(value);
       return () => { callbacks.delete(callback); if (!callbacks.size && bindings.get(id) === callbacks) bindings.delete(id); };
