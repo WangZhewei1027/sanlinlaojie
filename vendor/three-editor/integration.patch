@@ -1,0 +1,303 @@
+--- a/Toolbar.js
++++ b/Toolbar.js
+@@ -12,7 +12,7 @@
+ 
+ 	const translateIcon = document.createElement( 'img' );
+ 	translateIcon.title = strings.getKey( 'toolbar/translate' );
+-	translateIcon.src = 'images/translate.svg';
++	translateIcon.src = '/three-editor/translate.svg';
+ 
+ 	const translate = new UIButton();
+ 	translate.dom.className = 'Button selected';
+@@ -22,11 +22,12 @@
+ 		signals.transformModeChanged.dispatch( 'translate' );
+ 
+ 	} );
++	translate.dom.setAttribute( 'aria-label', strings.getKey( 'toolbar/translate' ) );
+ 	container.add( translate );
+ 
+ 	const rotateIcon = document.createElement( 'img' );
+ 	rotateIcon.title = strings.getKey( 'toolbar/rotate' );
+-	rotateIcon.src = 'images/rotate.svg';
++	rotateIcon.src = '/three-editor/rotate.svg';
+ 
+ 	const rotate = new UIButton();
+ 	rotate.dom.appendChild( rotateIcon );
+@@ -35,11 +36,12 @@
+ 		signals.transformModeChanged.dispatch( 'rotate' );
+ 
+ 	} );
++	rotate.dom.setAttribute( 'aria-label', strings.getKey( 'toolbar/rotate' ) );
+ 	container.add( rotate );
+ 
+ 	const scaleIcon = document.createElement( 'img' );
+ 	scaleIcon.title = strings.getKey( 'toolbar/scale' );
+-	scaleIcon.src = 'images/scale.svg';
++	scaleIcon.src = '/three-editor/scale.svg';
+ 
+ 	const scale = new UIButton();
+ 	scale.dom.appendChild( scaleIcon );
+@@ -48,6 +50,7 @@
+ 		signals.transformModeChanged.dispatch( 'scale' );
+ 
+ 	} );
++	scale.dom.setAttribute( 'aria-label', strings.getKey( 'toolbar/scale' ) );
+ 	container.add( scale );
+ 
+ 	//
+--- a/Viewport.Controls.js
++++ b/Viewport.Controls.js
+@@ -13,6 +13,7 @@
+ 
+ 	const cameraSelect = new UISelect();
+ 	cameraSelect.setMarginRight( '10px' );
++	cameraSelect.dom.setAttribute( 'aria-label', 'Viewport camera' );
+ 	cameraSelect.onChange( function () {
+ 
+ 		editor.setViewportCamera( this.getValue() );
+@@ -35,7 +36,8 @@
+ 	// shading
+ 
+ 	const shadingSelect = new UISelect();
+-	shadingSelect.setOptions( { 'realistic': 'realistic', 'solid': 'solid', 'normals': 'normals', 'wireframe': 'wireframe' } );
++	shadingSelect.dom.setAttribute( 'aria-label', 'Viewport shading' );
++	shadingSelect.setOptions( { 'solid': 'solid', 'normals': 'normals', 'wireframe': 'wireframe' } );
+ 	shadingSelect.setValue( 'solid' );
+ 	shadingSelect.onChange( function () {
+ 
+--- a/Editor.js
++++ b/Editor.js
+@@ -1,10 +1,7 @@
++import signals from './libs/signals.min.js';
+ import * as THREE from 'three';
+ 
+-import { Config } from './Config.js';
+-import { Loader } from './Loader.js';
+-import { History as _History } from './History.js';
+ import { Strings } from './Strings.js';
+-import { Storage as _Storage } from './Storage.js';
+ import { Selector } from './Selector.js';
+ 
+ var _DEFAULT_CAMERA = new THREE.PerspectiveCamera( 50, 1, 0.001, 1e10 );
+@@ -12,7 +9,7 @@
+ _DEFAULT_CAMERA.position.set( 0, 5, 10 );
+ _DEFAULT_CAMERA.lookAt( new THREE.Vector3() );
+ 
+-function Editor() {
++function Editor( { config, history } ) {
+ 
+ 	const Signal = signals.Signal; // eslint-disable-line no-undef
+ 
+@@ -100,13 +97,13 @@
+ 
+ 	};
+ 
+-	this.config = new Config();
+-	this.history = new _History( this );
++	this.config = config;
++	this.history = history;
+ 	this.selector = new Selector( this );
+-	this.storage = new _Storage();
++	this.storage = { clear() {} }; // Host API owns persistence.
+ 	this.strings = new Strings( this.config );
+ 
+-	this.loader = new Loader( this );
++	this.loader = null; // Host asset library owns imports.
+ 
+ 	this.camera = _DEFAULT_CAMERA.clone();
+ 
+@@ -782,9 +779,11 @@
+ 
+ };
+ 
+-const link = document.createElement( 'a' );
++let link;
+ 
+ function save( blob, filename ) {
++
++	link ??= document.createElement( 'a' );
+ 
+ 	if ( link.href ) {
+ 
+--- a/Viewport.js
++++ b/Viewport.js
+@@ -1,5 +1,4 @@
+ import * as THREE from 'three';
+-import { PMREMGenerator } from 'three/webgpu';
+ 
+ import { TransformControls } from 'three/addons/controls/TransformControls.js';
+ 
+@@ -11,7 +10,6 @@
+ import { ViewportInfo } from './Viewport.Info.js';
+ 
+ import { ViewHelper } from './Viewport.ViewHelper.js';
+-import { XR } from './Viewport.XR.js';
+ 
+ import { SetPositionCommand } from './commands/SetPositionCommand.js';
+ import { SetRotationCommand } from './commands/SetRotationCommand.js';
+@@ -19,7 +17,6 @@
+ 
+ import { ColorEnvironment } from 'three/addons/environments/ColorEnvironment.js';
+ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+-import { ViewportPathtracer } from './Viewport.Pathtracer.js';
+ 
+ function Viewport( editor ) {
+ 
+@@ -30,7 +27,8 @@
+ 	container.setId( 'viewport' );
+ 	container.setPosition( 'absolute' );
+ 
+-	container.add( new ViewportControls( editor ) );
++	container.cameraControls = new ViewportControls( editor );
++	container.add( container.cameraControls );
+ 	container.add( new ViewportInfo( editor ) );
+ 
+ 	//
+@@ -38,6 +36,8 @@
+ 	let renderer = null;
+ 	let pmremGenerator = null;
+ 	let pathtracer = null;
++	let removeThemeListener = () => {};
++	let disposed = false;
+ 
+ 	const camera = editor.camera;
+ 	const scene = editor.scene;
+@@ -148,7 +148,7 @@
+ 
+ 	//
+ 
+-	const xr = new XR( editor, transformControls ); // eslint-disable-line no-unused-vars
++	// Embedded editor: WebXR is provided by the mini-program runtime.
+ 
+ 	// events
+ 
+@@ -368,17 +368,28 @@
+ 		renderer.setAnimationLoop( animate );
+ 		renderer.setClearColor( 0xaaaaaa );
+ 
+-		if ( window.matchMedia ) {
++		const viewportTheme = editor.config.getKey( 'viewport/theme' );
++		removeThemeListener();
++		removeThemeListener = () => {};
++		if ( viewportTheme === 'dark' || viewportTheme === 'light' ) {
++
++			renderer.setClearColor( viewportTheme === 'dark' ? 0x333333 : 0xaaaaaa );
++			updateGridColors( grid1, grid2, viewportTheme === 'dark' ? GRID_COLORS_DARK : GRID_COLORS_LIGHT );
++
++		} else if ( window.matchMedia ) {
+ 
+ 			const mediaQuery = window.matchMedia( '(prefers-color-scheme: dark)' );
+-			mediaQuery.addEventListener( 'change', function ( event ) {
++			const onTheme = function ( event ) {
+ 
+ 				renderer.setClearColor( event.matches ? 0x333333 : 0xaaaaaa );
+ 				updateGridColors( grid1, grid2, event.matches ? GRID_COLORS_DARK : GRID_COLORS_LIGHT );
+ 
+ 				render();
+ 
+-			} );
++			};
++			removeThemeListener();
++			mediaQuery.addEventListener( 'change', onTheme );
++			removeThemeListener = () => mediaQuery.removeEventListener( 'change', onTheme );
+ 
+ 			renderer.setClearColor( mediaQuery.matches ? 0x333333 : 0xaaaaaa );
+ 			updateGridColors( grid1, grid2, mediaQuery.matches ? GRID_COLORS_DARK : GRID_COLORS_LIGHT );
+@@ -395,11 +406,11 @@
+ 			pmremGenerator = new THREE.PMREMGenerator( renderer );
+ 			pmremGenerator.compileEquirectangularShader();
+ 
+-			pathtracer = new ViewportPathtracer( renderer );
++			// Path tracing is outside the shared playback contract.
+ 
+ 		} else {
+ 
+-			pmremGenerator = new PMREMGenerator( renderer );
++			pmremGenerator = new THREE.PMREMGenerator( renderer );
+ 
+ 			pathtracer = null;
+ 
+@@ -703,6 +714,7 @@
+ 	signals.viewportShadingChanged.add( function () {
+ 
+ 		const viewportShading = editor.viewportShading;
++		scene.overrideMaterial?.dispose();
+ 
+ 		switch ( viewportShading ) {
+ 
+@@ -808,12 +820,16 @@
+ 
+ 	function animate() {
+ 
++		if ( disposed ) return;
++		// Shared Theatre Core supplies poses and clip times before native rendering.
++		container.beforeRender?.();
++
+ 		timer.update();
+ 
+ 		const mixer = editor.mixer;
+ 		const delta = timer.getDelta();
+ 
+-		let needsUpdate = false;
++		let needsUpdate = true;
+ 
+ 		// Animations
+ 
+@@ -928,7 +944,7 @@
+ 			renderer.autoClear = false;
+ 			if ( grid.visible === true ) renderer.render( grid, camera );
+ 			if ( sceneHelpers.visible === true ) renderer.render( sceneHelpers, camera );
+-			if ( renderer.xr.isPresenting !== true ) viewHelper.render( renderer );
++			if ( renderer.xr.isPresenting !== true && viewHelper.visible !== false ) viewHelper.render( renderer );
+ 			renderer.autoClear = true;
+ 
+ 		}
+@@ -938,6 +954,35 @@
+ 
+ 	}
+ 
++
++	// Public integration hooks: native controls stay owned by Viewport.
++	container.transformControls = transformControls;
++	container.setEditable = ( enabled ) => { transformControls.enabled = enabled; transformControls.getHelper().visible = enabled && transformControls.object !== undefined; };
++	container.setHelpers = ( visible ) => { sceneHelpers.visible = visible; viewHelper.visible = visible; container.dom.querySelector( '#viewHelper' ).hidden = !visible; };
++	container.setViewHelperLocation = ( left, top ) => {
++		viewHelper.location.left = left; viewHelper.location.top = top;
++		const panel = container.dom.querySelector( '#viewHelper' );
++		panel.style.left = left + 'px'; panel.style.right = 'auto'; panel.style.top = top + 'px';
++	};
++	container.dispose = () => {
++		if ( disposed ) return;
++		disposed = true;
++		renderer?.setAnimationLoop( null );
++		removeThemeListener();
++		document.removeEventListener( 'mouseup', onMouseUp );
++		document.removeEventListener( 'touchend', onTouchEnd );
++		controls.disconnect();
++		transformControls.dispose();
++		viewHelper.dispose();
++		selectionBox.geometry.dispose(); selectionBox.material.dispose();
++		grid.traverse( object => { object.geometry?.dispose(); object.material?.dispose(); } );
++		scene.overrideMaterial?.dispose();
++		pmremGenerator?.dispose();
++		timer.dispose();
++		renderer?.dispose(); renderer?.forceContextLoss();
++		container.beforeRender = null;
++		container.dom.remove();
++	};
+ 	return container;
+ 
+ }
+--- a/EditorControls.js
++++ b/EditorControls.js
+@@ -287,6 +287,10 @@
+ 
+ 		this.disconnect = function () {
+ 
++			if ( domElement === null ) return;
++			domElement.ownerDocument.removeEventListener( 'pointermove', onPointerMove );
++			domElement.ownerDocument.removeEventListener( 'pointerup', onPointerUp );
++
+ 			domElement.removeEventListener( 'contextmenu', contextmenu );
+ 			domElement.removeEventListener( 'dblclick', onMouseUp );
+ 			domElement.removeEventListener( 'wheel', onMouseWheel );

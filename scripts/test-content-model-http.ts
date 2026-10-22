@@ -98,11 +98,21 @@ async function checks() {
   await request(a, `/api/assets/${created.asset.id}`, "PATCH", { name: "stale client" }, [428]);
   console.log("PASS HTTP create retry, viewer read-only cap, team editing and optimistic locks");
 
-  const document = { schemaVersion: 4, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
+  const document = { schemaVersion: 6, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
     assets: { tree: { assetId: created.asset.id } },
-    instances: [{ id: "tree-one", asset: "tree", position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: { clipName: "sway", startSeconds: 0, loop: true } }] } };
+    instances: [{ id: "tree-one", asset: "tree", position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: { clipName: "sway", startSeconds: 0, loop: true } }] } };
   const scene = await data(request<{ data: SceneDetailDto }>(b, `/api/organizations/${ids.org}/scenes`, "POST", { name: "社区入口", document, idempotencyKey: `${marker}-scene` }));
   assert.equal(scene.referenced_resources[0].asset_id, created.asset.id);
+  const edited = structuredClone(document);
+  edited.content.instances[0].position[0] = 1.25;
+  const nativeSaved = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`, "PATCH", { expectedLockVersion: scene.lock_version, document: edited }));
+  assert.deepEqual(nativeSaved.document.content.instances, edited.content.instances);
+  const reopened = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`));
+  assert.deepEqual(reopened.document.content.instances, edited.content.instances, "save/reopen preserves transforms");
+  const preview = await request<{ content: { instances: unknown } }>(null, "/api/miniapp/scenes/preview", "POST", { scene_id: scene.id, organization_id: ids.org });
+  assert.deepEqual(preview.content.instances, edited.content.instances, "mini preview receives the saved transforms");
+  await request(viewer, `/api/scenes/${scene.id}`, "PATCH", { expectedLockVersion: nativeSaved.lock_version, document }, [403]);
+  console.log("PASS HTTP transform save, reopen, mini preview and viewer write denial");
   await request(a, `/api/scenes/${scene.id}`, "GET");
   await request(outsider, `/api/scenes/${scene.id}`, "GET", undefined, [404]);
   const usage = await request<{ data: { impact: { restricted_count: number; items: unknown[] } } }>(a, `/api/assets/${created.asset.id}/usage`);
@@ -120,7 +130,7 @@ async function checks() {
     asset_id: placed.placement.public_id, p_workspace_id: ids.projectB, p_organization_id: ids.org,
   });
   assert.equal(manifest.assetId, placed.placement.public_id);
-  assert.ok([1, 2].includes(manifest.schemaVersion));
+  assert.equal(manifest.schemaVersion, 3);
   assert.equal(manifest.resources.tree.url, "https://fixture.invalid/tree-v2.glb");
   const pinnedContent = await data(request<{ data: PlacementContentDto }>(b, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`));
   assert.equal(pinnedContent.kind, "scene");
@@ -131,7 +141,7 @@ async function checks() {
   }
   await request(outsider, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.projectB}`, "GET", undefined, [404]);
   await request(owner, `/api/placements/${placed.placement.id}/content?workspace_id=${ids.foreignProject}`, "GET", undefined, [404]);
-  console.log("PASS HTTP cross-collection reuse, team-wide dependency names, immutable publication");
+  console.log("PASS HTTP cross-collection reuse, team-wide dependency names, current scene playback");
 
   const saved = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`, "PATCH", { name: "社区入口 · 草稿", expectedLockVersion: fixed.lock_version }));
   await request(b, `/api/scenes/${scene.id}`, "PATCH", { name: "lost edit", expectedLockVersion: fixed.lock_version }, [409]);
@@ -152,7 +162,7 @@ async function checks() {
   const detail = await data(request<{ data: AssetDetailDto }>(a, `/api/assets/${created.asset.id}`));
   await request(a, `/api/assets/${created.asset.id}?expectedLockVersion=${detail.lock_version}`, "DELETE");
   const retained = await data(request<{ data: SceneDetailDto }>(b, `/api/scenes/${scene.id}`));
-  assert.equal(retained.referenced_resources[0].url, "https://fixture.invalid/tree-v1.glb");
+  assert.equal(retained.referenced_resources[0].url, "https://fixture.invalid/tree-v2.glb", "archiving retains the current asset resource");
   console.log("PASS HTTP optimistic conflicts, independent placements and archived-source retention");
 
   const teamAsset = await data(request<{ data: CreateAssetResult }>(b, `/api/organizations/${ids.org}/assets`, "POST", { ...body, name: "团队素材", idempotencyKey: `${marker}-team-asset` }));

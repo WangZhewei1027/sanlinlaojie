@@ -23,7 +23,7 @@ doc.content.assets = {
   second: { assetId: uuid(1) },
 };
 const instance = (id: string, asset: string): CompositionInstance => ({
-  id, asset, position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: null,
+  id, asset, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null,
 });
 doc.content.instances = [instance("one", "first"), instance("two", "second")];
 assert.equal(validateSceneDocument(doc).ok, true);
@@ -43,7 +43,7 @@ const manifest = compileSceneManifest(uuid(7), doc, resources);
 assert.equal(manifest.assetId, uuid(7), "manifest echoes the discovered placement/public ID");
 assert.equal(manifest.resources.first.url, resources.first.url);
 assert.equal(manifest.resources.second.url, resources.second.url, "aliases of the same identity resolve to the same current content");
-assert.equal(manifest.schemaVersion, 2);
+assert.equal(manifest.schemaVersion, 4);
 assert.equal(validateSceneDefinition({ schemaVersion: 1, content: manifest.content }).ok, false);
 assert.equal(validateSceneDefinition({ schemaVersion: manifest.schemaVersion, content: manifest.content }).ok, true);
 assert.equal(JSON.stringify(doc), before, "compilation does not rewrite the authoring document");
@@ -53,10 +53,10 @@ doc.content.instances[0].tracks = { "position.x": [
   { time: 2, value: 3, handles: [0.1, 0.2, 0.8, 0.9], connectedRight: true },
 ] };
 const timeline = compileSceneManifest(uuid(7), doc, resources);
-assert.equal(timeline.schemaVersion, 2);
-assert.deepEqual(timeline.content.instances[0].tracks, doc.content.instances[0].tracks);
+assert.equal(timeline.schemaVersion, 4);
+assert.deepEqual(timeline.content.instances, doc.content.instances);
 assert.equal(validateSceneDefinition({ schemaVersion: timeline.schemaVersion, content: timeline.content }).ok, true);
-console.log("PASS schema-4 asset aliases compile to current playback protocol, preserve tracks and public IDs");
+console.log("PASS schema-6 asset aliases compile to current playback protocol, preserve transform tracks and public IDs");
 
 doc.content.instances[0].animation = { clipName: "walk", startSeconds: 0, loop: true };
 doc.content.instances[1].animation = { clipIndex: 1, startSeconds: 0, loop: false };

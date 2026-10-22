@@ -1,7 +1,7 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
 import type { SceneAssetManifest, SceneDocument } from "./protocol";
 
-/** Compile a saved scene with current asset resources into playback schema 2. */
+/** Compile a saved scene with current asset resources into playback schema 4. */
 export function compileSceneManifest(
   publicId: string,
   document: SceneDocument,
@@ -14,7 +14,7 @@ export function compileSceneManifest(
   }
   return {
     assetId: publicId,
-    schemaVersion: 2,
+    schemaVersion: 4,
     content: { ...document.content, assets },
     resources,
   };
@@ -26,7 +26,7 @@ export function compileSceneManifest(
  * an unknown clip list are not checked here; the player still verifies.
  */
 export function clipIssues(
-  document: Pick<SceneDocument, "content">,
+  document: { content: { instances: Pick<SceneDocument["content"]["instances"][number], "asset" | "animation">[] } },
   animationsByAlias: Record<string, ModelAnimationInfo[] | undefined>,
 ): { path: string; message: string }[] {
   const issues: { path: string; message: string }[] = [];

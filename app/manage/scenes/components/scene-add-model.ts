@@ -32,6 +32,6 @@ export function addModelInstance(content: Content, { key, resource, id, position
     alias = createAlias();
     assets = { ...assets, [alias]: ref };
   }
-  const added: CompositionInstance = { id, asset: alias, position, quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: null };
+  const added: CompositionInstance = { id, asset: alias, position, rotation: [0, 0, 0], scale: [1, 1, 1], animation: null };
   return { ok: true, content: { ...content, instances: [...content.instances, added], assets } };
 }

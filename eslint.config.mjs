@@ -15,6 +15,7 @@ const eslintConfig = [
       ".next/**",
       "node_modules/**",
       "storybook-static/**",
+      "vendor/three-editor/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

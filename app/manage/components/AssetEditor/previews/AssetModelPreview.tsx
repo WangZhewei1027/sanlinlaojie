@@ -165,13 +165,13 @@ export function AssetModelPreview({
         className="relative rounded-md overflow-hidden border bg-muted/20"
         style={{ height: 240 }}
       >
-        {/* Loading overlay — shown outside Canvas so it's plain HTML, not R3F */}
-        {!isLoaded && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center text-xs text-muted-foreground pointer-events-none">
-            {t("assetEditor.preview.loading", "Loading 3D model...")}
-          </div>
-        )}
         <PreviewErrorBoundary fallback={fallback} key={fileUrl}>
+          {/* Keep loading inside the error boundary so a failure replaces it too. */}
+          {!isLoaded && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center text-xs text-muted-foreground pointer-events-none">
+              {t("assetEditor.preview.loading", "Loading 3D model...")}
+            </div>
+          )}
           <Canvas
             camera={{ position: [0, 0, 4], fov: 45 }}
             gl={{ antialias: true }}

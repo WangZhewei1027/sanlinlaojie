@@ -1,10 +1,6 @@
-/**
- * Schema 4 stores scene documents with asset references. Schema 2 is the mini-program
- * playback manifest, with current asset resource URLs.
- */
-export const SCENE_SCHEMA_VERSION = 2 as const;
-export const SCENE_DOCUMENT_VERSION = 4 as const;
-export const MAX_SCENE_BYTES = 256 * 1024;
+export const SCENE_SCHEMA_VERSION = 4 as const;
+export const SCENE_DOCUMENT_VERSION = 6 as const;
+export const MAX_SCENE_BYTES = 1024 * 1024;
 
 export interface CompositionAssetRef {
   assetId: string;
@@ -28,11 +24,11 @@ export interface CompositionInstance {
   id: string;
   asset: string;
   position: [number, number, number];
-  /** x, y, z, w — must be a unit quaternion */
-  quaternion: [number, number, number, number];
+  /** Euler XYZ radians; UI displays degrees. Multi-turn values are retained. */
+  rotation: [number, number, number];
   scale: [number, number, number];
   animation: InstanceAnimation | null;
-  /** Theatre numeric channels; rotation is Euler XYZ in radians. Version 2 only. */
+  /** Numeric transform tracks, sampled by the shared platform-independent core. */
   tracks?: Partial<Record<TransformChannel, TransformKeyframe[]>>;
 }
 
@@ -63,11 +59,6 @@ export interface SceneDefinition {
 export interface SceneDocument {
   schemaVersion: typeof SCENE_DOCUMENT_VERSION;
   content: CompositionContent<AssetRef>;
-}
-
-/** Anything with a composition timeline: authoring helpers accept every schema. */
-export interface SceneDocumentLike {
-  content: { durationSeconds: number | null; instances: CompositionInstance[] };
 }
 
 export const COMPOSITION_LIMITS = {

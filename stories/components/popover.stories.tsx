@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,4 +17,10 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = { render: () => <Popover><PopoverTrigger asChild><Button variant="outline">查看说明</Button></PopoverTrigger><PopoverContent><PopoverHeader><PopoverTitle>资源位置</PopoverTitle><PopoverDescription>点击地图即可选择资源放置位置。</PopoverDescription></PopoverHeader></PopoverContent></Popover> };
 export const WithForm: Story = { render: () => <Popover><PopoverTrigger asChild><Button variant="outline">编辑尺寸</Button></PopoverTrigger><PopoverContent><PopoverHeader><PopoverTitle>显示尺寸</PopoverTitle><PopoverDescription>设置地图中资源的显示宽度。</PopoverDescription></PopoverHeader><div className="mt-4 grid grid-cols-3 items-center gap-2"><Label htmlFor="story-width">宽度</Label><Input id="story-width" defaultValue="320" className="col-span-2" /></div></PopoverContent></Popover> };
 export const Open: Story = { args: { defaultOpen: true }, render: (args) => <Popover {...args}><PopoverTrigger asChild><Button variant="outline">锚点</Button></PopoverTrigger><PopoverContent><PopoverHeader><PopoverTitle>默认打开</PopoverTitle><PopoverDescription>用于直接检查浮层布局。</PopoverDescription></PopoverHeader></PopoverContent></Popover> };
+
+function ScopedContainerExample() {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  return <div ref={setContainer} className="dark rounded-md bg-background p-8 text-foreground"><Popover defaultOpen><PopoverTrigger asChild><Button variant="outline">局部暗色锚点</Button></PopoverTrigger><PopoverContent portalContainer={container}><PopoverHeader><PopoverTitle>继承局部主题</PopoverTitle><PopoverDescription>浮层与锚点在同一个文档和主题容器。</PopoverDescription></PopoverHeader></PopoverContent></Popover></div>;
+}
+export const ScopedContainer: Story = { render: () => <ScopedContainerExample /> };
 

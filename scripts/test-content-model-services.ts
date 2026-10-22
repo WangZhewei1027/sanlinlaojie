@@ -392,7 +392,7 @@ async function main(): Promise<void> {
       const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "two-version composition" });
       assert.equal(scene.workspace_id, null, "scenes belong directly to the team");
       assert.equal(scene.organization_id, f.organizations.team);
-      assert.equal(scene.document.schemaVersion, 4);
+      assert.equal(scene.document.schemaVersion, 6);
       assert.equal(scene.document.content.durationSeconds, 10);
       assert.equal(scene.document.content.loop, false);
       assert.deepEqual(scene.document.content.assets, {});

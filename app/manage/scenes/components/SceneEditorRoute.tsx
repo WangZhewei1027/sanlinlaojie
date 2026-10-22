@@ -10,6 +10,7 @@ import { isContentApiError, sceneApi } from "../../lib/content-api";
 import { contextHref, useResourceTeam, useTeamContext } from "../../lib/content-context";
 import { ERROR_TEXTS, errorMessage } from "../../lib/content-errors";
 import { useIntegrationText, type IntegrationTexts } from "../../lib/integration-text";
+import "./scene-workspace-theme.css";
 const SceneEditor = dynamic(() => import("./SceneEditor"), { ssr: false });
 
 const TEXTS: IntegrationTexts = {
@@ -28,7 +29,6 @@ export function SceneEditorRoute({ params }: { params: Promise<{ id: string }> }
   const context = useTeamContext();
   const [probe, setProbe] = useState<Probe | null>(null);
   const [attempt, setAttempt] = useState(0);
-
   useEffect(() => {
     const abort = new AbortController();
     setProbe(null);
@@ -46,8 +46,9 @@ export function SceneEditorRoute({ params }: { params: Promise<{ id: string }> }
   const { settled } = useResourceTeam(resolved?.mode === "loaded" ? resolved.detail.organization_id : null, "/manage/scenes");
   const scenesHref = contextHref("/manage/scenes", { organizationId: resolved?.mode === "loaded" ? resolved.detail.organization_id : context.organizationId });
 
+
   if (!resolved || resolved.mode === "error" || resolved.mode === "missing" || (resolved.mode === "loaded" && !settled)) {
-    return <main className="scene-editor-status fixed inset-0 z-50 flex items-center justify-center bg-background"><div className="max-w-lg space-y-4 p-6">
+    return <main className="scene-workspace-theme scene-editor-status fixed inset-0 z-50 flex items-center justify-center bg-background"><div className="max-w-lg space-y-4 p-6">
       <Text as="h1" variant="headingMd">{t("sceneEditor.heading")}</Text>
       <Text as="p" variant="bodyMd" tone={resolved && resolved.mode !== "loaded" ? "critical" : "subdued"}>{!resolved || resolved.mode === "loaded" ? t("sceneEditor.loading") : resolved.mode === "missing" ? tx("contentModel.integration.sceneRoute.notFound") : errorMessage(resolved.error, tx)}</Text>
       {resolved && resolved.mode !== "loaded" && <div className="flex gap-2">{resolved.mode === "error" && <Button onClick={() => setAttempt((n) => n + 1)}>{t("sceneEditor.retry")}</Button>}<Button variant="outline" asChild><Link href={scenesHref}>{tx("contentModel.integration.sceneRoute.back")}</Link></Button></div>}

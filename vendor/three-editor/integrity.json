@@ -1,0 +1,66 @@
+{
+  "source": "https://github.com/mrdoob/three.js/tree/r183/editor",
+  "tag": "r183",
+  "files": {
+    "Selector.js": {
+      "upstream": "394cfbbc87eb4168881b933b58d00ddca310ae8019816757a5afeaf12f57b7c0",
+      "embedded": "394cfbbc87eb4168881b933b58d00ddca310ae8019816757a5afeaf12f57b7c0"
+    },
+    "Viewport.ViewHelper.js": {
+      "upstream": "506e713f9d128090303cc8d078d686ffdbe0a31c58d0492f170887947fa1ea21",
+      "embedded": "506e713f9d128090303cc8d078d686ffdbe0a31c58d0492f170887947fa1ea21"
+    },
+    "Viewport.Info.js": {
+      "upstream": "cf0c3121a84acd23cbe8c96a2f9818ebd66fca200f20a50311178325e4ba217f",
+      "embedded": "cf0c3121a84acd23cbe8c96a2f9818ebd66fca200f20a50311178325e4ba217f"
+    },
+    "Toolbar.js": {
+      "upstream": "249cc64b50c06e6f0d2391a6e64cc06428ffa8b40e19031b174b42ab67ca3779",
+      "embedded": "352864ae42ca6a5e6c643546ba38a2458bc07d6f2eb07f3ea715e05b20658e67"
+    },
+    "Viewport.Controls.js": {
+      "upstream": "81da786c2a9217bee95df5ddc1b5775b48b76dfd0cf4c14b1d6fae9030444533",
+      "embedded": "03c34a004ee088ab265300e738eb2a867a0c572d4eff5e4e1c78525a6d5a06bb"
+    },
+    "Editor.js": {
+      "upstream": "5fe4e7a9f5f11c05d861a32902b3f42dc6d9a6a09e218f8597d359c1822fcef4",
+      "embedded": "d497152725c8b6e4aa7a514f77284cef85cd73efb86b204dc43a270b89361bbe"
+    },
+    "Viewport.js": {
+      "upstream": "c3ca3bfa225526aa4e525e0ae67c46cc12087fd93af6c0ee7dea132ab388705f",
+      "embedded": "dc8de869067d9dd06b80e3e35f85430867cd81fa703d3245e1ced0ab8bf75a0f"
+    },
+    "commands/SetPositionCommand.js": {
+      "upstream": "2c5812855e0109d09c724f1c63444604161c8e8fe1e690b88aa61b7c4e0ee2be",
+      "embedded": "2c5812855e0109d09c724f1c63444604161c8e8fe1e690b88aa61b7c4e0ee2be"
+    },
+    "EditorControls.js": {
+      "upstream": "f5a3cdf495929fdd5338e202f74acc6235474d4716ac6bb069beda53af7e13d8",
+      "embedded": "f1feb13b67b913a402eb7d01b7cef24ca346c95506481c32ea8e08ca60266c22"
+    },
+    "Strings.js": {
+      "upstream": "fa8656fe7988b9e4309dcbd61e101e8d7640dc66ba8d88179fb075d838f5bc0a",
+      "embedded": "fa8656fe7988b9e4309dcbd61e101e8d7640dc66ba8d88179fb075d838f5bc0a"
+    },
+    "libs/ui.js": {
+      "upstream": "a79716b8bf89a895b05fcc7258efc815939c83eb8acdb0dea73963d15701031e",
+      "embedded": "a79716b8bf89a895b05fcc7258efc815939c83eb8acdb0dea73963d15701031e"
+    },
+    "Command.js": {
+      "upstream": "bf433ed17d9a0e6cae32b27f37baa31c0c8ade2812447ecc948c9dd78440b921",
+      "embedded": "bf433ed17d9a0e6cae32b27f37baa31c0c8ade2812447ecc948c9dd78440b921"
+    },
+    "commands/SetRotationCommand.js": {
+      "upstream": "530bf35ef3b3c037e6b4ba37f62643332bb0e841f6cc159e563d50f5cf5ec710",
+      "embedded": "530bf35ef3b3c037e6b4ba37f62643332bb0e841f6cc159e563d50f5cf5ec710"
+    },
+    "commands/SetScaleCommand.js": {
+      "upstream": "7263ce59626fa91d2279477be821f4c5a13522471a77b80269cf9b8acd108476",
+      "embedded": "7263ce59626fa91d2279477be821f4c5a13522471a77b80269cf9b8acd108476"
+    },
+    "libs/signals.min.js": {
+      "upstream": "ee17ae5ef0aa629eaa4a728ba672f3fe59706eb8ae640e5cb3ede7ffe5da6e60",
+      "embedded": "ee17ae5ef0aa629eaa4a728ba672f3fe59706eb8ae640e5cb3ede7ffe5da6e60"
+    }
+  }
+}

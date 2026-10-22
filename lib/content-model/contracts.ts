@@ -462,14 +462,14 @@ export interface SceneResolvedResourceDto {
 
 /** GET /api/scenes/[id] → { data: SceneDetailDto } */
 export interface SceneDetailDto extends SceneSummaryDto {
-  /** schemaVersion 4 document (see lib/scene/protocol.ts SceneDocument). */
+  /** schemaVersion 5 document (see lib/scene/protocol.ts SceneDocument). */
   document: SceneDocumentJson;
   referenced_resources: SceneResolvedResourceDto[];
 }
 
-/** Structural JSON shape of schemaVersion 4; validated server-side. */
+/** Structural JSON shape of schemaVersion 5; validated server-side. */
 export interface SceneDocumentJson {
-  schemaVersion: 4;
+  schemaVersion: 6;
   content: {
     kind: "composition";
     units: "meters";

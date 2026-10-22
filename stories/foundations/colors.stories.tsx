@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Text } from "@/components/ui/typography";
+import "@/app/manage/scenes/components/scene-workspace-theme.css";
 
 function Swatch({ name, variable, surface }: { name: string; variable: string; surface: string }) {
   return <div className="w-36"><div className={`h-16 rounded-md border ${surface}`} /><Text as="div" variant="bodySm" tone="default" fontWeight="medium" className="mt-2">{name}</Text><Text as="div" variant="bodyXs" tone="subdued" className="font-mono">{variable}</Text></div>;
@@ -21,4 +22,6 @@ export const Status: Story = { render: () => <Palette><Swatch surface="bg-succes
 export const LinesAndFocus: Story = { render: () => <Palette><Swatch surface="bg-border" name="border" variable="--border" /><Swatch surface="bg-input" name="input" variable="--input" /><Swatch surface="bg-ring" name="ring" variable="--ring" /></Palette> };
 export const Charts: Story = { render: () => <Palette>{[1, 2, 3, 4, 5].map((index) => <Swatch key={index} surface={`bg-chart-${index}`} name={`chart-${index}`} variable={`--chart-${index}`} />)}</Palette> };
 export const Radius: Story = { render: () => <div className="flex flex-wrap gap-5"><div className="h-20 w-32 rounded-sm border bg-muted p-3">rounded-sm</div><div className="h-20 w-32 rounded-md border bg-muted p-3">rounded-md</div><div className="h-20 w-32 rounded-lg border bg-muted p-3">rounded-lg</div></div> };
+
+export const SceneWorkspace: Story = { render: () => <div className="scene-workspace-theme space-y-6 rounded-md p-6"><Text as="h2" variant="headingMd">场景工作台</Text><Text as="p" variant="bodySm" tone="subdued">标题、工具与变换时间轴固定使用 Light 主题；切换全站主题可验证工作台与浮层保持浅色。</Text><Palette><Swatch surface="bg-background" name="background" variable="--background" /><Swatch surface="bg-popover" name="popover" variable="--popover" /><Swatch surface="bg-muted" name="muted" variable="--muted" /><Swatch surface="bg-accent" name="selected / hover" variable="--accent" /><Swatch surface="bg-input" name="input" variable="--input" /></Palette><div className="flex gap-4"><Text as="span" variant="bodySm" tone="success">已保存</Text><Text as="span" variant="bodySm" tone="warning">未保存</Text><Text as="span" variant="bodySm" tone="critical">加载失败</Text></div></div> };
 

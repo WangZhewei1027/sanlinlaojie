@@ -4,6 +4,7 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
+COPY packages/scene-core ./packages/scene-core
 RUN npm ci --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS builder

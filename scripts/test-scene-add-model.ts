@@ -10,7 +10,7 @@ const resource = (assetId: string, assetNo: number, extra: Partial<SceneResource
   assetId: assetId, name: "小星星", url: `https://media.example/${assetId}.glb`, assetLockVersion: assetNo,
   assetState: "active", ...extra,
 });
-const blank = (schemaVersion: 4): EditorDefinition => ({ schemaVersion, content: { ...createBlankScene().content, assets: {} } });
+const blank = (schemaVersion: 6): EditorDefinition => ({ schemaVersion, content: { ...createBlankScene().content, assets: {} } });
 let aliases = 0;
 const createAlias = () => `m${++aliases}`;
 let ids = 0;
@@ -22,7 +22,7 @@ function add(definition: EditorDefinition, key: string, registered: Record<strin
 const expectOk = (result: ReturnType<typeof add>) => { assert.ok(result.ok, `expected success, got ${!result.ok && result.reason}`); return result.definition; };
 
 // First add from the project/shared library or an upload: the editor has not registered the resource yet.
-const empty = blank(4);
+const empty = blank(6);
 const before = structuredClone(empty);
 const first = expectOk(add(empty, V1, {}, resource(V1, 1)));
 assert.deepEqual(empty, before, "the input document is never mutated");
@@ -54,10 +54,10 @@ assert.deepEqual(add(empty, V1, {}, resource(V1, 1, { assetState: "archived" }))
 expectOk(add(first, V1, {}, resource(V1, 1, { assetState: "archived" })));
 
 // Limits.
-let full = blank(4);
+let full = blank(6);
 for (let index = 0; index < COMPOSITION_LIMITS.maxInstances; index++) full = expectOk(add(full, V1, {}, resource(V1, 1)));
 assert.deepEqual(add(full, V1, {}, resource(V1, 1)), { ok: false, reason: "instanceLimit" });
-let many = blank(4);
+let many = blank(6);
 const assets = Array.from({ length: COMPOSITION_LIMITS.maxAssets + 1 }, (_, index) => `44444444-4444-4444-8444-${String(index).padStart(12, "0")}`);
 for (const asset of assets.slice(0, -1)) many = expectOk(add(many, asset, {}, resource(asset, 1)));
 assert.deepEqual(add(many, assets.at(-1)!, {}, resource(assets.at(-1)!, 1)), { ok: false, reason: "assetLimit" });

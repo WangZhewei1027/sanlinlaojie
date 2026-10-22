@@ -20,9 +20,9 @@ export function assertServicesDatabase(): void {
 }
 
 export function assetDocument(assetId: string): SceneDocumentJson {
-  return { schemaVersion: 4, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
+  return { schemaVersion: 6, content: { kind: "composition", units: "meters", durationSeconds: 10, loop: false,
     assets: { model: { assetId } }, instances: [{ id: "model-instance", asset: "model",
-      position: [0, 0, 0], quaternion: [0, 0, 0, 1], scale: [1, 1, 1], animation: null }] } };
+      position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null }] } };
 }
 
 export function fixtureIds() {

@@ -120,3 +120,11 @@ Story 编写约定：
 3. ~~状态色 token~~（已完成：`--success`/`--warning` 上线，约 50 处状态色已迁移，分类标识色按豁免清单保留）。
 4. ~~Text 小修~~（已完成：tone 缺省继承、alignment 改逻辑属性 `text-start/end`、CardTitle 移除 `tracking-tight`）。
 5. **Storybook 内容维护**：公共组件新增或 API 变化时同步更新对应 CSF、展示状态和 Docs 描述。
+
+## 第三方场景编排界面
+
+Three.js Editor 的嵌入视口、相机操作、坐标轴与变换工具栏属于第三方边界；保留上游交互，外层限定布局与资源路径。应用直接在同一 DOM 中呈现标题、保存、素材库、对象/片段设置和变换时间轴，遵守本设计系统及 zh/en 规范。属性、关键帧和撤销由应用管理，按钮不重复实现原生视口的变换工具。
+
+2026-10-22 起，场景工作台固定使用 Light 主题。`app/globals.css` 的 `:root` 与 `.scene-workspace-theme` 共用全站浅色语义 token；`scene-workspace-theme.css` 设置 `color-scheme: light`、6px 圆角，并局部覆盖 `muted-foreground: hsl(0 0% 42%)` 与 `destructive: hsl(0 62.8% 30.6%)`：辅助文字在选中浅灰背景上满足 AA 对比度，错误文字在浅底上保持可读。标题栏、侧栏、时间轴和浮层共用此主题；后台其他页面的主题偏好保持独立。Three 视口通过 `viewport/theme: light` 使用上游浅色背景/网格，工具图标保留原色。时间轴播放头使用深色 `primary`，结束区域使用 `muted-foreground` 的浅灰透明遮罩。对应状态见 Foundations / Colors / Scene Workspace。
+
+浮层通过 PopoverContent 的 `portalContainer` 挂到触发器所在的工作台容器，并继承 Light 主题；二维码在视口点击、Escape 和卸载时关闭并清理监听。桌面侧栏与底部时间轴延续紧凑工作区布局；窄屏默认收起侧栏，时间轴保留独立滚动。页面行为约定见 `app/manage/scenes/DESIGN.md`。

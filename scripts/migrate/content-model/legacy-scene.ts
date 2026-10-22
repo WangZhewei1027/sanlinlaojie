@@ -1,10 +1,11 @@
-import type { CompositionContent, ValidationResult } from "../../../lib/scene/protocol";
-import { validateCompositionContent } from "../../../lib/scene/validate-content";
+import type { ValidationResult } from "../../../lib/scene/protocol";
+import type { LegacyContent } from "../legacy-theatre-state";
+import { validateCompositionContent } from "./validate-legacy-scene";
 import { IssueList, rejectUnknownKeys, requireObject } from "../../../lib/scene/validate-utils";
 
 export interface LegacySceneDefinition {
   schemaVersion: 1 | 2;
-  content: CompositionContent;
+  content: LegacyContent;
 }
 
 /** Historical scene reader, used only by the one-time data migration. */
@@ -23,5 +24,5 @@ export function validateLegacySceneDefinition(def: unknown): ValidationResult {
 
 export interface SceneDocumentV3 {
   schemaVersion: 3;
-  content: CompositionContent<{ assetId: string; assetVersionId: string }>;
+  content: LegacyContent<{ assetId: string; assetVersionId: string }>;
 }

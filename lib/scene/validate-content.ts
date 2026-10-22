@@ -1,7 +1,6 @@
 import {
-  COMPOSITION_LIMITS,
+  COMPOSITION_LIMITS, TRANSFORM_CHANNELS,
 } from "./protocol";
-import { validateTracks } from "./validate-tracks";
 import {
   ALIAS_RE,
   IssueList,
@@ -16,7 +15,7 @@ import {
 // Pure structure validation. Asset references are checked by service.server.ts;
 // clip existence is checked by the player against the loaded model.
 
-const INSTANCE_KEYS = ["id", "asset", "position", "quaternion", "scale", "animation"];
+const INSTANCE_KEYS = ["id", "asset", "position", "rotation", "scale", "animation", "tracks"];
 const ANIMATION_KEYS = ["clipIndex", "clipName", "startSeconds", "loop"];
 
 interface ParsedAnimation {
@@ -61,7 +60,6 @@ function validateAnimation(
 export function validateCompositionContent(
   issues: IssueList,
   content: Record<string, unknown>,
-  allowTracks = false,
 ): void {
   rejectUnknownKeys(issues, "content", content, [
     "kind",
@@ -126,12 +124,8 @@ export function validateCompositionContent(
     const path = `content.instances[${index}]`;
     const inst = requireObject(issues, path, raw);
     if (!inst) return;
-    rejectUnknownKeys(issues, path, inst, allowTracks ? [...INSTANCE_KEYS, "tracks"] : INSTANCE_KEYS);
-    if (allowTracks && inst.tracks !== undefined) {
-      keyframeCount += validateTracks(issues, `${path}.tracks`, inst.tracks, durationValue);
-      if (keyframeCount > 0) anyAnimation = true;
-    }
-    if (typeof inst.id !== "string" || !ALIAS_RE.test(inst.id)) {
+    rejectUnknownKeys(issues, path, inst, INSTANCE_KEYS);
+    if (typeof inst.id !== "string" || (!ALIAS_RE.test(inst.id) || ["constructor", "prototype", "__proto__"].includes(inst.id))) {
       issues.error(`${path}.id`, "实例 id 必须以字母开头，只含字母、数字、_、-，最长 32");
     } else if (seenIds.has(inst.id)) {
       issues.error(`${path}.id`, `实例 id "${inst.id}" 重复`);
@@ -145,11 +139,31 @@ export function validateCompositionContent(
     if (position && position.some((v) => Math.abs(v) > COMPOSITION_LIMITS.maxPositionAbs)) {
       issues.error(`${path}.position`, `每个分量的绝对值不能超过 ${COMPOSITION_LIMITS.maxPositionAbs}`);
     }
-    const quaternion = requireNumberTuple(issues, `${path}.quaternion`, inst.quaternion, 4);
-    if (quaternion) {
-      const norm = Math.hypot(...quaternion);
-      if (Math.abs(norm - 1) > 1e-3) {
-        issues.error(`${path}.quaternion`, `必须是单位四元数（当前模长 ${norm.toFixed(4)}）`);
+    const rotation = requireNumberTuple(issues, `${path}.rotation`, inst.rotation, 3);
+    if (rotation?.some(v => Math.abs(v) > 100)) issues.error(`${path}.rotation`, "旋转分量绝对值不能超过 100 弧度");
+    if (inst.tracks !== undefined) {
+      const tracks = requireObject(issues, `${path}.tracks`, inst.tracks);
+      if (tracks) {
+        rejectUnknownKeys(issues, `${path}.tracks`, tracks, [...TRANSFORM_CHANNELS]);
+        for (const [channel, frames] of Object.entries(tracks)) {
+          const at = `${path}.tracks.${channel}`;
+          if (!Array.isArray(frames) || frames.length === 0) { issues.error(at, "关键帧必须是非空数组"); continue; }
+          keyframeCount += frames.length; anyAnimation = true;
+          let previous = -1;
+          frames.forEach((raw, i) => {
+            const fp = `${at}[${i}]`, frame = requireObject(issues, fp, raw);
+            if (!frame) return;
+            rejectUnknownKeys(issues, fp, frame, ["time", "value", "handles", "connectedRight"]);
+            if (requireNumberInRange(issues, `${fp}.time`, frame.time, { min: 0, max: 600 })) {
+              if (frame.time <= previous) issues.error(`${fp}.time`, "关键帧时间必须严格递增");
+              previous = frame.time;
+            }
+            requireNumberInRange(issues, `${fp}.value`, frame.value, channel.startsWith("scale.") ? { exclusiveMin: 0, max: 100 } : { min: -100, max: 100 });
+            const handles = requireNumberTuple(issues, `${fp}.handles`, frame.handles, 4);
+            if (handles && (handles[0] < 0 || handles[0] > 1 || handles[2] < 0 || handles[2] > 1 || handles.some(v => Math.abs(v) > 100))) issues.error(`${fp}.handles`, "曲线横向控制点必须在 0–1 之间");
+            requireBoolean(issues, `${fp}.connectedRight`, frame.connectedRight);
+          });
+        }
       }
     }
     const scale = requireNumberTuple(issues, `${path}.scale`, inst.scale, 3);
@@ -172,5 +186,5 @@ export function validateCompositionContent(
   if (duration === null && anyAnimation) {
     issues.error("content.durationSeconds", "有实例带动画时必须设置 durationSeconds");
   }
-  if (keyframeCount > COMPOSITION_LIMITS.maxKeyframes) issues.error("content.instances", `关键帧总数不能超过 ${COMPOSITION_LIMITS.maxKeyframes}`);
+  if (keyframeCount > COMPOSITION_LIMITS.maxKeyframes) issues.error("content.instances", "关键帧总数不能超过 2400");
 }

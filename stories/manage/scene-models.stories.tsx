@@ -11,4 +11,4 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const NoModels: Story = {};
 export const ProjectAssets: Story = { args: { library: <button>舞者 · v1</button> } };
-export const SelectedObject: Story = { args: { ...ProjectAssets.args, instances: [{ id: "dancer_1", asset: "dancer", position: [0,0,0], quaternion: [0,0,0,1], scale: [1,1,1], animation: null }], names: { dancer_1: "舞者" }, selectedId: "dancer_1" } };
+export const SelectedObject: Story = { args: { ...ProjectAssets.args, instances: [{ id: "dancer_1", asset: "dancer", position: [0,0,0], rotation: [0, 0, 0], scale: [1,1,1], animation: null }], names: { dancer_1: "舞者" }, selectedId: "dancer_1" } };

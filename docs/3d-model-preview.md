@@ -1,7 +1,7 @@
 ---
 title: 3D Model Preview
 created: 2026-05-10
-updated: 2026-10-09
+updated: 2026-10-20
 ---
 
 # 3D Model Preview
@@ -17,6 +17,7 @@ updated: 2026-10-09
 | 动画自动播放 | 若模型内嵌动画剪辑，所有动画以 `LoopRepeat` 模式自动循环播放 |
 | 交互控制 | `OrbitControls`：鼠标拖拽旋转、滚轮缩放，禁用平移（`enablePan={false}`） |
 | 环境光照 | 使用 `<Environment files="/hdr/potsdamer_platz_1k.hdr" />` 加载本地 HDR 环境光（`preset` 会从国外 CDN 拉取，国内不可达），辅以环境光与平行光 |
+| 加载失败 | 错误边界同时替换 Canvas 和加载提示，避免“加载中”覆盖错误提示；切换模型 URL 后重置错误边界 |
 
 ## 文件位置
 

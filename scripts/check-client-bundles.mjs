@@ -1,4 +1,4 @@
-// A successful Next build can still emit invalid JS when re-minifying Theatre.
+// Verify emitted client chunks are syntactically valid after production minification.
 // Parse, never execute, every classic browser chunk so the failure is caught in CI.
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";

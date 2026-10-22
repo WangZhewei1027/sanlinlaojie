@@ -20,7 +20,7 @@ web
 
 ## Capabilities and Constraints
 
-当前只编排 3D 模型。Theatre.js 驱动时间轴；v2 草稿固定引用 AssetVersion，发布生成不可变 SceneRevision，运行时编译为小程序支持的 schema 1/2。共享素材更新不会自动改变其他草稿或投放，使用者主动升级。
+当前只编排 3D 模型。Three.js Editor 提供原生视口，应用时间轴编辑位置、旋转和缩放；旋转字段显示度，文档保存 Euler XYZ 弧度。场景文档 schema 6 编译为播放 schema 4，由 Web 与小程序共享的零依赖 Scene Core 求值，GLB 内置动画仍由 Three.AnimationMixer 播放。Scene 保存即生效，引用团队 Asset 当前内容；素材更新会在下次加载时反映到场景和投放。
 
 主导航为工作台 / 合集 / 团队设置。工作台承载素材与场景，合集承载空间投放，同一场景可放进多个合集。单张照片或文字可直接投放，无需创建 Scene。权限只看团队角色：owner/admin/member 可编辑，viewer 只读；不再有项目授权、项目成员或维护者门禁，`maintained_by` 仅作信息显示。首期不提供实时多人编辑。前端信息架构见 [团队工作台](docs/team-workbench.md)，服务端规则见 [后端契约](docs/team-workbench-backend-contract.md)。
 

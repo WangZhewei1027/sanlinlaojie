@@ -13,9 +13,9 @@ export function validateSceneDefinition(def: unknown): ValidationResult {
   const root = requireObject(issues, "$", def);
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
-    if (root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 2");
+    if (root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 4");
     const content = requireObject(issues, "content", root.content);
-    if (content?.kind === "composition") validateCompositionContent(issues, content, true);
+    if (content?.kind === "composition") validateCompositionContent(issues, content);
     else if (content) issues.error("content.kind", "场景素材仅支持 composition");
   }
   return { ok: !issues.hasErrors, issues: issues.issues };
@@ -23,7 +23,7 @@ export function validateSceneDefinition(def: unknown): ValidationResult {
 
 export function parseSceneText(text: unknown): SceneDefinition {
   if (typeof text !== "string" || text.length > MAX_SCENE_BYTES || new TextEncoder().encode(text).length > MAX_SCENE_BYTES)
-    throw new SceneAssetError("场景 JSON 必须是文本且不超过 256 KiB");
+    throw new SceneAssetError("场景 JSON 必须是文本且不超过 1 MiB");
   let value: unknown;
   try { value = JSON.parse(text); }
   catch { throw new SceneAssetError("场景 JSON 格式错误"); }
@@ -32,19 +32,19 @@ export function parseSceneText(text: unknown): SceneDefinition {
   return value as SceneDefinition;
 }
 
-/** Internal schema 4: composition tracks and direct asset references. */
+/** Internal schema 6: transform tracks and direct asset references. */
 export function validateSceneDocument(def: unknown): ValidationResult {
   const issues = new IssueList();
   const root = requireObject(issues, "$", def);
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
-    if (root.schemaVersion !== SCENE_DOCUMENT_VERSION) issues.error("schemaVersion", "场景草稿必须是 schemaVersion 4");
+    if (root.schemaVersion !== SCENE_DOCUMENT_VERSION) issues.error("schemaVersion", "场景草稿必须是 schemaVersion 6");
     const content = requireObject(issues, "content", root.content);
-    if (content?.kind === "composition") validateCompositionContent(issues, content, true);
+    if (content?.kind === "composition") validateCompositionContent(issues, content);
     else if (content) issues.error("content.kind", "场景仅支持 composition");
   }
   if (!issues.hasErrors && new TextEncoder().encode(JSON.stringify(def)).length > MAX_SCENE_BYTES)
-    issues.error("$", "场景 JSON 不能超过 256 KiB");
+    issues.error("$", "场景 JSON 不能超过 1 MiB");
   return { ok: !issues.hasErrors, issues: issues.issues };
 }
 

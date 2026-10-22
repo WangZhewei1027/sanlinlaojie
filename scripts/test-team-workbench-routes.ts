@@ -307,7 +307,7 @@ async function main(): Promise<void> {
       assert.equal((await qr.getOrCreateWorkspaceQRCode({ organizationId: f.organizations.team, workspaceId: f.workspaces.a, environment: invalid })).error, "无效的小程序版本");
       const preview = (body: unknown) => call(routes.miniScenePreview.POST, { user: null, method: "POST", url: "/api/miniapp/scenes/preview", body });
       const body = { scene_id: scene.id, organization_id: f.organizations.team };
-      const first = expect(await preview(body), 200); assert.equal(first.assetId, scene.id); assert.equal(first.schemaVersion, 2);
+      const first = expect(await preview(body), 200); assert.equal(first.assetId, scene.id); assert.equal(first.schemaVersion, 4);
       expect(await preview({ ...body, scene_id: "invalid" }), 400);
       expect(await preview({ ...body, organization_id: f.organizations.foreign }), 404);
       const document = assetDocument(f.assets.shared); document.content.durationSeconds = 34;

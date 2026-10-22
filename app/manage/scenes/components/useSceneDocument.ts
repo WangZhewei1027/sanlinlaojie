@@ -2,13 +2,12 @@
 import { subscribeContentChanges } from "../../lib/content-events";
 import { primaryResource } from "../../lib/content-mappers";
 import type { SceneDetailDto, SceneResolvedResourceDto } from "@/lib/content-model/contracts";
-import { onChange } from "@theatre/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { assetApi, isLockConflict, sceneApi } from "../../lib/content-api";
 import { fromDocument, normalizeDefinition, toDocument, type EditorAssetRef, type EditorDefinition } from "../../lib/scene-document";
 import { resourceKey } from "./scene-add-model";
-import { createTheatreSession, type TheatreSession } from "./theatre-session";
+import { createSceneSession, type SceneSession } from "./scene-session";
 import type { ClipInfo, SceneResource } from "./types";
 
 export type SceneDocument = { title: string; definition: EditorDefinition };
@@ -24,7 +23,7 @@ const indexResolved = (list: SceneResolvedResourceDto[]) => Object.fromEntries(l
 
 export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | null) {
   const { t } = useTranslation();
-  const [session, setSession] = useState<TheatreSession | null>(null);
+  const [session, setSession] = useState<SceneSession | null>(null);
   const [document, setDocument] = useState<SceneDocument | null>(null);
   const [resources, setResources] = useState<Record<string, SceneResource>>({});
   const [detail, setDetail] = useState<SceneDetailDto | null>(null);
@@ -35,17 +34,18 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
   const [baseline, setBaseline] = useState("");
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [retry, setRetry] = useState(0);
+  const retry = 0;
+  const history = useRef<{ past: SceneDocument[]; future: SceneDocument[] }>({ past: [], future: [] });
+  const [, renderHistory] = useState(0);
   const lock = useRef<string | number>("");
   const initialRef = useRef(initial ?? null);
   const latest = useRef(document); latest.current = document;
-  const history = useRef<{ past: SceneDocument[]; future: SceneDocument[] }>({ past: [], future: [] });
   const savingRef = useRef(false);
-  const dirty = !!document && JSON.stringify(document) !== baseline;
+  const dirty = (!!document && JSON.stringify(document) !== baseline);
   const readOnly = (!detail || !detail.capabilities.can_edit || detail.state === "archived");
   useEffect(() => {
     let cancelled = false;
-    let active: TheatreSession | undefined;
+    let active: SceneSession | undefined;
     const abort = new AbortController();
     const cleanup: (() => void)[] = [];
     setError(""); setConflict(null);
@@ -56,12 +56,11 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
         const loaded: SceneDocument = { title: scene.name, definition: fromDocument(scene.document) };
         if (cancelled) return;
         setDetail(scene); setResources(indexResolved(scene.referenced_resources)); lock.current = scene.lock_version;
-      active = await createTheatreSession(sceneId, loaded.definition);
+      active = createSceneSession(loaded.definition);
       if (cancelled) { active.dispose(); return; }
       setDocument(loaded); setBaseline(JSON.stringify(loaded));
-      history.current = { past: [], future: [] };
-      cleanup.push(onChange(active.sheet.sequence.pointer.position, setTime));
-      cleanup.push(onChange(active.sheet.sequence.pointer.playing, setPlaying));
+      const player = active;
+      cleanup.push(player.subscribe(() => { setTime(player.time); setPlaying(player.playing); }));
       setSession(active);
     })().catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });
     return () => { cancelled = true; abort.abort(); cleanup.forEach((fn) => fn()); active?.dispose(); };
@@ -108,27 +107,48 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
       if (JSON.stringify(next) === JSON.stringify(previous)) return;
       if (JSON.stringify(next.definition) !== JSON.stringify(previous.definition)) {
         next.definition = normalizeDefinition(next.definition);
-        session.sync(next.definition);
+        session.pause();
+        session.sync(next.definition.content);
       }
-      history.current.past = [...history.current.past.slice(-99), previous]; history.current.future = [];
+      history.current.past.push(previous);
+      if (history.current.past.length > 60) history.current.past.shift();
+      history.current.future = [];
       latest.current = next; setDocument(next); setError("");
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }, [session, readOnly]);
   const travel = (direction: "past" | "future") => {
-    const next = history.current[direction].at(-1);
-    if (!next || !session || !latest.current) return;
-    session.sync(next.definition);
-    history.current[direction].pop();
-    history.current[direction === "past" ? "future" : "past"].push(latest.current);
-    latest.current = next; setDocument(next); setError("");
+    const previous = latest.current, next = history.current[direction].pop();
+    if (!previous || !next || !session || readOnly) return;
+    history.current[direction === "past" ? "future" : "past"].push(previous);
+    session.pause(); session.sync(next.definition.content);
+    latest.current = next; setDocument(next); setError(""); renderHistory(n => n + 1);
   };
+  useEffect(() => {
+    if (!session) return;
+    let frame = 0, last = 0;
+    const tick = (now: number) => {
+      if (!session.playing) { frame = 0; return; }
+      session.advance(last ? (now - last) / 1000 : 0); last = now;
+      frame = session.playing ? requestAnimationFrame(tick) : 0;
+    };
+    const stop = session.subscribe(() => {
+      if (session.playing && !frame) { last = 0; frame = requestAnimationFrame(tick); }
+      else if (!session.playing && frame) { cancelAnimationFrame(frame); frame = 0; }
+    });
+    const hide = () => { if (window.document.hidden) session.pause(); };
+    window.document.addEventListener("visibilitychange", hide);
+    return () => { stop(); cancelAnimationFrame(frame); window.document.removeEventListener("visibilitychange", hide); };
+  }, [session]);
   const onClips = useCallback((id: string, value: ClipInfo[]) => setClips((current) => ({ ...current, [id]: value })), []);
   /** Saves the current scene; all references read this saved content. Resolves true on success. */
   const save = useCallback(async () => {
-    const snapshot = latest.current;
-    if (!snapshot || !session || savingRef.current || readOnly) return false;
+    const current = latest.current;
+    if (!current || !session || savingRef.current || readOnly) return false;
     setError("");
     try {
+      const snapshot = structuredClone(current);
+      snapshot.definition = normalizeDefinition(snapshot.definition);
+      latest.current = snapshot; setDocument(snapshot);
       if (!snapshot.title.trim()) throw new Error(t("sceneEditor.titleRequired"));
       const { instances, assets } = snapshot.definition.content;
       for (const instance of instances) {
@@ -139,7 +159,7 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
           if (!clip || !(clip.duration > 0)) throw new Error(t("sceneEditor.invalidClip"));
         }
       }
-      session.sheet.sequence.pause(); savingRef.current = true; setSaving(true);
+      session.pause(); savingRef.current = true; setSaving(true);
         try {
           const saved = await sceneApi.save(sceneId, { expectedLockVersion: Number(lock.current), name: snapshot.title, document: toDocument(snapshot.definition) });
           lock.current = saved.lock_version; setDetail(saved);
@@ -154,18 +174,17 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); return false; }
     finally { savingRef.current = false; setSaving(false); }
   }, [session, resources, clips, sceneId, readOnly, t]);
-  const seek = (position: number) => { if (session) { session.sheet.sequence.pause(); session.sheet.sequence.position = position; } };
+  const seek = (position: number) => session?.seek(position);
   const play = () => {
     if (!session || !document) return;
-    if (playing) { session.sheet.sequence.pause(); return; }
-    if (session.sheet.sequence.position >= (document.definition.content.durationSeconds ?? 10)) session.sheet.sequence.position = 0;
-    session.sheet.sequence.play({ iterationCount: document.definition.content.loop ? Infinity : 1 }).catch((err) => setError(String(err)));
+    if (playing) { session.pause(); return; }
+    session.play(document.definition.content.loop);
   };
   return {
     session, document, resources, resolve, registerResource, detail, setDetail, lockVersion: () => lock.current,
     clips, onClips, error, setError, conflict, dismissConflict: () => setConflict(null), saving, dirty, readOnly, time, playing, commit, save, seek, play,
     undo: () => travel("past"), redo: () => travel("future"), canUndo: history.current.past.length > 0, canRedo: history.current.future.length > 0,
-    retry: () => setRetry((n) => n + 1),
+    retry: () => window.location.reload(),
   };
 }
 export type SceneEditorState = ReturnType<typeof useSceneDocument>;

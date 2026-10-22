@@ -8,21 +8,18 @@ export interface EditorAssetRef {
 }
 
 export interface EditorDefinition {
-  schemaVersion: 4;
+  schemaVersion: 6;
   content: Omit<CompositionContent, "assets"> & { assets: Record<string, EditorAssetRef> };
 }
 
 /** Validate the scene document and give animated content a finite duration. */
 export function normalizeDefinition(next: EditorDefinition): EditorDefinition {
-  const content = next.content;
-  const animated = content.instances.some((item) => item.animation || Object.values(item.tracks ?? {}).some((frames) => frames?.length));
-  const durationSeconds = animated ? content.durationSeconds ?? 10 : content.durationSeconds;
-  return parseSceneDocument({ ...next, content: { ...content, durationSeconds } });
+  return parseSceneDocument(next);
 }
 
 export function fromDocument(document: SceneDocumentJson): EditorDefinition {
   const definition: EditorDefinition = {
-    schemaVersion: 4,
+    schemaVersion: 6,
     content: { ...(document.content as unknown as CompositionContent), assets: { ...document.content.assets } },
   };
   return normalizeDefinition(definition);
@@ -34,7 +31,7 @@ export function toDocument(definition: EditorDefinition): SceneDocumentJson {
     assets[alias] = { assetId: ref.assetId };
   }
   const { kind, units, durationSeconds, loop, instances } = definition.content;
-  return { schemaVersion: 4, content: { kind, units, durationSeconds, loop, assets, instances } };
+  return { schemaVersion: 6, content: { kind, units, durationSeconds, loop, assets, instances } };
 }
 
 /** Imports use the same asset-reference schema as saved drafts. */

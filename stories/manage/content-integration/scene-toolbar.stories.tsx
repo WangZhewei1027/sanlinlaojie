@@ -12,3 +12,4 @@ type Story = StoryObj<typeof meta>;
 export const Saved: Story = {};
 export const Unsaved: Story = { args: { dirty: true, canUndo: true } };
 export const ReadOnlyViewer: Story = { args: { readOnly: true } };
+export const NativeWorkspace: Story = { args: { panelOpen: true, onTogglePanel: noop }, decorators: [(Story) => <div className="scene-workspace-theme"><Story /></div>] };

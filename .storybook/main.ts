@@ -24,6 +24,10 @@ const config: StorybookConfig = {
         new URL("./mocks/geist-sans.ts", import.meta.url),
       ),
     };
+    // Scene Core is a linked CommonJS package shared with the mini-program;
+    // Vite only converts it to ESM when it is pre-bundled.
+    config.optimizeDeps ??= {};
+    config.optimizeDeps.include = [...(config.optimizeDeps.include ?? []), "@spatial-memory/scene-core"];
     return config;
   },
 };

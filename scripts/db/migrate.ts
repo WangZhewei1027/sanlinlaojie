@@ -1,8 +1,10 @@
+import { migrateTransformScenes } from "../migrate/transform-scenes";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client } from "pg";
 import { loadEnvFile, requireEnv } from "../lib/env";
 import { migrateUnversionedContent } from "../migrate/content-model/unify";
+import { migrateTheatreScenes } from "../migrate/theatre-scenes";
 import { parseArchiveReview } from "../migrate/content-model/archive-review";
 
 /**
@@ -71,6 +73,8 @@ async function main() {
       await client.query("begin");
       try {
         if (file === "20261017180000_single_content_model.sql") await migrateUnversionedContent(client, process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "", archiveReview);
+        if (file === "20261019000000_native_theatre_scenes.sql") await migrateTheatreScenes(client);
+        if (file === "20261020000000_transform_scenes.sql") await migrateTransformScenes(client);
         await client.query(readFileSync(resolve("db/migrations", file), "utf8"));
         await client.query("insert into schema_migrations (name) values ($1)", [file]);
         await client.query("commit");
