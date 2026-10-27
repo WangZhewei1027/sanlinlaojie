@@ -90,6 +90,8 @@ export function recoverFromFatal(reason) {
  */
 export function setupRecovery(viewer) {
   setTimeout(() => {
+    // A failed viewer must not reset the retry budget while waiting to reload.
+    if (recovering || viewer.isDestroyed()) return;
     // 本次会话已稳定存活：若是降级 WebGL1 后才活下来的，永久记住
     if (reloadCount() >= 2) {
       localStorage.setItem(PREFER_WEBGL1_KEY, "1");
@@ -117,6 +119,9 @@ function recover(viewer, reason) {
   recovering = true;
   console.warn("渲染中断，尝试自动恢复:", reason);
 
+  // Release resources even when the retry budget is exhausted.
+  setTimeout(() => releaseContext(viewer), 0);
+
   const count = reloadCount();
   if (count >= MAX_AUTO_RELOADS) {
     showOverlay(
@@ -128,7 +133,6 @@ function recover(viewer, reason) {
   showOverlay("地图渲染中断，正在自动恢复…", true);
 
   // 立即销毁并释放显存（避开当前渲染调用栈），再退避等待系统回收后重载
-  setTimeout(() => releaseContext(viewer), 0);
   setTimeout(
     () => window.location.reload(),
     RELOAD_BASE_DELAY_MS * (count + 1),

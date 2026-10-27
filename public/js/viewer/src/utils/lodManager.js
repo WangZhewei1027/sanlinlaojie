@@ -24,6 +24,41 @@ export const LOD_CONFIG = {
   dotPadding: 2,
 };
 
+const dotImages = new Map();
+const detailImages = new WeakMap();
+
+/** Stable URL keys let Cesium share atlas entries (a Canvas gets a new GUID). */
+export function createDotImage(fileType) {
+  const type = ["anchor", "audio", "link", "image", "text"].includes(fileType) ? fileType : "default";
+  if (!dotImages.has(type)) dotImages.set(type, createDotCanvas(type).toDataURL());
+  return dotImages.get(type);
+}
+
+export function invalidateDetailImage(entity) {
+  detailImages.delete(entity);
+}
+
+function applyDetailImage(entity, asset) {
+  let cached = detailImages.get(entity);
+  if (!cached) {
+    const canvas = createDetailCanvas(asset);
+    cached = {
+      image: typeof canvas.then === "function"
+        ? canvas.then((resolved) => resolved.toDataURL())
+        : canvas.toDataURL(),
+    };
+    detailImages.set(entity, cached);
+  }
+  const apply = (image) => {
+    // An image request may finish after zooming out, editing or removing a row.
+    if (detailImages.get(entity) === cached && entity.properties.lodLevel.getValue() === "detail") {
+      entity.billboard.image = image;
+    }
+  };
+  if (typeof cached.image === "string") apply(cached.image);
+  else cached.image.then(apply).catch((error) => console.warn("标记图片加载失败:", error));
+}
+
 /**
  * 创建简单的点canvas（用于远距离显示）
  * @param {string} fileType - 文件类型（用于决定颜色）
@@ -158,20 +193,15 @@ export function updateEntityLOD(entity, asset) {
 
   // 如果需要切换LOD
   if (newLevel !== "unchanged" && newLevel !== currentLevel) {
-    console.log(
-      `切换LOD: ${asset.id}, 距离: ${distance.toFixed(
-        1
-      )}m, ${currentLevel} -> ${newLevel}`
-    );
+    entity.properties.lodLevel = newLevel;
 
     if (newLevel === "dot") {
       // 切换到点显示
-      entity.billboard.image = createDotCanvas(asset.file_type);
+      entity.billboard.image = createDotImage(asset.file_type);
       entity.billboard.scale = 1.0;
     } else {
       // 切换到详细显示
-      const detailCanvas = createDetailCanvas(asset);
-      entity.billboard.image = detailCanvas;
+      applyDetailImage(entity, asset);
 
       // 根据类型设置适当的scale
       const scaleMap = {
@@ -184,9 +214,6 @@ export function updateEntityLOD(entity, asset) {
       };
       entity.billboard.scale = scaleMap[asset.file_type] || scaleMap.default;
     }
-
-    // 更新LOD级别标记
-    entity.properties.lodLevel = newLevel;
   }
 }
 

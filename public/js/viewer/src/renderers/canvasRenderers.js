@@ -77,13 +77,7 @@ export function createImageCanvas(fileUrl) {
       imageCache.delete(fileUrl);
       // 继续执行加载逻辑
     } else {
-      // 创建新的canvas并复制内容
-      const canvas = document.createElement("canvas");
-      canvas.width = cachedCanvas.width;
-      canvas.height = cachedCanvas.height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(cachedCanvas, 0, 0);
-      return Promise.resolve(canvas);
+      return Promise.resolve(cachedCanvas);
     }
   }
 
