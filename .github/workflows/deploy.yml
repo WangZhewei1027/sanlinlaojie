@@ -36,6 +36,12 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          # These large tiles are served from OSS and excluded by .dockerignore.
+          sparse-checkout: |
+            /*
+            !/public/js/viewer/terra_b3dms/
+          sparse-checkout-cone-mode: false
 
       - uses: docker/setup-buildx-action@v3
 
