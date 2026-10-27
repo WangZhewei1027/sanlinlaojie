@@ -1,7 +1,7 @@
 "use client";
 import { subscribeContentChanges } from "../../lib/content-events";
 
-import type { AssetDto, PlacementDto } from "@/lib/content-model/contracts";
+import type { AssetDto, PlacementContentDto, PlacementDto } from "@/lib/content-model/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { assetApi, collectionApi, organizationApi, placementApi } from "../../lib/content-api";
 import { errorMessage } from "../../lib/content-errors";
@@ -96,17 +96,33 @@ export function usePlacementData({ organizationId, workspaceId, isAll, tx }: Pla
     const pending = store.placements.filter((placement) => !placementContentOf(placement, store.placementContents, scopeKey));
     if (!pending.length) return;
     const abort = new AbortController();
+    let batch: PlacementContentDto[] = [];
+    let flushTimer: ReturnType<typeof setTimeout> | undefined;
+    const flush = () => {
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+      if (!abort.signal.aborted && batch.length) usePlacementStore.getState().putPlacementContents(scopeKey, batch);
+      batch = [];
+    };
     void pool(pending, RESOLVE_CONCURRENCY, async (placement) => {
       if (abort.signal.aborted) return;
       try {
         const content = await placementApi.content(placement.id, workspaceId, abort.signal);
-        if (!abort.signal.aborted) usePlacementStore.getState().putPlacementContents(scopeKey, [content]);
+        if (!abort.signal.aborted) {
+          batch.push(content);
+          // Coalesce fast responses without waiting for the slowest preview.
+          flushTimer ??= setTimeout(flush, 100);
+        }
       } catch {
         // A failed fixed-content read leaves the existing unavailable preview.
         // A list reload retries it; catalog access is never a fallback.
       }
-    });
-    return () => abort.abort();
+    }).then(flush);
+    return () => {
+      abort.abort();
+      clearTimeout(flushTimer);
+      batch = [];
+    };
   }, [placements, loadedScopeKey, scopeKey, workspaceId, reloadNonce]);
 
   const selected = loadedScopeKey === scopeKey ? placements.find((placement) => placement.id === selectedPlacementId) : undefined;

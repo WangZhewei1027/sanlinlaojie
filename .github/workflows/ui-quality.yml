@@ -63,6 +63,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - name: Verify map hydration and texture reuse
+        run: node scripts/test-viewer-resources.mjs
       - name: Verify registration policy and existing account login
         run: node --test scripts/test-sms-auth.cjs
       - name: Verify Google relay authorization and OAuth callbacks

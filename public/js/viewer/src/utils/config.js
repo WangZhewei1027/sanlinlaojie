@@ -83,6 +83,9 @@ export const TILESET_CONFIG = {
         // 原值 2 会一路拉到 L22（这一层单独就有 1.1 GB）；8 相当于粗两级，
         // 落在 L20 附近，管理台的建筑/街道辨识度足够。
         maximumScreenSpaceError: sse(8),
+        // Bound desktop tile memory too; leave headroom for placement textures.
+        cacheBytes: 128 * 1024 * 1024,
+        maximumCacheOverflowBytes: 64 * 1024 * 1024,
         // 远处瓦片放宽精度：斜视整条街时省掉大量地平线附近的细节
         dynamicScreenSpaceError: true,
         skipLevelOfDetail: true,

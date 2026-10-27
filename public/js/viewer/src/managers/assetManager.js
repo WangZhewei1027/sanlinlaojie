@@ -21,9 +21,10 @@ import {
   createAnchorConnectionLines,
   clearAnchorConnectionLines,
 } from "./anchorConnectionManager.js";
-import { createDotCanvas, updateAllLODs } from "../utils/lodManager.js";
+import { createDotImage, invalidateDetailImage, updateAllLODs } from "../utils/lodManager.js";
 import {
   registerAudioAsset,
+  unregisterAudioAsset,
   clearAllAudio,
   startAudioUpdate,
 } from "./audioManager.js";
@@ -32,6 +33,10 @@ let assetBillboards = []; // 存储 asset 标记
 let focusMarkerEntity = null; // 存储聚焦标记
 let focusMarkerTimer = null; // 聚焦标记自动消失定时器
 let currentAssets = []; // 存储当前显示的assets数据（用于LOD）
+const assetsById = new Map();
+const billboardsById = new Map();
+let connectionKey = "";
+let lodListening = false;
 
 // 聚焦标记在飞行到位后额外停留的时长（毫秒），避免长时间占用画面
 const FOCUS_MARKER_LINGER_MS = 2000;
@@ -47,29 +52,69 @@ export function displayAssets(assets) {
     return;
   }
 
-  // 清除之前的 billboards
-  clearAssetBillboards();
+  const incoming = new Map(assets.filter((asset) =>
+    Number.isFinite(asset.metadata?.longitude) && Number.isFinite(asset.metadata?.latitude)
+  ).map((asset) => [asset.id, asset]));
 
-  // 保存assets数据
-  currentAssets = assets;
-
-  console.log(`显示 ${assets.length} 个 assets`);
-
-  // 为每个有坐标的 asset 添加 billboard
-  assets.forEach((asset) => {
-    const { longitude, latitude, height } = asset.metadata;
-
-    if (longitude !== undefined && latitude !== undefined) {
-      console.log(
-        `处理资产: ${asset.id}, 类型: ${asset.file_type}, 文本: ${asset.text_content}, URL: ${asset.file_url}`
-      );
-
-      createBillboard(asset, longitude, latitude, height);
+  // Content resolves one placement at a time. Keep existing entities and textures:
+  // rebuilding the whole collection on every response grows Cesium's texture atlas.
+  viewer.entities.suspendEvents();
+  try {
+    for (const [id, entity] of billboardsById) {
+      if (incoming.has(id)) continue;
+      viewer.entities.remove(entity);
+      unregisterAudioAsset(id);
+      invalidateDetailImage(entity);
+      billboardsById.delete(id);
+      assetsById.delete(id);
     }
-  });
+    for (const [id, asset] of incoming) {
+      const previous = assetsById.get(id);
+      let entity = billboardsById.get(id);
+      const { longitude, latitude, height } = asset.metadata;
+      if (!entity) {
+        entity = createBillboard(asset, longitude, latitude, height);
+        billboardsById.set(id, entity);
+      } else {
+        // Compare with the live position, so resending unchanged data still
+        // snaps back an optimistic drag that the server refused.
+        const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0);
+        if (!Cesium.Cartesian3.equals(entity.position.getValue(viewer.clock.currentTime), position)) {
+          entity.position = position;
+        }
+        if (previous.file_type !== asset.file_type || previous.file_url !== asset.file_url ||
+            previous.text_content !== asset.text_content || previous.name !== asset.name ||
+            previous.metadata.duration !== asset.metadata.duration) {
+          invalidateDetailImage(entity);
+          entity.billboard.image = createDotImage(asset.file_type);
+          entity.billboard.scale = 1.0;
+          entity.properties.lodLevel = "dot";
+          entity.properties.fileType = asset.file_type;
+          entity.properties.fileUrl = asset.file_url;
+        }
+        if (previous.file_type !== asset.file_type || previous.file_url !== asset.file_url) {
+          unregisterAudioAsset(id);
+          registerAudioAsset(asset, entity);
+        }
+      }
+      assetsById.set(id, asset);
+    }
+    currentAssets = [...incoming.values()];
+    assetBillboards = [...billboardsById.values()];
 
-  // 创建锚点关联线
-  createAnchorConnectionLines(assets);
+    // Content-only changes don't affect anchor connections.
+    const nextConnectionKey = JSON.stringify(currentAssets.filter((asset) =>
+      asset.anchor_id || asset.file_type === "anchor"
+    ).map((asset) => [asset.id, asset.file_type, asset.anchor_id,
+      asset.metadata.longitude, asset.metadata.latitude, asset.metadata.height]));
+    if (nextConnectionKey !== connectionKey) {
+      clearAnchorConnectionLines();
+      createAnchorConnectionLines(currentAssets);
+      connectionKey = nextConnectionKey;
+    }
+  } finally {
+    viewer.entities.resumeEvents();
+  }
 
   // 启动LOD更新
   startLODUpdate();
@@ -90,7 +135,7 @@ function createBillboard(asset, longitude, latitude, height) {
   if (!viewer) return;
 
   // 初始使用点显示（LOD会根据距离自动切换）
-  const billboardImage = createDotCanvas(asset.file_type);
+  const billboardImage = createDotImage(asset.file_type);
 
   const entity = viewer.entities.add({
     position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height || 0),
@@ -117,14 +162,12 @@ function createBillboard(asset, longitude, latitude, height) {
     },
   });
 
-  assetBillboards.push(entity);
-
   // 如果是音频类型，注册到音频管理器
   if (asset.file_type === "audio") {
     registerAudioAsset(asset, entity);
   }
 
-  console.log(`创建billboard: ${asset.id}, 类型: ${asset.file_type}`);
+  return entity;
 }
 
 /**
@@ -136,9 +179,13 @@ export function clearAssetBillboards() {
 
   assetBillboards.forEach((entity) => {
     viewer.entities.remove(entity);
+    invalidateDetailImage(entity);
   });
   assetBillboards = [];
   currentAssets = [];
+  assetsById.clear();
+  billboardsById.clear();
+  connectionKey = "";
 
   // 清除锚点关联线
   clearAnchorConnectionLines();
@@ -288,14 +335,7 @@ export function getAssetBillboards() {
  * @returns {Cesium.Entity|null}
  */
 export function getEntityByAssetId(id) {
-  return (
-    assetBillboards.find((e) => {
-      const v = e.properties?.assetId?.getValue
-        ? e.properties.assetId.getValue()
-        : e.properties?.assetId;
-      return v === id;
-    }) || null
-  );
+  return billboardsById.get(id) || null;
 }
 
 /**
@@ -321,16 +361,13 @@ function startLODUpdate() {
   const viewer = getViewer();
   if (!viewer) return;
 
-  // 如果已经有定时器，先清除
-  stopLODUpdate();
-
-  // 监听相机移动事件
-  viewer.camera.moveEnd.addEventListener(updateLOD);
+  if (!lodListening) {
+    viewer.camera.moveEnd.addEventListener(updateLOD);
+    lodListening = true;
+  }
 
   // 初始更新一次
   updateLOD();
-
-  console.log("LOD更新已启动");
 }
 
 /**
@@ -341,8 +378,7 @@ function stopLODUpdate() {
   if (!viewer) return;
 
   viewer.camera.moveEnd.removeEventListener(updateLOD);
-
-  console.log("LOD更新已停止");
+  lodListening = false;
 }
 
 /**
