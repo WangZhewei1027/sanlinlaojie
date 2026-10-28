@@ -43,6 +43,28 @@ function clipTime(time, animation, duration) {
   const local = Math.max(0, time - animation.startSeconds);
   return duration > 0 ? (animation.loop ? local % duration : Math.min(local, duration)) : 0;
 }
+/** Shared entry/exit envelope; old untimed nodes retain their original visibility. */
+function samplePresentation(instance, time, sceneDuration = null) {
+  const timing = instance.timing;
+  if (!timing) return { visible: true, opacity: 1, localTime: Math.max(0, time) };
+  const start = timing.startSeconds;
+  const end = timing.endSeconds === null ? (sceneDuration === null ? Infinity : sceneDuration) : timing.endSeconds;
+  const localTime = Math.max(0, time - start);
+  const visible = time >= start && time < end;
+  const fadeIn = timing.fadeInSeconds > 0 ? localTime / timing.fadeInSeconds : 1;
+  const fadeOut = timing.fadeOutSeconds > 0 ? (end - time) / timing.fadeOutSeconds : 1;
+  return { visible, opacity: visible ? Math.max(0, Math.min(1, fadeIn, fadeOut)) : 0, localTime };
+}
+/** Map scene seconds to a source-media time, respecting trim, speed and looping. */
+function mediaTime(time, media = { trimStartSeconds: 0, trimEndSeconds: null, playbackRate: 1, loop: false }, timing, duration) {
+  const sourceEnd = Number.isFinite(duration) && duration >= 0 ? duration : Infinity;
+  const start = Math.min(sourceEnd, media.trimStartSeconds);
+  const end = Math.max(start, Math.min(sourceEnd, media.trimEndSeconds === null ? Infinity : media.trimEndSeconds));
+  const span = end - start;
+  if (span <= 0) return start;
+  const local = Math.max(0, time - (timing ? timing.startSeconds : 0)) * media.playbackRate;
+  return start + (media.loop && Number.isFinite(span) ? local % span : Math.min(local, span));
+}
 // Groups and instances share one ID space; each node is sampled in its parent's space.
 const nodeMap = content => new Map([...(content.groups || []), ...content.instances].map(node => [node.id, node]));
 function createSceneCore({ content }) {
@@ -91,4 +113,4 @@ function createSceneCore({ content }) {
   };
   return core;
 }
-module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance };
+module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance, samplePresentation, mediaTime };

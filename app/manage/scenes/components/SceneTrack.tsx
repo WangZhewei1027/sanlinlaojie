@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useState } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
+import { Box, Film, ImageIcon, Music2, Type } from 'lucide-react';
 import { TRANSFORM_CHANNELS, type CompositionInstance } from '@/lib/scene/protocol';
 import { isGroup, type SceneNode } from '@/lib/scene/hierarchy-authoring';
 import { keyTimes, roundTime, type TransformGroup } from '@/lib/scene/transform-authoring';
@@ -9,39 +10,69 @@ import { PARAMS } from './timeline-keys';
 import { snapTime } from './timeline-scale';
 import { useTimeline } from './timeline-context';
 import type { ClipInfo } from './types';
+import { applyRegion, changeRegion, instanceRegion, regionTime, type RegionEdit, type RegionRange, type SceneTrackKind } from './scene-region';
 
-/** GLB clip as a region: drag it to move the clip start, like moving a region in Logic. */
-function ClipRegion({ instance, clips }: { instance: CompositionInstance; clips?: ClipInfo[] }) {
+/** Every object has an editable visibility region, including static objects and scene-owned text. */
+function PerformanceRegion({ instance, clips, kind, name }: { instance: CompositionInstance; clips?: ClipInfo[]; kind: SceneTrackKind; name: string }) {
   const view = useTimeline();
   const animation = instance.animation;
-  const [draft, setDraft] = useState<number | null>(null);
-  const grab = useRef<{ offset: number } | null>(null);
+  const [draft, setDraft] = useState<RegionRange | null>(null);
+  const grab = useRef<{ offset: number; mode: RegionEdit; before: RegionRange; latest: RegionRange } | null>(null);
   const clip = animation && clips?.[animation.clipIndex ?? clips.findIndex(item => item.name === animation.clipName)];
-  if (!animation || !clip) return null;
-  const start = draft ?? animation.startSeconds;
-  const length = animation.loop ? Math.max(0, view.end - start) : Math.min(clip.duration, Math.max(0, view.end - start));
-  const repeats = animation.loop && clip.duration > 0 ? Math.min(64, Math.floor(length / clip.duration)) : 0;
-  const latest = Math.max(0, view.end - .001);
+  const original = instanceRegion(instance, view.end, clip?.duration), range = draft ?? original;
+  const length = range.end - range.start;
+  const repeats = animation?.loop && clip && clip.duration > 0 ? Math.min(64, Math.floor(length / clip.duration)) : 0;
+  const Icon = { model: Box, image: ImageIcon, audio: Music2, video: Film, text: Type, group: Box }[kind];
   const timeAt = (clientX: number, lane: HTMLElement) => { const rect = lane.getBoundingClientRect(); return (clientX - rect.left) / rect.width * view.span; };
-  return <div className="scene-clip-region" data-dragging={draft !== null || undefined} aria-disabled={view.disabled}
-    style={{ left: view.pct(start), width: view.pct(length) }} title={`${clip.name || 'Clip'} · ${start}s`}
-    onPointerDown={e => {
-      if (e.button || view.disabled) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
-      grab.current = { offset: timeAt(e.clientX, e.currentTarget.parentElement!) - start };
-    }}
-    onPointerMove={e => {
-      if (!grab.current || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-      const raw = timeAt(e.clientX, e.currentTarget.parentElement!) - grab.current.offset;
-      setDraft(Math.min(latest, Math.max(0, e.altKey ? roundTime(raw) : snapTime(raw, view.steps.minor))));
+  const commit = (before: RegionRange, after: RegionRange, mode: RegionEdit) => {
+    if (view.disabled) return;
+    view.onEditNode(instance.id, node => isGroup(node) ? node : applyRegion(node, before, after, mode) as typeof node);
+  };
+  const begin = (event: PointerEvent<HTMLElement>, mode: RegionEdit) => {
+    if (event.button || view.disabled) return;
+    const region = event.currentTarget.closest<HTMLElement>('.scene-performance-region');
+    if (!region?.parentElement) return;
+    // Capture on the region for both edge and body drags; cancellation never commits a partial edit.
+    region.setPointerCapture(event.pointerId);
+    grab.current = { offset: mode === 'move' ? timeAt(event.clientX, region.parentElement) - original.start : 0, mode, before: original, latest: original };
+  };
+  return <div className="scene-clip-region scene-performance-region" data-kind={kind} data-dragging={draft !== null || undefined} aria-disabled={view.disabled}
+    style={{ left: view.pct(range.start), width: view.pct(length) }} title={`${name} · ${regionTime(range.start)} – ${regionTime(range.end)}`}
+    tabIndex={view.disabled ? -1 : 0} role="group" aria-label={view.text(`${name}，${regionTime(range.start)} 到 ${regionTime(range.end)}，方向键移动片段`, `${name}, ${regionTime(range.start)} to ${regionTime(range.end)}, arrow keys move region`)}
+    onPointerDown={event => begin(event, 'move')}
+    onPointerMove={event => {
+      const drag = grab.current;
+      if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      const raw = timeAt(event.clientX, event.currentTarget.parentElement!) - drag.offset;
+      drag.latest = changeRegion(drag.before, drag.mode, event.altKey ? roundTime(raw) : snapTime(raw, view.steps.minor));
+      setDraft(drag.latest);
     }}
     onPointerCancel={() => { grab.current = null; setDraft(null); }}
     onPointerUp={() => {
-      const next = draft; grab.current = null; setDraft(null);
-      if (next !== null && next !== animation.startSeconds) view.onEditNode(instance.id, node => ({ ...node, animation: { ...animation, startSeconds: next } }));
+      const drag = grab.current; grab.current = null; setDraft(null);
+      if (drag) commit(drag.before, drag.latest, drag.mode);
+    }}
+    onKeyDown={event => {
+      if (view.disabled || event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation();
+      const delta = (event.key === 'ArrowLeft' ? -1 : 1) * (event.altKey ? .001 : view.steps.minor) * (event.shiftKey ? 10 : 1);
+      commit(original, changeRegion(original, 'move', original.start + delta), 'move');
     }}>
-    <span className="scene-clip-name">{clip.name || 'Clip'}</span>
-    {Array.from({ length: repeats }, (_, i) => <i key={i} className="scene-clip-repeat" style={{ left: `${(i + 1) * clip.duration / length * 100}%` }} />)}
+    {(['start', 'end'] as const).map(edge => <button key={edge} type="button" className="scene-region-handle" data-edge={edge} disabled={view.disabled}
+      aria-label={view.text(`${edge === 'start' ? '出现点' : '消失点'}：${regionTime(range[edge])}`, `${edge === 'start' ? 'Appearance' : 'Disappearance'}: ${regionTime(range[edge])}`)}
+      title={view.text('拖动边缘调整时间；方向键微调', 'Drag edge to adjust time; arrow keys fine-tune')}
+      onPointerDown={event => { event.stopPropagation(); begin(event, edge); }}
+      onClick={event => event.stopPropagation()}
+      onKeyDown={event => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        event.preventDefault(); event.stopPropagation();
+        const delta = (event.key === 'ArrowLeft' ? -1 : 1) * (event.altKey ? .001 : view.steps.minor) * (event.shiftKey ? 10 : 1);
+        commit(original, changeRegion(original, edge, original[edge] + delta), edge);
+      }} />)}
+    <Icon className="scene-region-icon" aria-hidden="true" />
+    <span className="scene-clip-name">{instance.text?.content || clip?.name || name}</span>
+    <span className="scene-region-range">{regionTime(range.start)} – {regionTime(range.end)} · {regionTime(length)}</span>
+    {Array.from({ length: repeats }, (_, i) => <i key={i} className="scene-clip-repeat" style={{ left: `${(i + 1) * (clip?.duration ?? 0) / length * 100}%` }} />)}
   </div>;
 }
 
@@ -57,8 +88,8 @@ export function SceneTrack({ clips, expandedParams, onParam, ...header }: SceneT
   return <>
     <div className="scene-track-row" data-kind={header.row.kind} data-selected={header.selected || undefined}>
       <SceneTrackHeader {...header} />
-      <div className="scene-track-lane scene-region-lane" onPointerDown={e => { if (!e.button) header.onSelect(e); }}>
-        {!isGroup(node) && <ClipRegion instance={node} clips={clips} />}
+      <div className="scene-track-lane scene-region-lane" onPointerDownCapture={e => { if (!e.button) header.onSelect(e); }}>
+        {!isGroup(node) && <PerformanceRegion instance={node} clips={clips} kind={header.kind ?? (node.text ? 'text' : 'model')} name={header.name} />}
         {!header.automation && keyTimes(node, TRANSFORM_CHANNELS).map(time => <i key={time} className="scene-key-tick" data-outside={time > view.end || undefined} style={{ left: view.pct(time) }} />)}
       </div>
     </div>

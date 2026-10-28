@@ -1,6 +1,8 @@
 export const SCENE_SCHEMA_VERSION = 5 as const;
-/** Playback schema for scenes without groups; released mini-programs only accept this one. */
+/** Playback schema for legacy scenes without groups; grouped scenes use schema 5. */
 export const SCENE_FLAT_SCHEMA_VERSION = 4 as const;
+/** Media, scene-owned text and presentation timing require a capable player. */
+export const SCENE_PERFORMANCE_SCHEMA_VERSION = 7 as const;
 export const SCENE_DOCUMENT_VERSION = 6 as const;
 export const MAX_SCENE_BYTES = 1024 * 1024;
 
@@ -38,9 +40,48 @@ export interface CompositionGroup extends TransformNode {
   parent?: string;
 }
 
+export const SCENE_RESOURCE_KINDS = ["model", "image", "audio", "video"] as const;
+export type SceneResourceKind = typeof SCENE_RESOURCE_KINDS[number];
+export function isSceneResourceKind(value: unknown): value is SceneResourceKind {
+  return typeof value === "string" && SCENE_RESOURCE_KINDS.some(kind => kind === value);
+}
+export interface InstanceTiming {
+  startSeconds: number;
+  /** Exclusive end; null follows the scene duration. */
+  endSeconds: number | null;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+}
+
+export interface InstanceMedia {
+  trimStartSeconds: number;
+  /** Source-media end; null uses the file's duration. */
+  trimEndSeconds: number | null;
+  playbackRate: number;
+  volume: number;
+  loop: boolean;
+  muted: boolean;
+}
+
+/** Owned by this scene document, never inserted into the team's asset library. */
+export interface SceneText {
+  content: string;
+  color: string;
+  /** Character height and wrapping width in meters. */
+  fontSize: number;
+  width: number;
+  align: "left" | "center" | "right";
+  /** Omitted for a transparent background. Colors use #RRGGBB. */
+  backgroundColor?: string;
+}
+
 export interface CompositionInstance {
   id: string;
-  asset: string;
+  /** Exactly one of asset or text; text has no asset dependency. */
+  asset?: string;
+  text?: SceneText;
+  timing?: InstanceTiming;
+  media?: InstanceMedia;
   /** Track name; the asset name is shown when omitted. */
   name?: string;
   /** Parent group ID; omitted at the scene root. */
@@ -76,7 +117,7 @@ export interface CompositionContent<Ref = CompositionAssetRef> {
 }
 
 export interface SceneDefinition {
-  schemaVersion: typeof SCENE_SCHEMA_VERSION | typeof SCENE_FLAT_SCHEMA_VERSION;
+  schemaVersion: typeof SCENE_SCHEMA_VERSION | typeof SCENE_FLAT_SCHEMA_VERSION | typeof SCENE_PERFORMANCE_SCHEMA_VERSION;
   content: CompositionContent;
 }
 
@@ -95,6 +136,7 @@ export const COMPOSITION_LIMITS = {
   maxGroups: 16,
   maxGroupDepth: 4,
   maxNameLength: 64,
+  maxTextLength: 4000,
 } as const;
 
 export function createBlankScene(): SceneDefinition {
@@ -123,5 +165,5 @@ export interface ValidationResult {
  */
 export interface SceneAssetManifest extends SceneDefinition {
   assetId: string;
-  resources: Record<string, { assetId: string; url: string }>;
+  resources: Record<string, { assetId: string; url: string; kind?: SceneResourceKind }>;
 }

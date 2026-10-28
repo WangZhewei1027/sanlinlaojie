@@ -1,4 +1,4 @@
-import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, type SceneDefinition, type SceneDocument, type ValidationResult } from "./protocol";
+import { MAX_SCENE_BYTES, SCENE_DOCUMENT_VERSION, SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, SCENE_PERFORMANCE_SCHEMA_VERSION, type SceneDefinition, type SceneDocument, type ValidationResult } from "./protocol";
 import { IssueList, rejectUnknownKeys, requireObject } from "./validate-utils";
 import { validateCompositionContent } from "./validate-content";
 
@@ -14,10 +14,11 @@ export function validateSceneDefinition(def: unknown): ValidationResult {
   if (root) {
     rejectUnknownKeys(issues, "$", root, ["schemaVersion", "content"]);
     const flat = root.schemaVersion === SCENE_FLAT_SCHEMA_VERSION;
-    if (!flat && root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 4 或 5");
+    const performance = root.schemaVersion === SCENE_PERFORMANCE_SCHEMA_VERSION;
+    if (!flat && !performance && root.schemaVersion !== SCENE_SCHEMA_VERSION) issues.error("schemaVersion", "播放清单必须是 schemaVersion 4、5 或 7");
     const content = requireObject(issues, "content", root.content);
     // Schema 4 is the flat format released mini-programs play; groups need schema 5.
-    if (content?.kind === "composition") validateCompositionContent(issues, content, { groups: !flat });
+    if (content?.kind === "composition") validateCompositionContent(issues, content, { groups: !flat, presentation: performance });
     else if (content) issues.error("content.kind", "场景素材仅支持 composition");
   }
   return { ok: !issues.hasErrors, issues: issues.issues };

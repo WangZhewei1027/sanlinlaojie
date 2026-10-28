@@ -4,7 +4,7 @@ import { COMPOSITION_LIMITS, type CompositionContent, type CompositionGroup, typ
 type Content = Pick<CompositionContent, 'instances' | 'groups' | 'assets'>;
 export type SceneNode = CompositionInstance | CompositionGroup;
 export interface TrackRow { id: string; kind: 'group' | 'instance'; depth: number; node: SceneNode; children: number }
-export const isGroup = (node: SceneNode): node is CompositionGroup => !('asset' in node);
+export const isGroup = (node: SceneNode): node is CompositionGroup => !('animation' in node);
 export const findNode = (content: Content, id: string): SceneNode | undefined => content.instances.find(item => item.id === id) ?? content.groups?.find(item => item.id === id);
 
 /**

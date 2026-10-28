@@ -2,8 +2,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fitSpan, TIMELINE_LABEL_WIDTH, TIMELINE_LEAD } from './timeline-scale';
 
-const LABEL = TIMELINE_LABEL_WIDTH + TIMELINE_LEAD;
-
 const MAX_ZOOM = 32;
 /** Visible time range, horizontal zoom and scroll of the timeline lanes. */
 export function useTimelineView(contentEnd: number, time: number, playing: boolean) {
@@ -11,9 +9,12 @@ export function useTimelineView(contentEnd: number, time: number, playing: boole
   const [viewport, setViewport] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [viewSpan, setViewSpan] = useState(() => fitSpan(contentEnd));
+  const compact = viewport > 0 && viewport < 640;
+  const labelWidth = compact ? 170 : TIMELINE_LABEL_WIDTH;
+  const labelOffset = labelWidth + TIMELINE_LEAD;
   // The view grows when the end marker or a key reaches its edge; it only shrinks on fit.
   const span = contentEnd > viewSpan * .95 ? fitSpan(contentEnd) : viewSpan;
-  const laneWidth = Math.round(Math.max(280, viewport - LABEL - 20) * zoom);
+  const laneWidth = Math.round(Math.max(compact ? 160 : 280, viewport - labelOffset - 20) * zoom);
   // Time to keep at the same screen offset after a zoom.
   const anchor = useRef<{ time: number; offset: number } | null>(null);
   const zoomTo = (next: number, at: number, offset: number) => {
@@ -35,7 +36,7 @@ export function useTimelineView(contentEnd: number, time: number, playing: boole
   const wheelZoom = useRef<(event: WheelEvent) => void>(() => {});
   useEffect(() => {
     wheelZoom.current = event => {
-      const element = scroller.current!, offset = event.clientX - element.getBoundingClientRect().left - LABEL;
+      const element = scroller.current!, offset = event.clientX - element.getBoundingClientRect().left - labelOffset;
       zoomTo(zoom * Math.exp(-event.deltaY / 200), Math.max(0, (element.scrollLeft + offset) / laneWidth * span), offset);
     };
   });
@@ -49,11 +50,11 @@ export function useTimelineView(contentEnd: number, time: number, playing: boole
   useEffect(() => {
     const element = scroller.current; if (!playing || !element) return;
     const at = time / span * laneWidth;
-    if (at < element.scrollLeft || at > element.scrollLeft + element.clientWidth - LABEL - 24) element.scrollLeft = at - 24;
-  }, [playing, time, span, laneWidth]);
+    if (at < element.scrollLeft || at > element.scrollLeft + element.clientWidth - labelOffset - 24) element.scrollLeft = at - 24;
+  }, [playing, time, span, laneWidth, labelOffset]);
 
   return {
-    scroller, span, laneWidth, zoom, canZoomIn: zoom < MAX_ZOOM,
+    scroller, span, laneWidth, labelWidth, compact, zoom, canZoomIn: zoom < MAX_ZOOM,
     /** Zoom by a factor, keeping the playhead where it is on screen. */
     zoomBy: (factor: number) => zoomTo(zoom * factor, time, time / span * laneWidth - (scroller.current?.scrollLeft ?? 0)),
     fit: () => { setViewSpan(fitSpan(contentEnd)); setZoom(1); scroller.current?.scrollTo({ left: 0 }); },

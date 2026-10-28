@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
-import { ArrowLeft, Box, Eye, LoaderCircle, PanelLeftClose, PanelLeftOpen, Redo2, Save, SlidersHorizontal, Undo2 } from "lucide-react";
+import { ArrowLeft, Box, Eye, LoaderCircle, PanelLeftClose, PanelLeftOpen, Redo2, Save, SlidersHorizontal, Type, Undo2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,10 +18,12 @@ export interface SceneToolbarProps {
   qr?: ReactNode;
   panelOpen?: boolean;
   onTogglePanel?: () => void;
+  onAddText?: () => void;
+  canAddText?: boolean;
 }
 export function SceneToolbar(props: SceneToolbarProps) {
   const { t, i18n } = useTranslation();
-  const panelLabel = i18n.language.startsWith("zh") ? "模型与工具" : "Models and tools";
+  const panelLabel = i18n.language.startsWith("zh") ? "素材库" : "Asset library";
   const [draft, setDraft] = useState(props.title);
   useEffect(() => setDraft(props.title), [props.title]);
   const saveStatus = <><span className={`size-1.5 shrink-0 rounded-full ${props.dirty ? "bg-warning" : "bg-success"}`} /><Text as="span" variant="bodyXs" tone="subdued">{t(props.saving ? "sceneEditor.saving" : props.dirty ? "sceneEditor.unsaved" : "sceneEditor.saved")}</Text></>;
@@ -35,6 +37,7 @@ export function SceneToolbar(props: SceneToolbarProps) {
     <div className="mx-2 hidden h-5 border-l sm:block" />
     {!props.readOnly && <><Button variant="ghost" size="icon" disabled={!props.canUndo} aria-label={t("sceneEditor.undo")} title={`${t("sceneEditor.undo")} (Ctrl/⌘ Z)`} onClick={props.onUndo}><Undo2 /></Button>
     <Button variant="ghost" size="icon" disabled={!props.canRedo} aria-label={t("sceneEditor.redo")} title={`${t("sceneEditor.redo")} (Ctrl/⌘ Shift Z)`} onClick={props.onRedo}><Redo2 /></Button></>}
+    {props.onAddText && !props.preview && !props.readOnly && <Button variant="ghost" size="sm" disabled={!props.canAddText} onClick={props.onAddText} aria-label={i18n.language.startsWith("zh") ? "添加空间文字" : "Add spatial text"}><Type /><span className="hidden md:inline">{i18n.language.startsWith("zh") ? "文字" : "Text"}</span></Button>}
     <Button variant={props.preview ? "secondary" : "ghost"} size="sm" aria-pressed={props.preview} onClick={props.onPreview}>{props.preview ? <SlidersHorizontal /> : <Eye />}<span className="hidden sm:inline">{t(props.preview ? "sceneEditor.arrange" : "sceneEditor.preview")}</span><span className="sr-only sm:hidden">{t(props.preview ? "sceneEditor.arrange" : "sceneEditor.preview")}</span></Button>
     {!props.readOnly && <Button size="sm" variant="default" disabled={props.saving || !draft.trim()} onClick={() => { props.onTitle(draft); props.onSave(); }} title="Ctrl/⌘ S">{props.saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t(props.saving ? "sceneEditor.saving" : "common.save")}</Button>}
     {props.qr && <div className="shrink-0">{props.qr}</div>}

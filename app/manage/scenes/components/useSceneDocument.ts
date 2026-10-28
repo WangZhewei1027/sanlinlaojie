@@ -1,6 +1,6 @@
 "use client";
 import { subscribeContentChanges } from "../../lib/content-events";
-import { primaryResource } from "../../lib/content-mappers";
+import { resourceFromAsset, resourceFromResolved } from "./scene-performance";
 import type { SceneDetailDto, SceneResolvedResourceDto } from "@/lib/content-model/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,13 +13,7 @@ import type { ClipInfo, SceneResource } from "./types";
 export type SceneDocument = { title: string; definition: EditorDefinition };
 export interface SaveConflict { message: string }
 
-function fromResolved(resource: SceneResolvedResourceDto): SceneResource {
-  return {
-    assetId: resource.asset_id, assetLockVersion: resource.asset_lock_version, name: resource.asset_name, url: resource.url,
-    assetState: resource.asset_state, animations: resource.animations,
-  };
-}
-const indexResolved = (list: SceneResolvedResourceDto[]) => Object.fromEntries(list.map((item) => [item.asset_id, fromResolved(item)]));
+const indexResolved = (list: SceneResolvedResourceDto[]) => Object.fromEntries(list.map((item) => [item.asset_id, resourceFromResolved(item)]));
 
 export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | null) {
   const { t } = useTranslation();
@@ -85,11 +79,9 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
       const ids = [...new Set(Object.values(latest.current?.definition.content.assets ?? {}).map((ref) => ref.assetId))];
       void Promise.all(ids.map(async (id) => {
         const asset = await assetApi.get(id, controller.signal);
-        return { assetId: id, assetLockVersion: asset.lock_version, name: asset.name,
-          url: primaryResource(asset)?.url ?? null, assetState: asset.state,
-          animations: asset.payload.kind === "model" ? asset.payload.animations : undefined } satisfies SceneResource;
+        return resourceFromAsset(asset);
       })).then((items) => {
-        if (!controller.signal.aborted) setResources((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.assetId, item])) }));
+        if (!controller.signal.aborted) setResources((current) => ({ ...current, ...Object.fromEntries(items.filter((item): item is SceneResource => !!item).map((item) => [item.assetId, item])) }));
       }).catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : String(cause)); });
     });
     return () => { stop(); abort?.abort(); };
@@ -152,7 +144,8 @@ export function useSceneDocument(sceneId: string, initial?: SceneDetailDto | nul
       if (!snapshot.title.trim()) throw new Error(t("sceneEditor.titleRequired"));
       const { instances, assets } = snapshot.definition.content;
       for (const instance of instances) {
-        if (!resources[resourceKey(assets[instance.asset])]?.url) throw new Error(t("sceneEditor.missingModel"));
+        if (instance.text) continue;
+        if (!instance.asset || !resources[resourceKey(assets[instance.asset])]?.url) throw new Error(t("sceneEditor.missingModel"));
         if (instance.animation) {
           const available = clips[instance.id];
           const clip = instance.animation.clipIndex !== undefined ? available?.[instance.animation.clipIndex] : available?.find((item) => item.name === instance.animation?.clipName);

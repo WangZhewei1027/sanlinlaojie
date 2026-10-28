@@ -28,7 +28,7 @@ const first = expectOk(add(empty, V1, {}, resource(V1, 1)));
 assert.deepEqual(empty, before, "the input document is never mutated");
 assert.deepEqual(Object.values(first.content.assets), [{ assetId: V1 }], "first add references the picked asset");
 assert.equal(first.content.instances.length, 1);
-assert.equal(first.content.assets[first.content.instances[0].asset].assetId, V1);
+assert.equal(first.content.assets[first.content.instances[0].asset!].assetId, V1);
 assert.deepEqual(toDocument(first).content.assets, first.content.assets, "the new draft serializes as schema 4 with asset references");
 
 // The old flow read only the stale snapshot; without a picked resource, failure is graceful, not a TypeError.
@@ -47,7 +47,7 @@ assert.equal(repeatedFromDrop.content.instances.length, 3);
 // Another asset coexists under its own alias.
 const both = expectOk(add(repeatedFromDrop, V2, {}, resource(V2, 2)));
 assert.deepEqual(Object.values(both.content.assets).map((ref) => ref.assetId).sort(), [V1, V2].sort());
-assert.equal(resourceKey(both.content.assets[both.content.instances[3].asset]), V2);
+assert.equal(resourceKey(both.content.assets[both.content.instances[3].asset!]), V2);
 
 // Archived assets cannot be newly referenced, but existing references may gain instances.
 assert.deepEqual(add(empty, V1, {}, resource(V1, 1, { assetState: "archived" })), { ok: false, reason: "archived" });

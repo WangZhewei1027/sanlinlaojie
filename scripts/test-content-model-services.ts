@@ -449,6 +449,50 @@ async function main(): Promise<void> {
       });
     });
 
+    await check("Performance scenes persist independent text and authorized media with concurrent-save protection", async () => {
+      const assetCount = async () => Number((await db.selectFrom("asset").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", f.organizations.team).executeTakeFirstOrThrow()).n);
+      const before = await assetCount();
+      const textDocument = createBlankSceneDocument();
+      textDocument.content.instances = [{ id: "title", text: { content: "第一幕", color: "#ffffff", fontSize: .25, width: 3, align: "center" }, position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null,
+        timing: { startSeconds: 1, endSeconds: 8, fadeInSeconds: .5, fadeOutSeconds: 1 } }];
+      const scene = await sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "Performance", document: textDocument });
+      assert.equal(await assetCount(), before, "scene text never creates a team asset");
+      assert.deepEqual(scene.document, textDocument);
+      assert.deepEqual(scene.referenced_resources, []);
+      const document = structuredClone(textDocument);
+      const created = [];
+      for (const kind of ["image", "audio", "video"] as const) {
+        const asset = await assetService.createAssetInOrganization(actors.editor, f.organizations.team, { name: `Performance ${kind}`, fileType: kind, payload: { kind }, idempotencyKey: `${f.run}-performance-${kind}`, resources: [{ role: "primary", externalUrl: `https://fixture.invalid/performance.${kind === "image" ? "png" : kind === "audio" ? "mp3" : "mp4"}` }] });
+        created.push(asset.asset);
+        document.content.assets[kind] = { assetId: asset.asset.id };
+        document.content.instances.push({ id: kind, asset: kind, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null,
+          timing: { startSeconds: 2, endSeconds: 9, fadeInSeconds: 0, fadeOutSeconds: 1 },
+          ...(kind !== "image" ? { media: { trimStartSeconds: 1, trimEndSeconds: 8, playbackRate: 1, volume: .7, muted: false, loop: true } } : {}) });
+      }
+      await rejectCode(() => sceneService.saveScene(actors.viewer, scene.id, { expectedLockVersion: scene.lock_version, document }), "FORBIDDEN");
+      const saved = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document });
+      assert.deepEqual(saved.document, document);
+      assert.deepEqual(saved.referenced_resources.map(resource => resource.file_type).sort(), ["audio", "image", "video"]);
+      const manifest = await runtime.previewSceneManifest(scene.id, f.organizations.team);
+      assert.equal(manifest.schemaVersion, 7);
+      assert.equal(manifest.resources.video.kind, "video");
+      assert.equal(manifest.content.instances[0].text?.content, "第一幕");
+      await rejectCode(() => sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: scene.lock_version, document }), "LOCK_VERSION_CONFLICT");
+      const crossTeam = structuredClone(document); crossTeam.content.assets.video.assetId = f.assets.foreign;
+      await rejectCode(() => sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: saved.lock_version, document: crossTeam }), "NOT_FOUND");
+      const invalidKind = structuredClone(document); invalidKind.content.instances[1].media = { trimStartSeconds: 0, trimEndSeconds: null, playbackRate: 1, volume: 1, loop: false, muted: false };
+      await rejectCode(() => sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: saved.lock_version, document: invalidKind }), "VALIDATION_FAILED");
+      const copy = await sceneService.copyScene(actors.editor, scene.id, { name: "Performance copy" });
+      assert.deepEqual(copy.document, document);
+      assert.equal(await assetCount(), before + 3, "copying scene-owned text shares media without adding text to asset library");
+      await assetService.archiveAsset(actors.editor, created[0].id, created[0].lock_version);
+      const retained = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: saved.lock_version, document });
+      await rejectCode(() => sceneService.createOrganizationScene(actors.editor, f.organizations.team, { name: "Archived media reuse", document }), "ARCHIVED");
+      const cleared = await sceneService.saveScene(actors.editor, scene.id, { expectedLockVersion: retained.lock_version, document: textDocument });
+      assert.deepEqual(cleared.referenced_resources, []);
+      assert.equal((await db.selectFrom("scene_asset_ref").select("asset_id").where("scene_id", "=", scene.id).execute()).length, 0);
+    });
+
     await check("T08 an archive committed while a new Scene reference waits on the asset row refuses that reference", async () => {
       const asset = await assetService.createAssetInOrganization(actors.maintainer, f.organizations.team, {
         name: "archive race model", fileType: "model", payload: { kind: "model" },

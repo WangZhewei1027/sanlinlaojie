@@ -6,7 +6,7 @@ import type { KeySelection } from './timeline-keys';
 
 /** Shared view state of one timeline: scale, playhead, selection and edit callbacks. */
 export interface TimelineView {
-  span: number; end: number; time: number; steps: GridSteps; disabled: boolean;
+  span: number; end: number; time: number; steps: GridSteps; disabled: boolean; compact: boolean;
   text(zh: string, en: string): string;
   pct(time: number): string;
   /** Lane time under the pointer, snapped to the grid unless Alt/Option is held. */

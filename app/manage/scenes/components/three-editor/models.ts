@@ -1,13 +1,15 @@
-import { AnimationMixer, Box3, Group, LoopOnce, type AnimationAction, type AnimationClip, type Object3D } from 'three';
+import { AnimationMixer, Box3, Group, LoopOnce, Mesh, type AnimationAction, type AnimationClip, type Material, type Object3D } from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { applyTransform, clipTime } from '@spatial-memory/scene-core';
+import { applyTransform, clipTime, samplePresentation } from '@spatial-memory/scene-core';
 import type { Editor } from '@/vendor/three-editor';
 import type { CompositionGroup, CompositionInstance } from '@/lib/scene/protocol';
 import { ModelPool, disposeModel } from './model-pool';
 import { registerInstance } from './transform-bridge';
 import type { ThreeViewportProps } from './types';
+import { resourceSurface, textSurface, type SceneSurface } from './surfaces';
 
-type Entry = { instance: CompositionInstance; url: string; release(): void; stop?: () => void; root?: Group; model?: Object3D; clips?: AnimationClip[]; mixer?: AnimationMixer; action?: AnimationAction; clip?: AnimationClip; animationKey?: string };
+type OpacityMaterial = { material: Material; opacity: number; transparent: boolean; depthWrite: boolean };
+type Entry = { instance: CompositionInstance; url: string; signature: string; release(): void; stop?: () => void; root?: Group; model?: Object3D; surface?: SceneSurface; materials?: OpacityMaterial[]; clips?: AnimationClip[]; mixer?: AnimationMixer; action?: AnimationAction; clip?: AnimationClip; animationKey?: string };
 /**
  * Imported models often carry an offset pivot (e.g. Sketchfab/FBX exports). Wrap the model so its
  * bounding box's bottom-center sits on the instance origin, outside what the AnimationMixer drives.
@@ -51,39 +53,71 @@ export class EditorModels {
     if (object.parent === target) return;
     target.add(object); this.editor.signals.sceneGraphChanged.dispatch();
   }
+  private signature(instance: CompositionInstance) {
+    if (instance.text) return JSON.stringify(instance.text);
+    return `${this.props().resolveResource?.(instance)?.kind ?? 'model'}:${this.props().resolveUrl(instance) ?? ''}`;
+  }
+  private mounted(entry: Entry, object: Object3D, materials: Material[], announce = true) {
+    const root = entry.root = new Group();
+    root.name = entry.instance.id; registerInstance(root, entry.instance.id); root.add(object);
+    entry.materials = materials.map(material => ({ material, opacity: material.opacity, transparent: material.transparent, depthWrite: material.depthWrite }));
+    if (!this.props().session.sample(entry.instance.id)) { this.remove(entry.instance.id); return; }
+    entry.stop = this.props().session.observe(entry.instance.id, value => {
+      if (!this.dragging(entry.instance.id)) { applyTransform(root, value); if (this.editor.selected === root) this.editor.signals.objectChanged.dispatch(root); }
+    });
+    this.editor.addObject(root); this.attach(root, entry.instance.parent);
+    this.animation(entry); this.frame(); if (announce) this.ready();
+  }
+  private failed(entry: Entry, blocked = false) {
+    if (this.entries.get(entry.instance.id) !== entry) return;
+    const zh = this.props().language?.startsWith('zh');
+    const name = entry.instance.name || this.props().resolveResource?.(entry.instance)?.name || entry.instance.id;
+    this.props().onError(blocked
+      ? (zh ? '浏览器阻止了媒体播放，请暂停后再次点击播放。' : 'The browser blocked media playback. Pause and press Play again.')
+      : (zh ? `无法加载或播放「${name}」，请检查素材文件与浏览器支持的格式。` : `Could not load or play “${name}”. Check the source file and browser format support.`));
+  }
   sync() {
     const props = this.props();
+    const replaced = new Set<string>();
     this.syncGroups();
     for (const [id, entry] of this.entries) {
       const current = props.instances.find(item => item.id === id);
-      if (!current || props.resolveUrl(current) !== entry.url) this.remove(id);
+      if (!current || this.signature(current) !== entry.signature) {
+        if (current) replaced.add(id);
+        this.remove(id, !!current);
+      }
     }
     for (const instance of props.instances) {
       const url = props.resolveUrl(instance);
-      if (!url) continue;
+      if (!url && !instance.text) continue;
       const existing = this.entries.get(instance.id);
-      if (existing) { existing.instance = instance; this.animation(existing); continue; }
-      const handle = this.pool.acquire(url);
-      const entry: Entry = { instance, url, release: handle.release };
+      if (existing) { existing.instance = instance; if (existing.root) this.attach(existing.root, instance.parent); this.animation(existing); continue; }
+      const kind = props.resolveResource?.(instance)?.kind ?? 'model';
+      const entry: Entry = { instance, url: url ?? '', signature: this.signature(instance), release() {} };
       this.entries.set(instance.id, entry);
+      if (instance.text || kind !== 'model') {
+        try {
+          const created = entry.surface = instance.text ? textSurface(instance.text) : resourceSurface(kind as Exclude<typeof kind, 'model'>, url!, blocked => this.failed(entry, blocked));
+          this.mounted(entry, created.object, created.materials, !replaced.has(instance.id));
+        } catch { this.failed(entry); }
+        continue;
+      }
+      const handle = this.pool.acquire(url!); entry.release = handle.release;
       void handle.ready.then(gltf => {
         if (this.entries.get(instance.id) !== entry) return;
-        const root = entry.root = new Group();
-        root.name = instance.id; registerInstance(root, instance.id);
         const model = entry.model = clone(gltf.scene); entry.clips = gltf.animations;
-        root.add(groundPivot(model));
-        const object = this.props().session.sample(instance.id);
-        if (!object) { this.remove(instance.id); return; }
-        entry.stop = this.props().session.observe(instance.id, value => { if (!this.dragging(instance.id)) { applyTransform(root, value); if (this.editor.selected === root) this.editor.signals.objectChanged.dispatch(root); } });
-        this.editor.addObject(root); this.attach(root, entry.instance.parent);
-        this.animation(entry);
+        // Fades belong to an instance. Geometries/textures stay pooled, materials do not.
+        const materials = new Map<Material, Material>();
+        const independent = (source: Material) => { let result = materials.get(source); if (!result) { result = source.clone(); materials.set(source, result); } return result; };
+        model.traverse(node => { if (node instanceof Mesh) node.material = Array.isArray(node.material) ? node.material.map(independent) : independent(node.material); });
+        this.mounted(entry, groundPivot(model), [...materials.values()]);
         this.props().onClips(instance.id, gltf.animations.map(clip => ({ name: clip.name, duration: clip.duration })));
-        this.ready();
-      }).catch(error => {
+      }).catch(() => {
         if (this.entries.get(instance.id) !== entry) return;
-        entry.release(); this.props().onError(`模型加载失败：${error instanceof Error ? error.message : String(error)}`);
+        entry.release(); this.failed(entry);
       });
     }
+    this.frame();
   }
   private animation(entry: Entry) {
     if (!entry.model) return;
@@ -100,16 +134,31 @@ export class EditorModels {
     action.setLoop(LoopOnce, 1); action.clampWhenFinished = true; action.play();
   }
   frame() {
-    for (const entry of this.entries.values()) if (entry.action && entry.mixer && entry.clip && entry.instance.animation) {
-      entry.action.time = clipTime(this.props().session.time, entry.instance.animation, entry.clip.duration);
-      entry.mixer.update(0);
+    const props = this.props(), { session } = props;
+    for (const entry of this.entries.values()) {
+      const presentation = samplePresentation(entry.instance, session.time, session.duration);
+      const ghost = !props.preview && !session.playing && props.selectedId === entry.instance.id && (!presentation.visible || presentation.opacity === 0);
+      if (entry.root) entry.root.visible = (presentation.visible || ghost) && !(props.preview && entry.surface?.audioMarker);
+      const opacity = ghost ? 0.2 : presentation.opacity;
+      for (const original of entry.materials ?? []) {
+        const transparent = original.transparent || opacity < 1;
+        if (original.material.transparent !== transparent) { original.material.transparent = transparent; original.material.needsUpdate = true; }
+        original.material.opacity = original.opacity * opacity;
+        original.material.depthWrite = original.depthWrite && opacity === 1;
+      }
+      entry.surface?.media?.sync(entry.instance, session.time, session.playing, session.duration);
+      if (entry.action && entry.mixer && entry.clip && entry.instance.animation) {
+        entry.action.time = clipTime(session.time, entry.instance.animation, entry.clip.duration);
+        entry.mixer.update(0);
+      }
     }
   }
-  remove(id: string) {
+  remove(id: string, preserveSelection = false) {
     const entry = this.entries.get(id); if (!entry) return;
     this.entries.delete(id); entry.stop?.();
-    if (entry.model) { entry.mixer?.stopAllAction(); entry.mixer?.uncacheRoot(entry.model); disposeModel(entry.model); }
-    if (entry.root) { if (this.editor.selected === entry.root) this.editor.select(null); this.editor.removeObject(entry.root); }
+    if (entry.model) { entry.mixer?.stopAllAction(); entry.mixer?.uncacheRoot(entry.model); disposeModel(entry.model); entry.materials?.forEach(({ material }) => material.dispose()); }
+    if (entry.root) { if (!preserveSelection && this.editor.selected === entry.root) this.editor.select(null); this.editor.removeObject(entry.root); }
+    entry.surface?.dispose();
     entry.release();
     // Upstream removeObject keeps its geometry registry; rebuild it from live models.
     this.editor.geometries = {};

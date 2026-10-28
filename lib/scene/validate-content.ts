@@ -11,11 +11,12 @@ import {
   requireNumberTuple,
   requireObject,
 } from "./validate-utils";
+import { validatePresentation } from "./validate-presentation";
 
 // Pure structure validation. Asset references are checked by service.server.ts;
 // clip existence is checked by the player against the loaded model.
 
-const INSTANCE_KEYS = ["id", "asset", "name", "parent", "position", "rotation", "scale", "animation", "tracks"];
+const INSTANCE_KEYS = ["id", "asset", "text", "timing", "media", "name", "parent", "position", "rotation", "scale", "animation", "tracks"];
 const GROUP_KEYS = ["id", "name", "parent", "position", "rotation", "scale", "tracks"];
 const ANIMATION_KEYS = ["clipIndex", "clipName", "startSeconds", "loop"];
 
@@ -61,7 +62,7 @@ function validateAnimation(
 export function validateCompositionContent(
   issues: IssueList,
   content: Record<string, unknown>,
-  options: { groups: boolean } = { groups: true },
+  options: { groups: boolean; presentation?: boolean } = { groups: true, presentation: true },
 ): void {
   rejectUnknownKeys(issues, "content", content, [
     "kind",
@@ -216,9 +217,11 @@ export function validateCompositionContent(
     nodeId(path, inst.id);
     if (inst.name !== undefined) nodeName(path, inst.name);
     checkParent(path, inst.parent);
-    if (typeof inst.asset !== "string" || !aliasToAssetId.has(inst.asset)) {
+    if (inst.text === undefined && (typeof inst.asset !== "string" || !aliasToAssetId.has(inst.asset))) {
       issues.error(`${path}.asset`, "引用的资源别名不存在");
     }
+    validatePresentation(issues, path, inst, options.presentation === true);
+    if (inst.timing !== undefined || inst.media !== undefined) anyAnimation = true;
     transform(path, inst);
     if (inst.animation === null) return;
     if (inst.animation === undefined) {

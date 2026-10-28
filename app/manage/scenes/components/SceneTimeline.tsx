@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@/components/ui/typography';
 import type { CompositionContent } from '@/lib/scene/protocol';
 import { findNode, isGroup, trackRows, type SceneNode } from '@/lib/scene/hierarchy-authoring';
 import { roundTime, type TransformGroup } from '@/lib/scene/transform-authoring';
+import { MODEL_DRAG_TYPE } from '@/lib/scene/editor-interactions';
 import { SceneTimelineRuler } from './SceneTimelineRuler';
 import { SceneTimelineToolbar } from './SceneTimelineToolbar';
 import { SceneTrack } from './SceneTrack';
@@ -12,11 +13,12 @@ import type { DropPlace } from './SceneTrackHeader';
 import { unkeyAll } from './SceneKeyLane';
 import { interpolationOf, setInterpolation, type KeySelection } from './timeline-keys';
 import { TimelineContext, type TimelineView } from './timeline-context';
-import { gridSteps, snapTime, TIMELINE_LABEL_WIDTH, TIMELINE_LEAD } from './timeline-scale';
+import { gridSteps, snapTime, TIMELINE_LEAD } from './timeline-scale';
 import { useTimelineHeight } from './useTimelineHeight';
 import { useTimelineView } from './useTimelineView';
 import type { SceneTrackActions } from './useSceneTracks';
 import type { ClipInfo } from './types';
+import { instanceRegion, regionTime, type SceneTrackKind } from './scene-region';
 
 export interface SceneTimelineProps {
   content: Pick<CompositionContent, 'instances' | 'groups' | 'assets'>; clips: Record<string, ClipInfo[] | undefined>;
@@ -24,6 +26,9 @@ export interface SceneTimelineProps {
   time: number; duration: number; loop: boolean; playing: boolean; readOnly: boolean;
   onSeek(time: number): void; onPlay(): void; onDuration(time: number): void; onLoop(loop: boolean): void;
   tracks: SceneTrackActions;
+  kindOf?(node: SceneNode): SceneTrackKind;
+  /** The library registers the asset before dragging; timeline insertion uses the same resource lookup. */
+  onAddAsset?(assetId: string, startSeconds: number): void;
 }
 const toggle = <T,>(set: ReadonlySet<T>, value: T) => { const next = new Set(set); if (!next.delete(value)) next.add(value); return next; };
 
@@ -37,13 +42,15 @@ export function SceneTimeline(p: SceneTimelineProps) {
   const [selectedKey, selectKey] = useState<KeySelection | null>(null);
   const [endDraft, setEndDraft] = useState<number | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTime, setDropTime] = useState<number | null>(null);
   const height = useTimelineHeight();
   const disabled = p.readOnly || p.playing, end = endDraft ?? p.duration;
   const rows = useMemo(() => trackRows(p.content), [p.content]);
   const visible = rows.filter(row => { for (let at = row.node.parent; at; at = findNode(p.content, at)?.parent) if (collapsed.has(at)) return false; return true; });
   const lastKey = Math.max(0, ...rows.flatMap(row => Object.values(row.node.tracks ?? {}).map(frames => frames?.at(-1)?.time ?? 0)));
-  const { scroller, span, laneWidth, zoom, canZoomIn, zoomBy, fit } = useTimelineView(Math.max(end, lastKey), p.time, p.playing);
-  const steps = gridSteps(laneWidth / span), x = (time: number) => time / span * laneWidth, left = (time: number) => TIMELINE_LABEL_WIDTH + TIMELINE_LEAD + x(time);
+  const lastRegion = Math.max(0, ...p.content.instances.map(instance => instanceRegion(instance, end).end));
+  const { scroller, span, laneWidth, labelWidth, compact, zoom, canZoomIn, zoomBy, fit } = useTimelineView(Math.max(end, lastKey, lastRegion), p.time, p.playing);
+  const steps = gridSteps(laneWidth / span), x = (time: number) => time / span * laneWidth, left = (time: number) => labelWidth + TIMELINE_LEAD + x(time);
   const keyNode = selectedKey ? findNode(p.content, selectedKey.nodeId) : undefined;
   const primary = p.selectedIds.at(-1), primaryNode = primary ? findNode(p.content, primary) : undefined;
   const shortcuts = useRef({ automation: () => {}, group: () => {}, ungroup: () => {} });
@@ -64,8 +71,22 @@ export function SceneTimeline(p: SceneTimelineProps) {
     return () => window.removeEventListener('keydown', keydown);
   }, []);
 
+  useEffect(() => {
+    const clear = () => { setDropTime(null); setDragId(null); };
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
+
+  const assetTime = (event: DragEvent): number | null => {
+    if (disabled || !p.onAddAsset || !event.dataTransfer.types.includes(MODEL_DRAG_TYPE) || !scroller.current) return null;
+    const rect = scroller.current.getBoundingClientRect();
+    if (event.clientX < rect.left + labelWidth) return null;
+    const at = (event.clientX - rect.left + scroller.current.scrollLeft - labelWidth - TIMELINE_LEAD) / laneWidth * span;
+    return Math.max(0, Math.min(Math.max(0, p.duration - .001), event.altKey ? roundTime(at) : snapTime(at, steps.minor)));
+  };
+
   const view: TimelineView = {
-    span, end, time: p.time, steps, disabled, text, selectedKey, selectKey, onSeek: p.onSeek, onEditNode: p.tracks.edit,
+    span, end, time: p.time, steps, disabled, compact, text, selectedKey, selectKey, onSeek: p.onSeek, onEditNode: p.tracks.edit,
     pct: time => `${time / span * 100}%`,
     laneTime: (event, lane, max) => {
       const rect = lane.getBoundingClientRect(), raw = Math.max(0, Math.min(max, (event.clientX - rect.left) / rect.width * span));
@@ -86,8 +107,8 @@ export function SceneTimeline(p: SceneTimelineProps) {
     const siblings = rows.filter(row => row.node.parent === target.node.parent && row.id !== dragId);
     p.tracks.move(dragId, { parent: target.node.parent, before: siblings[siblings.indexOf(target) + 1]?.id });
   };
-  const gridStyle = { gridTemplateColumns: `${TIMELINE_LABEL_WIDTH}px ${laneWidth + TIMELINE_LEAD}px`, '--lead': `${TIMELINE_LEAD}px`, '--major': `${x(steps.major)}px`, '--minor': `${x(steps.minor)}px` } as CSSProperties;
-  return <section className="scene-timeline" style={{ height: height.value }} aria-label={text('时间轴', 'Timeline')}>
+  const gridStyle = { gridTemplateColumns: `${labelWidth}px ${laneWidth + TIMELINE_LEAD}px`, '--lead': `${TIMELINE_LEAD}px`, '--major': `${x(steps.major)}px`, '--minor': `${x(steps.minor)}px` } as CSSProperties;
+  return <section className="scene-timeline" data-compact={compact || undefined} style={{ height: height.value }} aria-label={text('时间轴', 'Timeline')}>
     <div className="scene-timeline-resizer" role="separator" aria-orientation="horizontal" aria-label={text('调整时间轴高度', 'Resize timeline')} tabIndex={0} {...height.handlers} />
     <SceneTimelineToolbar text={text} time={p.time} duration={p.duration} end={end} loop={p.loop} playing={p.playing} disabled={disabled}
       onSeek={p.onSeek} onPlay={p.onPlay} onLoop={p.onLoop} onDuration={p.onDuration}
@@ -96,7 +117,19 @@ export function SceneTimeline(p: SceneTimelineProps) {
       onDeleteKey={() => { if (selectedKey) p.tracks.edit(selectedKey.nodeId, node => unkeyAll(node, selectedKey.channels, selectedKey.time)); selectKey(null); }}
       canGroup={p.selectedIds.length > 0} canUngroup={!!primaryNode && isGroup(primaryNode)} onGroup={p.tracks.group} onUngroup={() => primary && p.tracks.ungroup(primary)}
       zoom={zoom} canZoomIn={canZoomIn} onZoom={zoomBy} onFit={fit} />
-    <div className="scene-timeline-body">
+    <div className="scene-timeline-body" data-asset-drop={dropTime !== null || undefined}
+      onDragOver={event => {
+        if (!event.dataTransfer.types.includes(MODEL_DRAG_TYPE)) return;
+        event.preventDefault();
+        const time = assetTime(event); event.dataTransfer.dropEffect = time === null ? 'none' : 'copy'; setDropTime(time);
+      }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTime(null); }}
+      onDrop={event => {
+        if (!event.dataTransfer.types.includes(MODEL_DRAG_TYPE)) return;
+        event.preventDefault(); event.stopPropagation(); setDropTime(null);
+        const time = assetTime(event), id = event.dataTransfer.getData(MODEL_DRAG_TYPE);
+        if (time !== null && id) p.onAddAsset?.(id, time);
+      }}>
       <div className="scene-timeline-scroll" ref={scroller}>
         <TimelineContext.Provider value={view}>
           <div className="scene-timeline-grid" style={gridStyle}>
@@ -104,8 +137,9 @@ export function SceneTimeline(p: SceneTimelineProps) {
             <SceneTimelineRuler span={span} end={end} time={p.time} loop={p.loop} steps={steps} canResize={!disabled} text={text} onSeek={p.onSeek}
               onEnd={(time, commit) => { if (time !== null) return setEndDraft(time); if (commit && endDraft !== null && endDraft !== p.duration) p.onDuration(endDraft); setEndDraft(null); }} onDuration={p.onDuration} />
             {visible.length > 0 && <><i className="scene-timeline-outside" style={{ left: left(end) }} /><i className="scene-end-line" style={{ left: left(end) }} /><i className="scene-playhead" style={{ left: left(p.time) }} /></>}
+            {dropTime !== null && <div className="scene-timeline-drop-hint" style={{ left: left(dropTime) }} role="status"><span>{text('添加于', 'Add at')} {regionTime(dropTime)}</span></div>}
             {visible.map(row => <SceneTrack key={row.id} row={row} name={p.nameOf(row.node)} clips={p.clips[row.id]} selected={p.selectedIds.includes(row.id)}
-              collapsed={collapsed.has(row.id)} automation={automation.has(row.id)} draggable={!p.readOnly}
+              kind={p.kindOf?.(row.node)} collapsed={collapsed.has(row.id)} automation={automation.has(row.id)} draggable={!disabled}
               expandedParams={new Set((['position', 'rotation', 'scale'] as TransformGroup[]).filter(group => params.has(`${row.id}:${group}`)))}
               onParam={group => setParams(current => toggle(current, `${row.id}:${group}`))}
               onSelect={event => select(event, row.id)} onStack={() => setCollapsed(current => toggle(current, row.id))}
@@ -115,7 +149,7 @@ export function SceneTimeline(p: SceneTimelineProps) {
           </div>
         </TimelineContext.Provider>
       </div>
-      {!rows.length && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('从素材库添加模型，每个模型会成为这里的一条轨道。', 'Add models from the library; each one becomes a track here.')}</Text></div>}
+      {!rows.length && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('从团队素材库拖入模型、图片、音频或视频，也可以添加空间文字。', 'Drag models, images, audio or video from the team library, or add spatial text.')}</Text></div>}
     </div>
   </section>;
 }

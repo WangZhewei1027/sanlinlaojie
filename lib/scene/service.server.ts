@@ -42,7 +42,7 @@ import {
 } from "@/lib/content-model/tx.server";
 import { db, sql } from "@/lib/db";
 import "server-only";
-import { clipIssues } from "./compile";
+import { clipIssues, resourceKindIssues } from "./compile";
 import { createBlankSceneDocument, type SceneDocument } from "./protocol";
 import { validateSceneDocument } from "./validate";
 
@@ -109,14 +109,18 @@ async function syncSceneRefs(trx: Trx, actor: Actor, scene: { id: string; organi
   const assets = await loadAssetContents(trx, assetIds);
   const issues: { path: string; message: string }[] = [];
   const animations: Record<string, ModelAnimationInfo[] | undefined> = {};
+  const kinds: Record<string, string> = {};
   for (const [alias, ref] of entries) {
     const asset = assets.get(ref.assetId.toLowerCase());
     const path = `content.assets.${alias}`;
     if (!asset || asset.organization_id !== scene.organization_id) issues.push({ path, message: "素材不存在" });
-    else if (asset.file_type !== "model") issues.push({ path, message: "场景目前只支持模型素材" });
-    else if (!primaryResource(asset)) issues.push({ path, message: "素材缺少模型文件" });
-    else animations[alias] = animationsOf(asset.payload);
+    else {
+      kinds[alias] = asset.file_type;
+      if (!primaryResource(asset)) issues.push({ path, message: "素材缺少可播放文件" });
+      if (asset.file_type === "model") animations[alias] = animationsOf(asset.payload);
+    }
   }
+  issues.push(...resourceKindIssues(document, kinds));
   issues.push(...clipIssues(document, animations));
   if (issues.length) throw invalid("场景引用校验失败", issues);
   await trx.deleteFrom("scene_asset_ref").where("scene_id", "=", scene.id).execute();

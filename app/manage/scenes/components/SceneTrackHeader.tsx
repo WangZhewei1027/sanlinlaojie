@@ -1,14 +1,16 @@
 "use client";
 import { useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
-import { Box, ChevronRight, Folder, FolderOpen, Spline } from 'lucide-react';
+import { Box, ChevronRight, Film, Folder, FolderOpen, ImageIcon, Music2, Spline, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { TrackRow } from '@/lib/scene/hierarchy-authoring';
 import { useTimeline } from './timeline-context';
+import type { SceneTrackKind } from './scene-region';
+import { MODEL_DRAG_TYPE } from '@/lib/scene/editor-interactions';
 
 export type DropPlace = 'before' | 'after' | 'inside';
 export interface SceneTrackHeaderProps {
-  row: TrackRow; name: string; selected: boolean; collapsed: boolean; automation: boolean; draggable: boolean;
+  row: TrackRow; name: string; kind?: SceneTrackKind; selected: boolean; collapsed: boolean; automation: boolean; draggable: boolean;
   onSelect(event: MouseEvent): void; onStack(): void; onAutomation(): void; onRename(name: string): void;
   onDragStart(): void; onDrop(place: DropPlace): void; onDelete(): void;
 }
@@ -25,7 +27,7 @@ export function SceneTrackHeader(p: SceneTrackHeaderProps) {
   const cancelled = useRef(false);
   const [drop, setDrop] = useState<DropPlace | null>(null);
   const group = p.row.kind === 'group';
-  const Icon = group ? (p.collapsed ? Folder : FolderOpen) : Box;
+  const Icon = group ? (p.collapsed ? Folder : FolderOpen) : { model: Box, image: ImageIcon, audio: Music2, video: Film, text: Type, group: Folder }[p.kind ?? 'model'];
   const finish = (value: string | null) => {
     if (cancelled.current) return;
     cancelled.current = value === null; setEditing(false);
@@ -42,9 +44,9 @@ export function SceneTrackHeader(p: SceneTrackHeaderProps) {
       if ((e.key === 'Delete' || e.key === 'Backspace') && p.draggable) { e.preventDefault(); p.onDelete(); }
     }}
     onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.row.id); p.onDragStart(); }}
-    onDragOver={e => { if (!p.draggable) return; e.preventDefault(); setDrop(placeAt(e, group)); }}
+    onDragOver={e => { if (!p.draggable || e.dataTransfer.types.includes(MODEL_DRAG_TYPE)) return; e.preventDefault(); setDrop(placeAt(e, group)); }}
     onDragLeave={() => setDrop(null)}
-    onDrop={e => { e.preventDefault(); setDrop(null); if (p.draggable) p.onDrop(placeAt(e, group)); }}>
+    onDrop={e => { if (e.dataTransfer.types.includes(MODEL_DRAG_TYPE)) return; e.preventDefault(); e.stopPropagation(); setDrop(null); if (p.draggable) p.onDrop(placeAt(e, group)); }}>
     {group ? <button type="button" className="scene-stack-toggle" aria-expanded={!p.collapsed} onClick={e => { e.stopPropagation(); p.onStack(); }}
       aria-label={view.text(p.collapsed ? '展开分组' : '收起分组', p.collapsed ? 'Expand group' : 'Collapse group')}><ChevronRight aria-hidden="true" /></button> : <span className="scene-stack-spacer" />}
     <Icon className="scene-track-icon" aria-hidden="true" />

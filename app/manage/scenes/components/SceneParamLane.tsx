@@ -41,11 +41,11 @@ export function SceneParamLane({ node, group, depth, label, expanded, onExpand }
           aria-label={view.text(`${expanded ? '收起' : '展开'}${label}的 X/Y/Z`, `${expanded ? 'Collapse' : 'Expand'} ${label} axes`)}>
           <ChevronRight aria-hidden="true" /><span className="truncate">{label}</span>{unit && <span className="text-muted-foreground">{unit}</span>}
         </button>
-        <div className="scene-param-fields">
+        {!view.compact && <div className="scene-param-fields">
           {(['x', 'y', 'z'] as const).map(axis => <SceneNumberField key={axis} label={`${label} ${axis.toUpperCase()}`} value={values[axis] * factor}
             min={group === 'scale' ? .001 : -100 * factor} max={100 * factor} step={group === 'rotation' ? 1 : .1} disabled={view.disabled}
             onCommit={n => view.onEditNode(node.id, current => editChannel(current, `${group}.${axis}`, view.time, n / factor))} />)}
-        </div>
+        </div>}
         <KeyToggle node={node} channels={channelsOf(group)} label={label} />
       </div>
       <SceneKeyLane node={node} channels={channelsOf(group)} label={label} />

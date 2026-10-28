@@ -428,7 +428,7 @@ export interface AssetUsageDto {
 
 // ───────────────────────── scenes ─────────────────────────
 
-/** Internal schema 4: each alias references an asset identity. */
+/** Scene document asset alias: each reference names one team asset identity. */
 export interface AssetRef {
   assetId: string;
 }
@@ -463,12 +463,12 @@ export interface SceneResolvedResourceDto {
 
 /** GET /api/scenes/[id] → { data: SceneDetailDto } */
 export interface SceneDetailDto extends SceneSummaryDto {
-  /** schemaVersion 5 document (see lib/scene/protocol.ts SceneDocument). */
+  /** schemaVersion 6 document (see lib/scene/protocol.ts SceneDocument). */
   document: SceneDocumentJson;
   referenced_resources: SceneResolvedResourceDto[];
 }
 
-/** Structural JSON shape of schemaVersion 5; validated server-side. */
+/** Structural JSON shape of schemaVersion 6; validated server-side. */
 export interface SceneDocumentJson {
   schemaVersion: 6;
   content: {

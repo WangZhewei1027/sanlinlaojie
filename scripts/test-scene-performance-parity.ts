@@ -1,0 +1,171 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import { Box3, type Material, type Mesh, type Object3D } from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createSceneCore } from '@spatial-memory/scene-core';
+import type { CompositionContent, CompositionInstance, SceneAssetManifest } from '../lib/scene/protocol';
+import { Editor } from '../vendor/three-editor';
+import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
+import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
+import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
+import type { SceneResource } from '../app/manage/scenes/components/types';
+import { performanceHosts, settleMedia } from './test-support/performance-hosts';
+
+const require = createRequire(import.meta.url), miniRoot = resolve('../xr-frame-plant-trees/miniprogram');
+const { createFixtureGLB } = require(`${miniRoot}/labs/xr-three/runtime`);
+const { THREE } = require(`${miniRoot}/lib/three-runtime/runtime`);
+const { ModelCache } = require(`${miniRoot}/lib/three-runtime/resources`);
+const { createCompositionPlayer } = require(`${miniRoot}/lib/scene-runtime/composition`);
+
+const resources: Record<string, SceneResource> = Object.fromEntries(['model', 'image', 'video', 'audio', 'muted', 'fast', 'slow'].map((alias, index) => [alias, {
+  assetId: `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`, assetLockVersion: 1, assetState: 'active', name: alias,
+  kind: ['muted', 'fast', 'slow'].includes(alias) ? 'audio' : alias as SceneResource['kind'], url: `https://fixture.example/${alias}.${alias === 'model' ? 'glb' : alias === 'video' ? 'mp4' : alias === 'image' ? 'png' : 'wav'}`,
+}]));
+function definition(loop: boolean): CompositionContent {
+  const base = (id: string): CompositionInstance => ({ id, asset: id, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null });
+  const timing = (startSeconds: number, endSeconds: number, fadeInSeconds = 0, fadeOutSeconds = 0) => ({ startSeconds, endSeconds, fadeInSeconds, fadeOutSeconds });
+  const media = (trimStartSeconds: number, trimEndSeconds: number, playbackRate: number, volume: number, loop: boolean, muted = false) => ({ trimStartSeconds, trimEndSeconds, playbackRate, volume, loop, muted });
+  const text: CompositionInstance = { ...base('text'), asset: undefined, parent: 'stage', position: [0, 2, 0],
+    text: { content: '光影之间\nA story unfolds', fontSize: .25, width: 2, color: '#224466', backgroundColor: '#ffffff', align: 'left' }, timing: timing(1, 9, 1, 2) };
+  return { kind: 'composition', units: 'meters', durationSeconds: 12, loop,
+    assets: Object.fromEntries(Object.entries(resources).map(([alias, resource]) => [alias, { assetId: resource.assetId }])),
+    groups: [{ id: 'stage', name: 'Stage', position: [1, 0, -1], rotation: [0, .3, 0], scale: [1, 1.2, 1], tracks: { 'position.x': [{ time: 0, value: 1, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true }, { time: 12, value: 3, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true }] } }],
+    instances: [text,
+      { ...base('image'), parent: 'stage', position: [-2, 0, 0], timing: timing(0, 10, 0, 2) },
+      { ...base('video'), parent: 'stage', position: [2, 0, 0], timing: timing(2, 11, 1, 1), media: media(3, 7, 2, .7, true) },
+      { ...base('audio'), timing: timing(1, 9, 2, 2), media: media(2, 4, .5, .8, false) },
+      { ...base('muted'), timing: timing(0, 12), media: media(.5, 3, 1.5, .6, true, true) },
+      { ...base('fast'), timing: timing(1, 10, .5, 1), media: media(1, 9, 4, .4, true) },
+      { ...base('slow'), timing: timing(0, 12, 2, 2), media: media(2, 6, .1, .3, false) },
+      { ...base('model'), position: [0, 0, -2], timing: timing(2, 8, 2, 2), animation: { clipIndex: 0, startSeconds: 1, loop: true } },
+      { ...base('modelReference'), asset: 'model', position: [0, 0, 2] },
+    ],
+  };
+}
+
+let comparisons = 0, samples = 0, maximumExactError = 0, maximumMediaDrift = 0;
+function near(a: number, b: number, label: string, tolerance = 1e-7) {
+  const error = Math.abs(a - b); comparisons++;
+  if (tolerance <= 1e-6) maximumExactError = Math.max(maximumExactError, error);
+  else maximumMediaDrift = Math.max(maximumMediaDrift, error);
+  assert.ok(Number.isFinite(a) && Number.isFinite(b) && error <= tolerance, `${label}: ${a} != ${b}`);
+}
+function materials(object: Object3D) {
+  const result: Material[] = [];
+  object.traverse(node => { const material = (node as Mesh).material; if (material) for (const item of Array.isArray(material) ? material : [material]) if (!result.includes(item)) result.push(item); });
+  return result;
+}
+
+async function main() {
+  for (const loop of [false, true]) {
+    const hosts = performanceHosts();
+    const content = definition(loop), bytes = createFixtureGLB();
+    const webGLB = await new GLTFLoader().parseAsync(bytes.slice(0), '');
+    const miniGLB = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(bytes.slice(0), '', resolve, reject));
+    const cache = new ModelCache(hosts.canvas, 8, async () => miniGLB);
+    const manifest: SceneAssetManifest = { schemaVersion: 7, assetId: 'parity', content: structuredClone(content), resources: Object.fromEntries(Object.entries(resources).map(([alias, resource]) => [alias, { assetId: resource.assetId, url: resource.url!, kind: resource.kind }])) };
+    const player = createCompositionPlayer(manifest, { modelCache: cache, canvas: hosts.canvas });
+    const session = createSceneCore({ content });
+    const editor = new Editor({ config: { getKey: () => 'en', setKey() {} }, history: { clear() {}, execute() {} } });
+    const errors: string[] = [];
+    const props: ThreeViewportProps = { session, instances: content.instances, groups: content.groups, resolveUrl: instance => instance.asset ? resources[instance.asset]?.url : undefined,
+      resolveResource: instance => instance.asset ? resources[instance.asset] : undefined, onClips() {}, onSelect() {}, onTransform() {}, onError(message) { errors.push(message); },
+      fitRef: { current: null }, placementRef: { current: null }, toolsRef: { current: null }, selectedId: null, grid: false, editable: false, preview: true, language: 'en' };
+    let readyCount = 0, ready!: () => void; const loaded = new Promise<void>(resolve => { ready = resolve; });
+    const models = new EditorModels(editor, () => props, () => false, () => { if (++readyCount === content.instances.length) ready(); }, new ModelPool(async () => webGLB));
+    try {
+      models.sync(); await Promise.all([loaded, player.load()]); await settleMedia();
+      assert.equal(player.state, 'ready', JSON.stringify(player.diagnostics));
+      assert.deepEqual(errors, []);
+      assert.equal(player.instances.length, content.instances.length);
+      assert.equal(hosts.browserCanvases.length, 1); assert.equal(hosts.miniCanvases.length, 1);
+      assert.deepEqual(hosts.miniCanvases[0].draws, hosts.browserCanvases[0].draws, 'same canvas metrics must produce identical text layout, alignment and colors');
+      const nativeText = player.instances.find((entry: { id: string }) => entry.id === 'text').surface.materials[0].map.image;
+      assert.equal(hosts.browserCanvases[0].width, nativeText.width);
+      assert.equal(hosts.browserCanvases[0].height, nativeText.height);
+      const compare = async (label: string) => {
+        models.frame(); await settleMedia();
+        // Native decoding settles asynchronously; a paused evaluation must still upload its requested frame.
+        player.update(0); await settleMedia();
+        near(player.time, session.time, `${label} clock`); samples++;
+        for (const instance of content.instances) {
+          const web = models.entries.get(instance.id)!;
+          const mini = player.instances.find((entry: { id: string }) => entry.id === instance.id);
+          web.root!.updateWorldMatrix(true, true); mini.instanceRoot.updateWorldMatrix(true, true);
+          web.root!.matrixWorld.elements.forEach((value, index) => near(value, mini.instanceRoot.matrixWorld.elements[index], `${label} ${instance.id} world[${index}]`));
+          const kind = instance.text ? 'text' : resources[instance.asset!].kind;
+          if (kind !== 'audio') {
+            assert.equal(mini.instanceRoot.visible, web.root!.visible, `${label} ${instance.id} visibility`);
+            const webMaterials = materials(web.root!), miniMaterials = materials(mini.instanceRoot);
+            assert.equal(miniMaterials.length, webMaterials.length, `${instance.id} material count`);
+            webMaterials.forEach((material, index) => near(material.opacity, miniMaterials[index].opacity, `${label} ${instance.id} opacity`));
+            const webBounds = new Box3().setFromObject(web.root!), miniBounds = new Box3().setFromObject(mini.instanceRoot);
+            for (const corner of ['min', 'max'] as const) for (const axis of ['x', 'y', 'z'] as const) near(webBounds[corner][axis], miniBounds[corner][axis], `${label} ${instance.id} bounds ${corner}.${axis}`, 1e-6);
+          }
+        }
+        for (const media of hosts.browserMedia) {
+          const file = media.src.split('/').at(-1)!;
+          const instanceId = file.split('.')[0];
+          const surface = player.instances.find((entry: { id: string }) => entry.id === instanceId).surface;
+          const driftTolerance = session.playing ? .15 : .015;
+          if (surface.audio) near(surface.audio.sourceTime, media.currentTime, `${label} ${file} requested audio time`, driftTolerance);
+          if (surface.video) {
+            near(surface.video.sourceTime, media.currentTime, `${label} ${file} requested video time`, driftTolerance);
+            const decoder = hosts.decoders.find(decoder => decoder.source.endsWith(file))!;
+            near(decoder.currentTime, media.currentTime, `${label} ${file} decoded frame time`, 1 / 30);
+            assert.ok(surface.materials[0].map?.image.data.length > 0, 'decoded video pixels uploaded to the real native material');
+          }
+          const factor = media.playbackRate > 2 ? 2 : 1;
+          const nativeSources = hosts.audioContexts.flatMap(context => context.sources).filter(source => factor === 2 ? source.buffer?.duration === 10 : source.buffer?.source.endsWith(file));
+          const active = nativeSources.filter(source => source.started && !source.stopped);
+          assert.equal(active.length > 0, !media.paused, `${label} ${file} source playback`);
+          if (active.length) {
+            const source = active.at(-1)!;
+            near(source.position * factor, media.currentTime, `${label} ${file} physical audio position`, .15);
+            near(source.playbackRate.value * factor, media.playbackRate, `${label} ${file} effective playback rate`);
+            near(source.gain!.gain.value, media.muted ? 0 : media.volume, `${label} ${file} faded/muted gain`);
+          }
+        }
+        assert.deepEqual(errors, [], `${label} Web renderer errors`);
+        assert.notEqual(player.state, 'error', `${label} ${JSON.stringify(player.diagnostics)}`);
+      };
+      // Exact boundary seeks exercise entry-inclusive and exit-exclusive envelopes, trims and source loops.
+      for (const time of [0, .5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 8, 8.5, 9, 10, 10.5, 11, 12, 8.5, 3, 0]) {
+        session.pause(); session.seek(time); player.pause(); player.seek(time);
+        await compare(`paused seek ${time}`);
+        assert.ok(hosts.browserMedia.every(media => media.paused), 'seeking must not start browser audio');
+        assert.ok(hosts.audioContexts.every(context => context.sources.every(source => !source.started || source.stopped)), 'seeking must not start native audio');
+      }
+      session.seek(0); session.play(loop); player.restart(); await compare('restart');
+      for (const dt of [.5, .5, .5, .5, .5, .5, 1, 1, 2, 1, .5, .5, 1, .5, .5, 1, 4]) {
+        hosts.tick(dt); session.advance(dt); models.frame(); player.update(dt); await compare(`advance ${dt}`);
+      }
+      assert.equal(player.state, loop ? 'playing' : 'ended', 'scene transport follows end versus loop behavior');
+      session.seek(3); player.seek(3); session.play(loop); player.play(); await compare('resume after seek');
+      session.seek(3.25); session.play(loop); player.seek(3.25); await compare('seek during playback');
+      hosts.tick(.25); session.advance(.25); player.update(.25); await compare('advance after playing seek');
+      near(player.time, 3.5, 'playing seek preserves clock advancement');
+      session.pause(); player.pause(); const paused = session.time;
+      hosts.tick(2); session.advance(2); player.update(2); await compare('paused hold'); near(player.time, paused, 'pause clock');
+      assert.ok(hosts.browserMedia.every(media => media.paused));
+      assert.ok(hosts.audioContexts.every(context => context.sources.every(source => !source.started || source.stopped)));
+      session.play(loop); player.play(); await compare('resume');
+      // A late asynchronous native failure must silence/release the entire performance.
+      hosts.decoders[0].failNextSeek = true; player.seek(4); await settleMedia();
+      assert.equal(player.state, 'error', 'decoder failure transitions the real player to error');
+      assert.match(player.diagnostics.message, /Injected decoder seek failure/);
+      assert.equal(player.root.children.length, 0, 'runtime error detaches every instance');
+      assert.ok(hosts.decoders.every(decoder => decoder.removed));
+      assert.ok(hosts.audioContexts.every(context => context.closed && context.sources.every(source => source.stopped)), 'runtime error silences every track');
+      models.dispose(); session.dispose(); player.dispose(); cache.dispose(); await settleMedia();
+      assert.equal(editor.scene.children.length, 0); assert.equal(player.root.children.length, 0);
+      assert.ok(hosts.browserMedia.every(media => media.released && media.paused), 'Web media stopped and detached');
+      assert.ok(hosts.decoders.every(decoder => decoder.removed && !decoder.started), 'native decoders removed');
+      assert.ok(hosts.audioContexts.every(context => context.closed && context.sources.every(source => source.stopped)), 'native audio contexts and scheduled sources released');
+      assert.equal(hosts.files.size, 0, 'native temporary downloads released');
+    } finally { models.dispose(); session.dispose(); player.dispose(); cache.dispose(); hosts.restore(); }
+  }
+  console.log(JSON.stringify({ result: 'PASS', samples, comparisons, maximumExactError, maximumMediaDrift, coverage: 'actual Web EditorModels vs mini CompositionPlayer; schema7 images/video/audio/scene text, text layout, group transforms and planar bounds, GLB fade isolation, visibility/fades, source trims/.1–4 rates/loop/volume/mute, decoded video frame targets, forward/reverse/playing seeks/play/pause/resume/restart/end, asynchronous decoder errors and disposal' }));
+}
+main().then(() => process.exit(0), error => { console.error(error); process.exit(1); });

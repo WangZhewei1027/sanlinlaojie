@@ -10,6 +10,10 @@ export function sampleInstance(instance: Instance, time: number): TransformValue
 export function sampleTrack(frames: Keyframe[] | undefined, time: number, fallback: number): number;
 export function applyTransform(root: TransformRoot, values: TransformValues): void;
 export function clipTime(time: number, animation: { startSeconds: number; loop: boolean }, duration: number): number;
+export type PresentationTiming = { startSeconds: number; endSeconds: number | null; fadeInSeconds: number; fadeOutSeconds: number };
+export type MediaSettings = { trimStartSeconds: number; trimEndSeconds: number | null; playbackRate: number; loop: boolean };
+export function samplePresentation(instance: { timing?: PresentationTiming }, time: number, sceneDuration?: number | null): { visible: boolean; opacity: number; localTime: number };
+export function mediaTime(time: number, media?: MediaSettings, timing?: PresentationTiming, duration?: number): number;
 export interface SceneCore {
  readonly time: number; readonly playing: boolean; readonly duration: number | null;
  sample(id: string): TransformValues | undefined;

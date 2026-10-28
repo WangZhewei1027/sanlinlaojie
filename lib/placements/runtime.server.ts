@@ -4,7 +4,7 @@ import { type Executor } from "@/lib/content-model/tx.server";
 import { db, sql } from "@/lib/db";
 import { parseLinkAssetInput, type LinkAssetData } from "@/lib/link-asset";
 import { compileSceneManifest } from "@/lib/scene/compile";
-import type { SceneAssetManifest } from "@/lib/scene/protocol";
+import { isSceneResourceKind, type SceneAssetManifest } from "@/lib/scene/protocol";
 import "server-only";
 import { resolvePlacementContent } from "./content.server";
 import { renderConfigOf } from "./core.server";
@@ -199,10 +199,11 @@ export async function sceneManifest(publicId: string, scope: RuntimeScope): Prom
   if (rows.length !== 1 || !rows[0].scene_id) throw new RuntimeNotFound("场景素材不存在");
   const content = await resolvePlacementContent(db, { kind: "scene", sceneId: rows[0].scene_id });
   if (!content || content.kind !== "scene") throw new RuntimeNotFound("场景素材不存在");
-  const resources: Record<string, { assetId: string; url: string }> = {};
+  const resources: SceneAssetManifest["resources"] = {};
   for (const resource of content.resources) {
     if (!resource.url) throw new RuntimeNotFound("场景资源文件缺失");
-    resources[resource.resource_alias] = { assetId: resource.asset_id, url: resource.url };
+    if (!isSceneResourceKind(resource.file_type)) throw new RuntimeNotFound("场景素材类型不受支持");
+    resources[resource.resource_alias] = { assetId: resource.asset_id, url: resource.url, kind: resource.file_type };
   }
   try {
     return compileSceneManifest(publicId, content.document, resources);
@@ -219,10 +220,11 @@ export async function previewSceneManifest(sceneId: string, organizationId: stri
   if (!visible) throw new RuntimeNotFound("场景不存在或已归档");
   const content = await resolvePlacementContent(db, { kind: "scene", sceneId });
   if (!content || content.kind !== "scene") throw new RuntimeNotFound("场景不存在");
-  const resources: Record<string, { assetId: string; url: string }> = {};
+  const resources: SceneAssetManifest["resources"] = {};
   for (const resource of content.resources) {
     if (!resource.url) throw new RuntimeNotFound("场景资源文件缺失");
-    resources[resource.resource_alias] = { assetId: resource.asset_id, url: resource.url };
+    if (!isSceneResourceKind(resource.file_type)) throw new RuntimeNotFound("场景素材类型不受支持");
+    resources[resource.resource_alias] = { assetId: resource.asset_id, url: resource.url, kind: resource.file_type };
   }
   return compileSceneManifest(sceneId, content.document, resources);
 }

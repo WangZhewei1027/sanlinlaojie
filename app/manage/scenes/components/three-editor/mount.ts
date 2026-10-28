@@ -30,6 +30,8 @@ export function mountThreeEditor(host: HTMLDivElement, initial: ThreeViewportPro
   editor.scene.add(new AmbientLight(0xffffff, 1.2), sun);
   editor.camera.position.set(5, 4, 7); editor.camera.near = 0.01; editor.camera.far = 2000;
   viewport.beforeRender = () => models.frame();
+  // Start media synchronously from the user's Play action, retaining browser user activation.
+  const unsubscribePlayback = props.session.subscribe(() => models.frame());
   editor.signals.rendererCreated.dispatch(renderer);
   editor.signals.objectSelected.add((object: unknown) => { if (!closed) props.onSelect(instanceId(object as Object3D | null)); });
   function select() {
@@ -74,7 +76,7 @@ export function mountThreeEditor(host: HTMLDivElement, initial: ThreeViewportPro
     viewport.transformControls.removeEventListener('mouseDown', begin); viewport.transformControls.removeEventListener('mouseUp', end);
     window.removeEventListener('keydown', shortcuts);
     props.fitRef.current = null; props.placementRef.current = null;
-    viewport.beforeRender = null; models.dispose(); toolbar.dom.removeEventListener('click', focusViewport); toolbar.dom.remove(); viewport.cameraControls.dom.remove(); viewport.dispose();
+    unsubscribePlayback(); viewport.beforeRender = null; models.dispose(); toolbar.dom.removeEventListener('click', focusViewport); toolbar.dom.remove(); viewport.cameraControls.dom.remove(); viewport.dispose();
     Object.values(editor.signals).forEach(signal => signal.removeAll());
     editor.scene.clear(); editor.sceneHelpers.clear();
   } };

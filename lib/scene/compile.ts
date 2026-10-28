@@ -1,23 +1,25 @@
 import type { ModelAnimationInfo } from "@/lib/content-model/contracts";
-import { SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, type SceneAssetManifest, type SceneDocument } from "./protocol";
+import { SCENE_FLAT_SCHEMA_VERSION, SCENE_SCHEMA_VERSION, SCENE_PERFORMANCE_SCHEMA_VERSION, isSceneResourceKind, type SceneAssetManifest, type SceneDocument } from "./protocol";
 
 /**
- * Compile a saved scene with current asset resources. Scenes without groups stay on
- * flat playback schema 4, which released mini-programs play; groups require schema 5.
+ * Preserve schema 4/5 for old model scenes; presentation timing, media and text
+ * require schema 7 so an older player rejects before trying to load a media file as GLB.
  */
 export function compileSceneManifest(
   publicId: string,
   document: SceneDocument,
-  resources: Record<string, { assetId: string; url: string }>,
+  resources: SceneAssetManifest["resources"],
 ): SceneAssetManifest {
   const assets: Record<string, { assetId: string }> = {};
   for (const [alias, ref] of Object.entries(document.content.assets)) {
     if (!resources[alias]) throw new Error(`scene resource ${alias} is not resolved`);
     assets[alias] = { assetId: ref.assetId };
   }
+  const performance = document.content.instances.some(instance => instance.text || instance.timing || instance.media)
+    || Object.values(resources).some(resource => resource.kind && resource.kind !== "model");
   return {
     assetId: publicId,
-    schemaVersion: document.content.groups?.length ? SCENE_SCHEMA_VERSION : SCENE_FLAT_SCHEMA_VERSION,
+    schemaVersion: performance ? SCENE_PERFORMANCE_SCHEMA_VERSION : document.content.groups?.length ? SCENE_SCHEMA_VERSION : SCENE_FLAT_SCHEMA_VERSION,
     content: flatten({ ...document.content, assets }),
     resources,
   };
@@ -35,7 +37,7 @@ export function clipIssues(
   const issues: { path: string; message: string }[] = [];
   document.content.instances.forEach((instance, index) => {
     const animation = instance.animation;
-    const known = animationsByAlias[instance.asset];
+    const known = instance.asset ? animationsByAlias[instance.asset] : undefined;
     if (!animation || !known) return;
     const path = `content.instances[${index}].animation`;
     if (animation.clipName !== undefined) {
@@ -45,6 +47,21 @@ export function clipIssues(
     } else if (animation.clipIndex !== undefined && !known.some((clip) => clip.index === animation.clipIndex)) {
       issues.push({ path, message: `素材没有第 ${animation.clipIndex} 个动画` });
     }
+  });
+  return issues;
+}
+
+/** Asset kind comes from authorized current content, never from client claims. */
+export function resourceKindIssues(document: SceneDocument, kinds: Record<string, string>): { path: string; message: string }[] {
+  const issues: { path: string; message: string }[] = [];
+  for (const [alias, kind] of Object.entries(kinds)) {
+    if (!isSceneResourceKind(kind)) issues.push({ path: `content.assets.${alias}`, message: "场景支持模型、图片、音频和视频素材；空间文字应在场景中创建" });
+  }
+  document.content.instances.forEach((instance, index) => {
+    if (!instance.asset) return;
+    const kind = kinds[instance.asset], path = `content.instances[${index}]`;
+    if (instance.animation && kind !== "model") issues.push({ path: `${path}.animation`, message: "只有模型素材可以使用模型动画" });
+    if (instance.media && kind !== "audio" && kind !== "video") issues.push({ path: `${path}.media`, message: "只有音频和视频可以使用媒体播放参数" });
   });
   return issues;
 }
