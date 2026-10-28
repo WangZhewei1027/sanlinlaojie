@@ -102,7 +102,7 @@ function Row({ row }: { row: ErrorLogRow }) {
             {row.path || "—"}
           </span>
           {row.method && (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {row.method}
             </span>
           )}

@@ -1,161 +1,36 @@
-# Data layer, auth and storage (post-Supabase)
+# 数据层、认证与存储
 
-The web platform runs on a self-hosted PostgreSQL + PostGIS database, Better
-Auth for sessions, and Aliyun OSS for media. This document is the reference
-for writing server code against them; it is also the conversion guide that was
-used to move every route off supabase-js.
+应用使用 PostgreSQL + PostGIS、Kysely、Better Auth 与阿里云 OSS。内容模型和 API 见 [后端契约](team-workbench-backend-contract.md)，权限边界见 [权限说明](permissions.md)。
 
-| Concern | Module | Replaces |
-|---|---|---|
-| SQL | `lib/db` (Kysely + `pg`) | `createClient().from()` / `.rpc()` |
-| Session | `lib/auth/server.ts` → `getSessionUser()` | `supabase.auth.getUser()` |
-| Browser auth | `lib/auth/client.ts` → `authClient` | `createBrowserClient().auth.*` |
-| Account admin | `lib/auth/users.server.ts` | `auth.admin.createUser/deleteUser/updateUserById/listUsers` |
-| Permissions | `lib/permissions.server.ts` (no client arg) | same, with a client arg |
-| Error log | `lib/log-error.ts` → `logError(entry)` | `logError(supabase, entry)` |
-| Media | `lib/storage/oss.ts`, `lib/storage/public-url.ts` | `supabase.storage.from()` |
-| Uploads | `POST /api/upload` (relay) | browser direct upload to the bucket |
+## 入口与事务
 
-## Team content model
-
-The application uses one model: teams own assets and scenes; map collections
-(stored as workspace rows) own placements and tags. Every member reads team
-content; owner/admin/member write, and viewer reads only. A new team has zero
-collections. Collections are created when content needs a map.
-
-| Entity | Responsibility |
+| 职责 | 模块 |
 | --- | --- |
-| `asset` / `asset_resource` | Mutable team content and its current files |
-| `scene` / `scene_asset_ref` | Schema-4 composition with asset identity references |
-| `workspace` | Map collection; no independent membership |
-| `placement` / `placement_tag` | Collection-owned presentation of an asset or saved scene |
-| `upload_receipt` | Actor/team-bound upload proof and expiring lease |
-| `anchor_embedding` | Current reference features keyed by asset ID |
-| `storage_hold` | Explicit protection for archived migration files |
+| SQL 与连接池 | `lib/db` |
+| 服务端会话 | `lib/auth/server.ts` 的 `getSessionUser()` |
+| 浏览器会话 | `lib/auth/client.ts` 的 `authClient` |
+| 账号创建/删除 | `lib/auth/users.server.ts` |
+| 团队管理权限 | `lib/permissions.ts`、`lib/permissions.server.ts` |
+| 内容范围与能力 | `lib/content-model/access.server.ts` |
+| 内容 HTTP 响应 | `lib/content-model/http.server.ts` |
+| 错误记录 | `lib/log-error.ts` |
+| OSS 与媒体 URL | `lib/storage/oss.ts`、`lib/storage/public-url.ts` |
 
-There is one runtime model, with no legacy adapters, asset history or version
-selection. `lib/content-model/access.server.ts` enforces team permissions and
-archival. `contracts.ts` defines DTOs. Domain services own all mutations.
+只有一个具备完整权限的数据库连接，没有依靠 RLS 隔离请求。路由先获取会话，再经共享权限策略与领域服务检查归属、归档和并发锁。内容写入使用领域服务；不能只检查登录后直接按任意资源 ID 更新数据库。服务端模块带 server-only 守卫，不能导入 Client Component。
 
-`PATCH /api/assets/[id]` replaces payload and resources in one transaction under
-an asset row lock. `expectedLockVersion` is required (missing 428, stale 409);
-this counter prevents concurrent overwrites and does not represent content
-history. Create commands support scoped idempotency keys. File reuse and garbage
-collection share object-key locks; managed files require receipts or authorized
-`fromAssetId` sources. Copies get independent content.
+Kysely 查询失败会抛异常。复杂内容操作在 `db.transaction().execute(...)` 内完成，资源与索引必须同事务更新。内容 API 的返回与错误格式以 contracts/http helper 为准；通用管理接口以各自路由为准。
 
-Placements reference Asset or Scene IDs. Every read resolves current saved
-content and current model files. `PATCH /api/scenes/[id]` saves the document and
-its reference index in one transaction; existing placements and QR preview use
-that save immediately. Scenes have no publication or revision tables. Optimistic
-locks only prevent concurrent overwrites. Playback compiles schema 4 to the
-mini-program's schema 2 transport protocol.
+## SQL 约定
 
-Changing an anchor's reference file deletes its old descriptor. Generation
-requests lock and check the current image before starting; generation IDs prevent
-obsolete in-flight work from restoring deleted or superseded descriptors.
+- `lib/db` 导出 db、sql、jsonArrayFrom、jsonObjectFrom。SQL 模板绑定参数，避免字符串拼接。
+- 查询不存在的单条记录时 `executeTakeFirst()` 返回 undefined；需要错误时使用 `executeTakeFirstOrThrow()`。IN 查询先处理空数组。
+- JSONB 写入沿用代码中的 `JSON.stringify` 约定，读取返回对象；嵌套 JSON 中时间字段是字符串。
+- PostgreSQL 数组运算通过参数化 sql 模板和显式数组类型传值，避免将数组误当 SQL 值列表。
+- 空间位置使用 PostGIS；读经纬度时提取 ST_X/ST_Y，距离查询显式处理 WGS84/SRID 与 geography。原始 geometry 不是可直接传给前端的坐标对象。
+- count(*) 在连接层解析为 JS number。
+- 数据库函数是否存在以当前 schema 和 migrations 为准，不沿用旧服务的 RPC 清单。
 
-Existing databases run the single-content-model conversion followed by the
-mutable-assets migration. Former workspace IDs remain collection IDs. The
-latter selects each asset's current content, rewrites draft and saved scene
-aliases, and removes all asset-version tables/columns. Migration archives and
-file holds are for recovery only, never runtime reads. See
-[content-model-migration-runbook.md](content-model-migration-runbook.md).
-
-Schema: `db/schema.sql` (baseline), `db/migrations/*.sql` (incremental),
-applied with `npm run db:migrate`. Types: `lib/db/types.ts`, regenerated with
-`npm run db:codegen` against a database that has the schema (`DATABASE_URL`).
-
-## Legacy/general route handler shape
-
-This example illustrates authentication and SQL conventions for existing route
-families. For content-model writes, call the domain service and shared content
-HTTP helpers instead; an organization permission alone is insufficient.
-
-```ts
-import { NextResponse } from "next/server";
-import { db, sql } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/server";
-import { getUserContext } from "@/lib/permissions.server";
-import { hasOrgPermission, isSuperAdmin } from "@/lib/permissions";
-import { logError } from "@/lib/log-error";
-
-export async function POST(request: Request) {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "未授权" }, { status: 401 });
-  try {
-    const { globalRole, orgRole } = await getUserContext(user.id, orgId);
-    if (!isSuperAdmin(globalRole) && !hasOrgPermission(orgRole, "org.assets.write")) {
-      await logError({ userId: user.id, method: "POST", path: "/api/x", status: 403, message: "权限不足" });
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
-    const rows = await db.selectFrom("asset").selectAll().where("id", "in", ids).execute();
-    return NextResponse.json({ data: rows });
-  } catch (error) {
-    await logError({ method: "POST", path: "/api/x", status: 500, message: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "失败" }, { status: 500 });
-  }
-}
-```
-
-`getSessionUser()` returns `{ id, email, name, emailVerified, … } | null`.
-`user.id` is the same UUID as before (`public.users.user_id`). There is no
-"admin client": the single `db` connection has full access, and every
-permission decision is made in code — exactly as the Supabase-era routes
-already did (RLS was never relied on except for `user_organization_pin`,
-which is now checked in the route).
-
-## Translating supabase-js queries to Kysely
-
-| supabase-js | Kysely |
-|---|---|
-| `.from("t").select("a,b")` | `db.selectFrom("t").select(["a","b"])` |
-| `.select("*")` | `.selectAll()` |
-| `.eq("a", v)` / `.neq` / `.gt` | `.where("a", "=", v)` / `"<>"` / `">"` |
-| `.in("a", list)` | `.where("a", "in", list)` (guard empty lists — SQL `in ()` is invalid) |
-| `.is("a", null)` / `.not("a","is",null)` | `.where("a", "is", null)` / `.where("a", "is not", null)` |
-| `.ilike("a", "%x%")` | `.where("a", "ilike", \`%${x}%\`)` |
-| `.or("a.ilike.%x%,b.ilike.%x%")` | `.where((eb) => eb.or([eb("a","ilike",p), eb("b","ilike",p)]))` |
-| `.contains("workspace_id", [id])` (uuid[] ⊇) | `.where(sql<boolean>\`workspace_id @> array[${id}::uuid]\`)` |
-| `.overlaps("workspace_id", ids)` | `.where(sql<boolean>\`workspace_id && ${ids}::uuid[]\`)` |
-| `.containedBy("workspace_id", ids)` | `.where(sql<boolean>\`workspace_id <@ ${ids}::uuid[]\`)` |
-| `.order("a", { ascending: false })` | `.orderBy("a", "desc")` |
-| `.limit(n)` / `.range(a, b)` | `.limit(n)` / `.limit(b-a+1).offset(a)` |
-| `.single()` | `.executeTakeFirstOrThrow()` |
-| `.maybeSingle()` | `.executeTakeFirst()` (undefined when missing) |
-| plain list | `.execute()` |
-| `.select("id", { count: "exact", head: true })` | `.select(({ fn }) => fn.countAll<number>().as("count")).executeTakeFirstOrThrow()` |
-| `.insert(row).select().single()` | `db.insertInto("t").values(row).returningAll().executeTakeFirstOrThrow()` |
-| `.update(patch).eq("id", id).select()` | `db.updateTable("t").set(patch).where("id","=",id).returningAll().executeTakeFirst()` |
-| `.upsert(row, { onConflict: "a,b", ignoreDuplicates: true })` | `.values(row).onConflict((oc) => oc.columns(["a","b"]).doNothing())` |
-| `.upsert(row, { onConflict: "a" })` | `.onConflict((oc) => oc.column("a").doUpdateSet({ … }))` |
-| `.delete().eq("id", id)` | `db.deleteFrom("t").where("id","=",id).execute()` |
-| `.rpc("fn", { p_a: a })` returning scalar | ``const { rows } = await sql<{ v: T }>`select public.fn(${a}) as v`.execute(db)`` |
-| `.rpc("fn", …)` returning rows | ``(await sql<Row>`select * from public.fn(${a}, ${b})`.execute(db)).rows`` |
-| nested select `organization(name)` | `jsonObjectFrom(eb.selectFrom("organization").select("name").whereRef("organization.id","=","organization_member.organization_id")).as("organization")` |
-| `fetchAllRows(...)` (1000-row paging) | not needed — just `.execute()` |
-
-Notes
-
-- There is no `{ data, error }` envelope: queries **throw** on failure. Wrap
-  the handler body in try/catch (the pattern above) instead of checking `error`.
-- `jsonArrayFrom` / `jsonObjectFrom` come from `@/lib/db`. They return JSON,
-  so timestamps inside nested objects are strings (same as PostgREST).
-- `jsonb` columns: pass objects for inserts/updates as `JSON.stringify(obj)`;
-  reads come back parsed. Casting a JS array is enough for `uuid[]`/`text[]`.
-- For PostgreSQL array comparisons (`&&`, `@>`, `<@`), bind arrays through a
-  `sql` template with `::uuid[]`. A bare JS array passed to the three-argument
-  `.where()` becomes a SQL value list, not an array (including one-item lists).
-- `geometry` columns: keep writing the same `POINT(lng lat)` WKT string the
-  old code used (`.values({ location: wkt })` — Postgres casts it; existing
-  rows have no SRID and the functions apply 4326 themselves) and read with
-  ``sql<number>`ST_X(location::geometry)`.as("longitude")``. Raw `location`
-  reads are hex EWKB strings — don't expose them where the old API returned
-  WKT; most responses carry coordinates in `metadata` anyway.
-- `count(*)` is returned as a JS number (type parser in `lib/db/index.ts`).
-- Transactions: `await db.transaction().execute(async (trx) => { … })`.
-- Postgres functions (`move_assets`, `purge_organizations`, `error_log_query`,
-  `get_user_organizations`, …) are unchanged; call them with `sql`.
+`db/schema.sql` 是新库基线，`db/migrations/` 是增量。统一通过 `npm run db:migrate` 执行，在开发数据库应用后用 `npm run db:codegen` 更新生成类型。升级与恢复见 [迁移手册](content-model-migration-runbook.md)。
 
 ## Auth
 
@@ -217,22 +92,11 @@ SMS, issuing/checking tickets, creating accounts or resetting passwords.
 Legacy email confirmation needs SMTP (`lib/email.ts`). Google/phone registration
 and SMS password recovery do not depend on SMTP.
 
-## Storage
 
-```ts
-import { putObject, deleteObjects, headObject, listObjects, mediaUrl, assetKeyFromUrl, ASSETS_PREFIX } from "@/lib/storage/oss";
-```
+## 存储
 
-- Object keys: `assets/{userId}/{ts}-{rand}.{ext}`, `wechat-qrcodes/release/…png`.
-- The database stores full public URLs (`NEXT_PUBLIC_MEDIA_BASE_URL` + key).
-  `assetKeyFromUrl(url)` → key or null; `storagePathFromUrl` in
-  `lib/storage-cleanup.server.ts` is the same thing.
-- Managed-file retention is centralized in `lib/storage/retention.server.ts`.
-  It protects current asset resources, migration holds, Anchor reference images, audio
-  compatibility siblings and unexpired receipts across all organizations.
-  Physical deletion is opt-in via `app_config.managed_object_deletion` and
-  performs its final check under the same object lock used by commit/reuse.
-- Asset updates accept upload receipts or authorized current-asset resources,
-  not arbitrary managed URLs. Dedup is organization-scoped; identity and
-  ownership are independent of a shared physical file. See
-  [asset-storage-lifecycle.md](asset-storage-lifecycle.md).
+素材文件由 `asset_resource` 保存受管 storage_key 或外站 external_url；payload 也可能包含链接。通过 `lib/assets/urls.ts` 与 `lib/storage/public-url.ts` 生成和识别公开 URL。文件路径不是团队所有权依据。
+
+`NEXT_PUBLIC_MEDIA_BASE_URL` 影响 URL 生成和受管资源识别。更换域名时同时核对存量完整 URL、payload、参考图、客户端构建和外部访问配置，不能只改环境变量就假定全部旧引用已迁移。
+
+上传路由返回绑定调用者与团队的回执；素材提交使用回执或经授权的当前素材资源。物理删除统一走保留层，详见 [素材流水线](asset-pipeline.md) 与 [文件生命周期](asset-storage-lifecycle.md)。

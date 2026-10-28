@@ -1,6 +1,7 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import engineering from "./scripts/eslint/engineering.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,7 +31,7 @@ const eslintConfig = [
       ],
     },
   },
-  // 设计规范检查（详见 docs/design-system.md）。warn 级别：提示违规但不阻塞 build。
+  // 设计规范检查（详见 docs/design-system.md）；npm run lint 使用零警告门槛。
   {
     files: ["app/**/*.tsx", "components/**/*.tsx"],
     rules: {
@@ -55,23 +56,49 @@ const eslintConfig = [
       ],
     },
   },
-  // 禁止绕过 components/ui 直接使用 Radix 原始组件
+  // Existing architecture boundary: primitives belong in components/ui/.
   {
-    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    files: ["app/**/*.{js,jsx,ts,tsx}", "components/**/*.{js,jsx,ts,tsx}", "lib/**/*.{js,jsx,ts,tsx}"],
     ignores: ["components/ui/**"],
+    plugins: { engineering },
     rules: {
+      "engineering/no-dynamic-radix": "error",
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
             {
-              group: ["@radix-ui/*"],
+              group: ["@radix-ui/*", "radix-ui", "radix-ui/*"],
               message:
                 "不要直接 import Radix 原始包，使用 components/ui/ 里的封装组件。",
             },
           ],
         },
       ],
+      "no-restricted-modules": ["error", {
+        patterns: ["@radix-ui/*", "radix-ui", "radix-ui/*"],
+      }],
+    },
+  },
+  {
+    files: ["lib/**/*.server.ts", "lib/db/index.ts", "lib/auth/server.ts", "lib/storage/oss.ts", "lib/email.ts"],
+    plugins: { engineering },
+    rules: { "engineering/require-server-only": "error" },
+  },
+  {
+    files: ["packages/scene-core/**/*.js"],
+    rules: {
+      // The shared package ships a single CommonJS runtime to Web and WeChat.
+      "no-restricted-syntax": ["error",
+        { selector: "ImportDeclaration, ImportExpression, ExportNamedDeclaration[source], ExportAllDeclaration", message: "Scene Core 保持无依赖的单文件运行时；宿主负责资源加载和渲染。" },
+      ],
+      "no-restricted-globals": ["error",
+        "require", "window", "document", "globalThis", "global", "process", "Buffer", "wx",
+        "fetch", "XMLHttpRequest", "WebSocket", "Worker",
+        "setTimeout", "setInterval", "setImmediate", "requestAnimationFrame",
+      ],
+      "no-eval": "error",
+      "no-new-func": "error",
     },
   },
 ];

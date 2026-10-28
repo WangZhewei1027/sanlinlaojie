@@ -2,8 +2,7 @@
  * Content model — client-safe request/response contracts.
  *
  * Single source of truth for the team asset / scene / placement APIs described
- * in docs/team-assets-scenes-refactor-plan.md §7 and the team workbench
- * contract (docs/team-workbench-backend-contract.md). Pure types and
+ * in docs/team-workbench-backend-contract.md. Pure types and
  * constants: no server imports, safe in Client Components.
  *
  * Team model: the organization (UI: 团队) owns assets and scenes directly and

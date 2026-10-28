@@ -1,6 +1,6 @@
 ## Copilot Instructions
 
-Read `CLAUDE.md` (architecture, commands, conventions) and `AGENTS.md` first; topic-specific rules live in `.github/instructions/*.md`.
+Read `AGENTS.md` for architecture constraints and conventions, and `README.md` for local setup. Topic-specific rules live in `.github/instructions/*.md`.
 
 ## Tech Stack
 

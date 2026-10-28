@@ -1,3 +1,4 @@
+import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // 短信验证通过凭证：CheckSmsVerifyCode 校验成功后签发，

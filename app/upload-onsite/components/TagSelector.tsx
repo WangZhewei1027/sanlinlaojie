@@ -109,9 +109,6 @@ export function TagSelector({
     }
   };
 
-  // 获取标签对象
-  const getTag = (tagId: string) => tags.find((t) => t.id === tagId);
-
   return (
     <>
       {/* 创建标签对话框 */}

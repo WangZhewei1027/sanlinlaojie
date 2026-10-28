@@ -9,8 +9,8 @@
 | GET `/scenes?ids=a,b&organization_id=…` | 最多 50 个指定团队的 Scene，返回 id/name；仅包含未归档团队中的 active 场景，供扫码历史展示名称 |
 | POST `/assets/nearby` | `{user_lat,user_lng,max_distance_meters,p_workspace_id?,p_organization_id?}`；GPS 范围内启用投放 |
 | POST `/assets/huge` | `{p_organization_id,p_workspace_id?}`；启用的巨大模型投放 |
-| POST `/assets/scene` | `{asset_id,p_workspace_id?,p_organization_id?}`；asset_id 是 Placement ID，至少一个范围；返回其当前场景的 schema 2 清单 |
-| POST `/scenes/preview` | `{scene_id,organization_id}`；独立场景当前保存内容，schema 2，未归档团队/场景才可访问 |
+| POST `/assets/scene` | `{asset_id,p_workspace_id?,p_organization_id?}`；asset_id 是 Placement ID，至少一个范围；返回其当前场景的播放清单（无分组 schema 4，有分组 schema 5） |
+| POST `/scenes/preview` | `{scene_id,organization_id}`；独立场景当前保存内容的 schema 4/5 播放清单，未归档团队/场景才可访问 |
 | POST `/shops` | `{p_workspace_id,p_organization_id}`；Shop 投放，允许没有 GPS 的目录项 |
 | POST `/text-assets` | `{content,p_workspace_id,p_organization_id?,user_lat?,user_lng?}`；创建团队文字 Asset 和合集投放，有 GPS 为 active，否则 draft |
 | POST `/anchors/recognize?workspace_id=…` | multipart image、latitude、longitude、accuracy、gps_timestamp、coordinate_system=wgs84；匹配当前参考图并返回关联投放 |
@@ -23,4 +23,6 @@ Asset 文件取当前 `asset_resource`，Scene 取当前 `scene.document` 并解
 
 匿名文字最多 500 字，每 IP 每分钟 20 次、每合集每分钟 120 次；提交事务重新检查团队与合集归档状态。匹配接口每设备每分钟 90 次（无合法 X-Client-Id 时按 IP），每合集每分钟 3000 次。识别请求可传 X-Recognition-Request-Id，响应回显请求 ID 与诊断耗时。
 
-音频 `.webm` 的 `.m4a` 衍生文件仍由转码与保留流程管理。微信合法域名需包含后端 request/uploadFile 域名和媒体 downloadFile 域名。
+音频同名 `.webm`/`.m4a` 文件由保留层相互保护；上传不自动生成衍生文件，见 [素材流水线](asset-pipeline.md)。微信合法域名需包含后端 request/uploadFile 域名和媒体 downloadFile 域名。
+
+组织配置仅公开 `confetti_enabled`、`shop_checkin_enabled`、`footer_enabled` 和 `text_asset_miniapp_style`。新增公开配置时同步更新 `app/api/miniapp/organizations/route.ts` 的 `PUBLIC_CONFIG_KEYS`；未在白名单中的键不返回小程序。

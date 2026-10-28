@@ -174,4 +174,4 @@ curl --head https://www.spatialmemory.online/
 
 `/readyz` 成功只表示网关存活，不表示 GPU 已启动；首页成功也不覆盖短信、识别或手机 AR 全链路。更新域名、端口、Compose、GPU 候选、备份策略或小程序发布状态时，同时更新本文的核对日期与对应条目。
 
-[阿里云迁移计划](aliyun-migration-plan.md) 保留历史方案与过程；[2026-10-19 上线检查](release-readiness-20261019.md) 是上线前审计快照。当前部署位置与服务职责以本文及实际配置为准。
+服务职责以本文和部署配置为准；数据库升级与恢复统一查阅 [迁移手册](content-model-migration-runbook.md)。上文运行状态仅代表文首标注的核对日期。

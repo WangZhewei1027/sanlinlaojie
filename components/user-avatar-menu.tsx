@@ -135,7 +135,7 @@ export function UserAvatarMenu() {
       >
         {/* Identity header */}
         <div className="px-4 py-3.5">
-          <p className="text-[15px] font-semibold leading-tight truncate">
+          <p className="text-base font-semibold leading-tight truncate">
             {dbName?.trim() || getDisplayName(user, t("account.defaultName"))}
           </p>
           <p className="text-sm text-muted-foreground leading-tight mt-1 truncate">
@@ -151,7 +151,7 @@ export function UserAvatarMenu() {
                 <DropdownMenuItem
                   key={href}
                   onClick={() => router.push(href)}
-                  className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 text-[15px] [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
+                  className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
                 >
                   <Icon />
                   {label}
@@ -165,14 +165,14 @@ export function UserAvatarMenu() {
         <div className="p-1.5">
           <DropdownMenuItem
             onClick={() => router.push("/settings")}
-            className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 text-[15px] [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
+            className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
           >
             <Settings />
             {t("settings.title")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleLogout}
-            className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 text-[15px] text-destructive focus:text-destructive [&>svg]:size-[18px] [&>svg]:text-destructive/80"
+            className="cursor-pointer gap-3 rounded-lg px-2.5 py-2.5 text-destructive focus:text-destructive [&>svg]:size-[18px] [&>svg]:text-destructive/80"
           >
             <LogOut />
             {t("account.logout")}

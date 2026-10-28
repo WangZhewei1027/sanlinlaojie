@@ -312,7 +312,7 @@ export function AssetTagEditor({
               </div>
 
               <div className="max-h-60 overflow-y-auto p-1">
-                <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {t("assetEditor.tags.selectOrCreate")}
                 </div>
 
@@ -409,7 +409,7 @@ export function AssetTagEditor({
 
                 {/* 颜色色板 */}
                 <div className="p-2">
-                  <div className="px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="px-1 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {t("assetEditor.tags.colorSectionTitle")}
                   </div>
                   <div className="grid grid-cols-5 gap-1.5 px-1 pb-1">

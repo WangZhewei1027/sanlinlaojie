@@ -94,7 +94,7 @@ create table public.organization (
   map_center jsonb,
   allowed_file_types text[],
   config jsonb not null default '{}'::jsonb,
-  -- content model cutover state (docs/team-assets-scenes-refactor-plan.md §8.1)
+  -- Historical content-model cutover state captured for upgrade tests.
   content_model_state text not null default 'legacy'
     constraint organization_content_model_state_check
     check (content_model_state = any (array['legacy'::text, 'preparing'::text, 'readonly'::text, 'v2'::text])),
@@ -266,7 +266,7 @@ create index idx_error_log_created_at on public.error_log (created_at desc);
 create index idx_error_log_status on public.error_log (status);
 
 -- ───────────────────────── content model v2 (team assets / scenes / placements) ─────────────────────────
--- docs/team-assets-scenes-refactor-plan.md §4. Kept identical to
+-- Historical content-model foundation. Kept identical to
 -- db/migrations/20261015000000_content_model_foundation.sql.
 
 create table public.content_migration_run (

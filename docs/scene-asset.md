@@ -23,13 +23,13 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 ## 协议与共享 Core
 
-`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放清单：没有分组的场景保持平铺的 schema 4（已发布的小程序只接受它），有分组的场景输出 schema 5。两端从各节点的 `parent` 搭建 Object3D 层级，变换值都相对父分组。`manifest.assetId` 是播放实例标识：地图入口为 Placement ID，直接扫码入口为 Scene ID；资源里的 assetId 才是基础素材 ID。实时 API 与播放器只接受当前协议。
+`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放清单：没有分组的场景保持平铺的 schema 4，有分组的场景输出 schema 5。两端从各节点的 `parent` 搭建 Object3D 层级，变换值都相对父分组。每个实例的 GLB 包在 `pivot` 节点中，按加载时的包围盒把底部中心对齐到实例原点（与小程序单素材 AR 放置同一规则，`test-scene-playback-parity.ts` 校验两端一致）；2026-10-22 之前保存的场景若使用原点偏移的模型，模型会移到实例原点处，需要重新摆放。`manifest.assetId` 是播放实例标识：地图入口为 Placement ID，直接扫码入口为 Scene ID；资源里的 assetId 才是基础素材 ID。实时 API 与播放器只接受当前协议。
 
 - 实例使用米制 `position`、Euler XYZ 弧度 `rotation` 和 `scale`。可选 `tracks` 的键为 `position.x/y/z`、`rotation.x/y/z`、`scale.x/y/z`；每个关键帧为 `{ time, value, handles: [inX, inY, outX, outY], connectedRight }`，time 单位为秒。相邻帧使用左帧出柄与右帧入柄做 Bezier 插值；`connectedRight: false` 保持到下一帧，精确关键帧时间返回该帧值。没有轨道的通道使用静态姿态。
 - 保存限制 1 MiB、8 素材、24 实例、2400 关键帧，时长大于 0 且不超过 600 秒；静态场景可用 null 时长，新场景默认 10 秒。校验允许 Bezier 纵向超调。
-- `packages/scene-core` 2.1.0 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样和 `clipTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
+- `packages/scene-core` 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样和 `clipTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
 - 每个播放器独立创建 Core；`dispose()` 停止播放并清空订阅、对象绑定与内容引用。GLB 骨骼/节点动画仍由各端 Three.AnimationMixer 求值，Core 只共享片段时间映射。
-- Web 使用本地 npm 包；小程序提交 npm pack 快照与 esbuild 产物。当前小程序压缩 bundle 为 2461 字节（小程序仓库的 `miniprogram/lib/scene-runtime/vendor/build-info.json` 记录版本、源码哈希和字节数）。更新命令见 [Scene Core README](../packages/scene-core/README.md)。
+- Web 使用本地 npm 包；小程序提交 npm pack 快照与 esbuild 产物。小程序仓库的 `miniprogram/lib/scene-runtime/vendor/build-info.json` 记录版本、源码哈希和字节数，更新后需核对两端一致。更新命令见 [Scene Core README](../packages/scene-core/README.md)。
 
 ## 播放与原生视口
 
@@ -41,29 +41,17 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 仅开放现有协议可保存、两端可播放的能力。原生 Editor 的独立文件/JSON、任意材质/灯光/脚本未开放；层级只能通过时间轴轨道头部的分组编辑，不使用原生大纲树；增加能力应先扩展共享协议和 runtime。
 
-## 一次性迁移
+## 迁移与验证
 
-`20261018000000_mutable_scenes.sql` 将历史 scene_revision 引用转为 scene_id，保留当前文档与投放参数，归档旧发布数据后移除运行时版本表。
+历史场景转换、原文归档和迁移顺序统一见 [迁移手册](content-model-migration-runbook.md)。
 
-旧 schema 4/5 由 `scripts/migrate/transform-scenes.ts` 转为 schema 6；旧 Theatre 原生静态覆盖、数值轨道、Bezier handles、hold 与多圈旋转在这里一次性展开到实例。旧格式只存在于迁移代码、历史采样 fixture 和归档中。
+| 检查 | 入口与前提 |
+| --- | --- |
+| 采样与历史曲线转换 | `npx tsx scripts/test-scene-core.ts` |
+| 分组与父子变换 | `npx tsx scripts/test-scene-hierarchy.ts` |
+| 添加模型与编辑交互 | `scripts/test-scene-add-model.ts`、`scripts/test-scene-interactions.ts` |
+| Web 模型释放 | `npx tsx scripts/test-three-editor.ts` |
+| 两端实际播放器一致性 | `npx tsx scripts/test-scene-playback-parity.ts`，需要相邻小程序仓库及其运行时 fixture |
+| 数据库转换 | `scripts/test-transform-migration.ts`，数据库和归档前提见迁移手册 |
 
-运行标准 `npm run db:migrate`：`20261020000000_transform_scenes.sql` 前会在同一迁移事务中调用 `migrateTransformScenes`，把原文和旧锁存入 `migration_archive.transform_scene_source`，转换并校验后增加 `lock_version`，最后加 schema 6 约束。已经是 schema 6 的文档跳过转换。不要单独执行 SQL 跳过 TypeScript 迁移。更早的 `20261019000000_native_theatre_scenes.sql` 仅保留为顺序迁移历史。
-
-## 2026-10-20 当前自动验收
-
-本轮按用户选择使用浏览器与自动化播放器验收。微信开发者工具登录已过期，本轮未重新运行模拟器，也未做真机 AR 或手机进程内存验收。
-
-| 检查 | 结果 |
-|---|---|
-| 浏览器内容闭环 | 旋转字段输入 90°，撤销/重做、保存/重开通过；恢复 180° 后再次保存/重开通过；关键帧添加、改值、拖动、撤销通过，临时测试改动已全部撤回；实际小程序 API 返回协议 4，同一保存内容两端 Core 采样一致 |
-| 迁移数值 | 201 个历史采样，最大旋转误差约 `8.6332e-6` 弧度 |
-| 两端实际播放器 | Web 原生适配层与小程序实际 Three/GLTFLoader/AnimationMixer：34 个采样、3303 项矩阵/时间比较，最大误差 0 |
-| Web 模型释放 | 100 次带 GLB 动画的原生 Editor 加载/移除，受检几何/材质注册表回空 |
-| 小程序 Core | 220 次加载/播放/释放，每场 8 实例、1200 关键帧；受检对象残留 0，Node 强制 GC 后堆约 5.05→5.13 MiB |
-| 小程序完整播放器 | 120 次真实 GLB 生命周期，受检播放器、状态、克隆及缓存引用残留 0 |
-| 数据库迁移 | 回滚、原文归档、锁递增、重复执行与协议约束测试通过 |
-| 完整回归 | Web `npm run check` 与小程序 `npm test` 通过；Web 保留 15 个既有 lint warning |
-
-相关命令：Web `npx tsx scripts/test-scene-core.ts`、`test-scene-hierarchy.ts`、`test-transform-migration.ts`（需测试数据库）、`test-scene-playback-parity.ts`（需相邻小程序仓库）、`test-three-editor.ts`；小程序 `npm run test:scene-memory`。UI 证据在 `.impeccable/review/desktop.png`、`mobile.png`，finish review disposition 为 `ship`。
-
-此前协议 3 的 100 次模拟器 GPU 检查和 10 次 iframe 退出记录属于历史验收，不能作为当前实现的重跑结果。其证据仍在 `/Users/wangzhewei/.codex/visualizations/2026/10/19/01a154ad-3006-74b0-a293-fb8306341ebd/` 的 `scene-memory-*` 与 `three-editor-*` 文件。本轮内存数字仅代表当前 fixture 与运行环境。
+编辑器改动还需验证保存/重开、撤销/重做、冲突时保留未保存内容、二维码预览及目标小程序协议。自动化播放器与内存检查不替代手机 AR 和真实客户端验收。

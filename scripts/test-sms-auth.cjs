@@ -12,6 +12,8 @@ const root = path.resolve(__dirname, "..");
 process.env.SMS_TICKET_SECRET = "test-sms-ticket-secret";
 
 function loader(mocks = {}) {
+  // This harness intentionally executes server modules outside Next.js.
+  mocks = { "server-only": {}, ...mocks };
   const cache = new Map();
   function load(relative) {
     const filename = path.join(root, relative);

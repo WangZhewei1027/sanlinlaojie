@@ -14,7 +14,7 @@
 - 文档只有一份撤销历史，最多保留 60 个过去快照；原生变换拖动结束提交一次。标题、素材、片段设置和关键帧共用历史。Ctrl/⌘ S 保存，Ctrl/⌘ Z 撤销、Shift Z 重做，空格播放/暂停；W/E/R 切换原生变换，F 聚焦。
 - 播放与只读状态禁用变换和关键帧编辑；预览隐藏侧栏、时间轴及编辑辅助器，保留播放、时间和返回编排。加载、错误、权限提示继续使用同一主题。
 - 二维码浮层挂到标题栏容器并继承 Light 主题，向内避让边缘；视口点击、Escape 或卸载时关闭。
-- 每个编辑器持有独立可销毁的 Scene Core，会话、订阅、RAF 与原生视口随 React 卸载释放。模型模板按 URL 在当前视口引用计数，独立克隆；引用归零及迟到加载都会释放资源。GLB 内置动画继续由 Three.AnimationMixer 求值。
+- 每个编辑器持有独立可销毁的 Scene Core，会话、订阅、RAF 与原生视口随 React 卸载释放。模型模板按 URL 在当前视口引用计数，独立克隆；克隆体包在 `pivot` 节点里，按包围盒把底部中心对齐到实例原点（与小程序单素材 AR 放置相同），所以带偏移原点的导入模型（如 Sketchfab/FBX 导出）也以树根等底部中心为旋转、缩放和落点基准。偏移位于 AnimationMixer 驱动的子树之外；素材预览只按包围盒取景，看不出原点偏移。引用归零及迟到加载都会释放资源。GLB 内置动画继续由 Three.AnimationMixer 求值。
 - 保存为文档 schema 6；编译时无分组的场景保持播放 schema 4，有分组的输出 schema 5。只开放共享协议可保存、两端可播放的实例/分组变换和 GLB 片段；原生 Editor 的独立 JSON、大纲树、任意几何/材质/灯光/脚本没有编辑入口。轨道模型（头部 + region lane + 可展开参数 lane）为后续音频、视频等素材轨道预留，新类型只需提供自己的 region 和参数 lane。
 
 原生视口来源、MIT 许可、哈希和补丁见 `vendor/three-editor/README.md`；协议、迁移与自动验收见 `docs/scene-asset.md`。已对照 `SceneEditor`、`SceneTimeline`、`SceneTrack*`、`useSceneTracks`、`useSceneDocument`、局部 CSS 及 `.impeccable/review/desktop.png`、`mobile.png`、`scene-light-qr.png` 核实本轮主题说明，沿用现有视觉系统。

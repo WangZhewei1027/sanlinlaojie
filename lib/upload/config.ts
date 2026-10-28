@@ -13,10 +13,7 @@ import {
 } from "lucide-react";
 import { compressImage } from "@/lib/image-compression";
 import { extractGPSFromImage } from "@/lib/exif-reader";
-import {
-  compressToOpusWebM,
-  extractAudioMetadata,
-} from "@/lib/audio-compression";
+import { extractAudioMetadata } from "@/lib/audio-compression";
 
 // 定义移至 ./types（纯模块，服务端路由可安全导入），此处再导出以兼容现有引用
 export { DEFAULT_UPLOAD_TYPES } from "./types";

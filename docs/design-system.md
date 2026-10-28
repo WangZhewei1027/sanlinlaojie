@@ -13,7 +13,7 @@
 | 字号刻度 | `tailwind.config.ts` → `fontSize`（词汇表）+ `components/ui/typography.tsx` 的 `VARIANT_CLASSES`（组合） | 六级：30/24/18/16/14/12px + 营销专用 `display`(36px)/`display-lg`(48px)，全部 rem。**theme 已收窄：刻度外的类（text-xl/4xl…）不存在，写了不生效** |
 | 圆角 | `globals.css` 的 `--radius` | 经 config 映射为 `rounded-sm/md/lg` |
 
-核心规则：**只用语义 token，不写死值**。禁止 hex 色、禁止 `text-[..px]` 任意值、禁止绕过语义色直接用 `text-red-600` 这类调色板类（现存的属历史遗留，见路线图）。
+核心规则：**只用语义 token，不写死值**。禁止 hex 色、禁止 `text-[..px]` 任意值、禁止绕过语义色直接用 `text-red-600` 这类调色板类（分类标识色的例外见下文）。
 
 ### 2. 组件层 —— 合法的组合
 
@@ -22,9 +22,10 @@
 
 ### 3. 强制层 —— 现状与缺口
 
-- 已有：`npm run build`（TS strict）+ code review + 本文档/CLAUDE.md 对 AI 生效。
-- **lint（warn 级，不阻塞 build）**：`eslint.config.mjs` 内置四条设计规范检查——禁任意值字号 `text-[..px]`、禁刻度外字号（text-xl/4xl/5xl…）、禁 Text 的 className 携带文字类、禁绕过 `components/ui` 直接 import `@radix-ui/*`。warn 是有意选择：提示违规但由 review 决定是否放行（豁免场景如落地页 display 会命中）。
-- **尚未落地**（见路线图）：fontSize 词汇表收窄（theme 层面让刻度外的类不存在）。
+- `npm run check` 执行类型检查、lint、离线回归与 build；本地提交和 CI 的接入见 [贡献指南](../CONTRIBUTING.md)。
+- **lint error**：`app/`、`components/`、`lib/` 通过 `components/ui/` 使用 Radix；直接导入 `@radix-ui/*` 或 `radix-ui`（含重导出、require 和字面量动态导入）会阻止检查通过。
+- **零警告门槛**：任意值字号 `text-[..px]`、刻度外字号（text-xl/4xl/5xl…）及 Text 的 className 携带文字类由 ESLint 检查。`npm run lint` 使用 `--max-warnings 0`，warning 同样阻止提交和 CI。
+- **图片预览例外**：固定尺寸缩略图使用 `next/image`；用户素材可能来自外站或本地 Blob，使用 `unoptimized` 保留直接加载。匹配参考图需要未知尺寸下的自然高度和本地 Blob 预览，保留原生 `img`，在组件内注明该单行 lint 豁免；不得把该例外扩展成全局禁用。
 
 ## 二、文字体系（全站最重要的一章）
 
@@ -85,15 +86,8 @@
 ## 五、协作实践
 
 - **人**：新人先阅读本文档和现有组件；设计决策变更由实现与规则在同一 PR 中修订。
-- **AI**：CLAUDE.md 指向本文档与组件源码；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
+- **AI**：AGENTS.md 指向本文档与组件源码；AI 写 UI 前应遵守三区边界与 token 规则，新增例外须先修订规则，不允许静默绕过。
 - **验证**：改动共享层（token、ui 组件、Text）属于高杠杆操作——合规不等于视觉无损，改完至少人工检查受影响的应用页面与明暗主题。
-
-## 六、路线图（按优先级）
-
-1. ~~Token 词汇表收窄~~（已完成：`theme.fontSize` 收敛到六级 + `display`/`display-lg` 两档，首页/hero 已迁移，刻度外类不再存在）。
-2. ~~lint 上牙齿~~（已完成：四条规则以 warn 级落地 `eslint.config.mjs`，不阻塞 build）。
-3. ~~状态色 token~~（已完成：`--success`/`--warning` 上线，约 50 处状态色已迁移，分类标识色按豁免清单保留）。
-4. ~~Text 小修~~（已完成：tone 缺省继承、alignment 改逻辑属性 `text-start/end`、CardTitle 移除 `tracking-tight`）。
 
 ## 第三方场景编排界面
 

@@ -1,209 +1,78 @@
-# 匹配点与小程序混合识别
+# 匹配点与图像识别
 
-> 2026-10-01 起小程序直接调用本文的 `POST /api/miniapp/anchors/recognize`（Web 平台已自托管于阿里云，见 `docs/aliyun-migration-plan.md`；小程序侧见 `miniprogram/utils/backend.ts` 与 `components/xr-start/matching/`）。此前的 Supabase Edge Function 方案（[小程序直连识别](./edge-anchor-recognition.md)）已停用，仅作历史记录。参考特征生成仍由管理端处理。
+小程序上传现场图片与 WGS84 GPS，服务端在当前合集的附近匹配点中筛选、比较特征，命中后返回关联投放。识别表示附近地点匹配，不提供相机 6DoF 或厘米级 AR 重定位。部署拓扑见 [线上部署说明](production-deployment.md)。
 
+## 素材、投放与参考特征
 
-`asset.file_type = 'anchor'` 保持兼容，管理端展示为「匹配点」。每个匹配点先存一张参考图片，使用现有 `asset.file_url`、`content_hash`；子素材通过现有 `anchor_id` 关联。匹配只代表识别到附近地点，不提供相机 6DoF 或厘米级 AR 重定位。
+匹配点是 `file_type="anchor"` 的团队素材，参考图片来自 `asset_resource` 的 reference/primary 资源，特征保存在 `anchor_embedding`。地理位置由该素材的 Placement 决定；其他投放通过 `anchor_id` 关联匹配点素材 ID。
 
-## 管理端
+创建匹配点素材、上传参考图和在合集投放是不同操作。浏览器将 JPEG/PNG/WebP 参考图按 1 MiB 目标压缩、上限 4 MiB；保存后可生成特征，失败不删除图片。修改参考图会使旧特征失效，生成任务通过 generation ID 防止旧结果覆盖新图；改名或移动投放不需要重新编码图片。
 
-1. 在具体工作空间中新建「匹配点」，填写名称、地图位置和一张 JPEG/PNG/WebP 图片。参考图按 1 MiB 目标压缩，上限 4 MiB。
-2. 保存后服务端尝试生成特征。图片保存与特征生成分离：模型暂不可用时保留图片，在编辑器中显示未配置、待生成或失败状态；可点击「生成 / 更新匹配特征」重试。
-3. 匹配点详情列出挂载素材，可选择当前工作空间中尚未挂载的素材，或取消挂载。也可在素材编辑器的「关联匹配点」中指定。
-4. 复制出来的匹配点需要生成特征；更换模型版本后逐个更新受影响的参考特征。结构迁移保留现有匹配点与挂载关系，不再包含早期方案中的旧 anchor 批量清理。
+识别候选来自当前未归档团队、未归档合集中的 active 匹配点投放，按匹配点素材去重。命中响应的 `anchor.id` 是匹配点素材 ID；`assets[].id` 是关联内容的 **Placement ID**。响应包含当前素材/场景内容及投放参数，不返回数据库实体或固定版本。
 
-更新参考图只处理该点的新图。修改名称、位置或挂载关系不需要重新编码。镜像中不放图库，识别过程中不下载参考图。
+## 接口边界
 
-## 接口访问方式
+| 接口 | 访问方式与作用 |
+| --- | --- |
+| `POST /api/miniapp/anchors/recognize?workspace_id=<uuid>` | 匿名，提交现场图片；必须指定单个合集 |
+| `GET /api/assets/<anchor_id>/matching` | 当前实现为公开状态读取，不返回特征向量 |
+| `POST /api/assets/<anchor_id>/matching` | 当前实现为公开生成/重建，只处理已存匹配点参考图 |
 
-识别相关接口按当前方案公开调用，无需登录 Cookie、用户 Token、apikey 或工作空间授权名单：
+`proxy.ts` 放行这些路径；匹配点素材创建和编辑仍通过正常团队内容接口鉴权。参考图片只允许本项目媒体域名下的 assets 对象，不能通过生成接口指定任意远程 URL。公开生成会触发模型计算。
 
-- `POST /api/miniapp/anchors/recognize?workspace_id=<uuid>`：现场图片识别，匹配成功返回该点挂载素材。
-- `GET /api/assets/<anchor_id>/matching`：参考特征状态。
-- `POST /api/assets/<anchor_id>/matching`：生成 / 重建已存参考图的特征。
+## 请求与匹配规则
 
-`proxy.ts` 对 `/api/miniapp` 前缀和 `/api/assets/<id>/matching` 精确路径跳过登录跳转，其他资产管理接口维持原有权限。公开生成接口仍只处理数据库中已存在的匹配点，图片 URL 必须来自本项目媒体域名（`NEXT_PUBLIC_MEDIA_BASE_URL`）下的 `assets/` 对象。识别参数、定位时效、图片大小、模型版本、阈值和现有工作空间限流仍会校验。公开识别意味着知道 workspace_id 的调用方可获取命中点的挂载素材，生成接口可触发模型计算。
+识别接口使用 multipart/form-data：
 
-## 数据库与环境变量
+| 字段 | 要求 |
+| --- | --- |
+| image | 现场 JPEG/PNG/WebP，最大 4 MiB |
+| latitude / longitude | WGS84，纬度 -90～90、经度 -180～180 |
+| accuracy | GPS 精度估计，0～100 米 |
+| gps_timestamp | 定位采样的 Unix 毫秒时间，过去 30 秒内 |
+| coordinate_system | 固定 wgs84 |
 
-私有特征表（`anchor_embedding`）、工作空间请求限流表（`anchor_match_rate_limit`）、服务端函数和引用校验触发器现已并入 `db/schema.sql` 基线（原为 `supabase/migrations/20260908000000_anchor_matching.sql`）；asset 字段、类型值、旧 RPC 保持兼容。整个迁移在事务中执行，失败回滚，不自动生成参考特征。
+GPS 候选半径为 `min(200, max(75, 2 × accuracy))` 米；最多接受 200 个候选。没有候选时不调用模型。服务端只接受已就绪且版本一致的参考特征；存在未就绪竞争点、图像版本变化、分数不足或前两名分差不足时不返回投放。
 
-2026-09-09 修复线上 503 时，确认该迁移从未执行，但管理端已录入新匹配点，因此从尚未应用的迁移中移除了早期的批量删除 anchor 和解除挂载语句。已通过 CLI 单独执行此迁移，并将 `20260908000000` 登记为已应用。执行前后均为 15 个匹配点、52 个挂载素材，未清理现有数据。其他环境执行前仍需检查迁移历史，不要重复建表。
+成功响应为 `{ data: { matched: true, reason: "matched", anchor, assets, gps_radius_meters, embedding_version, diagnostics, request_id } }`。未命中仍为 HTTP 200，`matched=false`、`anchor=null`、`assets=[]`。常见 reason：
 
-已用线上 REST schema 和数据库查询确认：`asset.id` / `workspace.id` 为 UUID，`workspace_id` 是 UUID 数组；附近匹配 RPC 已能在真实数据库执行。`location` 沿用项目的 WGS84 点，查询显式设为 SRID 4326 后转换 geography 计算米。
+| reason | 含义 |
+| --- | --- |
+| no_nearby_anchor | 范围内没有匹配点 |
+| reference_not_ready | 参考特征未完成 |
+| model_version_mismatch | 参考特征与当前模型版本不同 |
+| below_threshold | 相似度未达到阈值 |
+| ambiguous | 候选之间分差不足 |
+| reference_changed | 推理期间参考图或候选信息改变 |
 
-服务端配置（不要将 service role 或 EAS Token 写入小程序）：
+匹配响应不计算相对 anchor 的空间姿态。关联内容的地理位置和展示配置来自投放；同一素材在不同合集的投放不会共用地图实例 ID。
 
-```dotenv
-# 上海服务器用 VPC 地址 http://<uid>.vpc.cn-shanghai.pai-eas.aliyuncs.com/api/predict/<服务名>；本地开发用公网 https 地址。
-SAGE_EAS_ENDPOINT=https://你的EAS网关/api/predict/你的服务名
-SAGE_EAS_TOKEN=控制台提供的Token
-# 必填：用实际正负样本校准，不提供通用到达阈值默认值。
-SAGE_MATCH_THRESHOLD=填写校准后的余弦相似度阈值
-# 工程初值，前两名分差不足则判为不确定；需要实测调整。
-SAGE_MATCH_MARGIN=0.03
-```
+## 限流与错误
 
-同时需要 `DATABASE_URL` 与 `NEXT_PUBLIC_MEDIA_BASE_URL`（参考图必须位于该媒体域名下，见 `lib/anchor/reference.server.ts`）。EAS 需使用 ai-location 项目当前的 `POST /embed` 服务，返回 `sage_vitb` 的 8448 维向量及 `embedding_version`。EAS Token 以原值置入 Authorization，不加 Bearer。
+每个合集内按设备限流 90 次/分钟（合法 `X-Client-Id`，否则按 IP），进程内计数；每合集共享上限为 3000 次/分钟，由数据库计数。客户端限流先于上传读取，被拒请求不占合集额度。
 
-模型连接（`lib/anchor/model-client.server.ts`）：独立的 undici keep-alive 连接池，空闲连接保持 150 秒（Node 默认 4 秒；EAS 网关约 180 秒断开空闲连接，2026-10-08 实测 186 秒），识别停顿后的第一轮不再重建连接；连接被对端刚关闭时自动重试一次（/embed 幂等）。生产环境走 VPC 地址（内网、无 TLS），实测稳态与公网相同，都要经过 EAS 共享网关，约 55–75 ms 的固定开销；要去掉这部分需开通 EAS「VPC 高速直连」。
+429 响应带 `code`、`retry_after_ms` 和 `Retry-After`。代码包括 client_rate_limited、workspace_rate_limited、model_busy、model_queue_full、model_queue_timeout；客户端按响应统一退避，不对每个并发请求独立发起重试。
 
-特征表只由服务端通过唯一的数据库连接读取/生成（无 RLS，权限在应用层判定）；小程序不连接数据库，也不会收到特征向量。EAS Token 继续仅用于管理端到模型服务的内部调用。`ANCHOR_PUBLIC_WORKSPACE_IDS` 已不参与识别鉴权，无需配置。
+其他错误包括参数/格式错误、请求过大、候选过多、模型或数据库不可用。错误结构包含 error、request_id 和耗时诊断；精确状态以 [识别路由](../app/api/miniapp/anchors/recognize/route.ts) 为准。
 
-## 新 API
+可传 `X-Recognition-Request-Id` 关联客户端与服务端日志；格式为 1～64 位字母数字及 `._-`，首位必须为字母或数字。服务端回显响应头及 request_id。
 
-### `POST /api/miniapp/anchors/recognize?workspace_id=<uuid>`
+## 模型配置
 
-小程序通过 `wx.uploadFile` 发 multipart/form-data，无需管理端 Cookie。必须传具体工作空间，不能传全部组织范围。
+服务端需要 `DATABASE_URL`、`NEXT_PUBLIC_MEDIA_BASE_URL`、`SAGE_EAS_ENDPOINT`、`SAGE_EAS_TOKEN`、`SAGE_MATCH_THRESHOLD`；可选 `SAGE_MATCH_MARGIN` 默认为 0.03。阈值需用现场正负样本校准，代码没有通用相似度默认值。
 
-此接口不检查 Cookie、Authorization 或 apikey。直接上传图片和以下参数即可。
+模型提供 POST /embed，返回 8448 维向量和 embedding_version。Token 通过 Authorization 原值发送，不加 Bearer。生产通过 SAGE 网关调度 GPU，实际地址与按需启动策略见部署文档；凭据仅在服务端配置。
 
-| 字段 | 类型 | 要求 |
-|---|---|---|
-| `image` | 文件 | 一张现场 JPEG/PNG/WebP，最大 4 MiB |
-| `latitude` | 字符串数值 | -90～90 |
-| `longitude` | 字符串数值 | -180～180 |
-| `accuracy` | 字符串数值 | GPS 精度估计，0～100 米；更差时请重新定位 |
-| `gps_timestamp` | 字符串数值 | 定位采样的 Unix 毫秒时间，过去 30 秒内；不能用上传时间替换旧定位时间 |
-| `coordinate_system` | 字符串 | 固定 `wgs84`，小程序使用 `wx.getLocation({ type: 'wgs84' })` |
+每次请求先读取参考特征元数据，再复用进程内匹配版本的归一化向量缓存。特征更新会使旧缓存失效，不能将缓存命中当成参考图永远不变。
 
-GPS 候选半径 `min(200, max(75, 2 × accuracy))` 米，是待实测的召回参数，不是到达精度。先筛候选，再编码当前图一次，在已准备好且相同版本的参考特征中计算余弦相似度。分数超过服务端阈值、且与第二名差距足够时返回匹配点及其子素材。没有附近候选时不调用模型。
+## 诊断与管理端提示
 
-参考图缺失或未就绪、版本不一致、分数不足、场景混淆等均不返回素材。附近候选中存在未完成特征的竞争点时也暂停匹配，避免静默忽略它造成误匹配。查询最多接受 200 个候选，超出返回 422；限流分两层（2026-10-08 起）：每设备 90 次/分钟（按小程序发送的 `X-Client-Id`，缺失时按 IP；在应用进程内计数，被拒的请求不占工作空间额度），每工作空间共享 3000 次/分钟（略高于 A10 约 2600 次/分钟的处理能力；超出模型能力的请求由模型队列返回 1 秒重试，而工作空间上限一旦触发会让整个工作空间等到这一分钟结束）（数据库计数，跨进程生效；上限由应用传入 `consume_anchor_match_request(workspace, limit)`，见 `db/migrations/20261008000000_anchor_match_rate_limit_param.sql`）。原来全工作空间共用 120 次/分钟，小程序每秒取一帧，2 人同时识别就会把整个工作空间锁住 1 分钟。限额包括未匹配请求，繁忙重试请退避。
+`data.diagnostics` 包含候选数、就绪特征数、阈值、最高/次高分、分差、最高分候选距离、参考缓存命中/未命中数及 timings_ms。摘要不暴露候选身份、图片 URL、原始坐标或向量。
 
-成功响应结构（字段值仅示意）：
+timings_ms 区分请求解析、限流、GPS 查询、参考读取、模型请求、排序、候选复查和内容读取；模型可提供自己的排队/推理耗时。model_request_ms 包含网络往返，api_total_ms 不包含进入路由前的平台排队。原参考图自匹配约 1.0 只能证明链路，不能代替现场准确率验证。
 
-```json
-{
-  "data": {
-    "matched": true,
-    "reason": "matched",
-    "anchor": {
-      "id": "匹配点UUID",
-      "name": "老街入口",
-      "distance_meters": 12.3,
-      "cosine_similarity": 0.91
-    },
-    "assets": [{
-      "id": "素材UUID",
-      "file_type": "image",
-      "file_url": "素材URL",
-      "anchor_id": "匹配点UUID",
-      "metadata": {},
-      "config": {}
-    }],
-    "gps_radius_meters": 75,
-    "embedding_version": "服务端模型版本标识"
-  }
-}
-```
+管理端显示缺图、未配置、待生成、生成中、就绪或失败等状态；换图未保存时单独提示。查询失败显示“无法确认”，不直接断言生成失败。轮询、超时及旧请求取消由 `scripts/test-matching-status.mjs` 覆盖。
 
-`assets` 保留管理端素材字段结构，包含 name/text_content/tag_ids/is_huge/config/metadata 等；仅包含命中匹配点在当前工作空间的直接子素材，不包含匹配点自身。小程序继续根据支持的素材类型与容量限制选择展示。素材地理位置仍由自身 metadata 描述；本接口不计算相对 anchor 的空间姿态。
+## 验证
 
-未命中返回 HTTP 200：`{ "data": { "matched": false, "reason": "...", "anchor": null, "assets": [], "gps_radius_meters": 75 } }`。
-
-| reason | 小程序建议 |
-|---|---|
-| `no_nearby_anchor` | 当前没有附近匹配点，降低采样频率 |
-| `reference_not_ready` | 等管理端完成参考特征，不触发 AR |
-| `model_version_mismatch` | 管理端更新特征，不触发 AR |
-| `below_threshold` | 换角度继续采样 |
-| `ambiguous` | 场景混淆，换角度确认 |
-| `reference_changed` | 推理期间图库/位置发生变更，下次重试 |
-
-错误：400 参数/坐标/图片格式错误，413 文件过大，422 候选过多，429 限流或模型繁忙，502/503 模型/数据库/配置不可用。返回 `{ "error": "说明" }`，不返回挂载素材。
-
-HTTP 429 增加可区分的 `code`、`retry_after_ms` 和对应的 `Retry-After` 响应头；小程序应对全部新请求应用退避，避免每个并发请求独立重试形成突发流量：
-
-| code | 原因 | retry_after_ms | Retry-After |
-|---|---|---:|---:|
-| `client_rate_limited` | 单设备（`X-Client-Id`，缺失时按 IP）每分钟 90 次耗尽 | 窗口剩余毫秒 | 向上取整秒 |
-| `workspace_rate_limited` | 当前工作空间的共享分钟预算耗尽 | 60000 | 60 |
-| `model_busy` | EAS 模型接口返回 429 | 2000 | 2 |
-
-例如 `{ "error": "匹配服务繁忙，请稍后重试", "code": "model_busy", "retry_after_ms": 2000 }`。未部署新协议的客户端仍能读取原 `error` 字段。模型繁忙请求也计入工作空间预算；提高预算不等于提高模型吞吐。
-
-2026-09-15 采样调整配套迁移只替换限流 RPC，将阈值从 30 提高到 120 次/分钟；保留原表、原子 upsert 计数、按工作空间共享窗口及 service_role 权限，不清空已有计数。先应用这条新增迁移，再部署 API 和每秒采样的小程序。迁移文件提交本身不会更新数据库；部署时先回读 `pg_get_functiondef('public.consume_anchor_match_request(uuid)'::regprocedure)` 核对线上函数，应用后再次确认 `used <= 120` 及函数权限。回滚使用新迁移复制该函数并将 120 改回 30，保留 revoke/grant；无需改动表或历史迁移。
-
-单次响应是单帧判定，不要求二次确认。小程序首次命中后触发 AR 并停止采样，移动或转动达到重启条件后再开始一轮识别；当前未实现服务端跨请求时序确认。
-
-### 管理端特征接口
-
-- `GET /api/assets/<anchor_id>/matching`：公开访问，返回状态，不返回向量。
-- `POST /api/assets/<anchor_id>/matching`：公开访问，生成/重建该匹配点已保存参考图的特征。
-
-图片新增/替换仍走原创建与 PATCH API。新建匹配点必须包含 name/file_url/metadata.latitude/metadata.longitude；存储 URL 仅接受本项目媒体域名下的 `assets/` 对象，禁止任意远程 URL。底层迁移会在图片替换时使旧特征失效，并阻止匹配点嵌套、自引用与跨工作空间挂载。
-
-## 小程序调用示例
-
-```js
-wx.uploadFile({
-  url: `${API_BASE}/api/miniapp/anchors/recognize?workspace_id=${workspaceId}`,
-  filePath: cameraImagePath,
-  name: 'image',
-  formData: {
-    latitude: String(gps.latitude),
-    longitude: String(gps.longitude),
-    accuracy: String(gps.accuracy),
-    gps_timestamp: String(gps.sampledAt),
-    coordinate_system: 'wgs84'
-  },
-  success(res) {
-    const body = JSON.parse(res.data);
-    if (res.statusCode === 200 && body.data.matched) {
-      // 首次命中后停止本轮采样，交给现有素材展示逻辑。
-      handleMatchedAnchor(body.data.anchor, body.data.assets);
-    }
-  }
-});
-```
-
-微信后台需将 API_BASE 配置为 uploadFile 合法域名。**旧的 `get_nearby_assets` 没有改动**；小程序接入新接口时，旧 GPS 拉取结果必须排除 `anchor_id` 非空的素材，防止挂载素材在视觉匹配前已经显示。小程序已实现独立的 GPS / 匹配点模式，本次识别调用已同步移除鉴权头。
-
-## 验证与限制
-
-`node --test scripts/test-anchor-matching.cjs` 用确定性的数据库/模型替身验证公开识别、状态与生成接口、代理放行边界及匹配流程，不验证真实模型精度或线上 PostGIS。
-
-本次本地验证已通过类型检查、Next.js 生产构建及上述 16 项替身测试；最终 lint 通过（0 错误、21 条警告）。UI 沿用现有 `/manage` 设计体系，未新增全局设计 token。隔离组件截图复核覆盖中文桌面（1280 × 900）、英文移动端（390 × 844）的参考图就绪状态，以及移动端添加参考图状态；已确认长素材名换行、取消挂载控件可见、参考图与特征更新操作正常呈现。
-
-2026-09-09 线上复查：此前 503 的实际响应是“匹配接口未就绪，请检查数据库迁移”，请求在工作空间限流 RPC 处失败，尚未调用模型。补齐两张表、三个业务 RPC 后，公开 multipart 识别请求返回 HTTP 200 / `no_nearby_anchor`；非法参数仍返回 400，不存在的匹配点返回 404，无登录重定向。这验证了生产路由与数据库链路，合成图片和测试坐标不验证识别精度。
-
-随后定位到生产环境缺少模型连接配置。在 Vercel Production 中将 GPU 服务的 `SAGE_EAS_ENDPOINT`、`SAGE_EAS_TOKEN` 保存为 Secret 并重新部署（`BARAedWXZRNMYcLG9tdzKVfVegJx`），确认正式域名生效后，当前工作空间的参考特征已生成并返回 `ready`。仅填写 `SAGE_MATCH_THRESHOLD` 不会建立模型连接；未生成参考特征时，附近识别返回 `reference_not_ready`。
-
-生产完整链路自检（2026-09-09；本机 HTTPS 往返耗时，包含网络、Vercel、数据库和模型，不是单张 GPU 推理时间）：
-
-| 操作 | 结果 | 耗时 |
-|---|---|---|
-| 生成现有匹配点参考特征 | HTTP 200 / `ready` | 7.949 秒 |
-| 再次读取特征状态 | HTTP 200 / `ready` | 2.485 秒 |
-| 原参考图 + 该点 GPS 自匹配 | HTTP 200 / `matched`，余弦约 1.0 | 5.857 秒 |
-| 空白灰图 + 相同 GPS | HTTP 200 / `below_threshold` | 1.837 秒 |
-
-以上为单次配置与接口自检，不是现场识别精度或延迟分布测试。当前测试点没有挂载素材，命中返回 `assets: []`；需在管理端挂载素材才能验证真机 AR 内容出现。新增特征表与限流表已确认启用 RLS，anon / authenticated 无直接 SELECT 权限，service_role 可访问。
-
-小程序现在优先展示后端 `{ error }` 的具体原因，非 JSON 错误保留通用提示，避免所有 503 都显示“匹配服务尚未就绪”。
-
-启用前需：确认目标环境迁移已应用、配置可用 EAS 和数据库凭据、用现场正负照片校准阈值、生成参考特征、小程序切换调用并验证单次命中与移动后重启。图库更新不需要训练模型；增加正负样本用于阈值验证更直接。
-
-
-## 识别分数与耗时诊断
-
-HTTP 200 的识别响应增加 `data.diagnostics`，成功与未命中都提供摘要。未命中仍然返回 `anchor: null`、`assets: []`，诊断分数不代表已确认匹配。
-
-- `candidate_count` / `ready_reference_count`：GPS 候选数与可用参考特征数。
-- `threshold` / `required_margin`：本次实际使用的阈值和前两名最小分差。
-- `best_similarity` / `second_similarity` / `score_gap`：排序后的前两名余弦分数及差值。尚未比较时为 null，只有一名候选时第二名和分差为 null。
-- `best_distance_meters`：最高分候选的 GPS 距离，不是视觉定位误差。
-- `timings_ms`：`request_parse_ms`（请求读取与解析）、`rate_limit_ms`（限流数据库请求）、`gps_query_ms`（附近点查询）、`reference_read_ms`（读取向量）、`model_request_ms`（管理端到 EAS 的完整请求）、`ranking_ms`（比较与判定）、`candidate_recheck_ms`（命中后的候选复查）、`assets_read_ms`（读取挂载素材）、`matching_total_ms` 和 `api_total_ms`。未执行的阶段省略，小程序日志显示 null。
-
-`model_request_ms` 包含模型服务网络往返与返回向量解析，不是纯 GPU 推理时间；`api_total_ms` 从路由函数开始计时，不能涵盖进入函数之前的平台启动或排队。与小程序 `uploadRoundtripMs` 对照使用。摘要不返回参考图 URL、候选身份、原始坐标或向量，不增加数据库请求或模型调用。
-
-收到 `below_threshold` 时，先查看最高分与实际阈值，再用现场正负样本校准。原参考图自匹配约 1.0 仅证明链路正确，不能证明视角、光照变化后的实拍也能通过阈值。
-
-## 管理端特征状态提示
-
-匹配点详情在参考图上方显示状态区：已生成（含生成时间）、生成中、未就绪、生成失败、未上传图片和服务未配置。选择新图片但尚未保存时单独提示，避免把旧图的已生成状态误认为新图状态。手动生成完成后重新读取状态；未就绪状态每 3 秒查询一次，最多自动查询 2 分钟，之后仍可手动刷新。切换图片、匹配点或离开详情会取消旧查询。
-
-状态读取失败或请求超时显示“无法确认特征状态”，不直接断言生成失败；保留刷新入口。未就绪仅表示尚未读取到可用特征，不能据此断言后台正在生成。本地和线上各自需要服务端的 `SAGE_EAS_ENDPOINT` 与 `SAGE_EAS_TOKEN`；生产环境已有配置不代表本地 `.env.local` 已配置。密钥不得提交或出现在浏览器代码中。
-
-本次验证：typecheck、lint（0 错误，21 条既有警告）、生产构建通过；状态请求回归检查覆盖轮询、旧请求取消、切换图片避免重复生成以及超时后的手动刷新。这些检查不替代真实生成服务的完整联调。
+`node --test scripts/test-anchor-matching.cjs` 使用数据库/模型替身检查参数、公开边界和匹配流程；它不验证真实 PostGIS、GPU 性能或现场精度。联调还需检查目标数据库迁移、服务端配置、参考特征生成、现场正负照片，以及小程序命中后的投放展示。

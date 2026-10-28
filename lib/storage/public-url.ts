@@ -2,7 +2,7 @@
 // bucket and is served from NEXT_PUBLIC_MEDIA_BASE_URL (the CDN / custom
 // domain, or the raw bucket endpoint before the domain is bound). The
 // database stores full URLs, so switching hosts later is a URL rewrite plus
-// a change of this variable — see docs/aliyun-migration-plan.md §6.
+// a change of this variable — see docs/data-layer.md (storage).
 //
 // Object key layout (the part after the base URL):
 //   assets/{userId}/{timestamp}-{random}.{ext}   uploaded media

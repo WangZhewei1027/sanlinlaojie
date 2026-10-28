@@ -1,172 +1,45 @@
----
-title: 地图与素材列表双向联动
-created: 2026-05-10
-updated: 2026-10-15
----
+# 合集地图与投放交互
 
-# 合集地图与 Legacy 素材地图
+`/manage/collections/[id]` 是单个地图合集的编辑器。合集沿用 workspace UUID，由路由显式提供团队和合集；`/manage` 默认进入基础素材。素材和 Scene 属于团队，地图操作对象是 Placement。
 
-v2 团队的 Placement 地图位于 `/manage/collections/[id]`：合集 ID 即原 Workspace UUID，由路由显式传入 `PlacementMapView`，不读取持久化的工作区选择；旧链接 `/manage?organizationId=&workspaceId=` 重定向到对应合集并保留 `placementId`。`/manage` 对 v2 团队是工作台，legacy/preparing 团队仍是旧 Asset 地图；readonly 团队的合集详情以旧地图只读显示。状态未确定时不抢先显示可编辑界面，读取失败时保守进入只读。`__all__` 只属于 legacy 地图的聚合浏览。
+## 模块边界
 
-## V2：地图操作的是 Placement
-
-| 边界 | 实现与约定 |
+| 模块 | 职责 |
 | --- | --- |
-| 数据与选中状态 | `app/manage/lib/placement-store.ts`；与素材目录状态分开 |
-| iframe 转换 | `app/manage/lib/placement-to-viewer.ts`；唯一的 Placement → 旧 viewer 数据适配 |
-| 消息桥 | `app/manage/hooks/usePlacementViewer.ts`；继续使用 SET_ASSETS、ASSET_CLICKED、ASSETS_MOVED 等名字 |
-| 移动保存 | `POST /api/placements/move`，逐项发送 placementId 和 expectedLockVersion，批次原子处理 |
-| 固定内容 | 从目标 AssetVersion / SceneRevision 解析；不读取素材 current 版本来替换投放内容 |
+| [PlacementMapView](../app/manage/components/placements/PlacementMapView.tsx) | 组合投放列表、Cesium iframe 和侧栏，接收合集能力 |
+| [usePlacementData](../app/manage/components/placements/usePlacementData.ts) | 按团队/合集加载投放及内容，处理读取取消与刷新 |
+| [placement-store](../app/manage/lib/placement-store.ts) | 当前范围、投放、内容缓存、选择与刷新状态 |
+| [placement-to-viewer](../app/manage/lib/placement-to-viewer.ts) | 将投放转换为 viewer 可读的字段 |
+| [usePlacementViewer](../app/manage/hooks/usePlacementViewer.ts) | iframe 消息、相机定位、选中和拖动保存 |
+| `public/js/viewer/` | 独立 Cesium 运行时，管理图标、选择和渲染资源 |
 
-管理地图通过 `GET /api/placements/[id]/content?workspace_id=…` 读取固定内容。
-预览缓存按当前合集和投放目标校验，切换合集时清除并中止旧请求；源素材详情另行鉴权，只有成功读取后才显示目录与版本操作。共享投放不再依赖源素材目录的访问权限才能显示内容。
+`GET /api/placements/[id]/content` 解析源素材或场景的当前内容。内容缓存按团队/合集、投放及目标标识匹配；素材锁版本也参与素材目标的缓存键。无坐标或目录型 Shop 可出现在列表，但不进入地图。
 
-发给 viewer 的 `id` 是 Placement ID，返回的 `assetId` 也解释为 Placement ID。`sourceAssetId/assetVersionId/sceneRevisionId` 作为独立信息保留；不得再调用 Asset 移动/删除接口。小程序旧公开 ID 通过运行时绑定解析，不是管理地图 ID。
+## ID 与消息
 
-同一素材的两个投放可独立选中、移动、暂停、复制和升级。归档投放不会删除源素材；旧多项目 scope 显示为带来源合集的只读共享投放。来源选择器列出团队全部素材和已发布场景，同一场景可放进多个合集。地图按 capability 禁止无权限拖动；拒绝或保存失败时重发 SET_ASSETS 恢复位置，冲突时重新加载并提示用户。
+发送给 viewer 的 `id`、返回消息中的 `assetId` 和 `assetIds` 均指 **Placement ID**。基础素材的身份单独放在 `sourceAssetId`，场景身份放在 `sceneId`。同一素材在两个合集的投放是两个独立实例。
 
-列表可包含无坐标的目录型 Shop，但它不会进入地图。Anchor 继续使用专用业务适配。旧消息协议仍可复用，语义由当前模式决定，不能仅根据字段名 `assetId` 推断它属于 Asset。
+消息封装使用 `{ type, payload, source, version: 1 }`，source 为 manage 或 viewer。
 
-## Legacy 交互参考
+| 方向 | type | 作用 |
+| --- | --- | --- |
+| 父 → 子 | SET_ORIGIN | 设置地图中心 |
+| 父 → 子 | SET_ASSETS | 同步转换后的投放列表 |
+| 父 → 子 | FOCUS_ASSET | 定位到指定投放及其坐标 |
+| 父 → 子 | SET_SELECTION / CLEAR_SELECTION | 同步或清空多选 |
+| 子 → 父 | VIEWER_READY | viewer 初始化完成，父级重发状态 |
+| 子 → 父 | LOCATION_CLICKED | 更新手动选点坐标 |
+| 子 → 父 | ASSET_CLICKED / ASSETS_SELECTED | 更新投放选中状态 |
+| 子 → 父 | ASSETS_MOVED | 提交拖动后的投放坐标 |
 
-以下是旧地图 `useViewerMessaging` / `useManageStore` 的数据链路和消息说明；其 ID 才是旧 Asset ID。v2 共用 viewer 消息格式，不共用旧写入路径。
+## 写入与恢复
 
-## 功能概述
+拖动通过 `POST /api/placements/move` 保存，逐项发送 `placementId`、`expectedLockVersion` 和坐标，批次原子处理。前端先检查能力，服务端再次验证团队、合集、状态及锁版本。
 
-管理页面（`/manage`）的地图（Cesium 查看器）与左侧素材列表（`AssetManager`）之间支持双向交互：
+拒绝或失败时重发 SET_ASSETS 恢复地图位置；锁冲突会提示并请求重新加载。归档投放不删除源素材；暂停或归档后停止公开发现。来源选择器使用团队素材及已保存场景，编辑源内容无需“升级投放”。
 
-| 操作 | 效果 |
-|---|---|
-| 在素材列表点击 **定位** 按钮 | 地图相机飞到该素材所在位置 |
-| 在地图上点击 **素材图标** | 素材列表自动高亮并滚动到对应卡片 |
-| 在地图上点击 **空地** | 更新上传面板中的"手动选点"坐标，不影响素材选中状态 |
+匹配点素材 ID 通过适配器映射为该列表中的匹配点投放 ID，再写入 viewer 的 `anchor_id`。业务关联和识别规则见 [匹配点说明](anchor-matching.md)。
 
----
+## 验证
 
-## 技术架构
-
-管理页面通过 `<iframe>` 嵌入 Cesium 查看器，双方使用 `window.postMessage` 进行通信。所有消息都带有 `source` 字段用于区分来源，避免消息被错误处理。
-
-```
-┌─────────────────────────────────────────────┐
-│              管理页面（父窗口）               │
-│                                             │
-│  useViewerMessaging (hooks)                 │
-│  ┌───────────────────────────────────────┐  │
-│  │  发送到 Viewer（source: "manage"）     │  │
-│  │  SET_ORIGIN   → 设置地图中心          │  │
-│  │  SET_ASSETS   → 同步素材列表          │  │
-│  │  FOCUS_ASSET  → 定位到指定素材        │  │
-│  │                                       │  │
-│  │  接收自 Viewer（source: "viewer"）     │  │
-│  │  LOCATION_CLICKED ← 空地点击坐标      │  │
-│  │  ASSET_CLICKED    ← 素材图标点击 ID   │  │
-│  └───────────────────────────────────────┘  │
-│                                             │
-│  Store (Zustand)                            │
-│    clickedLocation  → 上传定位使用           │
-│    selectedAssetId  → 素材卡片高亮使用       │
-└───────────────┬─────────────────────────────┘
-                │ iframe 边界
-┌───────────────▼─────────────────────────────┐
-│           Cesium 查看器（子窗口）             │
-│                                             │
-│  clickHandler.js                            │
-│    LEFT_CLICK                               │
-│      命中素材 billboard → ASSET_CLICKED      │
-│      命中空地           → LOCATION_CLICKED   │
-│                                             │
-│  messageHandler.js                          │
-│    SET_ASSETS   → 渲染素材图标               │
-│    FOCUS_ASSET  → 相机飞行                   │
-│    SET_ORIGIN   → 设置初始视角               │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## 消息协议
-
-### 父 → 子
-
-| `type` | `payload` | 触发时机 |
-|---|---|---|
-| `SET_ORIGIN` | `{ lat, lng }` | 切换组织时 |
-| `SET_ASSETS` | `Asset[]` | 素材列表变化（含过滤）时 |
-| `FOCUS_ASSET` | `{ id, longitude, latitude, height }` | 点击定位按钮时 |
-| `SET_SELECTION` | `{ assetIds }` | 父窗口同步多选集到地图（viewer 侧静默套用，不回传） |
-| `CLEAR_SELECTION` | `{}` | 父级操作条"取消"后清除地图高亮 |
-
-### 子 → 父
-
-| `type` | `payload` | 触发时机 |
-|---|---|---|
-| `LOCATION_CLICKED` | `{ longitude, latitude, height }` | 点击地图空地时 |
-| `ASSET_CLICKED` | `{ assetId }` | 点击素材图标时 |
-| `ASSETS_MOVED` | `{ moves: [{ assetId, longitude, latitude, height }] }` | 拖动素材松手时；父窗口一次 `POST /api/assets/move` 批量落库并更新 store |
-| `ASSETS_SELECTED` | `{ assetIds }` | 地图框选多选时；写入 store 的 `selectedAssetIds` |
-
-所有消息格式：
-
-```json
-{
-  "type": "...",
-  "payload": {},
-  "source": "manage" | "viewer",
-  "version": 1
-}
-```
-
----
-
-## 点击行为的冲突处理
-
-地图点击事件在 `clickHandler.js` 中统一处理，通过 `viewer.scene.pick()` 优先判断是否命中素材实体：
-
-```javascript
-// clickHandler.js — handleMapClick
-const picked = viewer.scene.pick(movement.position);
-if (picked && picked.id?.properties?.assetId) {
-  // 命中素材图标 → 发送 ASSET_CLICKED，直接返回
-  sendAssetClicked(assetId);
-  return;
-}
-// 未命中 → 地面坐标拾取 → 发送 LOCATION_CLICKED
-sendLocationClicked(longitude, latitude, height);
-```
-
-**关键规则**：两类事件互斥，同一次点击只会触发其中一个，因此：
-- 上传面板中的"手动选点"功能（依赖 `LOCATION_CLICKED`）不会因点击素材图标而被意外覆盖
-- 素材选中状态（依赖 `ASSET_CLICKED`）不会因点击空地而被意外清除
-
----
-
-## 素材列表自动滚动
-
-当 `selectedAssetId` 在 Store 中更新时（无论是直接点击卡片，还是从地图触发），`AssetManager` 组件会自动将对应卡片滚动到可视区域：
-
-```typescript
-// AssetManager/index.tsx
-useEffect(() => {
-  if (!selectedAssetId) return;
-  document
-    .getElementById(`asset-card-${selectedAssetId}`)
-    ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}, [selectedAssetId]);
-```
-
-每张 `AssetCard` 的容器 `<div>` 上有对应的 `id={`asset-card-${asset.id}`}` 属性。
-
----
-
-## 涉及文件
-
-| 文件 | 职责 |
-|---|---|
-| `public/js/viewer/src/managers/clickHandler.js` | 地图点击分发：实体点击 vs 空地点击 |
-| `public/js/viewer/src/managers/messageHandler.js` | 向父窗口发送消息（`sendAssetClicked`、`sendLocationClicked`） |
-| `app/manage/hooks/useViewerMessaging.ts` | 接收子窗口消息，更新 Store |
-| `app/manage/store.ts` | `selectedAssetId`、`clickedLocation` 等共享状态 |
-| `app/manage/components/AssetManager/index.tsx` | 监听 `selectedAssetId`，触发自动滚动 |
-| `app/manage/components/AssetManager/AssetCard.tsx` | 渲染素材卡片，支持高亮与定位 |
-| `app/manage/components/upload/location-selector.tsx` | 读取 `clickedLocation`，供上传时选点使用 |
+修改消息桥时检查定位、单选/多选、手动选点、拖动保存、锁冲突恢复和合集切换。viewer 的重复同步及资源释放由 `node scripts/test-viewer-resources.mjs` 覆盖；它不替代浏览器消息桥和数据库写入验证。

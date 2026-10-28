@@ -114,7 +114,7 @@ export function UserList({
                           {isCurrentUser && (
                             <Badge
                               variant="outline"
-                              className="px-1 py-0 text-[10px] leading-4"
+                              className="px-1 py-0"
                             >
                               {t("admin.users.currentUser", "当前")}
                             </Badge>

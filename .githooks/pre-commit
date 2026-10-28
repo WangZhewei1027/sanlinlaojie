@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+git diff --cached --check
+# Validate the working tree without rewriting files or changing the index.
+exec npm run check:fast

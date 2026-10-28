@@ -1,0 +1,42 @@
+# 文档索引
+
+这里保留当前 Web 平台的工程与运维说明。开发启动见 [项目 README](../README.md)，工程约束见 [AGENTS](../AGENTS.md)。文档中的运行状态和验收结果仅代表其标注时点；发布前按实际环境重新核对。
+
+工程规范与审查依据见 [CODING_STANDARDS.md](../CODING_STANDARDS.md)；自动检查、Git hooks、CI 和测试分类见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+
+## 内容与接口
+
+| 文档 | 负责的内容 |
+| --- | --- |
+| [团队工作台](team-workbench.md) | 页面入口、团队上下文、前端数据流 |
+| [后端契约](team-workbench-backend-contract.md) | 内容 API、DTO、并发控制与事务 |
+| [权限](permissions.md) | 角色、能力、归档和邀请规则 |
+| [数据层与认证](data-layer.md) | 数据库访问、会话与存储适配 |
+| [素材流水线](asset-pipeline.md) | 预处理、上传回执、素材编辑与音频边界 |
+| [文件生命周期](asset-storage-lifecycle.md) | 文件复用、租约、保留和回收 |
+| [Scene](scene-asset.md) | 场景文档、编辑、播放协议与验证入口 |
+| [地图交互](map-asset-interaction.md) | Placement、Cesium 消息与拖动保存 |
+| [匹配点](anchor-matching.md) | 图片识别、参考特征、限流和诊断 |
+| [小程序 API](miniapp-api.md) | 匿名读取、发现与播放 |
+| [微信二维码](wechat-qr-code.md) | 入口参数、环境切换与缓存 |
+| [文字样式](text-asset-miniapp-style.md) | 团队配置在小程序端的展示 |
+
+## 界面开发
+
+- [设计系统](design-system.md)：主题、排版和组件规则。
+- [UI 分层](ui/architecture.md)：组件、业务功能和页面职责。
+- [国际化](i18n-guide.md)：中英文文案与语言切换。
+- [3D 模型预览](3d-model-preview.md)：素材预览组件与资源加载。
+
+## 运维与迁移
+
+- [线上部署](production-deployment.md)：服务关系、发布、备份和巡检。
+- [数据库迁移](content-model-migration-runbook.md)：升级、数据保留、逐条审核和回滚。
+- [pgAdmin](pgadmin.md)：运维访问、角色、配置和恢复。
+- [Google 中转](google-auth-relay.md)：独立函数部署、密钥和验证。
+
+## Agent 工作流
+
+- [GitHub Issues](agents/issue-tracker.md)：需求、规格和实现任务。
+- [分流标签](agents/triage-labels.md)：五类标准标签。
+- [领域文档](agents/domain.md)：术语表和架构决策的阅读与维护约定。

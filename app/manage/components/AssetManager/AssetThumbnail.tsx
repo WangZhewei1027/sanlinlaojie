@@ -1,4 +1,5 @@
 import { File, Anchor, Music } from "lucide-react";
+import Image from "next/image";
 
 interface AssetThumbnailProps {
   fileType: string;
@@ -16,9 +17,13 @@ export function AssetThumbnail({
   return (
     <div className="w-16 h-16 flex-shrink-0 rounded-md overflow-hidden bg-muted flex items-center justify-center">
       {(fileType === "image" || fileType === "anchor") && fileUrl ? (
-        <img
+        <Image
           src={fileUrl}
           alt={fileName}
+          width={64}
+          height={64}
+          // Asset URLs may be external or local blobs; keep loading them directly.
+          unoptimized
           className="w-full h-full object-cover"
         />
       ) : fileType === "audio" ? (

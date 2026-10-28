@@ -33,6 +33,9 @@ export function MatchingPointPanel(props: MatchingPointPanelProps) {
           {t("matching.referenceImage")}
         </Text>
         {url && (
+          // Local blob URLs and user-supplied reference images have unknown intrinsic
+          // dimensions; preserve their natural height and direct browser loading.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={url}
             alt={t("matching.referenceImage")}

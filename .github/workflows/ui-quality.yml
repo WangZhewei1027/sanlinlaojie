@@ -1,4 +1,4 @@
-name: UI quality
+name: Engineering quality
 
 on:
   pull_request:
@@ -40,13 +40,13 @@ jobs:
       - run: npm ci
       - name: Verify fresh database and deployment gate
         run: node --import tsx scripts/test-deployment-check.ts
-      - name: Create isolated migration fixture databases
+      - name: Create isolated migration and service fixture databases
         run: |
           node --input-type=module <<'JS'
           import { Client } from 'pg';
           const db = new Client({ connectionString: process.env.DATABASE_URL });
           await db.connect();
-          for (const name of ['content_single_migration', 'content_mutable_migration', 'content_scene_migration']) {
+          for (const name of ['content_single_migration', 'content_mutable_migration', 'content_scene_migration', 'content_services']) {
             await db.query(`create database ${name}`);
           }
           await db.end();
@@ -56,6 +56,13 @@ jobs:
           DATABASE_URL="${DATABASE_URL%/postgres}/content_single_migration" node --import tsx --conditions react-server scripts/test-single-content-model-migration.ts
           DATABASE_URL="${DATABASE_URL%/postgres}/content_mutable_migration" node --import tsx --conditions react-server scripts/test-mutable-assets-migration.ts
           DATABASE_URL="${DATABASE_URL%/postgres}/content_scene_migration" node --import tsx --conditions react-server scripts/test-mutable-scenes-migration.ts
+      - name: Verify content services, routes and upload deduplication
+        env:
+          DATABASE_URL: postgres://postgres:migration-test@127.0.0.1:55439/content_services
+          NEXT_PUBLIC_MEDIA_BASE_URL: https://integration.invalid
+        run: |
+          npm run db:migrate
+          npm run test:integration
 
   validate:
     runs-on: ubuntu-latest
@@ -73,12 +80,5 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - name: Verify map hydration and texture reuse
-        run: node scripts/test-viewer-resources.mjs
-      - name: Verify registration policy and existing account login
-        run: node --test scripts/test-sms-auth.cjs
-      - name: Verify Google relay authorization and OAuth callbacks
-        run: node --import tsx --conditions react-server --test scripts/test-google-relay-function.mjs scripts/test-google-relay.mjs
-      - run: npm run build
+      - name: Types, lint, offline regressions and production build
+        run: npm run check

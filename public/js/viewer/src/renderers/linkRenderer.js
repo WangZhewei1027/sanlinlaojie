@@ -7,10 +7,10 @@ import { BILLBOARD_CONFIG } from "../utils/config.js";
 /**
  * 创建链接canvas
  * @param {string} name - 链接名称或URL
- * @param {Object} metadata - 链接元数据（可选）
+ * @param {Object} _metadata - 保留统一渲染接口参数，链接卡片只使用名称
  * @returns {HTMLCanvasElement} - Canvas元素
  */
-export function createLinkCanvas(name, metadata) {
+export function createLinkCanvas(name, _metadata) {
   const iconSize = BILLBOARD_CONFIG.iconSize * 1.2;
   const padding = 4;
   const fontSize = 14;

@@ -1,4 +1,4 @@
--- Content model v2 foundation (docs/team-assets-scenes-refactor-plan.md §4, §5, §8).
+-- Content model v2 foundation (docs/content-model-migration-runbook.md).
 --
 -- Additive only: new columns/tables/constraints, the project-role backfill of
 -- workspace_assignment (old text is kept in legacy_role), and guarded versions

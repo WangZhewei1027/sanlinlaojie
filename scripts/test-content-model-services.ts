@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import type { Actor } from "../lib/content-model/access.server";
 import type { Trx } from "../lib/content-model/tx.server";
+import { createBlankSceneDocument } from "../lib/scene/protocol";
 import { assertServicesDatabase, cleanupServicesFixture, fixtureIds, seedRuntimeProjectionFixture, seedServicesFixture, assetDocument } from "./test-content-model-services-fixture";
 
 const failures: string[] = [];
@@ -554,7 +555,8 @@ async function main(): Promise<void> {
         });
         await sceneService.createOrganizationScene(actor, personal, { name: "first scene", document: assetDocument(asset.asset.id) });
         assert.deepEqual(await projects.listCollections(actor, personal, { state: "all" }), []);
-        await rejectSql("insert into scene(organization_id,name,document) values($1,'orphan','{}'::jsonb)", [randomUUID()], "23503");
+        // Isolate the tenant FK: malformed documents fail the schema CHECK first.
+        await rejectSql("insert into scene(organization_id,name,document) values($1,'orphan',$2::jsonb)", [randomUUID(), JSON.stringify(createBlankSceneDocument())], "23503");
         await rejectSql("delete from organization where id=$1", [personal], "23503");
         await client.query("begin");
         try {

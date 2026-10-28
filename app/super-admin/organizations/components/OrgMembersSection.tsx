@@ -77,7 +77,7 @@ export function OrgMembersSection({ org, onSuccess }: OrgMembersSectionProps) {
               </span>
               <Badge
                 variant="secondary"
-                className="text-[10px] py-0 ml-2 flex-shrink-0"
+                className="py-0 ml-2 flex-shrink-0"
               >
                 {m.role}
               </Badge>

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import type { Group } from 'three';
+import { Box3, type Group } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createSceneCore } from '@spatial-memory/scene-core';
 import type { CompositionContent, CompositionInstance, TransformChannel } from '../lib/scene/protocol';
 import { Editor } from '../vendor/three-editor';
-import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
+import { EditorModels, groundPivot } from '../app/manage/scenes/components/three-editor/models';
 import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
 import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
 
@@ -45,7 +45,9 @@ async function main() {
     const definition = content(loop, grouped);
     const bytes = createFixtureGLB();
     const webGLB = await new GLTFLoader().parseAsync(bytes.slice(0), '');
-    const miniGLB = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(bytes.slice(0), '', resolve, reject));
+    const miniGLB = await new Promise<{ scene: Group }>((resolve, reject) => new THREE.GLTFLoader().parse(bytes.slice(0), '', resolve, reject));
+    // Grouped runs also use an offset pivot like a Sketchfab export; both hosts must ground it identically.
+    if (grouped) for (const scene of [webGLB.scene, miniGLB.scene]) scene.position.set(-3, 0.2, 3.3);
     const cache = new ModelCache(null, 8, async () => miniGLB);
     const player = createCompositionPlayer({ schemaVersion: grouped ? 5 : 4, assetId: 'parity', content: JSON.parse(JSON.stringify(definition)), resources: { model: { url: 'fixture.glb' } } }, { modelCache: cache });
     await player.load(); assert.equal(player.state, 'ready');
@@ -73,6 +75,11 @@ async function main() {
     models.dispose();
     web.dispose(); player.dispose(); cache.dispose();
   }
+  // The pivot puts the model's bottom-center on the instance origin.
+  const offsetModel = (await new GLTFLoader().parseAsync(createFixtureGLB().slice(0), '')).scene;
+  offsetModel.position.set(-3, 0.2, 3.3);
+  const grounded = new Box3().setFromObject(groundPivot(offsetModel));
+  near(grounded.min.y, 0); near((grounded.min.x + grounded.max.x) / 2, 0); near((grounded.min.z + grounded.max.z) / 2, 0);
   // Players must be independent even in the same module scope.
   const a = content(false), b = content(false); b.durationSeconds = 5;
   const first = await miniCore.createSceneCore({ content: a });
@@ -80,6 +87,6 @@ async function main() {
   void first.play(false); void second.play(false); first.advance(3); second.advance(1);
   near(first.time, 3); near(second.time, 1);
   first.dispose(); second.advance(1); near(second.time, 2); second.dispose();
-  console.log(JSON.stringify({ result: 'PASS', webThree: '0.183.2', miniThree: THREE.REVISION, samples: 68, comparisons, maximumError, coverage: 'native Three Editor adapter vs mini CompositionPlayer; nested animated groups, 9 transform channels, Bezier/hold, real GLB node animation, delayed/looping clips, scene loop/end, pause, isolated simultaneous players' }));
+  console.log(JSON.stringify({ result: 'PASS', webThree: '0.183.2', miniThree: THREE.REVISION, samples: 68, comparisons, maximumError, coverage: 'native Three Editor adapter vs mini CompositionPlayer; bottom-center pivots for offset models, nested animated groups, 9 transform channels, Bezier/hold, real GLB node animation, delayed/looping clips, scene loop/end, pause, isolated simultaneous players' }));
 }
 main().then(() => process.exit(0), error => { console.error(error); process.exit(1); });

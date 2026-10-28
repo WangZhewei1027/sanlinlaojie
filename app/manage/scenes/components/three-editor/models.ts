@@ -1,4 +1,4 @@
-import { AnimationMixer, Group, LoopOnce, type AnimationAction, type AnimationClip, type Object3D } from 'three';
+import { AnimationMixer, Box3, Group, LoopOnce, type AnimationAction, type AnimationClip, type Object3D } from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { applyTransform, clipTime } from '@spatial-memory/scene-core';
 import type { Editor } from '@/vendor/three-editor';
@@ -8,6 +8,18 @@ import { registerInstance } from './transform-bridge';
 import type { ThreeViewportProps } from './types';
 
 type Entry = { instance: CompositionInstance; url: string; release(): void; stop?: () => void; root?: Group; model?: Object3D; clips?: AnimationClip[]; mixer?: AnimationMixer; action?: AnimationAction; clip?: AnimationClip; animationKey?: string };
+/**
+ * Imported models often carry an offset pivot (e.g. Sketchfab/FBX exports). Wrap the model so its
+ * bounding box's bottom-center sits on the instance origin, outside what the AnimationMixer drives.
+ * Same rule as the mini-program's `lib/three-runtime/pivot.js`.
+ */
+export function groundPivot(model: Object3D) {
+  const pivot = new Group(); pivot.name = 'pivot';
+  const bounds = new Box3().setFromObject(model);
+  if (!bounds.isEmpty()) pivot.position.set(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y, -(bounds.min.z + bounds.max.z) / 2);
+  pivot.add(model);
+  return pivot;
+}
 type GroupEntry = { group: CompositionGroup; object: Group; stop(): void };
 export class EditorModels {
   readonly entries = new Map<string, Entry>();
@@ -58,7 +70,8 @@ export class EditorModels {
         if (this.entries.get(instance.id) !== entry) return;
         const root = entry.root = new Group();
         root.name = instance.id; registerInstance(root, instance.id);
-        const model = entry.model = clone(gltf.scene); root.add(model); entry.clips = gltf.animations;
+        const model = entry.model = clone(gltf.scene); entry.clips = gltf.animations;
+        root.add(groundPivot(model));
         const object = this.props().session.sample(instance.id);
         if (!object) { this.remove(instance.id); return; }
         entry.stop = this.props().session.observe(instance.id, value => { if (!this.dragging(instance.id)) { applyTransform(root, value); if (this.editor.selected === root) this.editor.signals.objectChanged.dispatch(root); } });

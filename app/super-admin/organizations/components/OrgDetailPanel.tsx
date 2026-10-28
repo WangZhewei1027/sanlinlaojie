@@ -55,7 +55,7 @@ export function OrgDetailPanel({
 
         <OrgMembersSection org={org} onSuccess={onSuccess} />
 
-        <p className="text-[10px] text-muted-foreground/50 font-mono break-all pt-1">
+        <p className="text-xs text-muted-foreground font-mono break-all pt-1">
           ID: {org.id}
         </p>
       </div>
