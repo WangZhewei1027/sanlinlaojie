@@ -17,10 +17,7 @@ export function AssetAudioPreview({
         {t("assetEditor.preview.audio")}
       </label>
       <div className="rounded-md border p-4 bg-muted/30">
-        <audio controls className="w-full" preload="metadata">
-          <source src={fileUrl} type="audio/webm" />
-          <source src={fileUrl} type="audio/mpeg" />
-          <source src={fileUrl} type="audio/wav" />
+        <audio src={fileUrl} controls className="w-full" preload="metadata">
           {t("assetEditor.preview.audioNotSupported")}
         </audio>
       </div>

@@ -102,8 +102,8 @@ export interface FileTypeConfig {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   accept: string;
-  maxSize?: number; // MB
-  process?: (file: File) => Promise<File>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extractMetadata?: (file: File) => Promise<Record<string, any>>;
+  maxSize?: number; // Original file size, in MiB
+  extractMetadata?: (file: File) => Promise<{
+    gps: { latitude: number; longitude: number; altitude?: number } | null;
+  }>;
 }

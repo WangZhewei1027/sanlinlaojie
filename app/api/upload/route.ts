@@ -7,12 +7,16 @@ import { db, sql } from "@/lib/db";
 import { ASSETS_PREFIX, headObject, putObject } from "@/lib/storage/oss";
 import { lockObjectKeys, releaseObjectsIfUnreferenced } from "@/lib/storage/retention.server";
 import { findReusableKey, issueReceipt, receiptDto, resolveUploadScope, type ReceiptRow } from "@/lib/upload/receipts.server";
+import { inferUploadType } from "@/lib/upload/detection";
+import { processUploadMedia } from "@/lib/upload/media-processing.server";
+import { getUploadSourceLimitBytes, STORED_FILE_MAX_BYTES } from "@/lib/upload/policy";
+import { readUploadForm } from "@/lib/upload/request.server";
 import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 
-// Media upload relay: the browser posts the (already compressed) file here and
-// the server writes it to OSS.
+// The browser posts originals. After authorizing the target team, the server
+// normalizes audio/images and stores only the processed bytes in OSS.
 //
 // POST multipart/form-data { file, type?, organization_id?, workspace_id?, purpose? }
 //   → { url, contentHash, storagePath, data: UploadReceiptDto }
@@ -31,9 +35,8 @@ import { createHash } from "node:crypto";
 //     unconsumed leases on the key and hands it to the retention protocol
 //     (actual deletion is deferred while object deletion is disabled).
 
-// Hard cap, same as the old storage bucket; per-type limits are enforced
-// client-side in lib/upload/config.ts.
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+// cacheComponents keeps route handlers on the default Node.js runtime.
+export const maxDuration = 180;
 const PURPOSES: readonly UploadPurpose[] = ["asset"];
 
 function newObjectKey(userId: string, fileName: string): string {
@@ -54,20 +57,25 @@ export async function POST(request: Request) {
   try {
     userId = await requireSessionUserId();
     const actor = await loadActor(db, userId);
-    const form = await request.formData().catch(() => null);
-    const file = form?.get("file");
+    const form = await readUploadForm(request);
+    const file = form.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "缺少文件" }, { status: 400 });
     }
-    if (file.size === 0 || file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json(
-        { error: `文件大小超过限制 (${MAX_UPLOAD_BYTES / 1024 / 1024}MB)` },
-        { status: 413 },
-      );
-    }
-    const type = form?.get("type");
-    if (type && !ALL_UPLOAD_TYPES.includes(type as UploadType)) {
+    const requestedType = form.get("type");
+    if (requestedType && (typeof requestedType !== "string" || !ALL_UPLOAD_TYPES.includes(requestedType as UploadType))) {
       return NextResponse.json({ error: "无效的文件类型" }, { status: 400 });
+    }
+    const inferredType = inferUploadType(file.type, file.name);
+    const type = (requestedType || inferredType) as UploadType;
+    // A mislabeled media file must not bypass normalization via a generic type.
+    if ((inferredType === "audio" || inferredType === "image") && type !== inferredType && !(inferredType === "image" && type === "anchor")) {
+      throw new ContentError("VALIDATION_FAILED", "文件内容类型与上传类型不一致");
+    }
+    const sourceLimit = getUploadSourceLimitBytes(type);
+    if (file.size === 0) throw new ContentError("VALIDATION_FAILED", "文件为空");
+    if (file.size > sourceLimit) {
+      throw new ContentError("VALIDATION_FAILED", `原始文件大小超过限制 (${sourceLimit / 1024 / 1024}MB)`, undefined, 413);
     }
     const organizationId = formText(form, "organization_id");
     const workspaceId = formText(form, "workspace_id");
@@ -76,13 +84,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "无效的上传用途" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const contentHash = createHash("sha256").update(buffer).digest("hex");
-    const mimeType = file.type || "application/octet-stream";
-
     if (!organizationId && !workspaceId) throw new ContentError("VALIDATION_FAILED", "需要指定团队或地图合集");
 
     const scope = await resolveUploadScope(db, actor, { organizationId, workspaceId });
+    const { buffer, fileName, mimeType } = await processUploadMedia(file, type);
+    if (buffer.length === 0 || buffer.length > STORED_FILE_MAX_BYTES) {
+      throw new ContentError("VALIDATION_FAILED", "处理后的文件超过 5MB 限制，请缩短音频或减小图片后重试", undefined, 413);
+    }
+    const contentHash = createHash("sha256").update(buffer).digest("hex");
     const purpose: UploadPurpose =
       (requestedPurpose as UploadPurpose | null) ??
       "asset";
@@ -93,7 +102,7 @@ export async function POST(request: Request) {
       contentHash,
       mimeType,
       sizeBytes: buffer.length,
-      uploadType: typeof type === "string" && type ? type : null,
+      uploadType: type,
       purpose,
     };
 
@@ -120,7 +129,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const key = newObjectKey(actor.userId, file.name);
+    const key = newObjectKey(actor.userId, fileName);
     await putObject(key, buffer, { contentType: mimeType });
     const receipt = await db.transaction().execute(async (trx) => {
       await lockObjectKeys(trx, [key]);

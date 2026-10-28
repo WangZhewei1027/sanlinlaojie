@@ -14,6 +14,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
+import sharp from "sharp";
+import { processUploadMedia } from "../lib/upload/media-processing.server";
 import { installRouteStubs } from "./test-support/install-route-stubs";
 import type * as AuthStub from "./test-support/stub-auth-server";
 import type * as OssStub from "./test-support/stub-oss";
@@ -51,6 +53,13 @@ async function main(): Promise<void> {
     form.set("file", new File([bytes], "box.glb", { type: "model/gltf-binary" }));
     form.set("type", "model");
     for (const [name, value] of Object.entries(fields)) form.set(name, value);
+    return call(user, upload, "/api/upload", { method: "POST", body: form });
+  };
+  const sendMedia = (user: string | null, file: File, type?: string) => {
+    const form = new FormData();
+    form.set("file", file);
+    form.set("organization_id", f.organizations.team);
+    if (type) form.set("type", type);
     return call(user, upload, "/api/upload", { method: "POST", body: form });
   };
 
@@ -92,6 +101,42 @@ async function main(): Promise<void> {
     const outsider = await probe(f.users.foreign, f.organizations.solo);
     assert.equal(outsider.status, 403, "a non-member cannot probe another team");
     console.log("PASS same-team reuse across collections and organization-only uploads, no cross-team reuse, denial for outsiders/viewers/anonymous");
+
+    // > 10 MiB original exercises the new source limit independently of the
+    // 5 MiB stored-file cap. The stream is valid PCM and shorter than 10 min.
+    const samples = 44100 * 130;
+    const wav = Buffer.alloc(44 + samples * 2);
+    wav.write("RIFF", 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(44100, 24); wav.writeUInt32LE(88200, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+    wav.write("data", 36); wav.writeUInt32LE(samples * 2, 40);
+    const audio = new File([Uint8Array.from(wav)], "original.wav", { type: "audio/wav" });
+    const normalized = await processUploadMedia(audio, "audio");
+    const converted = await sendMedia(f.users.editor, audio); // omitted type still normalizes audio
+    assert.equal(converted.status, 200, JSON.stringify(converted.body));
+    assert.match(converted.body.data.storage_key, /\.mp3$/);
+    assert.equal(converted.body.data.mime_type, "audio/mpeg");
+    assert.equal(converted.body.data.size_bytes, normalized.buffer.length);
+    assert.equal(converted.body.contentHash, createHash("sha256").update(normalized.buffer).digest("hex"));
+    assert.notEqual(converted.body.contentHash, createHash("sha256").update(wav).digest("hex"));
+    const repeated = await sendMedia(f.users.editor, audio, "audio");
+    assert.equal(repeated.status, 200, JSON.stringify(repeated.body));
+    assert.equal(repeated.body.storagePath, null, "audio dedup hashes the deterministic final MP3");
+    assert.equal(repeated.body.url, converted.body.url);
+
+    const png = await sharp({ create: { width: 2500, height: 2000, channels: 3, background: "#ac5390" } }).png().toBuffer();
+    const image = await sendMedia(f.users.editor, new File([Uint8Array.from(png)], "photo.png", { type: "image/png" }), "image");
+    assert.equal(image.status, 200, JSON.stringify(image.body));
+    assert.equal(image.body.data.mime_type, "image/jpeg");
+    assert.match(image.body.data.storage_key, /\.jpe?g$/);
+    assert.equal(oss.stubObjects.get(image.body.data.storage_key)?.contentType, "image/jpeg");
+    const beforeFailure = oss.stubObjects.size;
+    const corrupt = new File(["not audio"], "broken.wav", { type: "audio/wav" });
+    assert.equal((await sendMedia(f.users.viewer, corrupt, "audio")).status, 403, "authorize before native processing");
+    assert.equal((await sendMedia(f.users.editor, corrupt, "audio")).status, 400);
+    assert.equal((await sendMedia(f.users.editor, audio, "document")).status, 400, "media cannot opt out via a generic type");
+    assert.equal(oss.stubObjects.size, beforeFailure, "failed processing never writes an original or issues a usable object");
+    console.log("PASS >10 MiB originals, server MP3/JPEG receipts, processed-byte dedup and failed-upload isolation");
   } finally {
     try {
       await client.query("delete from error_log where user_id=any($1::uuid[])", [Object.values(f.users)]);

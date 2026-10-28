@@ -118,7 +118,8 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 典型请求路径：
 
 - 管理与扫码：客户端 → Caddy → Next.js → PostgreSQL。素材和 Scene 保存即生效，引用通过 ID 读取当前内容。
-- 文件：浏览器上传 → Next.js `/api/upload` → OSS；浏览器和小程序按媒体 URL 加载文件，网页部分图片也经过 Next.js 图片优化接口。
+- 文件：浏览器上传原文件 → Next.js `/api/upload` 授权并压缩/转码 → OSS；浏览器和小程序按最终媒体 URL 加载文件，网页部分图片也经过 Next.js 图片优化接口。Docker runner 包含 FFmpeg/ffprobe，sharp 随服务端依赖打包；缺少转码运行时会拒绝音频上传，不保存未转换文件。
+- 图片/匹配图/音频原文件最大 32 MiB，最终对象最大 5 MiB；multipart 上限 33 MiB，Next proxy 缓冲为 34 MiB，主/备用 Caddy 入口均为 35 MB。发布该变更时需要重建应用镜像并加载配套 Caddy 配置，不能仅替换客户端资源。
 - 识别：小程序 → Next.js 识别接口 → SAGE 网关 → PAI-EAS 返回向量 → 后端匹配并返回结果。
 - Google 登录：浏览器访问 Google 授权页 → 浏览器回调 Caddy / Next.js → 香港 FC → Google 令牌与公钥接口 → Next.js 验签并在 PostgreSQL 中创建或关联账号、保存会话。
 

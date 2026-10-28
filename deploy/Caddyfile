@@ -7,9 +7,9 @@
 (site_proxy) {
 	encode zstd gzip
 
-	# uploads go through the app (5 MiB files + multipart overhead)
+	# Originals can be 32 MiB; the app bounds multipart to 33 MiB and stores <= 5 MiB.
 	request_body {
-		max_size 20MB
+		max_size 35MB
 	}
 
 	# The gateway authenticates every model request and enforces GPU allocation policy.

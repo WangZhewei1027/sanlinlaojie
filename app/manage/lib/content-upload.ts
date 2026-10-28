@@ -1,7 +1,7 @@
 /**
- * Client adapter between the existing browser preprocessing (FILE_TYPE_CONFIGS
- * compression and EXIF/audio metadata via FileUploadService.processFile) and
- * the commands, which accept upload receipts instead of URLs.
+ * Client adapter between original files and commands that accept upload
+ * receipts. The browser extracts capture GPS; the upload endpoint compresses
+ * images and transcodes audio before issuing receipts for the final bytes.
  *
  * Capture GPS goes into `payload.capture` as provenance only; a placement is
  * created solely from an explicit location the caller passes.
@@ -40,7 +40,7 @@ export function maxSizeFor(type: UploadType) {
   return getEffectiveMaxSizeMB(type);
 }
 
-/** Compress and inspect files in the browser before issuing an upload receipt. */
+/** Validate originals and inspect capture/animation metadata before upload. */
 export async function prepareFile(file: File, type?: UploadType): Promise<PreparedFile> {
   if (type === "model") {
     if (!validateFileSize(file, getEffectiveMaxSizeMB("model"))) throw new Error(`> ${getEffectiveMaxSizeMB("model")} MB`);
@@ -98,7 +98,7 @@ export interface UploadedAssetInput {
 }
 
 /**
- * Upload the processed file and describe it as asset content. Team
+ * Upload the original file and describe the server's result as asset content. Team
  * content passes only the organization; a collection is added solely for
  * upload-and-place on the map or onsite.
  */

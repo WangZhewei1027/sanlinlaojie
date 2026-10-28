@@ -108,7 +108,7 @@
     "imageDescriptionPlaceholder": "输入图片描述（可选）...",
     "microphoneError": "无法访问麦克风，请检查权限设置",
     "pleaseLogin": "请先登录",
-    "imageCompressionNote": "图片将自动压缩为 WebP 格式上传",
+    "imageCompressionNote": "图片上传后由服务端自动压缩",
     "browserNotSupported": "浏览器不支持录音",
     "tags": {
       "title": "标签",

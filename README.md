@@ -24,6 +24,8 @@ npm ci
 npm run hooks:install
 ```
 
+上传处理与媒体回归测试还需要系统 `ffmpeg` 和 `ffprobe`（含 `libmp3lame`）。macOS 可运行 `brew install ffmpeg`，Debian/Ubuntu 使用 `apt-get install ffmpeg`。图片处理依赖 sharp，由 `npm ci` 安装；生产 Docker 镜像自带上述运行时。
+
 准备本地 PostgreSQL + PostGIS 数据库，在 `.env.local` 配置：
 
 ```dotenv

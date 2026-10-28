@@ -24,8 +24,9 @@
 	}
 	encode zstd gzip
 
+	# 32 MiB originals plus multipart overhead; the app enforces tighter bounds.
 	request_body {
-		max_size 20MB
+		max_size 35MB
 	}
 
 	# The gateway authenticates every model request and enforces GPU allocation policy.

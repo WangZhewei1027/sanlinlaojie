@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["ali-oss", "pg", "nodemailer", "undici"],
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
   cacheComponents: true,
+  // Let the upload route enforce its 33 MiB multipart bound without the proxy
+  // truncating 32 MiB originals at Next's default 10 MiB buffer limit.
+  experimental: { proxyClientMaxBodySize: "34mb" },
   turbopack: {
     root: projectRoot,
   },

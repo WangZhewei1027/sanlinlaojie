@@ -108,7 +108,7 @@
     "imageDescriptionPlaceholder": "Enter image description (optional)...",
     "microphoneError": "Unable to access microphone. Please check your permission settings.",
     "pleaseLogin": "Please login first",
-    "imageCompressionNote": "Image will be automatically compressed to WebP format",
+    "imageCompressionNote": "Images are automatically compressed on the server after upload",
     "browserNotSupported": "Browser does not support audio recording",
     "tags": {
       "title": "Tags",

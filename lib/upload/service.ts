@@ -4,7 +4,7 @@ import {
   inferUploadType,
   validateFileSize,
 } from "./config";
-import {
+import type {
   GPSSource,
   UploadFile,
   UploadType
@@ -16,7 +16,7 @@ import {
 export class FileUploadService {
 
   /**
-   * 处理文件（压缩、提取元数据等）
+   * 校验原始文件并提取采集坐标；媒体压缩由上传接口完成。
    */
   async processFile(file: File, requestedType?: UploadType): Promise<UploadFile> {
     const uploadType = requestedType ?? inferUploadType(file.type, file.name);
@@ -25,10 +25,14 @@ export class FileUploadService {
       throw new Error("匹配图仅支持 JPEG、PNG 和 WebP");
     }
 
-    let processedFile = file;
+    const maxSizeMB = getEffectiveMaxSizeMB(uploadType);
+    if (file.size === 0 || !validateFileSize(file, maxSizeMB)) {
+      throw new Error(`文件必须非空且不超过 ${maxSizeMB}MB`);
+    }
+
     let gpsSource: GPSSource | undefined;
 
-    // 提取元数据（如 GPS）- 在压缩前提取，避免 EXIF 数据丢失
+    // 保留原图采集坐标；服务端压缩会移除 EXIF。
     if (config.extractMetadata) {
       try {
         const metadata = await config.extractMetadata(file);
@@ -48,29 +52,8 @@ export class FileUploadService {
       }
     }
 
-    // 处理文件（如压缩）
-    if (config.process) {
-      try {
-        processedFile = await config.process(file);
-        console.log(
-          `文件处理完成: ${(file.size / 1024).toFixed(2)}KB -> ${(
-            processedFile.size / 1024
-          ).toFixed(2)}KB`,
-        );
-      } catch (error) {
-        console.error("文件处理失败:", error);
-        throw new Error(`文件压缩失败: ${error}`);
-      }
-    }
-
-    // 验证处理后的文件大小（类型配置与存储桶硬上限取较小值）
-    const maxSizeMB = getEffectiveMaxSizeMB(uploadType);
-    if (!validateFileSize(processedFile, maxSizeMB)) {
-      throw new Error(`文件大小超过限制 (${maxSizeMB}MB)`);
-    }
-
     return {
-      file: processedFile,
+      file,
       type: uploadType,
       gpsSource,
     };
