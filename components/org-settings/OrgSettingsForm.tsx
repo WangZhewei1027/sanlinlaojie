@@ -36,8 +36,6 @@ export function OrgSettingsForm({ org, save, onSuccess }: OrgSettingsFormProps) 
     setTextAssetMiniappStyle,
     confettiEnabled,
     setConfettiEnabled,
-    shopCheckinEnabled,
-    setShopCheckinEnabled,
     footerEnabled,
     setFooterEnabled,
     saveError,
@@ -66,8 +64,6 @@ export function OrgSettingsForm({ org, save, onSuccess }: OrgSettingsFormProps) 
         setTextAssetMiniappStyle={setTextAssetMiniappStyle}
         confettiEnabled={confettiEnabled}
         setConfettiEnabled={setConfettiEnabled}
-        shopCheckinEnabled={shopCheckinEnabled}
-        setShopCheckinEnabled={setShopCheckinEnabled}
         footerEnabled={footerEnabled}
         setFooterEnabled={setFooterEnabled}
       />

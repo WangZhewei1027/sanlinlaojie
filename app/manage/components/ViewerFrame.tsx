@@ -2,6 +2,7 @@ import { RefObject } from "react";
 
 interface ViewerFrameProps {
   iframeRef: RefObject<HTMLIFrameElement | null>;
+  title?: string;
 }
 
 // The viewer is a static page; it learns where the Cesium build / 3D tiles
@@ -17,14 +18,14 @@ function viewerSrc(): string {
   return `/js/viewer/index.html${query ? `?${query}` : ""}`;
 }
 
-export function ViewerFrame({ iframeRef }: ViewerFrameProps) {
+export function ViewerFrame({ iframeRef, title = "3D Viewer" }: ViewerFrameProps) {
   return (
     <div className="w-full h-full">
       <iframe
         ref={iframeRef}
         src={viewerSrc()}
         className="w-full h-full border-0"
-        title="3D Viewer"
+        title={title}
       />
     </div>
   );

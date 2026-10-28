@@ -7,10 +7,9 @@ import { errorResponse, json, parseIds } from "@/lib/miniapp/request";
 // Replaces the mini-program's direct PostgREST reads of `organization`.
 
 // Only these config keys are consumed by the mini-program (xr-start, index
-// page, shop check-in); everything else in `config` stays private.
+// page); everything else in `config` stays private.
 const PUBLIC_CONFIG_KEYS = [
   "confetti_enabled",
-  "shop_checkin_enabled",
   "footer_enabled",
   "text_asset_miniapp_style",
 ] as const;

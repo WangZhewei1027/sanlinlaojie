@@ -25,6 +25,70 @@ export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export type UserRole = "super_admin" | "user";
 
+export interface Activity {
+  config: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  description: string | null;
+  id: Generated<string>;
+  location: string | null;
+  lock_version: Generated<number>;
+  name: string;
+  organization_id: string;
+  radius_meters: number | null;
+  state: Generated<string>;
+  type: string;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+}
+
+export interface ActivityPlacement {
+  activity_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: Generated<string>;
+  lock_version: Generated<number>;
+  organization_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  workspace_id: string;
+}
+
+export interface ActivityPoint {
+  activity_id: string;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: Generated<string>;
+  image_asset_id: string | null;
+  location: string | null;
+  name: string;
+  ordinal: Generated<number>;
+  organization_id: string;
+  reward_asset_id: string | null;
+  state: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ActivityRecord {
+  activity_id: string;
+  content: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  idempotency_key: string | null;
+  kind: string;
+  location: string | null;
+  lock_version: Generated<number>;
+  metadata: Generated<Json>;
+  organization_id: string;
+  participant_id: string | null;
+  placement_id: string;
+  point_id: string | null;
+  render_config: Generated<Json>;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface AnchorEmbedding {
   anchor_id: string;
   embedding: number[] | null;
@@ -297,11 +361,16 @@ export interface Workspace {
   create_date: Generated<Timestamp | null>;
   description: string | null;
   id: Generated<string>;
+  legacy_spatial_content_mode_20261011: Generated<string>;
   name: string;
   organization_id: string;
 }
 
 export interface DB {
+  activity: Activity;
+  activity_placement: ActivityPlacement;
+  activity_point: ActivityPoint;
+  activity_record: ActivityRecord;
   anchor_embedding: AnchorEmbedding;
   anchor_match_rate_limit: AnchorMatchRateLimit;
   app_config: AppConfig;

@@ -77,6 +77,11 @@ export function usePlacementViewer({ iframeRef, items, mapCenter, canWrite, tx }
       const store = usePlacementStore.getState();
       const byId = new Map(store.placements.map((placement) => [placement.id, placement]));
       const rows = moves.map((move) => ({ move, placement: byId.get(move.assetId) }));
+      if (moves.some((move) => latest.current.items.some((item) => item.id === move.assetId && item.activityPlacementId))) {
+        snapBack();
+        toast.info(t("activities.moveHint"));
+        return;
+      }
       if (rows.some((row) => !row.placement || !writable(row.placement))) {
         snapBack();
         toast.warning(t("contentModel.integration.map.move.refused"));
@@ -108,7 +113,7 @@ export function usePlacementViewer({ iframeRef, items, mapCenter, canWrite, tx }
     };
 
     const onMessage = (event: MessageEvent) => {
-      if (event.data?.source !== "viewer") return;
+      if (event.data?.source !== "viewer" || event.source !== iframeRef.current?.contentWindow || event.origin !== window.location.origin) return;
       const store = usePlacementStore.getState();
       const known = (id: unknown): id is string => typeof id === "string" && store.placements.some((placement) => placement.id === id);
       switch (event.data?.type) {
@@ -120,7 +125,9 @@ export function usePlacementViewer({ iframeRef, items, mapCenter, canWrite, tx }
           break;
         case "ASSET_CLICKED": {
           const id = (event.data.payload as { assetId?: unknown })?.assetId;
-          if (known(id)) store.selectPlacement(id);
+          const activityMarker = latest.current.items.find((item) => item.id === id && item.activityPlacementId);
+          if (activityMarker?.activityPlacementId) store.selectActivityPlacement(activityMarker.activityPlacementId);
+          else if (known(id)) store.selectPlacement(id);
           break;
         }
         case "ASSETS_SELECTED": {

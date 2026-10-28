@@ -96,10 +96,10 @@ export type SceneState = "active" | "archived";
 export type PlacementStatus = "draft" | "active" | "paused" | "archived";
 
 /** Media types an asset content can carry. `scene` lives in its own table. */
-export type AssetFileType = "image" | "video" | "audio" | "document" | "model" | "text" | "link" | "shop" | "anchor";
-export const ASSET_FILE_TYPES: readonly AssetFileType[] = ["image", "video", "audio", "document", "model", "text", "link", "shop", "anchor"];
+export type AssetFileType = "image" | "video" | "audio" | "document" | "model" | "text" | "link" | "anchor";
+export const ASSET_FILE_TYPES: readonly AssetFileType[] = ["image", "video", "audio", "document", "model", "text", "link", "anchor"];
 /** Business objects with dedicated panels; excluded from generic pickers unless requested. */
-export const SPECIAL_ASSET_FILE_TYPES: readonly AssetFileType[] = ["anchor", "shop"];
+export const SPECIAL_ASSET_FILE_TYPES: readonly AssetFileType[] = ["anchor"];
 
 /** Role of one physical file of an asset. */
 export type ResourceRole = "primary" | "thumbnail" | "checkin" | "audio_compat" | "reference";
@@ -249,7 +249,6 @@ export type AssetPayload =
   | (PayloadBase & { kind: "model"; animations?: ModelAnimationInfo[] })
   | (PayloadBase & { kind: "text"; text: string })
   | (PayloadBase & { kind: "link"; url: string; title?: string; description?: string; preview?: Record<string, PayloadScalar> })
-  | (PayloadBase & { kind: "shop"; text?: string; name?: string })
   | (PayloadBase & { kind: "anchor"; text?: string });
 
 export interface AssetResourceDto {
@@ -405,6 +404,8 @@ export interface DuplicateAssetRequest {
 }
 
 export interface DependencyImpact {
+  /** Activity points referencing this image or reward. */
+  activities?: number;
   scenes: number;
   placements: number;
   /** Every same-team dependency. */
@@ -415,6 +416,7 @@ export interface DependencyImpact {
 
 /** Scene items carry the scene's origin collection (null for team scenes); placements their collection. */
 export type DependencyItem =
+  | { kind: "activity"; activity_id: string; activity_name: string; point_id: string; point_name: string }
   | { kind: "scene"; scene_id: string; scene_name: string; workspace_id: string | null; workspace_name: string | null; resource_alias: string }
   | { kind: "placement"; placement_id: string; placement_name: string | null; status: PlacementStatus; workspace_id: string; workspace_name: string };
 
@@ -574,8 +576,6 @@ export interface PlacementDto {
   tag_ids: string[];
   /** The placement ID used by the mini-program. */
   public_id: string;
-  /** No GPS/anchor discovery; listed by the shops endpoint only. */
-  directory_only: boolean;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

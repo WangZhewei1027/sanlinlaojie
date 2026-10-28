@@ -181,15 +181,17 @@ export async function DELETE(
     const blocked = await db.transaction().execute(async (trx) => {
       const org = await trx.selectFrom("organization").select("id").where("id", "=", id).forUpdate().executeTakeFirst();
       if (!org) return null;
-      const { rows } = await sql<{ workspaces: number; assets: number; scenes: number; placements: number }>`
+      const { rows } = await sql<{ workspaces: number; assets: number; scenes: number; placements: number; activities: number; activity_records: number }>`
         select
           (select count(*) from workspace where organization_id = ${id}::uuid)::int as workspaces,
           (select count(*) from asset where organization_id = ${id}::uuid)::int as assets,
           (select count(*) from scene where organization_id = ${id}::uuid)::int as scenes,
-          (select count(*) from placement where organization_id = ${id}::uuid)::int as placements
+          (select count(*) from placement where organization_id = ${id}::uuid)::int as placements,
+          (select count(*) from activity where organization_id = ${id}::uuid)::int as activities,
+          (select count(*) from activity_record where organization_id = ${id}::uuid)::int as activity_records
       `.execute(trx);
       const counts = rows[0];
-      if (counts.workspaces + counts.assets + counts.scenes + counts.placements > 0) return counts;
+      if (counts.workspaces + counts.assets + counts.scenes + counts.placements + counts.activities + counts.activity_records > 0) return counts;
       await trx.deleteFrom("organization").where("id", "=", id).execute();
       return false;
     });
@@ -197,7 +199,7 @@ export async function DELETE(
     if (blocked) {
       return NextResponse.json(
         {
-          error: `无法删除：该团队仍保留内容（合集 ${blocked.workspaces}、素材 ${blocked.assets}、场景 ${blocked.scenes}、投放 ${blocked.placements}）。归档内容也会阻止删除。`,
+          error: `无法删除：该团队仍保留内容（合集 ${blocked.workspaces}、素材 ${blocked.assets}、场景 ${blocked.scenes}、投放 ${blocked.placements}、活动 ${blocked.activities}、活动记录 ${blocked.activity_records}）。归档内容也会阻止删除。`,
           code: "DEPENDENCY_CONFLICT",
           details: { counts: blocked },
         },

@@ -117,7 +117,6 @@ const KIND_KEYS: Record<AssetFileType, string[]> = {
   model: ["animations"],
   text: ["text"],
   link: ["url", "title", "description", "preview"],
-  shop: ["text", "name"],
   anchor: ["text"],
 };
 
@@ -148,13 +147,6 @@ export function parseAssetPayload(fileType: AssetFileType, value: unknown): Asse
         ...(value.description !== undefined ? { description: plainText(value.description, "payload.description", 2000) } : {}),
         ...(value.preview !== undefined ? { preview: parseScalarMap(value.preview, "payload.preview") } : {}),
       };
-    case "shop":
-      return {
-        kind: "shop",
-        ...base,
-        ...(value.text !== undefined ? { text: text(value.text, "payload.text") } : {}),
-        ...(value.name !== undefined ? { name: plainText(value.name, "payload.name", 200) } : {}),
-      };
     case "anchor":
       return { kind: "anchor", ...base, ...(value.text !== undefined ? { text: text(value.text, "payload.text") } : {}) };
     default:
@@ -175,7 +167,6 @@ export const REQUIRED_ROLES: Record<AssetFileType, ResourceRole[]> = {
   model: ["primary"],
   text: [],
   link: [],
-  shop: [],
   anchor: ["reference"],
 };
 
@@ -187,7 +178,6 @@ export const ALLOWED_ROLES: Record<AssetFileType, ResourceRole[]> = {
   model: ["primary", "thumbnail"],
   text: [],
   link: ["thumbnail"],
-  shop: ["primary", "checkin", "thumbnail"],
   anchor: ["reference"],
 };
 

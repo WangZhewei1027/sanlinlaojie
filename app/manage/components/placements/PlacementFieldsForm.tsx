@@ -32,7 +32,7 @@ export function PlacementFieldsForm({ placement, values, editable, problem, onCh
   const { tx, anchors, workspaceId } = usePlacementMap();
   const id = useId();
   const type = placementFileType(placement);
-  const showAnchor = type !== "anchor" && type !== "shop";
+  const showAnchor = type !== "anchor";
   const statuses = placement.status === "archived" ? [...EDITABLE_STATUSES, "archived" as const] : EDITABLE_STATUSES;
   const anchorKnown = !values.anchorId || anchors.some((anchor) => anchor.id === values.anchorId);
 
@@ -60,10 +60,9 @@ export function PlacementFieldsForm({ placement, values, editable, problem, onCh
         longitude={values.longitude}
         latitude={values.latitude}
         altitude={values.altitude}
-        disabled={!editable || placement.directory_only}
+        disabled={!editable}
         onChange={onChange}
       />
-      {placement.directory_only && <p className="text-xs text-muted-foreground">{tx("contentModel.integration.map.field.directoryOnlyHint")}</p>}
       {problem === "coordinates" && <p role="alert" className="text-xs text-destructive">{tx("contentModel.integration.map.problem.coordinates")}</p>}
 
       {showAnchor && (

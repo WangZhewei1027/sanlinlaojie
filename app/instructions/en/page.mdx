@@ -118,7 +118,7 @@ Share or print this QR code, and visitors can scan it with **WeChat** to jump st
 
 ## Asset Types
 
-Everything placed on the map is called an **asset**. At a glance:
+Reusable content such as images and text is called an **asset** and can be placed on maps. At a glance:
 
 | Type | Description | Size limit |
 | --- | --- | --- |
@@ -128,15 +128,24 @@ Everything placed on the map is called an **asset**. At a glance:
 | Audio | A sound clip: narration, ambience, music, etc. | 3 MB |
 | Video | A short video clip | 3 MB |
 | Link | A URL | — |
-| Shop / check-in point | Shop info and a reward image for the Mini Program check-in game | 10 MB |
 | Document | PDF, Word and similar files (must be enabled for the organization) | 20 MB |
 | 3D model | A 3D model file (.glb / .gltf, must be enabled for the organization) | 3 MB |
 
 A few notes:
 
 - An **anchor** is like a pin on the map with a title and a note. Other assets can be linked to it, grouping everything at one place or theme together; the map shows the relationships with red lines. Anchors require a name and a manually chosen map location.
-- A **shop / check-in point** powers the Mini Program's check-in game: fill in the shop's name and description and upload a reward image, which visitors receive as a keepsake after checking in on site.
 - **Documents** and **3D models** are off by default; the organization owner must enable them in the admin console settings.
+
+## Managing and Placing Activities
+
+Create an activity from **Activities** in Manage, then associate it with one or more maps. Set shared locations and rules under **Activity content**. A placement only selects the map and status, and can be paused individually.
+
+Under **Activity content**, select a check-in point and click the map on the same page to set its fixed location. Adjust several points, then save them together. Every associated map uses the updated locations. Message activities also define **Whole map** or **Limited area** here; a limited area needs a center and radius.
+
+- **Shop check-in**: one activity contains multiple check-in points. Add each point's name and description, select image assets for its photo and optional reward, then set its location on each map.
+- **Messages**: create a message activity, set its character limit and participation area, and associate it with a map. Visitors can send messages within the activity's area. The console lets you view, hide, and restore messages.
+
+Check-ins and messages are stored with the activity. Progress and messages are separate for each placement; ordinary text assets remain editable in the asset library.
 
 ### About link assets (Luma AI)
 
@@ -176,7 +185,7 @@ Owners and admins manage their organization in the **Admin Console**, which has 
   - **Invite link** — generate a link to send out: choose the role granted on joining, optionally a workspace, and an expiry (1 day / 7 days / 30 days / never). The recipient opens the link, logs in, and joins automatically.
   - In the member list you can change roles inline, **assign workspaces** (controlling which workspaces each person can access), or remove members.
 - **Workspaces**: create, edit, and delete workspaces (just a name and description).
-- **Settings** (owners only): edit the organization's name and description, set the map center, choose the **allowed file types** (e.g. enable document and 3D model uploads), and configure how content appears in the Mini Program (text style, confetti effect, shop check-in, watermark logo). The delete-organization action at the bottom is irreversible — use with care.
+- **Settings** (owners only): edit the organization's name and description, set the map center, choose the **allowed file types** (e.g. enable document and 3D model uploads), and configure how content appears in the Mini Program (text style, confetti effect, watermark logo). The delete-organization action at the bottom is irreversible — use with care.
 
 ## Personal Settings
 
@@ -215,19 +224,19 @@ Content follows real locations, so **walking around is how you discover more** �
 Two little extras:
 
 - **Plant a tree**: tap the ground in the camera view to plant a tree right there — as many times as you like.
-- **Send a message**: type into the input bar at the bottom and hit send. Your message flies into the AR world in front of you and stays at your location — later visitors to the same spot will see it too.
+- **Send a message**: when an active message activity is available nearby, use the input bar at the bottom. If there are several activities, choose one first. Once sent, your message flies into the AR world and stays at your location for later participants in that placement to see.
 
 The small dot to the left of the input bar is the **GPS signal light**: green means positioning is working; red means no signal for the moment, in which case content cannot load and messages cannot be sent — move to an open area and wait a moment.
 
 ## Shop Check-in (enabled for some events)
 
-If your event has the check-in game enabled, an extra check-in button appears at the bottom of the AR screen. Open it and:
+When an active shop check-in activity is available nearby, a check-in entry appears at the bottom of the AR screen. Select an activity and:
 
 - Swipe through nearby shop cards, each showing the shop's photo, description, and distance from you, with your progress at the top (e.g. "2/5 checked in").
 - A compass arrow on screen points toward the selected shop — just follow it.
-- Once you are within **50 meters** of the shop, the card's button becomes **Check in**; if you are too far, it shows "Too far".
-- After a successful check-in, the shop's reward image pops up — tap **Save to album** to keep it (saving asks for album permission the first time).
-- Your progress is saved automatically, so you can continue next time.
+- Once you are within the activity's check-in distance (default **50 meters**), the card's button becomes **Check in**; if you are too far, it shows "Too far".
+- If the point has a reward image, you can tap **Save to album** after checking in (saving asks for album permission the first time).
+- Progress is saved for your device and for each activity placement, so you can continue on the same device next time. Clearing Mini Program data or switching devices does not automatically transfer your progress.
 
 ## Troubleshooting
 

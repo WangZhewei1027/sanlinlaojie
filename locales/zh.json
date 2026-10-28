@@ -60,12 +60,6 @@
       "content": "文本内容",
       "contentPlaceholder": "输入文本内容"
     },
-    "shop": {
-      "name": "店铺名称",
-      "description": "店铺描述",
-      "namePlaceholder": "输入店铺名称",
-      "descriptionPlaceholder": "输入店铺描述"
-    },
     "model": {
       "name": "模型名称",
       "namePlaceholder": "输入模型名称",
@@ -317,8 +311,6 @@
       "miniappConfig": {
         "confetti": "彩带效果",
         "confettiDesc": "在小程序中显示彩带动画",
-        "shopCheckin": "店铺打卡",
-        "shopCheckinDesc": "在小程序中显示打卡店铺模块",
         "footer": "水印 Logo",
         "footerDesc": "在小程序界面显示水印 Logo"
       }
@@ -524,7 +516,7 @@
         "loadingPreview": "正在分析影响…",
         "previewFailed": "获取删除预览失败",
         "noOwnedOrgs": "该用户不是任何团队的拥有者，删除不影响现有团队。",
-        "orgDelete": "将被删除（{{workspaces}} 个合集、{{assets}} 个资产及其文件）",
+        "orgDelete": "将被删除（{{workspaces}} 个地图合集、{{assets}} 个素材、{{activities}} 个活动、{{activityRecords}} 条活动记录及相关文件）",
         "orgPromote": "{{name}} 将被晋升为拥有者",
         "orgUnchanged": "已有其他拥有者，不受影响"
       }
@@ -682,7 +674,6 @@
     "link": "链接",
     "text": "文本",
     "anchor": "匹配点",
-    "shop": "店铺",
     "model": "3D模型",
     "scene": "场景"
   },
@@ -1093,7 +1084,8 @@
       "none": "未使用",
       "kind": {
         "scene": "场景",
-        "placement": "地图投放"
+        "placement": "地图投放",
+        "activity": "活动打卡点"
       },
       "restricted": "另有 {{count}} 处引用未列出",
       "showMore": "显示其余 {{count}} 处",
@@ -1111,7 +1103,8 @@
       "keepsWorking": "继续工作",
       "impact": {
         "scene": "{{count}} 个场景引用",
-        "placement": "{{count}} 处直接投放"
+        "placement": "{{count}} 处直接投放",
+        "activity": "{{count}} 处活动打卡点引用"
       },
       "noImpact": "目前没有任何引用。",
       "stops": "停止",
@@ -1171,7 +1164,16 @@
         "assets": "基础素材",
         "scenes": "场景",
         "collections": "地图合集",
-        "settings": "团队设置"
+        "settings": "团队设置",
+        "activities": "活动"
+      },
+      "map": {
+        "tab": {
+          "activities": "活动"
+        }
+      },
+      "impact": {
+        "activity": "{{activity}} · {{point}}（活动打卡点）"
       }
     },
     "workbench": {
@@ -1281,5 +1283,134 @@
         "archivedBody": "已归档的场景会显示在这里，可以随时恢复。"
       }
     }
+  },
+  "activities": {
+    "title": "活动",
+    "subtitle": "独立管理互动内容，复用于多个地图。",
+    "create": "创建活动",
+    "name": "活动名称",
+    "type": "活动类型",
+    "types": {
+      "shop_checkin": "店铺打卡",
+      "danmaku": "弹幕留言"
+    },
+    "description": "介绍",
+    "state": "活动状态",
+    "states": {
+      "active": "正常",
+      "archived": "已归档",
+      "all": "全部"
+    },
+    "saving": "保存中…",
+    "save": "保存活动",
+    "cancel": "取消",
+    "search": "搜索活动",
+    "readOnly": "当前团队或活动为只读，无法修改。",
+    "empty": "没有符合条件的活动",
+    "emptyHint": "创建店铺打卡或弹幕留言活动，再选择地图投放。",
+    "loading": "正在加载活动…",
+    "settings": "活动内容",
+    "checkinRadius": "打卡距离（米）",
+    "maxLength": "留言字数上限",
+    "sharedSettings": "活动地点、范围和规则由所有地图共享，保存后统一生效。",
+    "points": "打卡点",
+    "addPoint": "添加打卡点",
+    "pointsHint": "每个店铺有一个固定位置。选择打卡点后，在地图上设置位置并编辑内容。",
+    "noPoints": "还没有打卡点，请添加后保存活动。",
+    "pointNumber": "打卡点 {{number}}",
+    "pointName": "打卡点名称",
+    "pointImage": "打卡点图片",
+    "rewardImage": "打卡奖励图",
+    "archivePoint": "归档打卡点",
+    "removePoint": "移除打卡点",
+    "archive": "归档活动",
+    "restore": "恢复",
+    "replaceImage": "更换图片",
+    "chooseImage": "选择图片",
+    "clearImage": "移除{{label}}",
+    "imageHint": "选择团队图片素材，或上传新图片。",
+    "uploadImage": "上传图片",
+    "searchImages": "搜索图片素材",
+    "noImages": "没有图片素材",
+    "unnamedImage": "未命名图片",
+    "previous": "上一页",
+    "next": "下一页",
+    "failed": "操作失败",
+    "failedHint": "请稍后重试。",
+    "conflict": "内容已被修改，当前输入已保留",
+    "reload": "重新加载，放弃当前输入",
+    "placements": "投放",
+    "place": "关联到地图",
+    "placementsHint": "将同一活动关联到多个地图；地点、内容和规则由活动统一管理。",
+    "noMaps": "请先创建地图合集",
+    "noPlacements": "还没有活动投放",
+    "noPlacementsHint": "选择地图并启用，即可展示这项活动。",
+    "editPlacement": "修改投放状态",
+    "viewPlacement": "查看投放",
+    "openMap": "打开地图",
+    "wholeMap": "不限制地理范围",
+    "localArea": "限定地理范围",
+    "map": "地图合集",
+    "chooseMap": "选择地图",
+    "placementStatus": "投放状态",
+    "placementStates": {
+      "draft": "草稿",
+      "active": "已启用",
+      "paused": "已暂停",
+      "archived": "已归档"
+    },
+    "longitude": "经度",
+    "latitude": "纬度",
+    "radius": "活动范围半径（米）",
+    "invalidLocation": "请同时填写有效经纬度。",
+    "radiusRequired": "中心位置与大于 0 的范围半径需要一起设置。",
+    "invalidRule": "打卡距离需为 1–1000 米；留言字数上限需为 1–500 的整数。",
+    "savePlacement": "保存关联",
+    "records": "参与数据",
+    "filterPlacement": "按投放筛选",
+    "allPlacements": "全部投放",
+    "recordsHint": "这里管理活动产生的数据，独立于基础素材。",
+    "noRecords": "还没有参与记录",
+    "recordStates": {
+      "visible": "展示中",
+      "hidden": "已隐藏"
+    },
+    "checkinRecord": "已打卡：{{name}}",
+    "unknownPoint": "历史打卡点",
+    "hideRecord": "隐藏记录",
+    "showRecord": "恢复展示",
+    "recordCount": "共 {{count}} 条记录",
+    "back": "返回活动列表",
+    "mapHint": "这里管理活动与本地图的关联及启用状态。地点和内容在活动中统一维护。",
+    "manage": "管理活动库",
+    "placeExisting": "关联已有活动",
+    "chooseActivity": "选择活动",
+    "chooseActivityHint": "选择已有活动，或前往活动库创建。",
+    "moveHint": "请在活动内容中修改位置，所有地图共享同一位置。",
+    "mapSidebarHint": "活动地点和范围在活动内容中统一维护。这里仅管理地图关联。",
+    "locationMapLoading": "地图加载中…",
+    "locationMapUnavailable": "地图暂未就绪。可以重试，或展开“手动输入坐标”继续设置。",
+    "areaCenter": "活动范围中心",
+    "participationArea": "参与范围",
+    "wholeMapSimpleHint": "活动在所有已关联地图中可参与，无需设置坐标。",
+    "locatedProgress": "已定位 {{located}} / {{total}}",
+    "pointLocated": "已设置位置",
+    "pointNeedsLocation": "待设置位置",
+    "unlocatedHint": "未定位的点保留在目录中，暂不能现场打卡。",
+    "clickInlineMap": "点击地图即可设置当前位置。",
+    "positionSummary": "经度 {{longitude}} · 纬度 {{latitude}}",
+    "preciseLocation": "手动输入坐标",
+    "clearLocation": "清除位置",
+    "unsavedLocations": "有未保存的更改",
+    "locationMapTitle": "活动点位地图",
+    "placementRelationHint": "这里只设置活动与地图的关联。地点、内容和规则在活动内容中统一编辑。",
+    "unnamedPoint": "未命名打卡点",
+    "pointNameRequired": "请填写每个打卡点的名称。",
+    "editContent": "编辑活动内容",
+    "viewContent": "查看活动内容",
+    "allMapsLinked": "所有可编辑地图都已关联此活动。归档关联可在下方修改状态后恢复。",
+    "noEditableMaps": "暂无可编辑的地图，请先获取地图编辑权限。",
+    "allActivitiesLinked": "所有可关联活动都已投放到此地图。归档关联可在下方修改状态后恢复。",
+    "noAvailableActivities": "暂无可关联活动。请先在活动管理中创建或恢复活动。"
   }
 }

@@ -17,8 +17,6 @@ interface OrgFormSectionsProps {
   setTextAssetMiniappStyle: (v: TextAssetMiniappStyle) => void;
   confettiEnabled: boolean;
   setConfettiEnabled: (v: boolean) => void;
-  shopCheckinEnabled: boolean;
-  setShopCheckinEnabled: (v: boolean) => void;
   footerEnabled: boolean;
   setFooterEnabled: (v: boolean) => void;
 }
@@ -34,8 +32,6 @@ export function OrgFormSections({
   setTextAssetMiniappStyle,
   confettiEnabled,
   setConfettiEnabled,
-  shopCheckinEnabled,
-  setShopCheckinEnabled,
   footerEnabled,
   setFooterEnabled,
 }: OrgFormSectionsProps) {
@@ -57,8 +53,6 @@ export function OrgFormSections({
       <MiniappConfigSection
         confettiEnabled={confettiEnabled}
         setConfettiEnabled={setConfettiEnabled}
-        shopCheckinEnabled={shopCheckinEnabled}
-        setShopCheckinEnabled={setShopCheckinEnabled}
         footerEnabled={footerEnabled}
         setFooterEnabled={setFooterEnabled}
       />

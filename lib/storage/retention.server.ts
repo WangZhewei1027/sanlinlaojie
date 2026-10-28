@@ -82,6 +82,10 @@ export async function isKeyProtected(exec: Executor, key: string): Promise<boole
     .limit(1)
     .executeTakeFirst();
   if (payload) return true;
+  const activityRecord = await exec.selectFrom("activity_record").select("id")
+    .where((eb) => eb.or(patternsForPayload.map((p) => eb(sql<string>`coalesce(content,'') || metadata::text || render_config::text`, "like", p))))
+    .limit(1).executeTakeFirst();
+  if (activityRecord) return true;
 
   if (urls.length) {
     const anchor = await exec.selectFrom("anchor_embedding").select("anchor_id").where("image_url", "in", urls).limit(1).executeTakeFirst();
@@ -174,6 +178,9 @@ export async function collectProtectedKeys(): Promise<Set<string>> {
   for (const row of anchors) keysInText(row.image_url, keys);
   const payloads = await db.selectFrom("asset").select(sql<string>`payload::text`.as("payload_text")).execute();
   for (const row of payloads) keysInText(row.payload_text, keys);
+  const activityRecords = await db.selectFrom("activity_record")
+    .select(sql<string>`coalesce(content,'') || metadata::text || render_config::text`.as("text")).execute();
+  for (const row of activityRecords) keysInText(row.text, keys);
   const holds = await db.selectFrom("storage_hold").select("storage_key").execute();
   for (const row of holds) keys.add(row.storage_key);
   for (const key of [...keys]) for (const related of relatedKeys(key)) keys.add(related);

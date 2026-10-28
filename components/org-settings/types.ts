@@ -13,7 +13,6 @@ export const DEFAULT_TEXT_ASSET_MINIAPP_STYLE: TextAssetMiniappStyle =
 /** organization.config 里由管理界面维护的键 */
 export interface OrgConfig {
   confetti_enabled?: boolean;
-  shop_checkin_enabled?: boolean;
   footer_enabled?: boolean;
   text_asset_miniapp_style?: TextAssetMiniappStyle;
 }

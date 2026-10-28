@@ -37,21 +37,6 @@ export function PlacementPreview({ placement }: { placement: PlacementDto }) {
     case "image":
     case "anchor":
       return url ? <AssetImagePreview fileUrl={url} fileName={name} /> : null;
-    case "shop": {
-      const checkin = version.resources.find((resource) => resource.role === "checkin")?.url;
-      return (
-        <div className="space-y-2">
-          {url && <AssetImagePreview fileUrl={url} fileName={name} />}
-          {payload.text && <Text as="p" variant="bodySm" breakWord>{payload.text}</Text>}
-          {checkin && (
-            <div className="space-y-1">
-              <Text as="p" variant="bodyXs" tone="subdued">{tx("contentModel.integration.map.shop.checkin")}</Text>
-              <AssetImagePreview fileUrl={checkin} fileName={`${name} checkin`} />
-            </div>
-          )}
-        </div>
-      );
-    }
     case "audio":
       return url ? <AssetAudioPreview key={url} fileUrl={url} fileName={name} /> : null;
     case "video":

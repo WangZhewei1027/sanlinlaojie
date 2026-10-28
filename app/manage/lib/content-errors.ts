@@ -29,6 +29,7 @@ export function impactLines(impact: DependencyImpact | undefined, tx: Integratio
 }
 
 function impactLine(item: DependencyItem, tx: IntegrationT) {
+  if (item.kind === "activity") return tx("contentModel.integration.impact.activity", { activity: item.activity_name, point: item.point_name });
   if (item.kind === "scene") return tx("contentModel.integration.impact.scene", { scene: item.scene_name });
   return tx("contentModel.integration.impact.placement", {
     collection: item.workspace_name || tx("contentModel.integration.impact.noCollection"),

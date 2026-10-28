@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, Clapperboard, MapPinned, Settings2 } from "lucide-react";
+import { Boxes, Clapperboard, MapPinned, Settings2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { teamHref } from "../lib/content-context";
 import { useIntegrationText, type IntegrationTexts } from "../lib/integration-text";
@@ -17,6 +17,7 @@ export const NAV_TEXTS: IntegrationTexts = {
 
 const ITEMS = [
   { href: "/manage/collections", key: "collections", icon: MapPinned, active: (path: string) => path === "/manage/collections" || path.startsWith("/manage/collections/") },
+  { href: "/manage/activities", key: "activities", icon: Sparkles, active: (path: string) => path === "/manage/activities" || path.startsWith("/manage/activities/") },
   { href: "/manage/scenes", key: "scenes", icon: Clapperboard, active: (path: string) => path === "/manage/scenes" || path.startsWith("/manage/scenes/") },
   { href: "/manage/assets", key: "assets", icon: Boxes, active: (path: string) => path === "/manage" || path === "/manage/assets" || path.startsWith("/manage/assets/") },
   { href: "/admin", key: "settings", icon: Settings2, active: (path: string) => path === "/admin" || path.startsWith("/admin/") },

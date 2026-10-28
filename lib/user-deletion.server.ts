@@ -38,6 +38,8 @@ export interface OrgDeletionPlanItem {
   /** Content model rows removed with the organization (preview only). */
   sceneCount?: number;
   placementCount?: number;
+  activityCount?: number;
+  activityRecordCount?: number;
 }
 
 export interface UserDeletionPlan {
@@ -152,10 +154,14 @@ export async function computeUserDeletionPlan(
       item.workspaceCount = wsIds.length;
       const assets = await db.selectFrom("asset").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow();
       item.assetCount = Number(assets.n);
-      const [scenes, placements] = await Promise.all([
+      const [scenes, placements, activities, activityRecords] = await Promise.all([
         db.selectFrom("scene").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
         db.selectFrom("placement").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
+        db.selectFrom("activity").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
+        db.selectFrom("activity_record").select(({ fn }) => fn.countAll<number>().as("n")).where("organization_id", "=", orgId).executeTakeFirstOrThrow(),
       ]);
+      item.activityCount = Number(activities.n);
+      item.activityRecordCount = Number(activityRecords.n);
       item.sceneCount = Number(scenes.n);
       item.placementCount = Number(placements.n);
     }

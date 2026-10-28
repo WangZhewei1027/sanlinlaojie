@@ -4,6 +4,11 @@
 
 工程规范与审查依据见 [CODING_STANDARDS.md](../CODING_STANDARDS.md)；自动检查、Git hooks、CI 和测试分类见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
 
+## 领域与架构决策
+
+- [领域术语表](../GLOSSARY.md)：团队、地图合集、素材、活动、打卡点、活动投放和活动记录。
+- [活动独立与多地图投放](adr/0001-independent-activities.md)：活动定义、投放和参与记录的独立关系。
+
 ## 内容与接口
 
 | 文档 | 负责的内容 |
@@ -31,6 +36,7 @@
 ## 运维与迁移
 
 - [线上部署](production-deployment.md)：服务关系、发布、备份和巡检。
+- [活动迁移](activity-migration-runbook.md)：店铺多点活动、历史文字审核、备份副本演练和配套发布。
 - [数据库迁移](content-model-migration-runbook.md)：升级、数据保留、逐条审核和回滚。
 - [pgAdmin](pgadmin.md)：运维访问、角色、配置和恢复。
 - [Google 中转](google-auth-relay.md)：独立函数部署、密钥和验证。

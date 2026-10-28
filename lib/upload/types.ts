@@ -22,7 +22,6 @@ export type UploadType =
   | "link"
   | "text"
   | "anchor"
-  | "shop"
   | "model"
   | "scene";
 
@@ -35,7 +34,6 @@ export const ALL_UPLOAD_TYPES: UploadType[] = [
   "link",
   "text",
   "anchor",
-  "shop",
   "model",
   "scene",
 ];
@@ -53,7 +51,6 @@ export const DEFAULT_UPLOAD_TYPES: UploadType[] = [
   "link",
   "text",
   "anchor",
-  "shop",
 ];
 
 export interface UploadFile {

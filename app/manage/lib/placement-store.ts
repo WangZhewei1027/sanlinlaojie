@@ -12,7 +12,7 @@ export interface MapPoint {
 /** "current" = everything except archived (default). */
 export type PlacementStatusFilter = "current" | PlacementStatus | "all";
 
-export type PlacementListTab = "placements" | "shops" | "anchors";
+export type PlacementListTab = "placements" | "activities" | "anchors";
 
 export interface PlacementMapNotice {
   tone: "warning" | "critical";
@@ -35,6 +35,7 @@ interface PlacementStore {
   tab: PlacementListTab;
 
   selectedPlacementId: string | null;
+  selectedActivityPlacementId: string | null;
   selectedPlacementIds: string[];
   selectedAnchorId: string | null;
   clickedLocation: MapPoint | null;
@@ -57,6 +58,7 @@ interface PlacementStore {
   setTab: (tab: PlacementListTab) => void;
 
   selectPlacement: (id: string | null) => void;
+  selectActivityPlacement: (id: string | null) => void;
   setSelectedPlacementIds: (ids: string[]) => void;
   selectAnchor: (id: string | null) => void;
   setClickedLocation: (point: MapPoint | null) => void;
@@ -74,6 +76,7 @@ const SCOPE_RESET = {
   status: "idle" as const,
   error: null,
   selectedPlacementId: null,
+  selectedActivityPlacementId: null,
   selectedPlacementIds: [] as string[],
   selectedAnchorId: null,
   notice: null,
@@ -127,9 +130,10 @@ export const usePlacementStore = create<PlacementStore>()((set) => ({
   setTagFilter: (tagFilter) => set({ tagFilter }),
   setTab: (tab) => set({ tab }),
 
-  selectPlacement: (selectedPlacementId) => set({ selectedPlacementId, selectedAnchorId: null }),
+  selectPlacement: (selectedPlacementId) => set({ selectedPlacementId, selectedAnchorId: null, selectedActivityPlacementId: null }),
   setSelectedPlacementIds: (selectedPlacementIds) => set({ selectedPlacementIds }),
-  selectAnchor: (selectedAnchorId) => set({ selectedAnchorId, selectedPlacementId: null }),
+  selectAnchor: (selectedAnchorId) => set({ selectedAnchorId, selectedPlacementId: null, selectedActivityPlacementId: null }),
+  selectActivityPlacement: (selectedActivityPlacementId) => set({ selectedActivityPlacementId, selectedPlacementId: null, selectedAnchorId: null, ...(selectedActivityPlacementId ? { tab: "activities" } : {}) }),
   setClickedLocation: (clickedLocation) => set({ clickedLocation }),
   setNotice: (notice) => set({ notice }),
 

@@ -33,7 +33,7 @@ export function fixtureIds() {
     // solo: a v2 team with zero collections (team authoring needs no workspace)
     organizations: { team: randomUUID(), foreign: randomUUID(), solo: randomUUID() },
     workspaces: { a: randomUUID(), b: randomUUID(), secret: randomUUID(), empty: randomUUID(), foreign: randomUUID() },
-    assets: { shared: randomUUID(), restricted: randomUUID(), foreign: randomUUID(), audio: randomUUID(), shop: randomUUID() },
+    assets: { shared: randomUUID(), restricted: randomUUID(), foreign: randomUUID(), audio: randomUUID(), image: randomUUID() },
     scenes: { a: randomUUID(), b: randomUUID(), secret: randomUUID() },
     placements: { first: randomUUID(), second: randomUUID(), scene: randomUUID() },
     receipts: { active: randomUUID(), expired: randomUUID() },
@@ -98,7 +98,7 @@ export async function seedServicesFixture(client: Client, f: ServicesFixture): P
     }
     for (const [name, id] of Object.entries(f.assets)) {
       const foreign = name === "foreign";
-      const type = name === "audio" || name === "shop" ? name : "model";
+      const type = name === "audio" ? "audio" : name === "image" ? "image" : "model";
       await client.query(`insert into asset(id,name,file_type,organization_id,origin_workspace_id,maintained_by,created_by,visibility,origin,payload)
         values($1,$2,$3,$4,$5,$6,$6,$7,'team_upload',jsonb_build_object('kind',$3::text))`,
       [id, `service-test-${name}`, type, foreign ? f.organizations.foreign : f.organizations.team,
@@ -106,13 +106,13 @@ export async function seedServicesFixture(client: Client, f: ServicesFixture): P
         name === "restricted" ? "restricted" : "organization"]);
     }
     for (const [name, asset] of Object.entries(f.assets)) {
-      const kind = name === "audio" || name === "shop" ? name : "model";
+      const kind = name === "audio" ? "audio" : name === "image" ? "image" : "model";
       const key = name === "shared" ? f.keys.current : name === "foreign" ? f.keys.shared : name === "restricted" ? f.keys.restricted : name === "audio" ? f.keys.audio : null;
       await client.query("update asset set payload=$2 where id=$1", [asset, kind === "model" ? {kind, animations:[{index:0,name:"idle",duration_seconds:2}]} : {kind}]);
       if (key) await client.query("insert into asset_resource(asset_id,role,storage_key,content_hash,mime_type,size_bytes) values($1,'primary',$2,$3,$4,128)",
         [asset,key,`hash-${asset}`,kind === "audio" ? "audio/webm" : "model/gltf-binary"]);
     }
-    await client.query("insert into asset_resource(asset_id,role,storage_key) values($1,'checkin',$2)", [f.assets.shop, f.keys.checkin]);
+    await client.query("insert into asset_resource(asset_id,role,storage_key) values($1,'primary',$2)", [f.assets.image, f.keys.checkin]);
     const document = JSON.stringify(assetDocument(f.assets.shared));
     for (const [name, id] of Object.entries(f.scenes)) {
       const workspace = f.workspaces[name as keyof typeof f.scenes];
@@ -148,6 +148,9 @@ export async function cleanupServicesFixture(client: Client, f: ServicesFixture)
     const organizations = [...Object.values(f.organizations), ...(await client.query<{ id: string }>(
       "select id from organization where created_by=any($1::uuid[])", [users])).rows.map((row) => row.id)];
     const workspaces = (await client.query<{ id: string }>("select id from workspace where organization_id=any($1::uuid[])", [organizations])).rows.map((row) => row.id);
+    for (const table of ["activity_record", "activity_placement", "activity_point", "activity"]) {
+      await client.query(`delete from ${table} where organization_id=any($1::uuid[])`, [organizations]);
+    }
     await client.query("delete from placement_tag where workspace_id=any($1::uuid[])", [workspaces]);
     for (const table of ["placement", "scene_asset_ref", "scene"]) {
       await client.query(`delete from ${table} where organization_id=any($1::uuid[])`, [organizations]);

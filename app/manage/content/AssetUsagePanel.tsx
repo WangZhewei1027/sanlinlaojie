@@ -9,7 +9,7 @@ import { ContentEmptyState, ContentErrorState, ContentListSkeleton } from "./Con
 import { ContentSection } from "./ContentSection";
 import type { AssetUsageEntry, AssetUsageKind, AssetUsageSummary, ContentLoadStatus } from "./types";
 
-const KIND_ORDER: AssetUsageKind[] = ["scene", "placement"];
+const KIND_ORDER: AssetUsageKind[] = ["scene", "placement", "activity"];
 
 export interface AssetUsagePanelProps {
   usage: AssetUsageSummary;
@@ -23,7 +23,7 @@ export interface AssetUsagePanelProps {
 
 /**
  * Reverse dependencies grouped by how they pin the asset: saved scenes,
- * map placements (with their collection) and scene drafts. Anything the
+ * map placements (with their collection) and activity points. Anything the
  * server reports only as a count stays a count.
  */
 export function AssetUsagePanel({ usage, status = "ready", onRetry, hasMore, loadingMore, onLoadMore }: AssetUsagePanelProps) {

@@ -40,13 +40,15 @@ jobs:
       - run: npm ci
       - name: Verify fresh database and deployment gate
         run: node --import tsx scripts/test-deployment-check.ts
+      - name: Verify activity-owned location upgrade and conflicts
+        run: node --import tsx scripts/test-activity-owned-locations-migration.ts
       - name: Create isolated migration and service fixture databases
         run: |
           node --input-type=module <<'JS'
           import { Client } from 'pg';
           const db = new Client({ connectionString: process.env.DATABASE_URL });
           await db.connect();
-          for (const name of ['content_single_migration', 'content_mutable_migration', 'content_scene_migration', 'content_services']) {
+          for (const name of ['content_single_migration', 'content_mutable_migration', 'content_scene_migration', 'content_activity_migration', 'content_services']) {
             await db.query(`create database ${name}`);
           }
           await db.end();
@@ -56,6 +58,7 @@ jobs:
           DATABASE_URL="${DATABASE_URL%/postgres}/content_single_migration" node --import tsx --conditions react-server scripts/test-single-content-model-migration.ts
           DATABASE_URL="${DATABASE_URL%/postgres}/content_mutable_migration" node --import tsx --conditions react-server scripts/test-mutable-assets-migration.ts
           DATABASE_URL="${DATABASE_URL%/postgres}/content_scene_migration" node --import tsx --conditions react-server scripts/test-mutable-scenes-migration.ts
+          DATABASE_URL="${DATABASE_URL%/postgres}/content_activity_migration" node --import tsx scripts/test-activity-migration.ts
       - name: Verify content services, routes and upload deduplication
         env:
           DATABASE_URL: postgres://postgres:migration-test@127.0.0.1:55439/content_services

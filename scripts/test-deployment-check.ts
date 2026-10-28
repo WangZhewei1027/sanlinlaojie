@@ -43,11 +43,33 @@ async function main() {
     await db.query("create table asset_version(id uuid)");
     await reject(/obsolete runtime content structures/);
     await db.query("drop table asset_version");
+    await db.query("alter table activity_record rename column placement_id to obsolete_placement_id");
+    await reject(/ledger disagrees with schema/);
+    await db.query("alter table activity_record rename column obsolete_placement_id to placement_id");
+    await db.query("alter table activity_point rename column location to obsolete_location");
+    await reject(/ledger disagrees with schema/);
+    await db.query("alter table activity_point rename column obsolete_location to location");
+    await db.query("create table activity_point_placement(id uuid)");
+    await reject(/obsolete runtime content structures/);
+    await db.query("drop table activity_point_placement");
+    for (const column of ["location", "radius_meters", "config"]) {
+      await db.query(`alter table activity_placement add column ${column} text`);
+      await reject(/obsolete runtime content structures/);
+      await db.query(`alter table activity_placement drop column ${column}`);
+    }
+    const orgId = randomUUID();
+    const assetId = randomUUID();
+    await db.query("insert into organization(id,name) values($1,'release gate activity fixture')", [orgId]);
+    await db.query("insert into asset(id,organization_id,file_type,payload) values($1,$2,'shop','{\"kind\":\"shop\"}')", [assetId, orgId]);
+    await reject(/unmigrated shop or public-submission assets/);
+    await db.query("update asset set file_type='text',origin='public_submission',payload='{\"kind\":\"text\",\"text\":\"pending migration\"}' where id=$1", [assetId]);
+    await reject(/unmigrated shop or public-submission assets/);
+    await db.query("delete from asset where id=$1", [assetId]);
     await db.query(sql);
     assert.deepEqual((await db.query("select name from schema_migrations order by name")).rows, ledger);
     assert.ok(readFileSync("scripts/deploy.sh", "utf8").includes("deployment-check.mjs"));
     assert.ok(readFileSync(".github/workflows/deploy.yml", "utf8").includes("needs: quality"));
-    console.log("PASS fresh migration + replay; release gate rejects absent/pending ledger, schema drift and obsolete tables without changing the ledger");
+    console.log("PASS fresh migration + replay; release gate rejects absent/pending ledger, schema drift, obsolete tables and unmigrated activity assets without changing the ledger");
   } finally {
     await db?.end();
     if (created) await admin.query(`drop database ${name}`);

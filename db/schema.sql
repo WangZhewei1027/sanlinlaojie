@@ -169,7 +169,7 @@ begin
   where key = 'default_allowed_file_types';
 
   if default_types is null then
-    default_types := array['image','video','audio','link','text','anchor','shop'];
+    default_types := array['image','video','audio','link','text','anchor'];
   end if;
 
   insert into public.users (user_id, name, role, email)
@@ -965,7 +965,7 @@ ALTER TABLE ONLY public.workspace
     ADD CONSTRAINT workspace_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 INSERT INTO public.app_config(key,value) VALUES
- ('default_allowed_file_types','["image","video","audio","link","text","anchor","shop"]'::jsonb)
+ ('default_allowed_file_types','["image","video","audio","link","text","anchor"]'::jsonb)
 ON CONFLICT(key) DO NOTHING;
 INSERT INTO public.schema_migrations(name) VALUES
  ('schema.sql'),
@@ -976,3 +976,176 @@ INSERT INTO public.schema_migrations(name) VALUES
  ('20261017220000_mutable_assets.sql'),
  ('20261018000000_mutable_scenes.sql'),
  ('20261019000000_restore_anchor_placement_tags.sql');
+
+
+-- BEGIN ACTIVITY SCHEMA (also included in the fresh database baseline)
+create table public.activity (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references organization(id) on delete restrict,
+  type text not null check (type in ('shop_checkin','danmaku')),
+  name text not null check (length(btrim(name)) > 0),
+  description text,
+  config jsonb not null default '{}' check (jsonb_typeof(config) = 'object'),
+  location geometry(Point,4326),
+  radius_meters double precision,
+  constraint activity_radius_valid check (radius_meters>0 and radius_meters<'Infinity'::float8),
+  constraint activity_radius_location check ((radius_meters is null) = (location is null)),
+  constraint activity_location_valid check (location is null or (st_x(location) between -180 and 180 and st_y(location) between -90 and 90)),
+  state text not null default 'active' check (state in ('active','archived')),
+  lock_version integer not null default 1 check (lock_version > 0),
+  created_by uuid references users(user_id) on delete set null,
+  updated_by uuid references users(user_id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id,organization_id)
+);
+create index activity_org_idx on activity(organization_id,state,created_at);
+create index activity_location_idx on activity using gist(location);
+
+create table public.activity_point (
+  id uuid primary key default gen_random_uuid(),
+  activity_id uuid not null,
+  organization_id uuid not null,
+  name text not null check (length(btrim(name)) > 0),
+  description text,
+  ordinal integer not null default 0 check (ordinal >= 0),
+  image_asset_id uuid,
+  reward_asset_id uuid,
+  location geometry(Point,4326),
+  constraint activity_point_location_valid check (location is null or (st_x(location) between -180 and 180 and st_y(location) between -90 and 90)),
+  state text not null default 'active' check (state in ('active','archived')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id,activity_id,organization_id),
+  foreign key (activity_id,organization_id) references activity(id,organization_id) on delete restrict,
+  foreign key (image_asset_id,organization_id) references asset(id,organization_id) on delete restrict,
+  foreign key (reward_asset_id,organization_id) references asset(id,organization_id) on delete restrict
+);
+create index activity_point_activity_idx on activity_point(activity_id,ordinal,id);
+create index activity_point_location_idx on activity_point using gist(location);
+create index activity_point_image_idx on activity_point(image_asset_id) where image_asset_id is not null;
+create index activity_point_reward_idx on activity_point(reward_asset_id) where reward_asset_id is not null;
+
+create table public.activity_placement (
+  id uuid primary key default gen_random_uuid(),
+  activity_id uuid not null,
+  organization_id uuid not null,
+  workspace_id uuid not null,
+  status text not null default 'draft' check (status in ('draft','active','paused','archived')),
+  lock_version integer not null default 1 check (lock_version > 0),
+  created_by uuid references users(user_id) on delete set null,
+  updated_by uuid references users(user_id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id,activity_id,organization_id),
+  constraint activity_placement_activity_workspace_unique unique(activity_id,workspace_id),
+  foreign key (activity_id,organization_id) references activity(id,organization_id) on delete restrict,
+  foreign key (workspace_id,organization_id) references workspace(id,organization_id) on delete restrict
+);
+create index activity_placement_workspace_idx on activity_placement(workspace_id,status);
+create index activity_placement_activity_idx on activity_placement(activity_id,status);
+
+create table public.activity_record (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  activity_id uuid not null,
+  placement_id uuid not null,
+  point_id uuid,
+  participant_id text check (length(participant_id) between 1 and 128),
+  kind text not null check (kind in ('danmaku','checkin')),
+  content text,
+  location geometry(Point,4326),
+  status text not null default 'visible' check (status in ('visible','hidden')),
+  idempotency_key text check (length(idempotency_key) between 8 and 128),
+  metadata jsonb not null default '{}' check (jsonb_typeof(metadata) = 'object'),
+  render_config jsonb not null default '{}' check (jsonb_typeof(render_config) = 'object'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  lock_version integer not null default 1 check (lock_version > 0),
+  foreign key (placement_id,activity_id,organization_id) references activity_placement(id,activity_id,organization_id) on delete restrict,
+  foreign key (point_id,activity_id,organization_id) references activity_point(id,activity_id,organization_id) on delete restrict,
+  check ((kind='danmaku' and point_id is null and content is not null) or
+    (kind='checkin' and point_id is not null and participant_id is not null and content is null)),
+  check (location is null or (st_x(location) between -180 and 180 and st_y(location) between -90 and 90))
+);
+create index activity_record_activity_idx on activity_record(activity_id,created_at desc,id);
+create index activity_record_placement_idx on activity_record(placement_id,status,created_at desc,id);
+create index activity_record_location_idx on activity_record using gist(location);
+create unique index activity_record_retry_unique on activity_record(placement_id,participant_id,idempotency_key)
+  where participant_id is not null and idempotency_key is not null;
+create unique index activity_record_checkin_unique on activity_record(placement_id,participant_id,point_id) where kind='checkin';
+-- END ACTIVITY SCHEMA
+
+create table migration_archive.activity_source (
+  source_table text not null,
+  source_key text not null,
+  row_data jsonb not null,
+  captured_at timestamptz not null default now(),
+  primary key(source_table,source_key)
+);
+create table migration_archive.activity_text_review (
+  asset_id uuid primary key,
+  source_hash text not null,
+  decision text not null check (decision in ('migrate','keep')),
+  reason text not null,
+  reviewed_at timestamptz not null default now()
+);
+
+CREATE OR REPLACE FUNCTION public.purge_organizations(_org_ids uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET "content_model.writer" TO 'purge'
+    AS $$
+declare
+  _ws_ids uuid[];
+  _deleted_assets integer := 0;
+  _deleted_workspaces integer := 0;
+  _deleted_orgs integer := 0;
+begin
+  select coalesce(array_agg(id), '{}'::uuid[])
+  into _ws_ids
+  from public.workspace
+  where organization_id = any(_org_ids);
+
+  -- Explicit purge of activity participation and definitions, in dependency order.
+  delete from public.activity_record where organization_id = any(_org_ids);
+  delete from public.activity_placement where organization_id = any(_org_ids);
+  delete from public.activity_point where organization_id = any(_org_ids);
+  delete from public.activity where organization_id = any(_org_ids);
+
+  -- content model rows (dependency order; everything is organization-scoped)
+  delete from public.placement where organization_id = any(_org_ids);
+  delete from public.scene where organization_id = any(_org_ids);
+  delete from public.upload_receipt where organization_id = any(_org_ids);
+  delete from public.content_command_idempotency where organization_id = any(_org_ids);
+  -- placements of other organizations never reference these anchors (same-org rule)
+  delete from public.asset where organization_id = any(_org_ids);
+  get diagnostics _deleted_assets = row_count;
+
+  if array_length(_ws_ids, 1) is not null then
+    delete from public.workspace where id = any(_ws_ids);
+    get diagnostics _deleted_workspaces = row_count;
+  end if;
+
+  -- 级联 organization_member / organization_invitation(organization_id)
+  delete from public.organization where id = any(_org_ids);
+  get diagnostics _deleted_orgs = row_count;
+
+  return jsonb_build_object(
+    'deleted_assets', _deleted_assets,
+    'deleted_workspaces', _deleted_workspaces,
+    'deleted_orgs', _deleted_orgs
+  );
+end;
+$$;
+INSERT INTO public.schema_migrations(name) VALUES ('20261028000000_independent_activities.sql');
+
+-- Exact prior activity placement rows retained across the fixed-location upgrade.
+create table migration_archive.activity_location_source (
+  source_table text not null,
+  source_key text not null,
+  row_data jsonb not null,
+  captured_at timestamptz not null default now(),
+  primary key(source_table,source_key)
+);
+INSERT INTO public.schema_migrations(name) VALUES ('20261028010000_activity_owned_locations.sql');

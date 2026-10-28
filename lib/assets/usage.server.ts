@@ -29,15 +29,21 @@ export async function computeImpact(exec: Executor, actor: Actor, assetId: strin
     scenes = scenes.where("s.workspace_id", "=", workspaceId);
     placements = placements.where("p.workspace_id", "=", workspaceId);
   }
-  const [sceneRows, placementRows, owner] = await Promise.all([
+  let activities = exec.selectFrom("activity_point as point").innerJoin("activity as a", "a.id", "point.activity_id")
+    .select(["a.id as activity_id", "a.name as activity_name", "point.id as point_id", "point.name as point_name"])
+    .where((eb) => eb.or([eb("point.image_asset_id", "=", assetId), eb("point.reward_asset_id", "=", assetId)]));
+  if (workspaceId) activities = activities.where((eb) => eb.exists(eb.selectFrom("activity_placement as ap").select("ap.id").whereRef("ap.activity_id", "=", "a.id").where("ap.workspace_id", "=", workspaceId)));
+  const [sceneRows, placementRows, activityRows, owner] = await Promise.all([
     scenes.execute(),
     placements.execute(),
+    activities.execute(),
     exec.selectFrom("asset").select("organization_id").where("id", "=", assetId).executeTakeFirst(),
   ]);
-  const total = sceneRows.length + placementRows.length;
+  const total = sceneRows.length + placementRows.length + activityRows.length;
   const org = owner?.organization_id ? await loadOrgAccess(exec, actor, owner.organization_id) : null;
-  if (!org?.canRead) return { scenes: sceneRows.length, placements: placementRows.length, items: [], restricted_count: total };
+  if (!org?.canRead) return { scenes: sceneRows.length, placements: placementRows.length, activities: activityRows.length, items: [], restricted_count: total };
   const items: DependencyItem[] = [
+    ...activityRows.map((row): DependencyItem => ({ kind: "activity", ...row })),
     ...sceneRows.map((r): DependencyItem => ({ kind: "scene", ...r })),
     ...placementRows.map((r): DependencyItem => ({
       kind: "placement",
@@ -48,7 +54,7 @@ export async function computeImpact(exec: Executor, actor: Actor, assetId: strin
       workspace_name: r.workspace_name,
     })),
   ];
-  return { scenes: sceneRows.length, placements: placementRows.length, items, restricted_count: 0 };
+  return { scenes: sceneRows.length, placements: placementRows.length, activities: activityRows.length, items, restricted_count: 0 };
 }
 
-export const hasDependencies = (impact: DependencyImpact) => impact.scenes + impact.placements > 0;
+export const hasDependencies = (impact: DependencyImpact) => impact.scenes + impact.placements + (impact.activities ?? 0) > 0;

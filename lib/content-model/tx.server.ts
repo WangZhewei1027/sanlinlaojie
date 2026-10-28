@@ -108,7 +108,7 @@ export interface AuditEntry {
   organizationId: string | null;
   actorId: string | null;
   action: string;
-  objectType: "asset" | "scene" | "placement" | "workspace" | "organization";
+  objectType: "asset" | "scene" | "placement" | "workspace" | "organization" | "activity" | "activity_placement" | "activity_record";
   objectId: string | null;
   workspaceId?: string | null;
   details?: Record<string, unknown>;

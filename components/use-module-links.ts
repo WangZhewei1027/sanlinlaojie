@@ -17,6 +17,7 @@ import {
   MapPinned,
   Settings2,
   Shield,
+  Sparkles,
   type LucideIcon
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -87,6 +88,7 @@ export function useModuleLinks(enabled: boolean): ModuleLink[] {
     });
   }
   links.push(
+    { href: "/manage/activities", label: tx("contentModel.integration.nav.activities"), Icon: Sparkles },
     { href: "/manage/scenes", label: tx("contentModel.integration.nav.scenes"), Icon: Clapperboard },
     { href: "/manage/assets", label: tx("contentModel.integration.nav.assets"), Icon: Boxes },
   );

@@ -79,7 +79,7 @@ export interface AssetDetailData {
   fileMissing?: boolean;
 }
 
-export type AssetUsageKind = "scene" | "placement";
+export type AssetUsageKind = "scene" | "placement" | "activity";
 
 export interface AssetUsageEntry {
   id: string;

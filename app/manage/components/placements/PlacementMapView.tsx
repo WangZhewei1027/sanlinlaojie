@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePlacementViewer } from "../../hooks/usePlacementViewer";
 import { usePlacementStore } from "../../lib/placement-store";
-import { placementScopeKey, toViewerItems } from "../../lib/placement-to-viewer";
+import { placementScopeKey, toActivityViewerItems, toViewerItems } from "../../lib/placement-to-viewer";
 import type { Organization, Workspace } from "../../types";
 import { ViewerFrame } from "../ViewerFrame";
 import { ManageGridLayout } from "./ManageGridLayout";
@@ -17,6 +17,8 @@ import { PlacementSidebar } from "./PlacementSidebar";
 import { usePlacementText } from "./placement-texts";
 import { listTabOf, matchesFilters } from "./placement-utils";
 import { usePlacementData } from "./usePlacementData";
+import { activityApi } from "../../lib/activity-api";
+import { useActivityQuery } from "../activities/useActivityQuery";
 
 /** One map collection as the placement map sees it (the collection id is its workspace UUID). */
 export interface PlacementMapScope {
@@ -52,12 +54,17 @@ export function PlacementMapView({ scope }: { scope: PlacementMapScope }) {
   const statusFilter = usePlacementStore((state) => state.statusFilter);
   const fileTypeFilter = usePlacementStore((state) => state.fileTypeFilter);
   const tagFilter = usePlacementStore((state) => state.tagFilter);
+  const activitiesTab = usePlacementStore((state) => state.tab === "activities");
 
   const visible = useMemo(
     () => loadedScopeKey === scopeKey ? placements.filter((placement) => matchesFilters(placement, { status: statusFilter, fileTypes: fileTypeFilter, tagIds: tagFilter })) : [],
     [placements, loadedScopeKey, scopeKey, statusFilter, fileTypeFilter, tagFilter],
   );
-  const items = useMemo(() => toViewerItems(visible, placementContents, scopeKey), [visible, placementContents, scopeKey]);
+  const loadActivities = useCallback((signal: AbortSignal) => activityApi.collectionPlacements(workspaceId, signal), [workspaceId]);
+  const activityPlacements = useActivityQuery(scopeKey, loadActivities);
+  const loadActivityDefinitions = useCallback((signal: AbortSignal) => activityApi.list(organizationId, signal), [organizationId]);
+  const activityDefinitions = useActivityQuery(organizationId, loadActivityDefinitions);
+  const items = useMemo(() => [...toViewerItems(visible, placementContents, scopeKey), ...toActivityViewerItems(activityPlacements.data ?? [], activityDefinitions.data ?? [])], [visible, placementContents, scopeKey, activityPlacements.data, activityDefinitions.data]);
 
   const canWrite = useCallback(
     (placement: PlacementDto) =>
@@ -72,7 +79,12 @@ export function PlacementMapView({ scope }: { scope: PlacementMapScope }) {
   const viewer = usePlacementViewer({ iframeRef, items, mapCenter: organization?.map_center, canWrite, tx });
 
   // `?placementId=` selects and focuses once the list contains it.
-  const requestedId = useSearchParams().get("placementId");
+  const params = useSearchParams();
+  const requestedId = params.get("placementId");
+  const requestedTab = params.get("tab");
+  useEffect(() => {
+    if (requestedTab === "activities") usePlacementStore.getState().setTab("activities");
+  }, [requestedTab, workspaceId]);
   const applied = useRef<string | null>(null);
   const { focusPlacement } = viewer;
   useEffect(() => {
@@ -126,7 +138,7 @@ export function PlacementMapView({ scope }: { scope: PlacementMapScope }) {
             <ViewerFrame iframeRef={iframeRef} />
           </>
         }
-        sidebar={<PlacementSidebar />}
+        sidebar={activitiesTab ? null : <PlacementSidebar />}
       />
     </PlacementMapProvider>
   );

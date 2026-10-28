@@ -2,10 +2,9 @@ import type { PayloadScalar, PlacementDto, PlacementRenderConfig } from "@/lib/c
 import type { PlacementListTab, PlacementStatusFilter } from "../../lib/placement-store";
 import { placementFileType } from "../../lib/placement-to-viewer";
 
-/** Shops and anchors keep dedicated groups; everything else is a generic placement. */
+/** Activity placements are loaded independently; content anchors keep their group. */
 export function listTabOf(placement: PlacementDto): PlacementListTab {
   const type = placementFileType(placement);
-  if (type === "shop") return "shops";
   if (type === "anchor") return "anchors";
   return "placements";
 }

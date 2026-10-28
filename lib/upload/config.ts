@@ -7,7 +7,6 @@ import {
   Link as LinkIcon,
   File,
   Anchor,
-  ShoppingBag,
   Box,
   Layers,
 } from "lucide-react";
@@ -82,21 +81,6 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
     maxSize: 4,
     process: (file: File) => compressImage(file, 1),
     extractMetadata: async (file: File) => ({ gps: await extractGPSFromImage(file) }),
-  },
-  shop: {
-    type: "shop",
-    label: "fileTypes.shop",
-    icon: ShoppingBag,
-    accept: "image/*",
-    maxSize: 5,
-    process: (file: File) => compressImage(file, 0.2),
-    extractMetadata: async (file: File) => {
-      const gps = await extractGPSFromImage(file);
-      return {
-        gps,
-        dimensions: await getImageDimensions(file),
-      };
-    },
   },
   scene: {
     type: "scene",

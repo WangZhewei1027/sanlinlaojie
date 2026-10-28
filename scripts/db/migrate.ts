@@ -6,6 +6,8 @@ import { loadEnvFile, requireEnv } from "../lib/env";
 import { migrateUnversionedContent } from "../migrate/content-model/unify";
 import { migrateTheatreScenes } from "../migrate/theatre-scenes";
 import { parseArchiveReview } from "../migrate/content-model/archive-review";
+import { ACTIVITY_MIGRATION, parseActivityReview, prepareActivityMigration } from "./activity-migration";
+import { ACTIVITY_LOCATION_MIGRATION, prepareActivityOwnedLocationsMigration } from "./activity-owned-locations";
 
 /**
  * Apply the database schema.
@@ -19,10 +21,15 @@ import { parseArchiveReview } from "../migrate/content-model/archive-review";
  */
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length && (args.length !== 2 || args[0] !== "--archive-review")) {
-    throw new Error("Usage: db:migrate [--archive-review path/to/review.json]");
+  const options = new Map<string, string>();
+  for (let index = 0; index < args.length; index += 2) {
+    if (!["--archive-review", "--activity-review"].includes(args[index]) || !args[index + 1] || options.has(args[index]))
+      throw new Error("Usage: db:migrate [--archive-review path/to/review.json] [--activity-review path/to/review.json]");
+    options.set(args[index], args[index + 1]);
   }
-  const archiveReview = args.length ? parseArchiveReview(JSON.parse(readFileSync(resolve(args[1]), "utf8"))) : [];
+  const readReview = (flag: string): unknown => JSON.parse(readFileSync(resolve(options.get(flag)!), "utf8"));
+  const archiveReview = options.has("--archive-review") ? parseArchiveReview(readReview("--archive-review")) : [];
+  const activityReview = options.has("--activity-review") ? parseActivityReview(readReview("--activity-review")) : [];
   loadEnvFile();
   const client = new Client({ connectionString: requireEnv("DATABASE_URL") });
   await client.connect();
@@ -75,6 +82,8 @@ async function main() {
         if (file === "20261017180000_single_content_model.sql") await migrateUnversionedContent(client, process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "", archiveReview);
         if (file === "20261019000000_native_theatre_scenes.sql") await migrateTheatreScenes(client);
         if (file === "20261020000000_transform_scenes.sql") await migrateTransformScenes(client);
+        if (file === ACTIVITY_MIGRATION) await prepareActivityMigration(client, activityReview);
+        if (file === ACTIVITY_LOCATION_MIGRATION) await prepareActivityOwnedLocationsMigration(client);
         await client.query(readFileSync(resolve("db/migrations", file), "utf8"));
         await client.query("insert into schema_migrations (name) values ($1)", [file]);
         await client.query("commit");

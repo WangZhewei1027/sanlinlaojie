@@ -1,13 +1,13 @@
 import { asFileType, loadAssetContents, primaryResource } from "@/lib/assets/dto.server";
 import type { AssetContentDto } from "@/lib/content-model/contracts";
-import { audit, contentTransaction, type Executor } from "@/lib/content-model/tx.server";
+import { type Executor } from "@/lib/content-model/tx.server";
 import { db, sql } from "@/lib/db";
 import { parseLinkAssetInput, type LinkAssetData } from "@/lib/link-asset";
 import { compileSceneManifest } from "@/lib/scene/compile";
 import type { SceneAssetManifest } from "@/lib/scene/protocol";
 import "server-only";
 import { resolvePlacementContent } from "./content.server";
-import { pointSql, renderConfigOf } from "./core.server";
+import { renderConfigOf } from "./core.server";
 
 /** Public discovery and playback resolve active placements with current saved content. */
 
@@ -111,17 +111,11 @@ function placementContent(row: RuntimeRow, ctx: ProjectionContext) {
     ...scalarRecord(render.display),
     ...location,
   };
-  const checkin = content?.resources.find((r) => r.role === "checkin");
-  if (checkin) metadata.checkin_url = checkin.url;
   const config: Record<string, unknown> = { ...scalarRecord(render.config) };
   let fileUrl = primaryResource(content)?.url ?? null;
   let text: string | null = null;
-  let name = row.name;
+  const name = row.name;
   if (payload?.kind === "text" || payload?.kind === "anchor") text = payload.text ?? text;
-  if (payload?.kind === "shop") {
-    text = payload.text ?? text;
-    name = payload.name ?? name;
-  }
   if (payload?.kind === "link") {
     // Link protocol: config.link = LinkAssetData, file_url = preview.
     const link = linkData(payload.url);
@@ -165,34 +159,6 @@ export async function hugePlacements(scope: RuntimeScope) {
     const c = placementContent(row, ctx);
     if (!c.is_huge || c.file_type !== "model") return [];
     return [{ id: row.public_id, file_type: c.file_type, file_url: c.file_url, text_content: c.text_content, metadata: c.metadata, config: c.config, latitude: row.latitude, longitude: row.longitude }];
-  });
-}
-
-/** Shops including directory-only ones without coordinates (plan §4.4 exception). */
-export async function shopPlacements(scope: { workspaceId: string; organizationId: string }) {
-  const rows = await runtimeQuery(db, scope)
-      .innerJoin("asset as sa", "sa.id", "p.asset_id")
-      .where("sa.file_type", "=", "shop")
-      .where("sa.organization_id", "=", scope.organizationId)
-      // Ordering/create_at come from the (preserved) shop identity, not the migration time.
-      .select(sql<Date>`coalesce(sa.create_at, p.created_at)`.as("shop_created_at"))
-      .orderBy(sql`coalesce(sa.create_at, p.created_at)`, "desc")
-      .execute();
-  const [ctx, tags] = await Promise.all([projectionContext(db, rows), tagIdsFor(db, rows)]);
-  return rows.map((row) => {
-    const c = placementContent(row, ctx);
-    return {
-      id: row.public_id,
-      name: c.name,
-      file_url: c.file_url,
-      text_content: c.text_content,
-      anchor_id: row.anchor_id,
-      tag_ids: tags.get(row.id) ?? [],
-      metadata: c.metadata,
-      longitude: row.longitude,
-      latitude: row.latitude,
-      create_at: row.shop_created_at,
-    };
   });
 }
 
@@ -262,89 +228,3 @@ export async function previewSceneManifest(sceneId: string, organizationId: stri
 }
 
 // ───────────────────────── anonymous text ─────────────────────────
-
-export class RuntimeUnavailable extends Error {}
-
-/**
- * Anonymous mini-program text for an organization: a restricted
- * command that creates a public_submission team text asset (origin: the
- * scanned collection) and an active (or, without GPS, draft)
- * placement in that collection. The caller gets no catalog or editing
- * rights; field validation and rate limits stay in the route.
- */
-export async function submitAnonymousText(input: { content: string; workspaceId: string; organizationId: string | null; lat: number | null; lng: number | null }) {
-  const submitter = await db.selectFrom("users").select("user_id").where("email", "=", "dongming@user.com").executeTakeFirst();
-  if (!submitter) throw new RuntimeUnavailable("No user found in database");
-  const uploadTime = new Date().toISOString();
-  const hasLocation = input.lat !== null && input.lng !== null;
-  return contentTransaction(async (trx) => {
-    const workspace = await trx
-      .selectFrom("workspace as w")
-      .innerJoin("organization as o", "o.id", "w.organization_id")
-      .select(["w.id", "w.organization_id", "w.archived_at", "o.archived_at as org_archived_at"])
-      .where("w.id", "=", input.workspaceId)
-      .executeTakeFirst();
-    if (!workspace || (input.organizationId && workspace.organization_id !== input.organizationId) || workspace.archived_at || workspace.org_archived_at)
-      throw new RuntimeNotFound("Workspace not found or does not belong to the specified organization");
-    // Recheck archival after acquiring the organization lock.
-    const org = await trx
-      .selectFrom("organization")
-      .select(["archived_at"])
-      .where("id", "=", workspace.organization_id)
-      .forShare()
-      .executeTakeFirst();
-    if (!org || org.archived_at) throw new RuntimeNotFound("Workspace not found or does not belong to the specified organization");
-    const locked = await trx.selectFrom("workspace").select("archived_at").where("id", "=", workspace.id).forShare().executeTakeFirst();
-    if (!locked || locked.archived_at) throw new RuntimeNotFound("Workspace not found or does not belong to the specified organization");
-    const asset = await trx
-      .insertInto("asset")
-      .values({
-        organization_id: workspace.organization_id,
-        origin_workspace_id: workspace.id,
-        maintained_by: null,
-        visibility: "restricted",
-        state: "active",
-        origin: "public_submission",
-        file_type: "text",
-        name: null,
-        payload: JSON.stringify({
-        kind: "text",
-        text: input.content,
-        attributes: hasLocation ? { gps_source: "user_input", upload_time: uploadTime } : { upload_time: uploadTime },
-        ...(hasLocation ? { capture: { latitude: input.lat!, longitude: input.lng!, source: "user_input" } } : {}),
-      }),
-        created_by: submitter.user_id,
-      })
-      .returning(["id", "create_at"])
-      .executeTakeFirstOrThrow();
-    const placement = await trx
-      .insertInto("placement")
-      .values({
-        organization_id: workspace.organization_id,
-        workspace_id: workspace.id,
-        asset_id: asset.id,
-        location: hasLocation ? pointSql({ longitude: input.lng!, latitude: input.lat! }) : null,
-        status: hasLocation ? "active" : "draft",
-        created_by: submitter.user_id,
-        updated_by: submitter.user_id,
-      })
-      .returning(["id", "created_at"])
-      .executeTakeFirstOrThrow();
-    await audit(trx, {
-      organizationId: workspace.organization_id,
-      actorId: null,
-      action: "placement.public_text",
-      objectType: "placement",
-      objectId: placement.id,
-      workspaceId: workspace.id,
-      details: { asset_id: asset.id, channel: "miniapp" },
-    });
-    return {
-      id: placement.id,
-      file_type: "text",
-      text_content: input.content,
-      metadata: hasLocation ? { longitude: input.lng, latitude: input.lat, gps_source: "user_input", upload_time: uploadTime } : null,
-      create_at: placement.created_at,
-    };
-  });
-}

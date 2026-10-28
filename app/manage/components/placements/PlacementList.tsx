@@ -12,12 +12,12 @@ import { PlacementCard } from "./PlacementCard";
 import { PlacementListHeader } from "./PlacementListHeader";
 import { usePlacementMap } from "./PlacementMapContext";
 import { listTabOf } from "./placement-utils";
+import { MapActivities } from "../activities/MapActivities";
 
-const TABS: PlacementListTab[] = ["placements", "shops", "anchors"];
+const TABS: PlacementListTab[] = ["placements", "activities", "anchors"];
 
 /**
- * Left panel of the map: placements (not assets), with shops and
- * recognition targets in their own groups. `visible` is already filtered.
+ * Map content, independent activity placements and recognition targets.
  */
 export function PlacementList({ visible }: { visible: PlacementDto[] }) {
   const { tx, tags, setViewerSelection } = usePlacementMap();
@@ -30,7 +30,7 @@ export function PlacementList({ visible }: { visible: PlacementDto[] }) {
   const [selectMode, setSelectMode] = useState(false);
 
   const groups = useMemo(() => {
-    const out: Record<PlacementListTab, PlacementDto[]> = { placements: [], shops: [], anchors: [] };
+    const out: Record<PlacementListTab, PlacementDto[]> = { placements: [], activities: [], anchors: [] };
     for (const placement of visible) out[listTabOf(placement)].push(placement);
     return out;
   }, [visible]);
@@ -72,19 +72,19 @@ export function PlacementList({ visible }: { visible: PlacementDto[] }) {
   const rows = groups[tab];
   return (
     <Card className="flex h-full flex-col overflow-hidden">
-      <PlacementListHeader shownCount={visible.length} totalCount={placements.length} fileTypes={fileTypes} selectMode={selectMode} onToggleSelectMode={toggleSelectMode} />
+      {tab !== "activities" && <PlacementListHeader shownCount={visible.length} totalCount={placements.length} fileTypes={fileTypes} selectMode={selectMode} onToggleSelectMode={toggleSelectMode} />}
       <Tabs value={tab} onValueChange={(value) => usePlacementStore.getState().setTab(value as PlacementListTab)} className="px-3 pt-2">
         <TabsList className="w-full">
           {TABS.map((key) => (
             <TabsTrigger key={key} value={key} className="flex-1 text-xs">
               {tx(`contentModel.integration.map.tab.${key}`)}
-              {key !== "anchors" && <span className="ms-1 tabular-nums text-muted-foreground">{groups[key].length}</span>}
+              {key === "placements" && <span className="ms-1 tabular-nums text-muted-foreground">{groups[key].length}</span>}
             </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "anchors" ? (
+        {tab === "activities" ? <MapActivities /> : tab === "anchors" ? (
           <AnchorList anchorPlacements={groups.anchors} />
         ) : status === "loading" && !placements.length ? (
           <ContentListSkeleton label={tx("contentModel.integration.map.list.loading")} rows={4} />

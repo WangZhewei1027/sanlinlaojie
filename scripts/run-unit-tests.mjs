@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 // Keep DB/migration/HTTP and cross-runtime suites out of this default command.
 const tests = [
   "test-engineering-standards.mjs",
+  "test-activity-presentation.ts",
+  "test-activity-input.ts",
   "test-content-model-contracts.ts",
   "test-content-model-resource-presentation.ts",
   "test-content-model-url-resources.ts",

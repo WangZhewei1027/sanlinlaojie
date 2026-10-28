@@ -27,7 +27,6 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.type.model`]: ["模型", "Model"],
   [`${P}.type.text`]: ["文字", "Text"],
   [`${P}.type.link`]: ["链接", "Link"],
-  [`${P}.type.shop`]: ["店铺", "Shop"],
   [`${P}.type.anchor`]: ["识别目标", "Anchor"],
   [`${P}.type.scene`]: ["场景", "Scene"],
 
@@ -39,10 +38,8 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.list.noMatch`]: ["没有符合筛选条件的投放", "No placements match the filters"],
   [`${P}.list.noMatchHint`]: ["调整状态、类型或标签筛选后再看。", "Adjust the status, type or tag filters."],
   [`${P}.list.empty.placements`]: ["还没有投放", "No placements yet"],
-  [`${P}.list.empty.shops`]: ["还没有店铺", "No shops yet"],
   [`${P}.list.emptyHint`]: ["在地图上点选位置，然后在右侧放置已有内容或上传新内容。", "Click a spot on the map, then place existing content or upload new content on the right."],
   [`${P}.tab.placements`]: ["投放", "Placements"],
-  [`${P}.tab.shops`]: ["店铺", "Shops"],
   [`${P}.tab.anchors`]: ["识别目标", "Anchors"],
 
   [`${P}.filter.status`]: ["投放状态", "Placement status"],
@@ -55,7 +52,6 @@ export const MAP_TEXTS: IntegrationTexts = {
 
   [`${P}.card.focus`]: ["在地图上定位", "Show on map"],
   [`${P}.card.noLocation`]: ["没有地图位置", "No map location"],
-  [`${P}.card.directoryOnly`]: ["仅目录", "Directory only"],
   [`${P}.card.sharedFrom`]: ["来自合集 {{project}} · 只读", "From collection {{project}} · read-only"],
 
   [`${P}.anchors.projectRequired`]: ["打开具体合集后才能管理识别目标。", "Open a collection to manage its recognition targets."],
@@ -132,7 +128,6 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.field.useClicked`]: ["使用地图点选位置", "Use clicked map location"],
   [`${P}.field.usePhotoGps`]: ["使用照片 GPS", "Use photo GPS"],
   [`${P}.field.clickHint`]: ["先在地图上点击一个位置。", "Click a spot on the map first."],
-  [`${P}.field.directoryOnlyHint`]: ["这是仅目录的店铺，没有地图位置。", "This is a directory-only shop without a map location."],
   [`${P}.field.anchor`]: ["识别目标", "Recognition target"],
   [`${P}.field.anchorNone`]: ["不使用识别目标", "No recognition target"],
   [`${P}.field.anchorOther`]: ["其他识别目标", "Other recognition target"],
@@ -150,7 +145,6 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.create.title`]: ["新增投放", "New placement"],
   [`${P}.create.mode.existing`]: ["放置已有内容", "Place existing"],
   [`${P}.create.mode.upload`]: ["上传并放置", "Upload and place"],
-  [`${P}.create.mode.shop`]: ["店铺", "Shop"],
   [`${P}.create.sourceKind`]: ["来源类型", "Source type"],
   [`${P}.create.kind.asset`]: ["团队素材", "Team assets"],
   [`${P}.create.kind.scene`]: ["场景", "Scenes"],
@@ -170,14 +164,6 @@ export const MAP_TEXTS: IntegrationTexts = {
   [`${P}.create.uploadAction`]: ["上传并放置", "Upload and place"],
   [`${P}.create.done`]: ["已创建投放", "Placement created"],
 
-  [`${P}.shop.image`]: ["店铺图片", "Shop image"],
-  [`${P}.shop.checkin`]: ["打卡照片", "Check-in photo"],
-  [`${P}.shop.checkinOptional`]: ["打卡照片（可选）", "Check-in photo (optional)"],
-  [`${P}.shop.name`]: ["店铺名称", "Shop name"],
-  [`${P}.shop.description`]: ["店铺介绍", "Description"],
-  [`${P}.shop.locationOptional`]: ["店铺可以不设位置：没有位置时只出现在店铺目录中，不在地图上展示。", "A shop may have no location: it then appears in the shop directory only, not on the map."],
-  [`${P}.shop.nameRequired`]: ["请填写店铺名称。", "Enter the shop name."],
-  [`${P}.shop.createAction`]: ["创建店铺投放", "Create shop placement"],
 };
 
 export function usePlacementText() {

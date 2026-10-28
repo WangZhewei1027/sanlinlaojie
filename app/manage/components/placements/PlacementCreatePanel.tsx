@@ -7,20 +7,19 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { PlaceExistingForm } from "./PlaceExistingForm";
 import { usePlacementMap } from "./PlacementMapContext";
-import { ShopPlaceForm } from "./ShopPlaceForm";
 import { UploadAndPlaceForm } from "./UploadAndPlaceForm";
 
-type CreateMode = "existing" | "upload" | "shop";
+type CreateMode = "existing" | "upload";
 
 /**
  * Upload and place panel. Shown only for a real project
  * whose capabilities allow editing. Every new placement needs an explicit
- * map location, except directory-only shops.
+ * map location. Activities are managed through their own placement tab.
  */
 export function PlacementCreatePanel() {
-  const { tx, allowedUploadTypes } = usePlacementMap();
+  const { tx } = usePlacementMap();
   const [mode, setMode] = useState<CreateMode>("existing");
-  const modes: CreateMode[] = allowedUploadTypes.includes("shop") ? ["existing", "upload", "shop"] : ["existing", "upload"];
+  const modes: CreateMode[] = ["existing", "upload"];
 
   return (
     <Card className="overflow-hidden">
@@ -40,11 +39,6 @@ export function PlacementCreatePanel() {
         <TabsContent value="upload" className="pt-3">
           <UploadAndPlaceForm />
         </TabsContent>
-        {modes.includes("shop") && (
-          <TabsContent value="shop" className="pt-3">
-            <ShopPlaceForm />
-          </TabsContent>
-        )}
       </Tabs>
     </Card>
   );

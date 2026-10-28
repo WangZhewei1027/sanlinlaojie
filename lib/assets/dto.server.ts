@@ -97,6 +97,12 @@ async function usageCounts(exec: Executor, assetIds: string[]): Promise<Map<stri
       select asset_id, count(*) as n from scene_asset_ref where asset_id = any(${assetIds}::uuid[]) group by asset_id
       union all
       select asset_id, count(*) from placement where asset_id = any(${assetIds}::uuid[]) and status <> 'archived' group by asset_id
+      union all
+      select asset_id, count(*) from (
+        select id, image_asset_id as asset_id from activity_point where image_asset_id = any(${assetIds}::uuid[])
+        union
+        select id, reward_asset_id as asset_id from activity_point where reward_asset_id = any(${assetIds}::uuid[])
+      ) activity_refs group by asset_id
     ) t group by asset_id
   `.execute(exec);
   return new Map(rows.map((row) => [row.asset_id, Number(row.n)]));

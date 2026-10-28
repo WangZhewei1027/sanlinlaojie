@@ -25,6 +25,10 @@ BEGIN
   SELECT array_agg(r.table_name || '.' || r.column_name) INTO missing
   FROM (VALUES ('asset','payload'), ('asset_resource','asset_id'),
     ('scene','document'), ('placement','scene_id'), ('placement','asset_id'),
+    ('activity','type'), ('activity','location'), ('activity','radius_meters'),
+    ('activity_point','reward_asset_id'), ('activity_point','location'),
+    ('activity_placement','activity_id'),
+    ('activity_record','placement_id'), ('activity_record','kind'),
     ('workspace','archived_at'), ('organization','archived_at')) AS r(table_name,column_name)
   WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns c
     WHERE c.table_schema='public' AND c.table_name=r.table_name AND c.column_name=r.column_name);
@@ -32,11 +36,16 @@ BEGIN
     RAISE EXCEPTION 'Deployment blocked: migration ledger disagrees with schema; missing %', array_to_string(missing, ', ');
   END IF;
   IF to_regclass('public.asset_version') IS NOT NULL OR to_regclass('public.scene_revision') IS NOT NULL
+    OR to_regclass('public.activity_point_placement') IS NOT NULL
     OR EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
       AND (table_name='asset' AND column_name IN ('workspace_id','current_version_id')
         OR table_name='scene' AND column_name='draft_document'
-        OR table_name='placement' AND column_name IN ('asset_version_id','scene_revision_id'))) THEN
+        OR table_name='placement' AND column_name IN ('asset_version_id','scene_revision_id')
+        OR table_name='activity_placement' AND column_name IN ('location','radius_meters','config'))) THEN
     RAISE EXCEPTION 'Deployment blocked: obsolete runtime content structures still exist';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.asset WHERE file_type='shop' OR (file_type='text' AND origin='public_submission')) THEN
+    RAISE EXCEPTION 'Deployment blocked: unmigrated shop or public-submission assets remain';
   END IF;
 END
 $check$;

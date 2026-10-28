@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PlacementDto } from "@/lib/content-model/contracts";
 import { cn } from "@/lib/utils";
-import { Focus, MapPin, MapPinOff } from "lucide-react";
+import { Focus, MapPin } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlacementStore } from "../../lib/placement-store";
@@ -66,7 +66,6 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
             <Badge variant="outline" className="px-1.5 py-0 text-xs">{t(`contentModel.placement.status.${placement.status}`)}</Badge>
           )}
 
-          {placement.directory_only && <Badge variant="outline" className="px-1.5 py-0 text-xs">{tx("contentModel.integration.map.card.directoryOnly")}</Badge>}
         </div>
         {placement.tag_ids.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -83,7 +82,7 @@ export function PlacementCard({ placement, tags, selected, selectMode, checked, 
         </Button>
       ) : (
         <span className="shrink-0 text-muted-foreground" title={tx("contentModel.integration.map.card.noLocation")}>
-          {placement.directory_only ? <MapPinOff className="size-4" aria-hidden /> : <MapPin className="size-4 opacity-40" aria-hidden />}
+          <MapPin className="size-4 opacity-40" aria-hidden />
           <span className="sr-only">{tx("contentModel.integration.map.card.noLocation")}</span>
         </span>
       )}

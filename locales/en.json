@@ -60,12 +60,6 @@
       "content": "Text Content",
       "contentPlaceholder": "Enter text content"
     },
-    "shop": {
-      "name": "Shop Name",
-      "description": "Shop Description",
-      "namePlaceholder": "Enter shop name",
-      "descriptionPlaceholder": "Enter shop description"
-    },
     "model": {
       "name": "Model Name",
       "namePlaceholder": "Enter model name",
@@ -317,8 +311,6 @@
       "miniappConfig": {
         "confetti": "Confetti Effect",
         "confettiDesc": "Show confetti ribbons in the mini program",
-        "shopCheckin": "Shop Check-in",
-        "shopCheckinDesc": "Show the shop check-in module in the mini program",
         "footer": "Watermark Logo",
         "footerDesc": "Show the watermark logo in the mini program"
       }
@@ -524,7 +516,7 @@
         "loadingPreview": "Analyzing impact…",
         "previewFailed": "Failed to load deletion preview",
         "noOwnedOrgs": "This user does not own any team; deletion will not affect existing teams.",
-        "orgDelete": "Will be deleted ({{workspaces}} collections, {{assets}} assets and their files)",
+        "orgDelete": "Will be deleted ({{workspaces}} map collections, {{assets}} assets, {{activities}} activities, {{activityRecords}} activity records and associated files)",
         "orgPromote": "{{name}} will be promoted to owner",
         "orgUnchanged": "Has another owner; unaffected"
       }
@@ -682,7 +674,6 @@
     "link": "Link",
     "text": "Text",
     "anchor": "Matching Point",
-    "shop": "Shop",
     "model": "3D Model",
     "scene": "Scene"
   },
@@ -1097,7 +1088,8 @@
       "none": "Unused",
       "kind": {
         "scene": "Scenes",
-        "placement": "Map placements"
+        "placement": "Map placements",
+        "activity": "Activity check-in points"
       },
       "restricted_one": "{{count}} more reference is not listed",
       "restricted_other": "{{count}} more references are not listed",
@@ -1118,7 +1110,8 @@
       "impact": {
         "scene": "{{count}} scene references",
         "placement_one": "{{count}} direct placement",
-        "placement_other": "{{count}} direct placements"
+        "placement_other": "{{count}} direct placements",
+        "activity": "{{count}} activity point references"
       },
       "noImpact": "Nothing references it right now.",
       "stops": "Stops",
@@ -1182,7 +1175,16 @@
         "assets": "Assets",
         "scenes": "Scenes",
         "collections": "Map collections",
-        "settings": "Team settings"
+        "settings": "Team settings",
+        "activities": "Activities"
+      },
+      "map": {
+        "tab": {
+          "activities": "Activities"
+        }
+      },
+      "impact": {
+        "activity": "{{activity}} · {{point}} (activity point)"
       }
     },
     "workbench": {
@@ -1293,5 +1295,135 @@
         "archivedBody": "Archived scenes appear here and can be restored at any time."
       }
     }
+  },
+  "activities": {
+    "title": "Activities",
+    "subtitle": "Manage interactive experiences and reuse them across maps.",
+    "create": "Create activity",
+    "name": "Activity name",
+    "type": "Activity type",
+    "types": {
+      "shop_checkin": "Shop check-in",
+      "danmaku": "Messages"
+    },
+    "description": "Description",
+    "state": "Activity status",
+    "states": {
+      "active": "Active",
+      "archived": "Archived",
+      "all": "All"
+    },
+    "saving": "Saving…",
+    "save": "Save activity",
+    "cancel": "Cancel",
+    "search": "Search activities",
+    "readOnly": "This team or activity is read-only.",
+    "empty": "No matching activities",
+    "emptyHint": "Create a check-in or message activity, then place it on a map.",
+    "loading": "Loading activities…",
+    "settings": "Activity content",
+    "checkinRadius": "Check-in distance (m)",
+    "maxLength": "Message length limit",
+    "sharedSettings": "Activity locations, area and rules are shared across all maps and take effect on save.",
+    "points": "Check-in points",
+    "addPoint": "Add check-in point",
+    "pointsHint": "Each shop has one fixed location. Select a check-in point to set its location and edit its content.",
+    "noPoints": "Add check-in points, then save the activity.",
+    "pointNumber": "Check-in point {{number}}",
+    "pointName": "Check-in point name",
+    "pointImage": "Point image",
+    "rewardImage": "Check-in reward image",
+    "archivePoint": "Archive point",
+    "removePoint": "Remove point",
+    "archive": "Archive activity",
+    "restore": "Restore",
+    "replaceImage": "Replace image",
+    "chooseImage": "Choose image",
+    "clearImage": "Remove {{label}}",
+    "imageHint": "Choose an image from this team or upload a new image.",
+    "uploadImage": "Upload image",
+    "searchImages": "Search image assets",
+    "noImages": "No image assets",
+    "unnamedImage": "Untitled image",
+    "previous": "Previous",
+    "next": "Next",
+    "failed": "Action failed",
+    "failedHint": "Please try again.",
+    "conflict": "Content has changed. Your input is preserved.",
+    "reload": "Reload and discard current input",
+    "placements": "Placements",
+    "place": "Link to a map",
+    "placementsHint": "Link this activity to multiple maps. Locations, content and rules are managed in the activity.",
+    "noMaps": "Create a map collection first",
+    "noPlacements": "No activity placements",
+    "noPlacementsHint": "Choose a map and enable the link to display this activity.",
+    "editPlacement": "Change placement status",
+    "viewPlacement": "View placement",
+    "openMap": "Open map",
+    "wholeMap": "No geographic restriction",
+    "localArea": "Within a geographic area",
+    "map": "Map collection",
+    "chooseMap": "Choose a map",
+    "placementStatus": "Placement status",
+    "placementStates": {
+      "draft": "Draft",
+      "active": "Enabled",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "longitude": "Longitude",
+    "latitude": "Latitude",
+    "radius": "Activity radius (m)",
+    "invalidLocation": "Enter valid longitude and latitude together.",
+    "radiusRequired": "Set both a center location and a radius greater than zero.",
+    "invalidRule": "Check-in distance must be 1–1000 m. Message length must be an integer from 1 to 500.",
+    "savePlacement": "Save map link",
+    "records": "Participation data",
+    "filterPlacement": "Filter by placement",
+    "allPlacements": "All placements",
+    "recordsHint": "Manage activity-generated data here, separately from assets.",
+    "noRecords": "No participation records",
+    "recordStates": {
+      "visible": "Visible",
+      "hidden": "Hidden"
+    },
+    "checkinRecord": "Checked in: {{name}}",
+    "unknownPoint": "Historical check-in point",
+    "hideRecord": "Hide record",
+    "showRecord": "Show record",
+    "back": "Back to activities",
+    "mapHint": "Manage activity links and status on this map. Locations and content are shared by the activity.",
+    "manage": "Manage activities",
+    "placeExisting": "Link an existing activity",
+    "chooseActivity": "Choose an activity",
+    "chooseActivityHint": "Choose an existing activity or create one in the activity library.",
+    "moveHint": "Edit locations in Activity content. All maps share the same location.",
+    "mapSidebarHint": "Activity locations and area are managed in Activity content. This page only manages map links.",
+    "recordCount_one": "{{count}} record",
+    "recordCount_other": "{{count}} records",
+    "locationMapLoading": "Loading map…",
+    "locationMapUnavailable": "The map is not ready. Retry, or expand “Enter coordinates” to continue.",
+    "areaCenter": "Activity area center",
+    "participationArea": "Participation area",
+    "wholeMapSimpleHint": "The activity is available on every linked map. No coordinates needed.",
+    "locatedProgress": "{{located}} / {{total}} located",
+    "pointLocated": "Location set",
+    "pointNeedsLocation": "Location needed",
+    "unlocatedHint": "Points without a location stay in the directory but cannot accept check-ins.",
+    "clickInlineMap": "Click the map to set this location.",
+    "positionSummary": "Longitude {{longitude}} · Latitude {{latitude}}",
+    "preciseLocation": "Enter coordinates",
+    "clearLocation": "Clear location",
+    "unsavedLocations": "Unsaved changes",
+    "locationMapTitle": "Activity locations map",
+    "placementRelationHint": "This only links the activity to a map. Edit locations, content and rules in Activity content.",
+    "unnamedPoint": "Untitled check-in point",
+    "pointNameRequired": "Enter a name for every check-in point.",
+    "editContent": "Edit activity content",
+    "viewContent": "View activity content",
+    "allMapsLinked": "This activity is linked to every editable map. Restore an archived link by changing its status below.",
+    "noEditableMaps": "No editable maps are available. Request map editing access first.",
+    "allActivitiesLinked": "Every available activity is linked to this map. Restore an archived link by changing its status below.",
+    "noAvailableActivities": "No activities are available to link. Create or restore one in activity management."
   }
 }

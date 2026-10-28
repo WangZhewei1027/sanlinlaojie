@@ -4,15 +4,16 @@
  *
  * The viewer still speaks the message names (SET_ASSETS, ASSET_CLICKED,
  * ASSETS_MOVED …) and reads `id, file_type, file_url, text_content, name,
- * anchor_id, metadata.{longitude,latitude,height}`. Every `id` sent is a
- * Placement id, so every id the viewer sends back is a Placement id — never a
- * source asset id. Source identities travel alongside for the React side only.
+ * anchor_id, metadata.{longitude,latitude,height}`. Content ids identify a
+ * Placement; activity point markers combine their association and fixed point
+ * ids. Source identities travel alongside for the React side only.
  */
+import type { ActivityDto, ActivityPlacementDto } from "@/lib/activities/contracts";
 import type { PlacementAssetContentDto, PlacementContentDto, PlacementDto } from "@/lib/content-model/contracts";
 import { ALL_WORKSPACES_ID } from "../constants";
 
 export interface ViewerPlacementItem {
-  /** Placement id (the only id the viewer knows). */
+  /** Content placement ID or activity marker identity (the only ID the viewer knows). */
   id: string;
   file_type: string;
   file_url: string | null;
@@ -22,6 +23,8 @@ export interface ViewerPlacementItem {
   anchor_id: string | null;
   metadata: { longitude: number; latitude: number; height: number; duration?: number };
   sourceAssetId: string | null;
+  /** Activity placement owning this map marker; absent for content placements. */
+  activityPlacementId?: string;
   sceneId: string | null;
   workspace_id: string;
 }
@@ -79,13 +82,13 @@ export function resolvedContentOf(placement: PlacementDto, contents: PlacementCo
   const duration = payload.attributes?.duration;
   const base = typeof duration === "number" ? { duration } : {};
   if (payload.kind === "link") return { ...base, url: payload.url, text: payload.title ?? null };
-  const text = payload.kind === "text" ? payload.text : payload.kind === "shop" || payload.kind === "anchor" ? payload.text ?? null : null;
+  const text = payload.kind === "text" ? payload.text : payload.kind === "anchor" ? payload.text ?? null : null;
   return { ...base, url: content.resources.find((resource) => (resource.role === "primary" || resource.role === "reference") && resource.ordinal === 0)?.url ?? null, text };
 }
 
-/** Directory-only shops and rows without coordinates never reach the map. */
+/** Only explicitly located content placements reach the map. */
 export function isMappable(placement: PlacementDto): placement is PlacementDto & { location: NonNullable<PlacementDto["location"]> } {
-  return !placement.directory_only && !!placement.location;
+  return !!placement.location;
 }
 
 export function toViewerItems(placements: readonly PlacementDto[], contents: PlacementContentIndex, scopeKey: string | null): ViewerPlacementItem[] {
@@ -131,4 +134,21 @@ export function focusPayload(placement: PlacementDto) {
     latitude: placement.location.latitude,
     height: placement.location.altitude ?? 0,
   };
+}
+
+/** Map marker identity includes the association, but coordinates always come from the activity. */
+export function toActivityViewerItems(placements: readonly ActivityPlacementDto[], activities: readonly ActivityDto[]): ViewerPlacementItem[] {
+  const definitions = new Map(activities.map((activity) => [activity.id, activity]));
+  return placements.filter((placement) => placement.status !== "archived").flatMap((placement) => {
+    const activity = definitions.get(placement.activity_id);
+    if (!activity || activity.state !== "active") return [];
+    const points = activity.type === "shop_checkin"
+      ? activity.points.filter((point) => point.state === "active").map((point) => ({ id: `${placement.id}:${point.id}`, name: `${activity.name} · ${point.name}`, location: point.location }))
+      : [{ id: placement.id, name: activity.name, location: activity.location }];
+    return points.flatMap((point) => point.location ? [{
+      id: point.id, file_type: "text", file_url: null, text_content: point.name, name: point.name,
+      anchor_id: null, metadata: { ...point.location, height: 0 }, sourceAssetId: null, sceneId: null,
+      workspace_id: placement.workspace_id, activityPlacementId: placement.id,
+    }] : []);
+  });
 }

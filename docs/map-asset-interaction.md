@@ -13,11 +13,13 @@
 | [usePlacementViewer](../app/manage/hooks/usePlacementViewer.ts) | iframe 消息、相机定位、选中和拖动保存 |
 | `public/js/viewer/` | 独立 Cesium 运行时，管理图标、选择和渲染资源 |
 
-`GET /api/placements/[id]/content` 解析源素材或场景的当前内容。内容缓存按团队/合集、投放及目标标识匹配；素材锁版本也参与素材目标的缓存键。无坐标或目录型 Shop 可出现在列表，但不进入地图。
+`GET /api/placements/[id]/content` 解析源素材或场景的当前内容。内容缓存按团队/合集、投放及目标标识匹配；素材锁版本也参与素材目标的缓存键。活动与普通内容独立加载；活动地图标记从活动定义读取固定地点，无坐标点只显示在活动目录中。
 
 ## ID 与消息
 
-发送给 viewer 的 `id`、返回消息中的 `assetId` 和 `assetIds` 均指 **Placement ID**。基础素材的身份单独放在 `sourceAssetId`，场景身份放在 `sceneId`。同一素材在两个合集的投放是两个独立实例。
+普通内容发送给 viewer 的 `id`、返回消息中的 `assetId` 和 `assetIds` 均指 **Placement ID**。基础素材的身份单独放在 `sourceAssetId`，场景身份放在 `sceneId`。同一素材在两个合集的投放是两个独立实例。
+
+活动标记使用“活动投放 ID:打卡点 ID”的组合标识，弹幕范围中心使用活动投放 ID；`activityPlacementId` 指向所属地图关联。坐标来自同一个活动/打卡点定义，不存在独立的点投放记录。点击可选择对应关联，拖动会恢复原位置并引导进入“活动内容”编辑。活动内容页内置的地图只修改活动草稿，统一保存后所有关联地图更新。
 
 消息封装使用 `{ type, payload, source, version: 1 }`，source 为 manage 或 viewer。
 

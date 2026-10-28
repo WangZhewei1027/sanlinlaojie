@@ -25,7 +25,7 @@ import { collectionHref, teamHref } from "./content-context";
 
 const CONTENT_TYPES: readonly ContentAssetType[] = ["image", "video", "audio", "model", "text", "link", "document"];
 
-/** Shop and anchor rows keep their dedicated panels and never enter the generic library. */
+/** Anchors have their own map panel; the generic library contains media content. */
 export function isLibraryAsset(asset: Pick<AssetDto, "file_type">) {
   return (CONTENT_TYPES as readonly string[]).includes(asset.file_type);
 }
@@ -50,7 +50,7 @@ export function thumbnailOf(content: AssetContentDto | null | undefined): string
   const thumbnail = content.resources.find((resource) => resource.role === "thumbnail");
   if (thumbnail) return thumbnail.url;
   const primary = primaryResource(content);
-  return primary && (content.payload.kind === "image" || content.payload.kind === "shop") ? primary.url : null;
+  return primary && content.payload.kind === "image" ? primary.url : null;
 }
 
 export function excerptOf(content: AssetContentDto | null | undefined): string | null {
@@ -99,7 +99,7 @@ export function toDetailData(asset: AssetDetailDto): AssetDetailData {
 }
 
 export function usageByKind(impact: DependencyImpact | null | undefined): Record<AssetUsageKind, number> {
-  return { scene: impact?.scenes ?? 0, placement: impact?.placements ?? 0 };
+  return { scene: impact?.scenes ?? 0, placement: impact?.placements ?? 0, activity: impact?.activities ?? 0 };
 }
 
 /** Collection name of a dependency; scenes belong to the team and may report none. */
@@ -112,6 +112,14 @@ export function toUsageSummary(impact: DependencyImpact | null | undefined, orga
   if (!impact) return { entries: [], totalCount: 0, restrictedCount: 0 };
   const items = impact.items;
   const entries = items.map((item, index) => {
+    if (item.kind === "activity") {
+      return {
+        id: `activity:${item.activity_id}:${item.point_id}:${index}`,
+        kind: "activity" as const,
+        targetName: `${item.activity_name} · ${item.point_name}`,
+        href: teamHref(`/manage/activities/${item.activity_id}`, organizationId),
+      };
+    }
     if (item.kind === "placement") {
       return {
         id: `placement:${item.placement_id}:${index}`,
@@ -129,7 +137,7 @@ export function toUsageSummary(impact: DependencyImpact | null | undefined, orga
       href: teamHref(`/manage/scenes/${item.scene_id}`, organizationId),
     };
   });
-  const total = impact.scenes + impact.placements;
+  const total = impact.scenes + impact.placements + (impact.activities ?? 0);
   return {
     entries,
     totalCount: total,

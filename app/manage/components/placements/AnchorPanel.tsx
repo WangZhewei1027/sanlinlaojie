@@ -43,7 +43,7 @@ export function AnchorPanel({ anchorId }: { anchorId: string }) {
 
   const children = useMemo(() => placements.filter((placement) => placement.anchor_id === anchorId && placement.status !== "archived"), [placements, anchorId]);
   const available = useMemo(
-    () => placements.filter((placement) => !placement.anchor_id && placement.status !== "archived" && canWrite(placement) && !["anchor", "shop"].includes(placementFileType(placement))),
+    () => placements.filter((placement) => !placement.anchor_id && placement.status !== "archived" && canWrite(placement) && placementFileType(placement) !== "anchor"),
     [placements, canWrite],
   );
 

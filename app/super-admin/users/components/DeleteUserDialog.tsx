@@ -29,6 +29,8 @@ interface OrgConsequence {
   };
   workspaceCount?: number;
   assetCount?: number;
+  activityCount?: number;
+  activityRecordCount?: number;
 }
 
 interface DeleteUserDialogProps {
@@ -148,10 +150,12 @@ export function DeleteUserDialog({
                     {org.action === "delete"
                       ? t(
                           "admin.users.deleteDialog.orgDelete",
-                          "将被删除（{{workspaces}} 个工作空间、{{assets}} 个资产及其文件）",
+                          "将被删除（{{workspaces}} 个地图合集、{{assets}} 个素材、{{activities}} 个活动、{{activityRecords}} 条活动记录及相关文件）",
                           {
                             workspaces: org.workspaceCount ?? 0,
                             assets: org.assetCount ?? 0,
+                            activities: org.activityCount ?? 0,
+                            activityRecords: org.activityRecordCount ?? 0,
                           },
                         )
                       : org.action === "promote"

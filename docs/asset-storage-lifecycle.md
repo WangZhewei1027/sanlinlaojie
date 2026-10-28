@@ -4,7 +4,7 @@
 
 ## 素材与文件
 
-Asset 属于团队，当前内容在 `asset.payload`，当前文件清单在 `asset_resource`。主文件、封面、Shop 打卡图等分别登记 role。多个素材可以引用同一个物理 key，不能因为 hash 相同就合并业务身份。
+Asset 属于团队，当前内容在 `asset.payload`，当前文件清单在 `asset_resource`。主文件、封面等分别登记 role。店铺活动的图片与奖励图引用普通图片 Asset，活动点引用也计入素材使用记录。多个素材可以引用同一个物理 key，不能因为 hash 相同就合并业务身份。
 
 - 素材直接修改，场景和投放通过 asset ID 解析最新内容，没有素材版本或发布快照。
 - 替换媒体使用新的受管 key，不原地覆盖对象字节；业务事务提交后才尝试回收旧文件。
@@ -26,6 +26,7 @@ Asset 属于团队，当前内容在 `asset.payload`，当前文件清单在 `as
 | --- | --- |
 | `asset_resource` | 所有当前素材引用的 storage_key |
 | `asset.payload` | 内容中仍然引用的受管文件 |
+| `activity_record` | 留言正文及记录元数据中仍然引用的受管文件 |
 | `upload_receipt` | 未过期的上传租约 |
 | `anchor_embedding` | 当前识别参考图 image_url |
 | `storage_hold` | 数据迁移归档中独有的文件 |

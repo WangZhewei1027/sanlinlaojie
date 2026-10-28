@@ -183,7 +183,7 @@ async function main(): Promise<void> {
       });
     });
 
-    await check("T09 retention protects historical/shared-tenant resources, receipts, Shop images and derived audio", async () => {
+    await check("T09 retention protects historical/shared-tenant resources, receipts, activity images and derived audio", async () => {
       assert.equal(await retention.isObjectDeletionEnabled(db), false, "No test may enable physical object deletion");
       for (const key of [f.keys.shared, f.keys.current, f.keys.lease, f.keys.checkin, f.keys.audio.replace(/\.webm$/, ".m4a")]) {
         assert.equal(await retention.isKeyProtected(db, key), true, key);
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
     });
 
     await check("T01/T02 team catalog: every member lists every team asset; writers edit without being maintainers", async () => {
-      const expected = new Set([f.assets.shared, f.assets.restricted, f.assets.audio]);
+      const expected = new Set([f.assets.shared, f.assets.restricted, f.assets.audio, f.assets.image]);
       for (const name of ["editor", "unassigned", "viewer", "maintainer"] as const) {
         const listed = await assetService.listOrganizationAssets(actors[name], f.organizations.team, {});
         assert.deepEqual(new Set(listed.data.map((item) => item.id)), expected, `${name} lists the whole team catalog`);
@@ -685,7 +685,7 @@ async function main(): Promise<void> {
       assert.equal((await assetService.getAssetDetail(actors.editor, asset.asset.id)).payload.kind, "text");
     });
 
-    await check("T10/T18 upload-and-place is atomic and idempotent; unlocated Shops remain directory placements", async () => {
+    await check("T10/T18 upload-and-place is atomic and idempotent; media placements require discovery", async () => {
       const body = { asset: { name: "onsite text", fileType: "text", payload: { kind: "text", text: "onsite" }, resources: [] },
         idempotencyKey: `${f.run}-onsite`, location: { longitude: 121, latitude: 31 } };
       const first = await placementService.createPlacement(actors.editor, f.workspaces.b, body);
@@ -698,10 +698,7 @@ async function main(): Promise<void> {
       const before = await db.selectFrom("asset").select("id").where("organization_id", "=", f.organizations.team).execute();
       await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { ...body, idempotencyKey: `${f.run}-invalid-onsite`, location: null }), "VALIDATION_FAILED");
       assert.equal((await db.selectFrom("asset").select("id").where("organization_id", "=", f.organizations.team).execute()).length, before.length);
-      const shop = await placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.shop } });
-      assert.equal(shop.placement.status, "active");
-      assert.equal(shop.placement.location, null);
-      assert.equal(shop.placement.directory_only, true);
+      await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.image } }), "VALIDATION_FAILED");
       await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.shared } }), "VALIDATION_FAILED");
       await rejectCode(() => placementService.createPlacement(actors.editor, f.workspaces.b, { target: { kind: "asset", assetId: f.assets.foreign }, status: "draft" }), "NOT_FOUND");
     });
@@ -741,50 +738,7 @@ async function main(): Promise<void> {
     });
 
 
-    await check("T10 anonymous text becomes team content of the scanned collection and gives its submitter no rights", async () => {
-      await client.query("update users set email='dongming@user.com' where user_id=$1", [f.users.foreign]);
-      try {
-        const placed = await runtime.submitAnonymousText({ content: "public message", workspaceId: f.workspaces.b, organizationId: f.organizations.team, lat: 31.2, lng: 121.5 });
-        const projection = (await runtime.nearbyPlacements({ workspaceId: f.workspaces.b, organizationId: f.organizations.team }, 31.2, 121.5, 50)).find((item) => item.id === placed.id);
-        assert.equal(projection?.text_content, "public message");
-        const source = await db.selectFrom("placement as p").innerJoin("asset as a", "a.id", "p.asset_id")
-          .select(["a.id", "a.origin", "a.maintained_by", "a.created_by", "a.origin_workspace_id", "p.asset_id"]).where("p.id", "=", placed.id).executeTakeFirstOrThrow();
-        assert.equal(source.origin, "public_submission");
-        assert.equal(source.maintained_by, null);
-        assert.equal(source.created_by, f.users.foreign);
-        assert.equal(source.origin_workspace_id, f.workspaces.b);
-        assert.ok(source.asset_id);
-        assert.ok((await assetService.listOrganizationAssets(actors.owner, f.organizations.team, { origin: "public_submission" })).data.some((item) => item.id === source.id), "team members see submissions as team assets");
-        assert.equal((await assetService.listOrganizationAssets(actors.owner, f.organizations.team, { origin: "team_upload" })).data.some((item) => item.id === source.id), false);
-        await rejectCode(() => assetService.getAssetDetail(actors.foreign, source.id), "NOT_FOUND");
-        const unlocated = await runtime.submitAnonymousText({ content: "without GPS", workspaceId: f.workspaces.b, organizationId: f.organizations.team, lat: null, lng: null });
-        assert.equal((await db.selectFrom("placement").select("status").where("id", "=", unlocated.id).executeTakeFirstOrThrow()).status, "draft");
-        assert.equal((await runtime.nearbyPlacements({ workspaceId: f.workspaces.b, organizationId: f.organizations.team }, 31.2, 121.5, 50)).some((item) => item.id === unlocated.id), false);
-      } finally { await client.query("update users set email=$2 where user_id=$1", [f.users.foreign, `${f.run}-foreign@example.test`]); }
-    });
-
-    await check("T14 anonymous submission rechecks team archival after waiting for the organization lock", async () => {
-      await client.query("update users set email='dongming@user.com' where user_id=$1", [f.users.unassigned]);
-      let pending: Promise<PromiseSettledResult<unknown>> | undefined;
-      await client.query("begin");
-      try {
-        await client.query("update organization set archived_at=now() where id=$1", [f.organizations.team]);
-        pending = runtime.submitAnonymousText({ content: "must not cross freeze", workspaceId: f.workspaces.b, organizationId: f.organizations.team, lat: 31.2, lng: 121.5 })
-          .then((value): PromiseFulfilledResult<unknown> => ({ status: "fulfilled", value }), (reason): PromiseRejectedResult => ({ status: "rejected", reason }));
-        // The only lock this transaction holds is the frozen organization row.
-        const waiting = await waitForBlockedBy();
-        assert.equal(waiting, true, "submission must be observed waiting behind the migration organization lock");
-        await client.query("commit");
-        const result = await pending;
-        assert.equal(result.status, "rejected", "a submission blocked by freeze must re-read archived state before inserting");
-        if (result.status === "rejected") assert.ok(result.reason instanceof runtime.RuntimeNotFound || result.reason instanceof ContentError);
-      } finally {
-        await client.query("rollback");
-        if (pending) await pending;
-        await client.query("update organization set archived_at=null where id=$1", [f.organizations.team]);
-        await client.query("update users set email=$2 where user_id=$1", [f.users.unassigned, `${f.run}-unassigned@example.test`]);
-      }
-    });
+    // Activity submission and archival races are covered in test-activities.ts.
 
     await check("T02 boundary-regression: same organization alone does not register an Anchor in a different collection", async () => {
       const anchor = await seedRuntimeProjectionFixture(client, f, { kind: "anchor", payload: { kind: "anchor" }, location: false });

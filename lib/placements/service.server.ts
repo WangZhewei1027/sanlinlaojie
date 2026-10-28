@@ -401,7 +401,7 @@ export async function copyPlacement(actor: Actor, placementId: string, body: Jso
     const status: PlacementStatus = row.status === "archived" ? "draft" : (row.status as PlacementStatus);
     const discoverable =
       status !== "active" ||
-      ((!!location || !!anchorId || resolved.fileType === "shop") && !(resolved.kind === "scene" && resolved.instanceCount === 0));
+      ((!!location || !!anchorId) && !(resolved.kind === "scene" && resolved.instanceCount === 0));
     const id = await insertPlacementTx(trx, actor, target, resolved, {
       name,
       location,

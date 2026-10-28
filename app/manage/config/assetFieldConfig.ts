@@ -132,26 +132,6 @@ export const assetFieldConfig: AssetFieldConfigMap = {
     previewType: "link",
   },
 
-  // 店铺类型
-  shop: {
-    editableFields: [
-      "name",
-      "text_content",
-      "anchor_id",
-      "tag_ids",
-      "location",
-    ],
-    previewType: "image",
-    fieldLabels: {
-      name: "assetFields.shop.name",
-      text_content: "assetFields.shop.description",
-    },
-    fieldPlaceholders: {
-      name: "assetFields.shop.namePlaceholder",
-      text_content: "assetFields.shop.descriptionPlaceholder",
-    },
-  },
-
   // 3D 模型类型
   model: {
     editableFields: [

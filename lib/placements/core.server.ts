@@ -111,11 +111,11 @@ export async function resolveTargetForWrite(
 
 }
 
-/** Active placements need a discovery path the runtime supports (GPS or anchor); shops may be directory-only. */
+/** Active placements need a discovery path the runtime supports (GPS or anchor). */
 export function assertDiscoverable(status: PlacementStatus, location: GeoPointInput | null, anchorId: string | null, target: ResolvedTarget): void {
   if (status !== "active") return;
   if (target.kind === "scene" && target.instanceCount === 0) throw invalid("空场景不能创建有效投放，请先添加对象并保存");
-  if (!location && !anchorId && target.fileType !== "shop") throw invalid("有效投放必须设置 GPS 位置或识别目标");
+  if (!location && !anchorId) throw invalid("有效投放必须设置 GPS 位置或识别目标");
 }
 
 /** A recognition target must have an active placement in this collection. */
@@ -297,7 +297,6 @@ export async function buildPlacementDtos(
       };
     }
     const own = access.get(row.workspace_id);
-    const isShop = target.kind === "asset" && target.file_type === "shop";
     return {
       id: row.id,
       organization_id: row.organization_id,
@@ -312,7 +311,6 @@ export async function buildPlacementDtos(
       lock_version: row.lock_version,
       tag_ids: tags.filter((t) => t.placement_id === row.id).map((t) => t.tag_id),
       public_id: row.id,
-      directory_only: isShop && row.longitude === null && !row.anchor_id,
       created_by: row.created_by,
       updated_by: row.updated_by,
       created_at: toIsoRequired(row.created_at),
