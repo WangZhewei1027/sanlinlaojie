@@ -1,8 +1,19 @@
 # 线上部署与服务说明
 
-最后核对：**2026-10-19（北京时间）**。依据线上 Docker、systemd、端口、备份日志、PAI-EAS 服务状态，以及本仓库部署脚本整理；Web 与 Google 登录中转已核对至部署提交 `d855e8f`，其余服务运行状态沿用当天巡检快照。变更部署后应同步更新本文。
+基础设施快照：**2026-10-19（北京时间）**。依据线上 Docker、systemd、端口、备份日志、PAI-EAS 服务状态，以及本仓库部署脚本整理；Google 登录中转和其余服务运行状态沿用当天巡检快照。Web 的最新发布核对见下节；变更部署后应同步更新本文。
 
 正式入口：**<https://www.spatialmemory.online/>**。整体由上海 Web 主机、OSS 文件存储、按需启动的 GPU 推理服务、中国香港 Google 登录中转函数，以及 Google、微信和短信接口组成。地图合集、Scene、基础素材属于同一个 Next.js 应用，共用同一个数据库。
+
+## Web 发布记录（2026-10-28）
+
+应用已部署至 `eb349a902d17e4034b89d898a70c29ec33f9bc1d`，[Deploy 运行记录](https://github.com/WangZhewei1027/sanlinlaojie/actions/runs/40651717067)全部成功。运行容器与该提交的镜像摘要一致（`sha256:6d76fc03855f…`），健康状态为 `healthy`；首页与登录页返回 HTTP 200，未登录访问 `/api/organizations` 按现有认证代理规则返回 307 并跳转 `/auth/login`。
+
+- 发布包含共享 Scene Core 与原生场景编辑器、模型底部中心对齐、文档整理、工程规范、零警告 lint、提交 hook 和数据库集成 CI。
+- 本地工程检查、49 项离线回归和数据库服务/路由/迁移检查通过；跨端播放 8,782 次比较的最大误差为 0。GitHub 的 `quality / validate` 与 `quality / database-migrations` 均通过。
+- 生产库补齐 `20261019000000_native_theatre_scenes.sql` 与 `20261020000000_transform_scenes.sql`，标准迁移入口与只读部署门禁均通过。升级时没有场景记录，1,968 条投放保持不变；生产副本的 25 张业务与认证表在升级前后的记录数及内容校验值一致。
+- 迁移前完整备份保存在服务器 `/opt/sanlin/backups/pre-migrate-20261028-eb349a9.dump`，本机副本位于仓库忽略目录 `.local-db-backups/release-20261028/pre-migrate-eb349a9.dump`。备份不进入 Git。
+
+本记录只更新 Web 与上述数据库迁移的核对结果；下文的 GPU、短信、微信小程序和 Google 登录中转状态仍以各自标注日期为准。
 
 ## 部署关系图
 
@@ -126,7 +137,7 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 
 日常自动部署以 [Deploy](../.github/workflows/deploy.yml) 和 [质量检查](../.github/workflows/ui-quality.yml) 为准：
 
-1. push `main` 或手动运行工作流，先完成 typecheck、lint、生产构建和隔离 PostGIS 迁移回归。
+1. push `main` 或手动运行工作流，先完成 `npm run check`（类型、零警告 lint、离线回归、生产构建）以及隔离 PostGIS 的迁移、服务、路由与上传去重测试。
 2. 构建 `linux/amd64` 的 `sanlin-web:<commit SHA>` 镜像。`NEXT_PUBLIC_*` 在构建时写入前端包，修改这类配置需要重新构建。
 3. 经 SSH 对目标数据库运行只读部署门禁，核对迁移账本和实际结构；缺迁移或残留旧结构时阻止部署。
 4. 使用 `docker save | gzip` 经 SSH 传输镜像，再在服务器 `docker load`；当前链路不使用镜像仓库。复制 Compose、Caddy 和备份脚本，保留服务器 `/opt/sanlin/.env`。
