@@ -15,7 +15,11 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 场景库 `/manage/scenes` 打开 `/manage/scenes/[id]`。React 直接组合 Three.js Editor 原生视口、素材与对象侧栏、变换时间轴和标题/保存栏；同一个 `useSceneDocument` 管理内容与最多 60 个过去快照的撤销历史。一次原生变换拖动提交一次；关键帧、素材、片段设置和标题共用历史。播放位置不保存，内容变化才标记未保存，退出时提示。
 
-时间轴提供 position/rotation/scale 的 9 个通道、关键帧增删与拖动改时、线性/缓动/保持插值。旋转字段显示度，存储为 Euler XYZ 弧度；保留多圈值。已有自定义 Bezier 会显示“原有曲线”，编辑数值和时间时保留其 handles。Ctrl/⌘ S 保存、Ctrl/⌘ Z 撤销、Shift Z 重做，空格播放/暂停；W/E/R 切换原生变换，F 聚焦。窄屏侧栏默认收起，时间轴独立滚动；预览保留播放控制并隐藏编辑面板。
+时间轴提供 position/rotation/scale 的 9 个通道、关键帧增删与拖动改时、线性/缓动/保持插值。旋转字段显示度，存储为 Euler XYZ 弧度；保留多圈值。已有自定义 Bezier 会显示“原有曲线”，编辑数值和时间时保留其 handles。Ctrl/⌘ S 保存、Ctrl/⌘ Z 撤销、Shift Z 重做，空格播放/暂停；W/E/R 切换原生变换，F 聚焦。窄屏侧栏默认收起，时间轴独立滚动；相机预览叠在舞台右上角，打开时保留素材库、编辑工具和时间轴。
+
+场景与小程序共用米制坐标：1 个世界单位等于现实中的 1 米，XZ 网格每格为 1 米，Y 轴向上。编辑器用统一间距的网格代替原先叠加的 5 米粗格，并显示场景原点和长度为 1 米的 X/Y/Z 正向轴。辅助标记不属于场景内容，不参与素材选择、保存或导出；已有对象与关键帧不重新缩放。
+
+虚拟摄像机在编辑器右上角的悬浮窗口提供 9:16 的小程序近似视角，默认垂直视场角 60°。二维码预设相机在场景坐标 `(0, 0, 2)`，地图预设在 `(0, 1.4, 2)`，两者都水平朝向 -Z，与小程序前方 2 米的放置规则对应。距离、高度、绕原点的水平角、俯仰角和视场角可在 Web 调整，只影响当前编辑会话的预览，不写入 Scene，也不改变小程序的放置位置。预览与主舞台共用时钟、模型、纹理及媒体播放器，随编辑和拖动时间轴实时更新；只在同一渲染器内增加局部相机绘制，不产生第二份音频。预览隐藏编辑辅助器和幽灵对象，保持正常素材着色；打开和关闭窗口都不改变主舞台的相机、选择或着色模式。手机使用 VisionKit 提供的实际相机投影和实时姿态，因此此预览用于估计构图与尺寸，不能代替真机视野和环境背景。
 
 工具栏二维码复用地图合集的 WeChat token、OSS 缓存和弹窗组件。入口固定为 `pages/index/index?organizationId=…&sceneId=…`，首页打开 `pages/scene/scene`，不会改变所选地图或地图扫码历史。扫码展示最近保存的内容，未保存时弹窗明确说明。
 
@@ -58,6 +62,8 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 | 媒体/空间文字协议与出入场采样 | `npx tsx scripts/test-scene-performance.ts` |
 | 分组与父子变换 | `npx tsx scripts/test-scene-hierarchy.ts` |
 | 添加模型与编辑交互 | `scripts/test-scene-add-model.ts`、`scripts/test-scene-interactions.ts` |
+| 米制网格、原点与虚拟摄像机 | `npx tsx scripts/test-scene-spatial-reference.ts` |
+| 相机悬浮预览、编辑状态恢复与媒体单次驱动 | `npx tsx scripts/test-scene-camera-inset.ts` |
 | Web 模型释放 | `npx tsx scripts/test-three-editor.ts` |
 | 两端实际播放器一致性 | `npm run test:cross-runtime`，包含模型矩阵与演出素材/文字/音量/透明度；需要相邻小程序仓库及其运行时 fixture |
 | 数据库转换 | `scripts/test-transform-migration.ts`，数据库和归档前提见迁移手册 |

@@ -9,6 +9,7 @@ import { Editor } from '../vendor/three-editor';
 import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
 import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
 import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
+import { DEFAULT_SCENE_CAMERA } from '../app/manage/scenes/components/three-editor/spatial-reference';
 import type { SceneResource } from '../app/manage/scenes/components/types';
 import { performanceHosts, settleMedia } from './test-support/performance-hosts';
 
@@ -71,7 +72,7 @@ async function main() {
     const errors: string[] = [];
     const props: ThreeViewportProps = { session, instances: content.instances, groups: content.groups, resolveUrl: instance => instance.asset ? resources[instance.asset]?.url : undefined,
       resolveResource: instance => instance.asset ? resources[instance.asset] : undefined, onClips() {}, onSelect() {}, onTransform() {}, onError(message) { errors.push(message); },
-      fitRef: { current: null }, placementRef: { current: null }, toolsRef: { current: null }, selectedId: null, grid: false, editable: false, preview: true, language: 'en' };
+      fitRef: { current: null }, originRef: { current: null }, previewRef: { current: null }, placementRef: { current: null }, toolsRef: { current: null }, cameraSettings: DEFAULT_SCENE_CAMERA, selectedId: null, grid: false, editable: false, preview: true, language: 'en' };
     let readyCount = 0, ready!: () => void; const loaded = new Promise<void>(resolve => { ready = resolve; });
     const models = new EditorModels(editor, () => props, () => false, () => { if (++readyCount === content.instances.length) ready(); }, new ModelPool(async () => webGLB));
     try {

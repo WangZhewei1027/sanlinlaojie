@@ -133,6 +133,38 @@ export class EditorModels {
     const action = entry.action = mixer.clipAction(clip); entry.clip = clip;
     action.setLoop(LoopOnce, 1); action.clampWhenFinished = true; action.play();
   }
+  private present(entry: Entry, preview: boolean) {
+    const props = this.props(), { session } = props;
+    const presentation = samplePresentation(entry.instance, session.time, session.duration);
+    const ghost = !preview && !session.playing && props.selectedId === entry.instance.id && (!presentation.visible || presentation.opacity === 0);
+    if (entry.root) entry.root.visible = (presentation.visible || ghost) && !(preview && entry.surface?.audioMarker);
+    const opacity = ghost ? 0.2 : presentation.opacity;
+    for (const original of entry.materials ?? []) {
+      const transparent = original.transparent || opacity < 1;
+      if (original.material.transparent !== transparent) { original.material.transparent = transparent; original.material.needsUpdate = true; }
+      original.material.opacity = original.opacity * opacity;
+      original.material.depthWrite = original.depthWrite && opacity === 1;
+    }
+  }
+  /** A second camera shares the same objects and media clock without replaying or fetching media. */
+  withPreviewPresentation(render: () => void) {
+    const roots: { root: Group; visible: boolean }[] = [];
+    const materials: OpacityMaterial[] = [];
+    for (const entry of this.entries.values()) {
+      if (entry.root) roots.push({ root: entry.root, visible: entry.root.visible });
+      for (const { material } of entry.materials ?? []) materials.push({ material, opacity: material.opacity, transparent: material.transparent, depthWrite: material.depthWrite });
+    }
+    try {
+      for (const entry of this.entries.values()) this.present(entry, true);
+      render();
+    } finally {
+      for (const { root, visible } of roots) root.visible = visible;
+      for (const { material, opacity, transparent, depthWrite } of materials) {
+        if (material.transparent !== transparent) { material.transparent = transparent; material.needsUpdate = true; }
+        material.opacity = opacity; material.depthWrite = depthWrite;
+      }
+    }
+  }
   frame() {
     const props = this.props(), { session } = props;
     const media = props.instances.filter(instance => {
@@ -141,16 +173,7 @@ export class EditorModels {
     });
     const prepare = new Set(mediaPreloadIds(media, session.time, session.duration, session.looping));
     for (const entry of this.entries.values()) {
-      const presentation = samplePresentation(entry.instance, session.time, session.duration);
-      const ghost = !props.preview && !session.playing && props.selectedId === entry.instance.id && (!presentation.visible || presentation.opacity === 0);
-      if (entry.root) entry.root.visible = (presentation.visible || ghost) && !(props.preview && entry.surface?.audioMarker);
-      const opacity = ghost ? 0.2 : presentation.opacity;
-      for (const original of entry.materials ?? []) {
-        const transparent = original.transparent || opacity < 1;
-        if (original.material.transparent !== transparent) { original.material.transparent = transparent; original.material.needsUpdate = true; }
-        original.material.opacity = original.opacity * opacity;
-        original.material.depthWrite = original.depthWrite && opacity === 1;
-      }
+      this.present(entry, props.preview);
       entry.surface?.media?.sync(entry.instance, session.time, session.playing, session.duration, prepare.has(entry.instance.id));
       if (entry.action && entry.mixer && entry.clip && entry.instance.animation) {
         entry.action.time = clipTime(session.time, entry.instance.animation, entry.clip.duration);

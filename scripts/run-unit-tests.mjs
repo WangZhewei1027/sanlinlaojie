@@ -21,6 +21,8 @@ const tests = [
   "test-scene-hierarchy.ts",
   "test-scene-add-model.ts",
   "test-scene-interactions.ts",
+  "test-scene-spatial-reference.ts",
+  "test-scene-camera-inset.ts",
   "test-viewer-resources.mjs",
   "test-matching-status.mjs",
   "test-sms-auth.cjs",

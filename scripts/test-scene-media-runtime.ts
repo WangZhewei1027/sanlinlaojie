@@ -9,6 +9,7 @@ import { MediaPlayback } from '../app/manage/scenes/components/three-editor/medi
 import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
 import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
 import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
+import { DEFAULT_SCENE_CAMERA } from '../app/manage/scenes/components/three-editor/spatial-reference';
 import { EventTargetFixture } from './test-support/performance-hosts';
 
 const instance = (): CompositionInstance => ({ id: 'video', asset: 'video', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null,
@@ -124,7 +125,7 @@ test('model fades are isolated per instance and geometry/material registries rel
   const content: CompositionContent = { kind: 'composition', units: 'meters', durationSeconds: 12, loop: false, assets: { model: { assetId: 'model' } }, instances: [a, b] };
   const session = createSceneCore({ content });
   const editor = new Editor({ config: { getKey: () => 'en', setKey() {} }, history: { clear() {}, execute() {} } });
-  const props: ThreeViewportProps = { session, instances: content.instances, resolveUrl: () => 'fixture.glb', onClips() {}, onSelect() {}, onTransform() {}, onError(message) { assert.fail(message); }, fitRef: { current: null }, placementRef: { current: null }, toolsRef: { current: null }, selectedId: null, grid: true, editable: true, preview: false, language: 'en' };
+  const props: ThreeViewportProps = { session, instances: content.instances, resolveUrl: () => 'fixture.glb', onClips() {}, onSelect() {}, onTransform() {}, onError(message) { assert.fail(message); }, fitRef: { current: null }, originRef: { current: null }, previewRef: { current: null }, placementRef: { current: null }, toolsRef: { current: null }, cameraSettings: DEFAULT_SCENE_CAMERA, selectedId: null, grid: true, editable: true, preview: false, language: 'en' };
   let ready = 0; let finish!: () => void; const loaded = new Promise<void>(resolve => { finish = resolve; });
   const models = new EditorModels(editor, () => props, () => false, () => { if (++ready === 2) finish(); }, new ModelPool(async () => gltf));
   models.sync(); await loaded;
