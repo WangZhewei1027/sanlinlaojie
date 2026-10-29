@@ -2,6 +2,7 @@ import { CanvasTexture, DoubleSide, Group, Mesh, MeshBasicMaterial, PlaneGeometr
 import type { CompositionInstance } from '@/lib/scene/protocol';
 import type { SceneResourceKind } from '../types';
 import { MediaPlayback } from './media-playback';
+import type { SpatialAudioMixer } from './spatial-audio';
 
 export interface SceneSurface {
   object: Group;
@@ -69,7 +70,7 @@ export function textSurface(text: NonNullable<CompositionInstance['text']>): Sce
 }
 
 /** Non-model resources have their own lifetime; URL changes dispose the old media before loading again. */
-export function resourceSurface(kind: Exclude<SceneResourceKind, 'model'>, url: string, onError: (blocked?: boolean) => void): SceneSurface {
+export function resourceSurface(kind: Exclude<SceneResourceKind, 'model'>, url: string, onError: (blocked?: boolean) => void, audio?: SpatialAudioMixer): SceneSurface {
   const object = new Group();
   let closed = false;
   if (kind === 'image') {
@@ -91,7 +92,7 @@ export function resourceSurface(kind: Exclude<SceneResourceKind, 'model'>, url: 
   // players expose rate but do not guarantee a matching pitch-preservation switch.
   element.preservesPitch = false;
   if (kind === 'video') (element as HTMLVideoElement).playsInline = true;
-  const media = new MediaPlayback(element, url, onError);
+  const media = new MediaPlayback(element, url, onError, audio);
   const failed = () => { if (!closed) onError(); };
   element.addEventListener('error', failed);
   let texture: VideoTexture | undefined;

@@ -3,18 +3,19 @@ import type { CSSProperties } from 'react';
 import { ChevronRight, Diamond } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { sampleInstance } from '@spatial-memory/scene-core';
-import type { TransformChannel } from '@/lib/scene/protocol';
+import type { AutomationChannel, CompositionInstance, TransformKeyframe } from '@/lib/scene/protocol';
 import type { SceneNode } from '@/lib/scene/hierarchy-authoring';
-import { editChannel, frameAt, type TransformGroup } from '@/lib/scene/transform-authoring';
+import { editChannel, frameAt, sampleChannel, type TransformGroup } from '@/lib/scene/transform-authoring';
 import { SceneNumberField } from './SceneFields';
 import { keyAll, SceneKeyLane, unkeyAll } from './SceneKeyLane';
 import { channelsOf, unitFactor } from './timeline-keys';
 import { useTimeline } from './timeline-context';
 
 /** Diamond that keys (or unkeys) every listed channel at the playhead. */
-function KeyToggle({ node, channels, label }: { node: SceneNode; channels: readonly TransformChannel[]; label: string }) {
+function KeyToggle({ node, channels, label }: { node: SceneNode; channels: readonly AutomationChannel[]; label: string }) {
   const view = useTimeline();
-  const keyed = channels.filter(channel => frameAt(node.tracks?.[channel], view.time) >= 0).length;
+  const tracks: Partial<Record<AutomationChannel, TransformKeyframe[]>> = node.tracks ?? {};
+  const keyed = channels.filter(channel => frameAt(tracks[channel], view.time) >= 0).length;
   const all = keyed === channels.length;
   return <Button variant="ghost" size="icon" className="size-6 shrink-0" disabled={view.disabled} aria-pressed={all}
     aria-label={view.text(`${all ? '移除' : '添加'}${label}关键帧`, `${all ? 'Remove' : 'Add'} ${label} keyframe`)}
@@ -58,4 +59,21 @@ export function SceneParamLane({ node, group, depth, label, expanded, onExpand }
       </div>;
     })}
   </>;
+}
+
+/** A scalar uses the same keys, curve modes and history as the transform lanes. */
+export function SceneScalarLane({ node, channel, depth, label }: {
+  node: CompositionInstance; channel: 'opacity' | 'volume'; depth: number; label: string;
+}) {
+  const view = useTimeline();
+  return <div className="scene-track-row" data-param data-scalar={channel}>
+    <div className="scene-track-property" style={{ '--depth': depth } as CSSProperties}>
+      <span className="scene-scalar-label">{label}</span>
+      <div className="scene-scalar-value"><SceneNumberField label={`${label} %`} value={sampleChannel(node, channel, view.time) * 100}
+        min={0} max={100} step={1} disabled={view.disabled} onCommit={value => view.onEditNode(node.id, current => editChannel(current, channel, view.time, value / 100))} /></div>
+      <span className="text-xs text-muted-foreground">%</span>
+      <KeyToggle node={node} channels={[channel]} label={label} />
+    </div>
+    <SceneKeyLane node={node} channels={[channel]} label={label} />
+  </div>;
 }

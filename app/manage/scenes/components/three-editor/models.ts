@@ -1,12 +1,14 @@
-import { AnimationMixer, Box3, Group, LoopOnce, Mesh, type AnimationAction, type AnimationClip, type Material, type Object3D } from 'three';
+import { AnimationMixer, Box3, Group, LoopOnce, Mesh, PerspectiveCamera, Vector3, type AnimationAction, type AnimationClip, type Material, type Object3D } from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { applyTransform, clipTime, mediaPreloadIds, samplePresentation } from '@spatial-memory/scene-core';
+import { applyTransform, clipTime, mediaPreloadIds, samplePresentation, sampleSpatialAudio } from '@spatial-memory/scene-core';
 import type { Editor } from '@/vendor/three-editor';
 import type { CompositionGroup, CompositionInstance } from '@/lib/scene/protocol';
 import { ModelPool, disposeModel } from './model-pool';
 import { registerInstance } from './transform-bridge';
 import type { ThreeViewportProps } from './types';
 import { resourceSurface, textSurface, type SceneSurface } from './surfaces';
+import { configurePreviewCamera } from './spatial-reference';
+import { SpatialAudioMixer } from './spatial-audio';
 
 type OpacityMaterial = { material: Material; opacity: number; transparent: boolean; depthWrite: boolean };
 type Entry = { instance: CompositionInstance; url: string; signature: string; release(): void; stop?: () => void; root?: Group; model?: Object3D; surface?: SceneSurface; materials?: OpacityMaterial[]; clips?: AnimationClip[]; mixer?: AnimationMixer; action?: AnimationAction; clip?: AnimationClip; animationKey?: string };
@@ -26,6 +28,10 @@ type GroupEntry = { group: CompositionGroup; object: Group; stop(): void };
 export class EditorModels {
   readonly entries = new Map<string, Entry>();
   readonly groups = new Map<string, GroupEntry>();
+  private audio = new SpatialAudioMixer();
+  private listenerCamera = new PerspectiveCamera();
+  private listener = { position: new Vector3(), forward: new Vector3(), up: new Vector3() };
+  private sourcePosition = new Vector3();
   constructor(private editor: Editor, private props: () => ThreeViewportProps, private dragging: (id: string) => boolean, private ready: () => void, private pool = new ModelPool()) {}
   /** The transform root of an instance or group. */
   object(id: string): Object3D | undefined { return this.entries.get(id)?.root ?? this.groups.get(id)?.object; }
@@ -97,7 +103,7 @@ export class EditorModels {
       this.entries.set(instance.id, entry);
       if (instance.text || kind !== 'model') {
         try {
-          const created = entry.surface = instance.text ? textSurface(instance.text) : resourceSurface(kind as Exclude<typeof kind, 'model'>, url!, blocked => this.failed(entry, blocked));
+          const created = entry.surface = instance.text ? textSurface(instance.text) : resourceSurface(kind as Exclude<typeof kind, 'model'>, url!, blocked => this.failed(entry, blocked), this.audio);
           this.mounted(entry, created.object, created.materials, !replaced.has(instance.id));
         } catch { this.failed(entry); }
         continue;
@@ -172,9 +178,22 @@ export class EditorModels {
       return kind === 'audio' || kind === 'video';
     });
     const prepare = new Set(mediaPreloadIds(media, session.time, session.duration, session.looping));
+    // Listen from the virtual phone camera even when its inset is closed. Editor orbiting
+    // is an authoring tool, not a change to the audience's listening position.
+    if (media.some(instance => instance.media?.spatial?.enabled)) {
+      configurePreviewCamera(this.listenerCamera, props.cameraSettings);
+      this.listenerCamera.getWorldPosition(this.listener.position);
+      this.listenerCamera.getWorldDirection(this.listener.forward);
+      this.listener.up.set(0, 1, 0).transformDirection(this.listenerCamera.matrixWorld);
+      this.editor.scene.updateMatrixWorld(true);
+    }
     for (const entry of this.entries.values()) {
       this.present(entry, props.preview);
-      entry.surface?.media?.sync(entry.instance, session.time, session.playing, session.duration, prepare.has(entry.instance.id));
+      if (entry.surface?.media) {
+        entry.root?.getWorldPosition(this.sourcePosition);
+        const spatial = sampleSpatialAudio(entry.instance.media?.spatial, this.sourcePosition, this.listener);
+        entry.surface.media.sync(entry.instance, session.time, session.playing, session.duration, prepare.has(entry.instance.id), spatial);
+      }
       if (entry.action && entry.mixer && entry.clip && entry.instance.animation) {
         entry.action.time = clipTime(session.time, entry.instance.animation, entry.clip.duration);
         entry.mixer.update(0);
@@ -196,5 +215,6 @@ export class EditorModels {
     for (const id of [...this.entries.keys()]) this.remove(id);
     for (const entry of this.groups.values()) { entry.stop(); this.editor.removeObject(entry.object); }
     this.groups.clear(); this.pool.dispose();
+    this.audio.dispose();
   }
 }

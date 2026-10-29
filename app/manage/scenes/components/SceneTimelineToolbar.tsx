@@ -27,9 +27,8 @@ export function SceneTimelineToolbar(p: SceneTimelineToolbarProps) {
     <span className="text-xs text-muted-foreground">/</span>
     <div className="w-20"><SceneNumberField label={text('场景时长（秒）', 'Duration (seconds)')} value={p.end} min={MIN_SCENE_DURATION} max={COMPOSITION_LIMITS.maxDurationSeconds} step={1} disabled={p.disabled} onCommit={p.onDuration} /></div>
     <span className="text-xs text-muted-foreground">s</span>
-    <Divider />
-    <Button variant="ghost" size="sm" className="h-8" disabled={p.disabled || !p.canGroup} title="Ctrl / ⌘ G" onClick={p.onGroup}><FolderInput />{text('编组', 'Group')}</Button>
-    <Button variant="ghost" size="sm" className="h-8" disabled={p.disabled || !p.canUngroup} title="Ctrl / ⌘ Shift G" onClick={p.onUngroup}><FolderOutput />{text('取消编组', 'Ungroup')}</Button>
+    {p.canGroup && <><Divider /><Button variant="ghost" size="sm" className="h-8" disabled={p.disabled} title="Ctrl / ⌘ G" onClick={p.onGroup}><FolderInput />{text('编组', 'Group')}</Button></>}
+    {p.canUngroup && <Button variant="ghost" size="sm" className="h-8" disabled={p.disabled} title="Ctrl / ⌘ Shift G" onClick={p.onUngroup}><FolderOutput />{text('取消编组', 'Ungroup')}</Button>}
     <div className="ml-auto flex items-center gap-1">
       {p.interpolation && <>
         <select className="scene-select" aria-label={text('关键帧插值', 'Keyframe interpolation')} disabled={p.disabled} value={p.interpolation}

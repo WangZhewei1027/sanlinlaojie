@@ -1,21 +1,17 @@
 "use client";
 import { useRef, useState } from 'react';
 import { Diamond } from 'lucide-react';
-import { sampleInstance } from '@spatial-memory/scene-core';
-import { COMPOSITION_LIMITS, type TransformChannel } from '@/lib/scene/protocol';
+import { COMPOSITION_LIMITS, type AutomationChannel, type TransformKeyframe } from '@/lib/scene/protocol';
 import type { SceneNode } from '@/lib/scene/hierarchy-authoring';
-import { frameAt, keyTimes, moveKeys, removeKey, setKey } from '@/lib/scene/transform-authoring';
+import { frameAt, keyTimes, moveKeys, removeKey, sampleChannel, setKey } from '@/lib/scene/transform-authoring';
 import { useTimeline } from './timeline-context';
 
-const sampled = (node: SceneNode, channel: TransformChannel, time: number) => {
-  const [group, axis] = channel.split('.') as ['position', 'x'];
-  return sampleInstance(node, time)[group][axis];
-};
-export const keyAll = <N extends SceneNode>(node: N, channels: readonly TransformChannel[], time: number) => channels.reduce((next, channel) => setKey(next, channel, time, sampled(node, channel, time)), node);
-export const unkeyAll = <N extends SceneNode>(node: N, channels: readonly TransformChannel[], time: number) => channels.reduce((next, channel) => frameAt(next.tracks?.[channel], time) >= 0 ? removeKey(next, channel, time) : next, node);
+const trackFrames = (node: SceneNode): Partial<Record<AutomationChannel, TransformKeyframe[]>> => node.tracks ?? {};
+export const keyAll = <N extends SceneNode>(node: N, channels: readonly AutomationChannel[], time: number) => channels.reduce((next, channel) => setKey(next, channel, time, sampleChannel(node, channel, time)), node);
+export const unkeyAll = <N extends SceneNode>(node: N, channels: readonly AutomationChannel[], time: number) => channels.reduce((next, channel) => frameAt(trackFrames(next)[channel], time) >= 0 ? removeKey(next, channel, time) : next, node);
 
 /** One keyframe lane. With several channels, a diamond stands for every key at that time. */
-export function SceneKeyLane({ node, channels, label }: { node: SceneNode; channels: readonly TransformChannel[]; label: string }) {
+export function SceneKeyLane({ node, channels, label }: { node: SceneNode; channels: readonly AutomationChannel[]; label: string }) {
   const view = useTimeline();
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const dragging = useRef<typeof drag>(null);
@@ -28,7 +24,7 @@ export function SceneKeyLane({ node, channels, label }: { node: SceneNode; chann
   }}>
     {keyTimes(node, channels).map(time => {
       const at = drag?.from === time ? drag.to : time;
-      const partial = channels.some(channel => frameAt(node.tracks?.[channel], time) < 0);
+      const partial = channels.some(channel => frameAt(trackFrames(node)[channel], time) < 0);
       return <button type="button" key={time} className="scene-keyframe" data-partial={partial || undefined} data-outside={at > view.end || undefined} data-dragging={at !== time || undefined}
         aria-label={`${label} · ${time}s`} aria-pressed={isSelected(time)} title={`${time}s`} disabled={view.disabled} style={{ left: view.pct(at) }}
         onClick={e => { e.stopPropagation(); select(time); }}

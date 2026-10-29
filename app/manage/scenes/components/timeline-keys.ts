@@ -1,17 +1,20 @@
 import { frameAt, type TransformGroup } from '@/lib/scene/transform-authoring';
-import type { TransformChannel, TransformNode } from '@/lib/scene/protocol';
+import type { AutomationChannel, TransformChannel, TransformKeyframe } from '@/lib/scene/protocol';
+import type { SceneNode } from '@/lib/scene/hierarchy-authoring';
 
 export type Interpolation = 'linear' | 'ease' | 'hold' | 'custom';
 /** A selected key: one time across one channel (axis lane) or three (parameter lane). */
-export interface KeySelection { nodeId: string; channels: readonly TransformChannel[]; time: number }
+export interface KeySelection { nodeId: string; channels: readonly AutomationChannel[]; time: number }
 export const PARAMS: readonly TransformGroup[] = ['position', 'rotation', 'scale'];
 export const channelsOf = (group: TransformGroup) => (['x', 'y', 'z'] as const).map(axis => `${group}.${axis}` as TransformChannel);
 export const unitFactor = (group: TransformGroup) => group === 'rotation' ? 180 / Math.PI : 1;
 
 /** Interpolation of the first channel that has a key at the selected time. */
-export function interpolationOf(node: TransformNode, key: KeySelection): Interpolation | null {
+export function interpolationOf(node: SceneNode, key: KeySelection): Interpolation | null {
+  if (node.id !== key.nodeId) return null;
+  const tracks: Partial<Record<AutomationChannel, TransformKeyframe[]>> = node.tracks ?? {};
   for (const channel of key.channels) {
-    const frames = node.tracks?.[channel], index = frameAt(frames, key.time);
+    const frames = tracks[channel], index = frameAt(frames, key.time);
     if (!frames || index < 0) continue;
     const current = frames[index], next = frames[index + 1];
     if (!current.connectedRight) return 'hold';
@@ -23,8 +26,9 @@ export function interpolationOf(node: TransformNode, key: KeySelection): Interpo
 }
 
 /** Apply an interpolation to the segment after the selected key on every selected channel. */
-export function setInterpolation<N extends TransformNode>(node: N, key: KeySelection, mode: Exclude<Interpolation, 'custom'>): N {
-  const tracks = { ...node.tracks };
+export function setInterpolation<N extends SceneNode>(node: N, key: KeySelection, mode: Exclude<Interpolation, 'custom'>): N {
+  if (node.id !== key.nodeId) return node;
+  const tracks: Partial<Record<AutomationChannel, TransformKeyframe[]>> = { ...node.tracks };
   for (const channel of key.channels) {
     const source = tracks[channel], index = frameAt(source, key.time);
     if (!source || index < 0) continue;

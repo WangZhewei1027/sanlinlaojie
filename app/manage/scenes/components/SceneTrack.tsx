@@ -1,10 +1,10 @@
 "use client";
 import { useRef, useState, type PointerEvent } from 'react';
 import { Box, Film, ImageIcon, Music2, Type } from 'lucide-react';
-import { TRANSFORM_CHANNELS, type CompositionInstance } from '@/lib/scene/protocol';
+import { AUTOMATION_CHANNELS, type CompositionInstance } from '@/lib/scene/protocol';
 import { isGroup, type SceneNode } from '@/lib/scene/hierarchy-authoring';
 import { keyTimes, roundTime, type TransformGroup } from '@/lib/scene/transform-authoring';
-import { SceneParamLane } from './SceneParamLane';
+import { SceneParamLane, SceneScalarLane } from './SceneParamLane';
 import { SceneTrackHeader, type SceneTrackHeaderProps } from './SceneTrackHeader';
 import { PARAMS } from './timeline-keys';
 import { snapTime } from './timeline-scale';
@@ -71,7 +71,6 @@ function PerformanceRegion({ instance, clips, kind, name }: { instance: Composit
       }} />)}
     <Icon className="scene-region-icon" aria-hidden="true" />
     <span className="scene-clip-name">{instance.text?.content || clip?.name || name}</span>
-    <span className="scene-region-range">{regionTime(range.start)} – {regionTime(range.end)} · {regionTime(length)}</span>
     {Array.from({ length: repeats }, (_, i) => <i key={i} className="scene-clip-repeat" style={{ left: `${(i + 1) * (clip?.duration ?? 0) / length * 100}%` }} />)}
   </div>;
 }
@@ -84,16 +83,21 @@ export interface SceneTrackProps extends Omit<SceneTrackHeaderProps, 'row'> {
 export function SceneTrack({ clips, expandedParams, onParam, ...header }: SceneTrackProps) {
   const view = useTimeline();
   const node: SceneNode = header.row.node;
+  const kind = header.kind ?? (isGroup(node) ? 'group' : node.text ? 'text' : 'model');
   const labels = { position: view.text('位置', 'Position'), rotation: view.text('旋转', 'Rotation'), scale: view.text('缩放', 'Scale') };
   return <>
     <div className="scene-track-row" data-kind={header.row.kind} data-selected={header.selected || undefined}>
       <SceneTrackHeader {...header} />
       <div className="scene-track-lane scene-region-lane" onPointerDownCapture={e => { if (!e.button) header.onSelect(e); }}>
         {!isGroup(node) && <PerformanceRegion instance={node} clips={clips} kind={header.kind ?? (node.text ? 'text' : 'model')} name={header.name} />}
-        {!header.automation && keyTimes(node, TRANSFORM_CHANNELS).map(time => <i key={time} className="scene-key-tick" data-outside={time > view.end || undefined} style={{ left: view.pct(time) }} />)}
+        {!header.automation && keyTimes(node, AUTOMATION_CHANNELS).map(time => <i key={time} className="scene-key-tick" data-outside={time > view.end || undefined} style={{ left: view.pct(time) }} />)}
       </div>
     </div>
-    {header.automation && PARAMS.map(group => <SceneParamLane key={group} node={node} group={group} depth={header.row.depth} label={labels[group]}
+    {header.automation && !isGroup(node) && <>
+      {kind !== 'audio' && <SceneScalarLane node={node} channel="opacity" depth={header.row.depth} label={view.text('不透明度', 'Opacity')} />}
+      {(kind === 'audio' || kind === 'video') && <SceneScalarLane node={node} channel="volume" depth={header.row.depth} label={view.text('音量', 'Volume')} />}
+    </>}
+    {header.automation && PARAMS.filter(group => kind !== 'audio' || group === 'position').map(group => <SceneParamLane key={group} node={node} group={group} depth={header.row.depth} label={labels[group]}
       expanded={expandedParams.has(group)} onExpand={() => onParam(group)} />)}
   </>;
 }

@@ -23,23 +23,23 @@ export function SceneCameraControls({ settings, onChange, onPreview, preview = f
   const preset = matches(DEFAULT_SCENE_CAMERA) ? "scene" : matches(MAP_SCENE_CAMERA) ? "map" : "custom";
   const fields: { key: keyof SceneCameraSettings; label: string; min: number; max: number; step: number }[] = [
     { key: "distance", label: text("水平距离 · 米", "Distance · m"), min: .1, max: 50, step: .1 },
-    { key: "height", label: text("相对原点高度 · 米", "Height above origin · m"), min: -10, max: 20, step: .1 },
-    { key: "yaw", label: text("环绕角度 · 度", "Orbit angle · °"), min: -180, max: 180, step: 1 },
-    { key: "pitch", label: text("仰角 · 度", "Look up / down · °"), min: -80, max: 80, step: 1 },
-    { key: "fov", label: text("垂直视场角 · 度", "Vertical field of view · °"), min: 30, max: 100, step: 1 },
+    { key: "height", label: text("高度 · 米", "Height · m"), min: -10, max: 20, step: .1 },
+    { key: "yaw", label: text("水平角 · 度", "Orbit · °"), min: -180, max: 180, step: 1 },
+    { key: "pitch", label: text("仰角 · 度", "Pitch · °"), min: -80, max: 80, step: 1 },
+    { key: "fov", label: text("视场角 · 度", "Field of view · °"), min: 30, max: 100, step: 1 },
   ];
   return <div ref={anchorRef} className="scene-camera-controls">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild><Button variant={open ? "secondary" : "ghost"} size="icon" className={preview ? "size-7" : "size-8"} title={text("虚拟相机", "Virtual camera")} aria-label={text("虚拟相机", "Virtual camera")}><Camera /></Button></PopoverTrigger>
       <PopoverContent portalContainer={container} side="bottom" align="end" className="scene-camera-popover" aria-label={text("虚拟相机设置", "Virtual camera settings")}>
-        <div className="space-y-1"><Text as="h2" variant="bodySm" fontWeight="semibold">{text("虚拟相机", "Virtual camera")}</Text><Text as="p" variant="bodySm" tone="subdued">{text("模拟放置后，从手机看向场景的视角。", "Approximate the phone view after placing a scene.")}</Text></div>
+        <Text as="h2" variant="bodySm" fontWeight="semibold">{text("虚拟相机", "Virtual camera")}</Text>
         <div className="space-y-1.5"><Label htmlFor={`${id}-preset`}>{text("放置预设", "Placement preset")}</Label><select id={`${id}-preset`} className="scene-select w-full" value={preset} onChange={event => onChange({ ...(event.target.value === "map" ? MAP_SCENE_CAMERA : DEFAULT_SCENE_CAMERA) })}>
           <option value="scene">{text("场景二维码 · 同高，前方 2 米", "Scene QR · same height, 2 m ahead")}</option>
           <option value="map">{text("地图放置 · 下移 1.4 米", "Map · placed 1.4 m lower")}</option>
           {preset === "custom" && <option value="custom" disabled>{text("自定义视角", "Custom view")}</option>}
         </select></div>
         <div className="scene-field-grid">{fields.map(field => <div key={field.key} className="space-y-1.5"><Label htmlFor={`${id}-${field.key}`}>{field.label}</Label><SceneNumberField id={`${id}-${field.key}`} label={field.label} value={settings[field.key]} min={field.min} max={field.max} step={field.step} onCommit={value => onChange({ ...settings, [field.key]: value })} /></div>)}</div>
-        <Text as="p" variant="bodySm" tone="subdued">{text("仅用于 Web 预览。默认 60° 为估算值，实际取景取决于手机；不改变小程序的放置规则。", "For Web preview only. The default 60° is an estimate; framing varies by phone. Mini-program placement stays unchanged.")}</Text>
+        <Text as="p" variant="bodySm" tone="subdued">{text("取景为估算值，实际视野因手机而异。", "Approximate framing; the field of view varies by phone.")}</Text>
         {onPreview && <Button variant="secondary" className="w-full" onClick={() => { setOpen(false); onPreview(); }}><Smartphone />{text("打开相机预览", "Open camera preview")}</Button>}
       </PopoverContent>
     </Popover>

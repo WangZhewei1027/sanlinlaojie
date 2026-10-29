@@ -1,5 +1,6 @@
-import { mediaTime, samplePresentation } from '@spatial-memory/scene-core';
+import { mediaTime, sampleFade, sampleVolume } from '@spatial-memory/scene-core';
 import type { CompositionInstance } from '@/lib/scene/protocol';
+import type { SpatialAudioMixer } from './spatial-audio';
 
 /** A single media element belongs to one scene instance, including its pending play request. */
 export class MediaPlayback {
@@ -10,17 +11,19 @@ export class MediaPlayback {
   private desiredPlaying = false;
   private prepared = false;
   private generation = 0;
-  private latest?: { instance: CompositionInstance; time: number; playing: boolean; duration: number | null };
+  private latest?: { instance: CompositionInstance; time: number; playing: boolean; duration: number | null; spatial: { gain: number; pan: number } };
   private metadata = () => { if (this.prepared && this.latest) this.apply(this.latest); };
 
-  constructor(readonly element: HTMLMediaElement, private url: string, private onError: (blocked: boolean) => void) {
+  constructor(readonly element: HTMLMediaElement, private url: string, private onError: (blocked: boolean) => void, private audio?: SpatialAudioMixer) {
     element.preload = 'none';
     element.addEventListener('loadedmetadata', this.metadata);
   }
 
-  sync(instance: CompositionInstance, time: number, playing: boolean, duration: number | null, prepare = true) {
+  sync(instance: CompositionInstance, time: number, playing: boolean, duration: number | null, prepare = true, spatial = { gain: 1, pan: 0 }) {
     if (this.closed) return;
-    this.latest = { instance, time, playing, duration };
+    this.latest = { instance, time, playing, duration, spatial };
+    if (playing && instance.media?.spatial?.enabled) this.audio?.unlock(() => this.onError(true));
+    else if (!playing) this.audio?.pause();
     if (!prepare) { this.release(); return; }
     if (!this.prepared) {
       this.prepared = true;
@@ -33,8 +36,8 @@ export class MediaPlayback {
     this.apply(this.latest);
   }
 
-  private apply({ instance, time, playing, duration }: NonNullable<MediaPlayback['latest']>) {
-    const presentation = samplePresentation(instance, time, duration);
+  private apply({ instance, time, playing, duration, spatial }: NonNullable<MediaPlayback['latest']>) {
+    const presentation = sampleFade(instance, time, duration);
     const settings = instance.media;
     const sourceDuration = Number.isFinite(this.element.duration) ? this.element.duration : undefined;
     const target = mediaTime(presentation.visible ? time : 0, settings, instance.timing, sourceDuration);
@@ -46,7 +49,9 @@ export class MediaPlayback {
     const shouldPlay = playing && presentation.visible && !ended;
     this.desiredPlaying = shouldPlay;
     if (!playing) this.blocked = false;
-    this.element.volume = Math.max(0, Math.min(1, (settings?.volume ?? 1) * presentation.opacity));
+    const volume = Math.max(0, Math.min(1, sampleVolume(instance, time) * presentation.opacity * spatial.gain));
+    if (this.audio) this.audio.apply(this.element, volume, spatial.pan, settings?.spatial?.enabled ?? false, playing, () => this.onError(true));
+    else this.element.volume = volume;
     this.element.muted = settings?.muted ?? false;
     this.element.playbackRate = settings?.playbackRate ?? 1;
     // The scene owns loops, including trims. Native looping would include the entire file.
@@ -93,5 +98,6 @@ export class MediaPlayback {
     this.element.removeEventListener('loadedmetadata', this.metadata);
     this.latest = undefined;
     this.release();
+    this.audio?.remove(this.element);
   }
 }

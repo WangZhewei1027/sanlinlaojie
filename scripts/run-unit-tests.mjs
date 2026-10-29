@@ -16,6 +16,8 @@ const tests = [
   "test-content-model-legacy-animations.ts",
   "test-scene-core.ts",
   "test-scene-performance.ts",
+  "test-scene-automation.ts",
+  "test-scene-timeline-automation.ts",
   "test-scene-media-runtime.ts",
   "test-scene-regions.ts",
   "test-scene-hierarchy.ts",

@@ -38,9 +38,9 @@ export function SceneToolbar(props: SceneToolbarProps) {
     <div className="mx-2 hidden h-5 border-l sm:block" />
     {!props.readOnly && <><Button variant="ghost" size="icon" disabled={!props.canUndo} aria-label={t("sceneEditor.undo")} title={`${t("sceneEditor.undo")} (Ctrl/⌘ Z)`} onClick={props.onUndo}><Undo2 /></Button>
     <Button variant="ghost" size="icon" disabled={!props.canRedo} aria-label={t("sceneEditor.redo")} title={`${t("sceneEditor.redo")} (Ctrl/⌘ Shift Z)`} onClick={props.onRedo}><Redo2 /></Button></>}
-    {props.onAddText && !props.readOnly && <Button variant="ghost" size="sm" disabled={!props.canAddText} onClick={props.onAddText} aria-label={i18n.language.startsWith("zh") ? "添加空间文字" : "Add spatial text"}><Type /><span className="hidden md:inline">{i18n.language.startsWith("zh") ? "文字" : "Text"}</span></Button>}
+    {props.onAddText && !props.readOnly && !props.panelOpen && <Button variant="ghost" size="sm" disabled={!props.canAddText} onClick={props.onAddText} aria-label={i18n.language.startsWith("zh") ? "添加空间文字" : "Add spatial text"}><Type /><span className="hidden md:inline">{i18n.language.startsWith("zh") ? "文字" : "Text"}</span></Button>}
     <Button variant={props.preview ? "secondary" : "ghost"} size="sm" aria-pressed={props.preview} aria-controls="scene-camera-preview" onClick={props.onPreview}><Eye /><span className="hidden sm:inline">{previewLabel}</span><span className="sr-only sm:hidden">{previewLabel}</span></Button>
-    {!props.readOnly && <Button size="sm" variant="default" disabled={props.saving || !draft.trim()} onClick={() => { props.onTitle(draft); props.onSave(); }} title="Ctrl/⌘ S">{props.saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t(props.saving ? "sceneEditor.saving" : "common.save")}</Button>}
+    {!props.readOnly && <Button size="sm" variant="default" disabled={props.saving || (!props.dirty && draft === props.title) || !draft.trim()} onClick={() => { props.onTitle(draft); props.onSave(); }} title="Ctrl/⌘ S">{props.saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t(props.saving ? "sceneEditor.saving" : "common.save")}</Button>}
     {props.qr && <div className="shrink-0">{props.qr}</div>}
   </header>;
 }

@@ -24,6 +24,8 @@ export function mountThreeEditor(host: HTMLDivElement, initial: ThreeViewportPro
   const toolbar = Toolbar(editor);
   viewport.cameraControls.dom.removeAttribute('style');
   viewport.cameraControls.dom.classList.add('scene-three-camera-controls');
+  // Only the editor camera is selectable; the phone camera has its own inset controls.
+  viewport.cameraControls.dom.querySelector('[aria-label="Viewport camera"]')?.remove();
   props.toolsRef.current?.append(toolbar.dom, viewport.cameraControls.dom);
   const renderer = new WebGLRenderer({ antialias: true });
   renderer.domElement.tabIndex = 0;

@@ -1,5 +1,5 @@
 import {
-  COMPOSITION_LIMITS, TRANSFORM_CHANNELS,
+  COMPOSITION_LIMITS, TRANSFORM_CHANNELS, AUTOMATION_CHANNELS,
 } from "./protocol";
 import {
   ALIAS_RE,
@@ -16,7 +16,7 @@ import { validatePresentation } from "./validate-presentation";
 // Pure structure validation. Asset references are checked by service.server.ts;
 // clip existence is checked by the player against the loaded model.
 
-const INSTANCE_KEYS = ["id", "asset", "text", "timing", "media", "name", "parent", "position", "rotation", "scale", "animation", "tracks"];
+const INSTANCE_KEYS = ["id", "asset", "text", "timing", "media", "opacity", "name", "parent", "position", "rotation", "scale", "animation", "tracks"];
 const GROUP_KEYS = ["id", "name", "parent", "position", "rotation", "scale", "tracks"];
 const ANIMATION_KEYS = ["clipIndex", "clipName", "startSeconds", "loop"];
 
@@ -62,7 +62,7 @@ function validateAnimation(
 export function validateCompositionContent(
   issues: IssueList,
   content: Record<string, unknown>,
-  options: { groups: boolean; presentation?: boolean } = { groups: true, presentation: true },
+  options: { groups: boolean; presentation?: boolean; automation?: boolean } = { groups: true, presentation: true, automation: true },
 ): void {
   rejectUnknownKeys(issues, "content", content, [
     "kind",
@@ -137,7 +137,7 @@ export function validateCompositionContent(
   };
   let anyAnimation = false;
   let keyframeCount = 0;
-  const transform = (path: string, node: Record<string, unknown>) => {
+  const transform = (path: string, node: Record<string, unknown>, scalarTracks = false) => {
     const position = requireNumberTuple(issues, `${path}.position`, node.position, 3);
     if (position && position.some((v) => Math.abs(v) > COMPOSITION_LIMITS.maxPositionAbs)) {
       issues.error(`${path}.position`, `每个分量的绝对值不能超过 ${COMPOSITION_LIMITS.maxPositionAbs}`);
@@ -147,7 +147,7 @@ export function validateCompositionContent(
     if (node.tracks !== undefined) {
       const tracks = requireObject(issues, `${path}.tracks`, node.tracks);
       if (tracks) {
-        rejectUnknownKeys(issues, `${path}.tracks`, tracks, [...TRANSFORM_CHANNELS]);
+        rejectUnknownKeys(issues, `${path}.tracks`, tracks, scalarTracks ? AUTOMATION_CHANNELS : TRANSFORM_CHANNELS);
         for (const [channel, frames] of Object.entries(tracks)) {
           const at = `${path}.tracks.${channel}`;
           if (!Array.isArray(frames) || frames.length === 0) { issues.error(at, "关键帧必须是非空数组"); continue; }
@@ -161,7 +161,7 @@ export function validateCompositionContent(
               if (frame.time <= previous) issues.error(`${fp}.time`, "关键帧时间必须严格递增");
               previous = frame.time;
             }
-            requireNumberInRange(issues, `${fp}.value`, frame.value, channel.startsWith("scale.") ? { exclusiveMin: 0, max: 100 } : { min: -100, max: 100 });
+            requireNumberInRange(issues, `${fp}.value`, frame.value, channel === "opacity" || channel === "volume" ? { min: 0, max: 1 } : channel.startsWith("scale.") ? { exclusiveMin: 0, max: 100 } : { min: -100, max: 100 });
             const handles = requireNumberTuple(issues, `${fp}.handles`, frame.handles, 4);
             if (handles && (handles[0] < 0 || handles[0] > 1 || handles[2] < 0 || handles[2] > 1 || handles.some(v => Math.abs(v) > 100))) issues.error(`${fp}.handles`, "曲线横向控制点必须在 0–1 之间");
             requireBoolean(issues, `${fp}.connectedRight`, frame.connectedRight);
@@ -220,9 +220,9 @@ export function validateCompositionContent(
     if (inst.text === undefined && (typeof inst.asset !== "string" || !aliasToAssetId.has(inst.asset))) {
       issues.error(`${path}.asset`, "引用的资源别名不存在");
     }
-    validatePresentation(issues, path, inst, options.presentation === true);
+    validatePresentation(issues, path, inst, options.presentation === true, options.automation === true);
     if (inst.timing !== undefined || inst.media !== undefined) anyAnimation = true;
-    transform(path, inst);
+    transform(path, inst, options.automation === true);
     if (inst.animation === null) return;
     if (inst.animation === undefined) {
       issues.error(`${path}.animation`, "必须显式写 null 或动画对象");

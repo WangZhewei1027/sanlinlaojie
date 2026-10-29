@@ -44,7 +44,7 @@ function clipTime(time, animation, duration) {
   return duration > 0 ? (animation.loop ? local % duration : Math.min(local, duration)) : 0;
 }
 /** Shared entry/exit envelope; old untimed nodes retain their original visibility. */
-function samplePresentation(instance, time, sceneDuration = null) {
+function sampleFade(instance, time, sceneDuration = null) {
   const timing = instance.timing;
   if (!timing) return { visible: true, opacity: 1, localTime: Math.max(0, time) };
   const start = timing.startSeconds;
@@ -54,6 +54,37 @@ function samplePresentation(instance, time, sceneDuration = null) {
   const fadeIn = timing.fadeInSeconds > 0 ? localTime / timing.fadeInSeconds : 1;
   const fadeOut = timing.fadeOutSeconds > 0 ? (end - time) / timing.fadeOutSeconds : 1;
   return { visible, opacity: visible ? Math.max(0, Math.min(1, fadeIn, fadeOut)) : 0, localTime };
+}
+const clampUnit = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+function sampleOpacity(instance, time) {
+  return clampUnit(sampleTrack(instance.tracks && instance.tracks.opacity, time, instance.opacity === undefined ? 1 : instance.opacity));
+}
+function sampleVolume(instance, time) {
+  return clampUnit(sampleTrack(instance.tracks && instance.tracks.volume, time, instance.media && instance.media.volume !== undefined ? instance.media.volume : 1));
+}
+/** Opacity does not affect audibility; hosts apply sampleFade to audio independently. */
+function samplePresentation(instance, time, sceneDuration = null) {
+  const presentation = sampleFade(instance, time, sceneDuration);
+  presentation.opacity *= sampleOpacity(instance, time);
+  return presentation;
+}
+const finiteVector = v => v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+/** Both positions and listener orientation are in the same world space, in meters. */
+function sampleSpatialAudio(settings, source, listener) {
+  if (!settings || !settings.enabled) return { gain: 1, pan: 0 };
+  if (!finiteVector(source) || !listener || !finiteVector(listener.position) || !finiteVector(listener.forward) || !finiteVector(listener.up)) return { gain: 0, pan: 0 };
+  const ref = Number.isFinite(settings.refDistance) ? Math.max(.1, Math.min(100, settings.refDistance)) : 1;
+  const max = Number.isFinite(settings.maxDistance) ? Math.max(ref, Math.min(1000, settings.maxDistance)) : 30;
+  const rolloff = Number.isFinite(settings.rolloffFactor) ? Math.max(0, Math.min(10, settings.rolloffFactor)) : 1;
+  const dx = source.x - listener.position.x, dy = source.y - listener.position.y, dz = source.z - listener.position.z;
+  const distance = Math.hypot(dx, dy, dz), boundedDistance = Math.max(ref, Math.min(max, distance));
+  const gain = ref / (ref + rolloff * (boundedDistance - ref));
+  // Camera right is forward × up, normalized independently of AR pose scale.
+  const f = listener.forward, u = listener.up;
+  const rx = f.y * u.z - f.z * u.y, ry = f.z * u.x - f.x * u.z, rz = f.x * u.y - f.y * u.x;
+  const length = Math.hypot(rx, ry, rz);
+  const pan = distance > 1e-8 && length > 1e-8 ? Math.max(-1, Math.min(1, (dx * rx + dy * ry + dz * rz) / (distance * length))) : 0;
+  return { gain, pan };
 }
 /** Map scene seconds to a source-media time, respecting trim, speed and looping. */
 function mediaTime(time, media = { trimStartSeconds: 0, trimEndSeconds: null, playbackRate: 1, loop: false }, timing, duration) {
@@ -128,4 +159,4 @@ function createSceneCore({ content }) {
   };
   return core;
 }
-module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance, samplePresentation, mediaTime, mediaPreloadIds, MEDIA_PRELOAD_SECONDS, MEDIA_PRELOAD_UPCOMING_LIMIT };
+module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance, sampleFade, sampleOpacity, sampleVolume, samplePresentation, sampleSpatialAudio, mediaTime, mediaPreloadIds, MEDIA_PRELOAD_SECONDS, MEDIA_PRELOAD_UPCOMING_LIMIT };

@@ -6,6 +6,7 @@ import { createSceneCore } from '@spatial-memory/scene-core';
 import type { CompositionContent, CompositionInstance } from '../lib/scene/protocol';
 import { Editor } from '../vendor/three-editor';
 import { MediaPlayback } from '../app/manage/scenes/components/three-editor/media-playback';
+import { SpatialAudioMixer } from '../app/manage/scenes/components/three-editor/spatial-audio';
 import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
 import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
 import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
@@ -29,6 +30,74 @@ class FakeMedia extends EventTargetFixture {
 }
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 const player = (media: FakeMedia, onError: (blocked: boolean) => void = () => {}) => new MediaPlayback(media as unknown as HTMLMediaElement, 'https://fixture.example/source.mp4', onError);
+
+test('volume automation combines with cue fade and distance without coupling sound to visual opacity', () => {
+  const media = new FakeMedia(), playback = player(media), node = instance();
+  node.opacity = 0;
+  node.tracks = { volume: [
+    { time: 2, value: .2, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true },
+    { time: 4, value: .8, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true },
+  ] };
+  playback.sync(node, 3, false, 12, true, { gain: .25, pan: -1 });
+  assert.ok(Math.abs(media.volume - .0625) < 1e-10, 'keyed .5 volume × .5 fade × .25 distance');
+  assert.equal(media.currentTime, 5, 'an invisible video still seeks and has independently editable sound');
+  playback.dispose();
+});
+
+test('spatial streaming shares one audio context, pans existing streams and releases every route', async () => {
+  const contexts: Context[] = [];
+  class Node {
+    gain = { value: 1 }; pan = { value: 0 }; disconnected = false;
+    connect() {} disconnect() { this.disconnected = true; }
+  }
+  class Context {
+    state = 'suspended'; destination = {}; sources: HTMLMediaElement[] = []; nodes: Node[] = [];
+    constructor() { contexts.push(this); }
+    node() { const node = new Node(); this.nodes.push(node); return node; }
+    createGain() { return this.node(); } createStereoPanner() { return this.node(); }
+    createMediaElementSource(element: HTMLMediaElement) { this.sources.push(element); return this.node(); }
+    resume() { this.state = 'running'; return Promise.resolve(); }
+    close() { this.state = 'closed'; return Promise.resolve(); }
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
+  Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: Context });
+  const mixer = new SpatialAudioMixer();
+  const audio = new FakeMedia() as unknown as HTMLMediaElement, video = new FakeMedia() as unknown as HTMLMediaElement;
+  try {
+    const error = () => assert.fail('stream audio must not be blocked');
+    mixer.apply(audio, .4, -.75, true, false, error);
+    assert.equal(contexts.length, 0, 'paused editing does not allocate an audio graph');
+    mixer.apply(audio, .4, -.75, true, true, error);
+    mixer.apply(video, .2, .5, true, true, error); await flush();
+    assert.equal(contexts.length, 1); assert.deepEqual(contexts[0].sources, [audio, video]);
+    assert.equal(contexts[0].nodes[0].gain.value, .4); assert.equal(contexts[0].nodes[1].pan.value, -.75);
+    assert.equal(audio.volume, 1, 'graph gain applies volume exactly once');
+    mixer.apply(audio, .6, 1, false, true, error);
+    assert.equal(contexts[0].sources.length, 2, 'never attach the same media element twice');
+    assert.equal(contexts[0].nodes[1].pan.value, 0, 'disabling spatial restores centred sound');
+    contexts[0].state = 'interrupted';
+    mixer.unlock(error); await flush();
+    assert.equal(contexts[0].state, 'running', 'Safari audio interruptions recover on the next Play');
+    mixer.remove(audio);
+    assert.ok(contexts[0].nodes.slice(0, 3).every(node => node.disconnected));
+    mixer.dispose(); mixer.dispose(); await flush();
+    assert.ok(contexts[0].nodes.every(node => node.disconnected)); assert.equal(contexts[0].state, 'closed');
+  } finally {
+    mixer.dispose();
+    if (descriptor) Object.defineProperty(globalThis, 'AudioContext', descriptor); else Reflect.deleteProperty(globalThis, 'AudioContext');
+  }
+});
+
+test('future spatial cues unlock audio on Play without fetching media outside the preload window', () => {
+  const media = new FakeMedia(), node = instance();
+  node.media!.spatial = { enabled: true, refDistance: 1, maxDistance: 30, rolloffFactor: 1 };
+  const mixer = new SpatialAudioMixer(); let unlocked = 0;
+  mixer.unlock = () => { unlocked++; };
+  const playback = new MediaPlayback(media as unknown as HTMLMediaElement, 'https://fixture.example/later.mp3', () => {}, mixer);
+  playback.sync(node, 0, true, 12, false);
+  assert.equal(unlocked, 1); assert.equal(media.src, ''); assert.equal(media.loads, 0); assert.equal(media.plays, 0);
+  playback.dispose(); mixer.dispose();
+});
 
 test('media starts at its scene cue, maps trim/speed, fades volume and stops at the source out point', async () => {
   const media = new FakeMedia(), playback = player(media), node = instance();

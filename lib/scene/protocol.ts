@@ -3,6 +3,8 @@ export const SCENE_SCHEMA_VERSION = 5 as const;
 export const SCENE_FLAT_SCHEMA_VERSION = 4 as const;
 /** Media, scene-owned text and presentation timing require a capable player. */
 export const SCENE_PERFORMANCE_SCHEMA_VERSION = 7 as const;
+/** Scalar automation and spatial audio require the matching player. */
+export const SCENE_AUTOMATION_SCHEMA_VERSION = 8 as const;
 export const SCENE_DOCUMENT_VERSION = 6 as const;
 export const MAX_SCENE_BYTES = 1024 * 1024;
 
@@ -53,6 +55,14 @@ export interface InstanceTiming {
   fadeOutSeconds: number;
 }
 
+export interface SpatialAudioSettings {
+  enabled: boolean;
+  /** Distances are meters; inverse attenuation is clamped at maxDistance. */
+  refDistance: number;
+  maxDistance: number;
+  rolloffFactor: number;
+}
+
 export interface InstanceMedia {
   trimStartSeconds: number;
   /** Source-media end; null uses the file's duration. */
@@ -61,6 +71,7 @@ export interface InstanceMedia {
   volume: number;
   loop: boolean;
   muted: boolean;
+  spatial?: SpatialAudioSettings;
 }
 
 /** Owned by this scene document, never inserted into the team's asset library. */
@@ -82,6 +93,8 @@ export interface CompositionInstance {
   text?: SceneText;
   timing?: InstanceTiming;
   media?: InstanceMedia;
+  /** Visual opacity before the entry/exit fade, defaults to 1. */
+  opacity?: number;
   /** Track name; the asset name is shown when omitted. */
   name?: string;
   /** Parent group ID; omitted at the scene root. */
@@ -91,12 +104,14 @@ export interface CompositionInstance {
   rotation: [number, number, number];
   scale: [number, number, number];
   animation: InstanceAnimation | null;
-  /** Numeric transform tracks, sampled by the shared platform-independent core. */
-  tracks?: Partial<Record<TransformChannel, TransformKeyframe[]>>;
+  /** Numeric transform and presentation tracks, sampled by the shared core. */
+  tracks?: Partial<Record<AutomationChannel, TransformKeyframe[]>>;
 }
 
 export const TRANSFORM_CHANNELS = ["position.x", "position.y", "position.z", "rotation.x", "rotation.y", "rotation.z", "scale.x", "scale.y", "scale.z"] as const;
 export type TransformChannel = typeof TRANSFORM_CHANNELS[number];
+export const AUTOMATION_CHANNELS = [...TRANSFORM_CHANNELS, "opacity", "volume"] as const;
+export type AutomationChannel = typeof AUTOMATION_CHANNELS[number];
 export interface TransformKeyframe {
   time: number;
   value: number;
@@ -117,7 +132,7 @@ export interface CompositionContent<Ref = CompositionAssetRef> {
 }
 
 export interface SceneDefinition {
-  schemaVersion: typeof SCENE_SCHEMA_VERSION | typeof SCENE_FLAT_SCHEMA_VERSION | typeof SCENE_PERFORMANCE_SCHEMA_VERSION;
+  schemaVersion: typeof SCENE_SCHEMA_VERSION | typeof SCENE_FLAT_SCHEMA_VERSION | typeof SCENE_PERFORMANCE_SCHEMA_VERSION | typeof SCENE_AUTOMATION_SCHEMA_VERSION;
   content: CompositionContent;
 }
 

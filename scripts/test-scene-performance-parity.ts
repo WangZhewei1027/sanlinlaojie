@@ -24,6 +24,11 @@ const resources: Record<string, SceneResource> = Object.fromEntries(['model', 'i
   kind: ['muted', 'fast', 'slow'].includes(alias) ? 'audio' : alias as SceneResource['kind'], url: `https://fixture.example/${alias}.${alias === 'model' ? 'glb' : alias === 'video' ? 'mp4' : alias === 'image' ? 'png' : 'wav'}`,
 }]));
 function definition(loop: boolean): CompositionContent {
+  const keys = (a: number, b: number) => [
+    { time: 0, value: a, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3] as [number, number, number, number], connectedRight: true },
+    { time: 8, value: b, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3] as [number, number, number, number], connectedRight: true },
+  ];
+  const spatial = { enabled: true, refDistance: 1, maxDistance: 30, rolloffFactor: 1 };
   const base = (id: string): CompositionInstance => ({ id, asset: id, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null });
   const timing = (startSeconds: number, endSeconds: number, fadeInSeconds = 0, fadeOutSeconds = 0) => ({ startSeconds, endSeconds, fadeInSeconds, fadeOutSeconds });
   const media = (trimStartSeconds: number, trimEndSeconds: number, playbackRate: number, volume: number, loop: boolean, muted = false) => ({ trimStartSeconds, trimEndSeconds, playbackRate, volume, loop, muted });
@@ -33,13 +38,13 @@ function definition(loop: boolean): CompositionContent {
     assets: Object.fromEntries(Object.entries(resources).map(([alias, resource]) => [alias, { assetId: resource.assetId }])),
     groups: [{ id: 'stage', name: 'Stage', position: [1, 0, -1], rotation: [0, .3, 0], scale: [1, 1.2, 1], tracks: { 'position.x': [{ time: 0, value: 1, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true }, { time: 12, value: 3, handles: [1 / 3, 1 / 3, 2 / 3, 2 / 3], connectedRight: true }] } }],
     instances: [text,
-      { ...base('image'), parent: 'stage', position: [-2, 0, 0], timing: timing(0, 10, 0, 2) },
-      { ...base('video'), parent: 'stage', position: [2, 0, 0], timing: timing(2, 11, 1, 1), media: media(3, 7, 2, .7, true) },
-      { ...base('audio'), timing: timing(1, 9, 2, 2), media: media(2, 4, .5, .8, false) },
+      { ...base('image'), parent: 'stage', position: [-2, 0, 0], timing: timing(0, 10, 0, 2), tracks: { opacity: keys(.8, .2) } },
+      { ...base('video'), parent: 'stage', position: [2, 0, 0], timing: timing(2, 11, 1, 1), media: { ...media(3, 7, 2, .7, true), spatial }, tracks: { opacity: keys(.9, 0), volume: keys(.2, .8) } },
+      { ...base('audio'), parent: 'stage', position: [-1, .5, -2], timing: timing(1, 9, 2, 2), media: { ...media(2, 4, .5, .8, false), spatial }, tracks: { volume: keys(.9, .1) } },
       { ...base('muted'), timing: timing(0, 12), media: media(.5, 3, 1.5, .6, true, true) },
       { ...base('fast'), timing: timing(1, 10, .5, 1), media: media(1, 9, 4, .4, true) },
       { ...base('slow'), timing: timing(0, 12, 2, 2), media: media(2, 6, .1, .3, false) },
-      { ...base('model'), position: [0, 0, -2], timing: timing(2, 8, 2, 2), animation: { clipIndex: 0, startSeconds: 1, loop: true } },
+      { ...base('model'), position: [0, 0, -2], timing: timing(2, 8, 2, 2), animation: { clipIndex: 0, startSeconds: 1, loop: true }, opacity: .75 },
       { ...base('modelReference'), asset: 'model', position: [0, 0, 2] },
     ],
   };
@@ -65,8 +70,9 @@ async function main() {
     const webGLB = await new GLTFLoader().parseAsync(bytes.slice(0), '');
     const miniGLB = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(bytes.slice(0), '', resolve, reject));
     const cache = new ModelCache(hosts.canvas, 8, async () => miniGLB);
-    const manifest: SceneAssetManifest = { schemaVersion: 7, assetId: 'parity', content: structuredClone(content), resources: Object.fromEntries(Object.entries(resources).map(([alias, resource]) => [alias, { assetId: resource.assetId, url: resource.url!, kind: resource.kind }])) };
-    const player = createCompositionPlayer(manifest, { modelCache: cache, canvas: hosts.canvas });
+    const manifest: SceneAssetManifest = { schemaVersion: 8, assetId: 'parity', content: structuredClone(content), resources: Object.fromEntries(Object.entries(resources).map(([alias, resource]) => [alias, { assetId: resource.assetId, url: resource.url!, kind: resource.kind }])) };
+    const listenerCamera = new THREE.PerspectiveCamera(); listenerCamera.position.set(0, 0, 2);
+    const player = createCompositionPlayer(manifest, { modelCache: cache, canvas: hosts.canvas, getListenerCamera: () => listenerCamera });
     const session = createSceneCore({ content });
     const editor = new Editor({ config: { getKey: () => 'en', setKey() {} }, history: { clear() {}, execute() {} } });
     const errors: string[] = [];
@@ -147,6 +153,14 @@ async function main() {
         assert.ok(hosts.browserMedia.every(media => media.paused), 'seeking must not start browser audio');
         assert.ok(hosts.audioContexts.every(context => context.sources.every(source => !source.started || source.stopped)), 'seeking must not start native audio');
       }
+      session.seek(3); player.seek(3);
+      for (const [distance, yaw, height, pitch] of [[1, 45, 0, 0], [8, -90, 1.4, 15], [3, 180, 2, -20], [2, 0, 0, 0]]) {
+        const radians = yaw * Math.PI / 180;
+        props.cameraSettings = { ...DEFAULT_SCENE_CAMERA, distance, yaw, height, pitch };
+        listenerCamera.position.set(Math.sin(radians) * distance, height, Math.cos(radians) * distance);
+        listenerCamera.rotation.set(pitch * Math.PI / 180, radians, 0, 'YXZ');
+        await compare(`listener distance ${distance}, yaw ${yaw}, pitch ${pitch}`);
+      }
       session.seek(0); session.play(loop); player.restart(); await compare('restart');
       for (const dt of [.5, .5, .5, .5, .5, .5, 1, 1, 2, 1, .5, .5, 1, .5, .5, 1, 4]) {
         hosts.tick(dt); session.advance(dt); models.frame(); player.update(dt); await compare(`advance ${dt}`);
@@ -177,6 +191,6 @@ async function main() {
       assert.equal(hosts.files.size, 0, 'native temporary downloads released');
     } finally { models.dispose(); session.dispose(); player.dispose(); cache.dispose(); hosts.restore(); }
   }
-  console.log(JSON.stringify({ result: 'PASS', samples, comparisons, maximumExactError, maximumMediaDrift, coverage: 'actual Web EditorModels vs mini CompositionPlayer; schema7 images/video/audio/scene text, text layout, group transforms and planar bounds, GLB fade isolation, visibility/fades, source trims/.1–4 rates/loop/volume/mute, decoded video frame targets, forward/reverse/playing seeks/play/pause/resume/restart/end, asynchronous decoder errors and disposal' }));
+  console.log(JSON.stringify({ result: 'PASS', samples, comparisons, maximumExactError, maximumMediaDrift, coverage: 'actual Web EditorModels vs mini CompositionPlayer; schema8 images/video/audio/scene text, text layout, group transforms and planar bounds, keyed opacity/volume, camera-relative spatial distance gain, GLB fade isolation, visibility/fades, source trims/.1–4 rates/loop/volume/mute, decoded video frame targets, forward/reverse/playing seeks/play/pause/resume/restart/end, asynchronous decoder errors and disposal' }));
 }
 main().then(() => process.exit(0), error => { console.error(error); process.exit(1); });

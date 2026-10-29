@@ -39,7 +39,7 @@ export function SceneTimeline(p: SceneTimelineProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [automation, setAutomation] = useState<ReadonlySet<string>>(new Set());
   const [params, setParams] = useState<ReadonlySet<string>>(new Set());
-  const [selectedKey, selectKey] = useState<KeySelection | null>(null);
+  const [storedKey, setSelectedKey] = useState<KeySelection | null>(null);
   const [endDraft, setEndDraft] = useState<number | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTime, setDropTime] = useState<number | null>(null);
@@ -51,8 +51,15 @@ export function SceneTimeline(p: SceneTimelineProps) {
   const lastRegion = Math.max(0, ...p.content.instances.map(instance => instanceRegion(instance, end).end));
   const { scroller, span, laneWidth, labelWidth, compact, zoom, canZoomIn, zoomBy, fit } = useTimelineView(Math.max(end, lastKey, lastRegion), p.time, p.playing);
   const steps = gridSteps(laneWidth / span), x = (time: number) => time / span * laneWidth, left = (time: number) => labelWidth + TIMELINE_LEAD + x(time);
-  const keyNode = selectedKey ? findNode(p.content, selectedKey.nodeId) : undefined;
   const primary = p.selectedIds.at(-1), primaryNode = primary ? findNode(p.content, primary) : undefined;
+  // Selection is shared with the viewport: a key never outlives its selected track.
+  const selectedKey = storedKey?.nodeId === primary ? storedKey : null;
+  const keyNode = selectedKey ? findNode(p.content, selectedKey.nodeId) : undefined;
+  useEffect(() => { if (storedKey && storedKey.nodeId !== primary) setSelectedKey(null); }, [primary, storedKey]);
+  const selectKey = (key: KeySelection | null) => {
+    if (key) p.onSelect([key.nodeId]);
+    setSelectedKey(key);
+  };
   const shortcuts = useRef({ automation: () => {}, group: () => {}, ungroup: () => {} });
   shortcuts.current = {
     automation: () => setAutomation(current => p.selectedIds.reduce(toggle, current)),
@@ -86,7 +93,7 @@ export function SceneTimeline(p: SceneTimelineProps) {
   };
 
   const view: TimelineView = {
-    span, end, time: p.time, steps, disabled, compact, text, selectedKey, selectKey, onSeek: p.onSeek, onEditNode: p.tracks.edit,
+    span, end, time: p.time, steps, disabled, compact, text, selectedKey, selectKey, onSeek: p.onSeek, onEditNode: (id, edit) => { if (!disabled) p.tracks.edit(id, edit); },
     pct: time => `${time / span * 100}%`,
     laneTime: (event, lane, max) => {
       const rect = lane.getBoundingClientRect(), raw = Math.max(0, Math.min(max, (event.clientX - rect.left) / rect.width * span));
@@ -113,8 +120,8 @@ export function SceneTimeline(p: SceneTimelineProps) {
     <SceneTimelineToolbar text={text} time={p.time} duration={p.duration} end={end} loop={p.loop} playing={p.playing} disabled={disabled}
       onSeek={p.onSeek} onPlay={p.onPlay} onLoop={p.onLoop} onDuration={p.onDuration}
       interpolation={keyNode && selectedKey ? interpolationOf(keyNode, selectedKey) : null}
-      onInterpolation={mode => selectedKey && p.tracks.edit(selectedKey.nodeId, node => setInterpolation(node, selectedKey, mode))}
-      onDeleteKey={() => { if (selectedKey) p.tracks.edit(selectedKey.nodeId, node => unkeyAll(node, selectedKey.channels, selectedKey.time)); selectKey(null); }}
+      onInterpolation={mode => !disabled && selectedKey && p.tracks.edit(selectedKey.nodeId, node => setInterpolation(node, selectedKey, mode))}
+      onDeleteKey={() => { if (!disabled && selectedKey) p.tracks.edit(selectedKey.nodeId, node => unkeyAll(node, selectedKey.channels, selectedKey.time)); selectKey(null); }}
       canGroup={p.selectedIds.length > 0} canUngroup={!!primaryNode && isGroup(primaryNode)} onGroup={p.tracks.group} onUngroup={() => primary && p.tracks.ungroup(primary)}
       zoom={zoom} canZoomIn={canZoomIn} onZoom={zoomBy} onFit={fit} />
     <div className="scene-timeline-body" data-asset-drop={dropTime !== null || undefined}
@@ -149,7 +156,7 @@ export function SceneTimeline(p: SceneTimelineProps) {
           </div>
         </TimelineContext.Provider>
       </div>
-      {!rows.length && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('从团队素材库拖入模型、图片、音频或视频，也可以添加空间文字。', 'Drag models, images, audio or video from the team library, or add spatial text.')}</Text></div>}
+      {!rows.length && <div className="scene-timeline-empty"><Text as="p" variant="bodySm" tone="subdued" alignment="center">{text('拖入素材安排出场时间', 'Drop an asset to set its entrance')}</Text></div>}
     </div>
   </section>;
 }

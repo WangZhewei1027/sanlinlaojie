@@ -27,16 +27,18 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 
 ## 协议与共享 Core
 
-`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放清单：没有新功能且没有分组的场景保持 schema 4，有分组的旧场景保持 schema 5。包含 `text`、`timing`、`media` 或非模型素材的演出使用 schema 7；resources 记录从服务器读取的 `kind`，不能把新能力伪装成旧协议。当前小程序播放器支持 4/5/7，并与 Web 共用 Scene Core 2.3.0 的出入场、淡变和媒体时间计算。上线时需要配套发布小程序；已安装的旧播放器仍会拒绝 schema 7。
+`compileSceneManifest` 将文档 schema 6 与当前资源编译为播放清单：没有新功能且没有分组的场景保持 schema 4，有分组的旧场景保持 schema 5。包含 `text`、`timing`、`media` 或非模型素材的演出使用 schema 7；resources 记录从服务器读取的 `kind`，不能把新能力伪装成旧协议。包含实例 `opacity`、透明度/音量轨道或 `media.spatial` 的场景使用 schema 8。当前小程序播放器支持 4/5/7/8，并与 Web 共用 Scene Core 2.4.0 的采样与空间音频计算。上线时需要配套发布小程序；旧播放器拒绝未知版本，避免忽略关键帧或空间音频后错误播放。
 
 两端从各节点的 `parent` 搭建 Object3D 层级，变换值都相对父分组。每个实例的 GLB 包在 `pivot` 节点中，按加载时的包围盒把底部中心对齐到实例原点（与小程序单素材 AR 放置同一规则，`test-scene-playback-parity.ts` 校验两端一致）；2026-10-22 之前保存的场景若使用原点偏移的模型，模型会移到实例原点处，需要重新摆放。`manifest.assetId` 是播放实例标识：地图入口为 Placement ID，直接扫码入口为 Scene ID；资源里的 assetId 才是基础素材 ID。
 
-- 实例使用米制 `position`、Euler XYZ 弧度 `rotation` 和 `scale`。可选 `tracks` 的键为 `position.x/y/z`、`rotation.x/y/z`、`scale.x/y/z`；每个关键帧为 `{ time, value, handles: [inX, inY, outX, outY], connectedRight }`，time 单位为秒。相邻帧使用左帧出柄与右帧入柄做 Bezier 插值；`connectedRight: false` 保持到下一帧，精确关键帧时间返回该帧值。没有轨道的通道使用静态姿态。
+- 实例使用米制 `position`、Euler XYZ 弧度 `rotation` 和 `scale`。可选 `tracks` 的键为 `position.x/y/z`、`rotation.x/y/z`、`scale.x/y/z`；每个关键帧为 `{ time, value, handles: [inX, inY, outX, outY], connectedRight }`，time 单位为秒。相邻帧使用左帧出柄与右帧入柄做 Bezier 插值；`connectedRight: false` 保持到下一帧，精确关键帧时间返回该帧值。没有轨道的通道使用静态姿态。实例另支持 `opacity` 与 `volume` 两个标量轨道（值为 0–1），使用相同的曲线、保持、改时和撤销规则；分组仅支持九个变换通道。静态透明度为实例 `opacity`（默认 1），静态音量为 `media.volume`（默认 1）。删去通道最后一帧会将当前采样值保留为静态值。
 - `asset` 和 `text` 必须且只能提供一个。`text` 包含 `content`（1–4000 字符）、`color`、`fontSize`（0.02–5 米）、`width`（0.1–20 米）、`align`（left/center/right）和可选 `backgroundColor`。颜色为 #RRGGBB，省略背景色表示透明。文字和媒体使用相同的实例变换、分组、时间轴和撤销模型。
 - 可选 `timing` 为 `{ startSeconds, endSeconds, fadeInSeconds, fadeOutSeconds }`；结束点不包含在可见区间内，null 表示跟随场景时长。淡入淡出使用同一线性包络，重叠时取较小值。没有 timing 的历史模型保留全程可见、结束后定格的行为。时长缩短不删除其后的时间点。
 - 音频/视频的可选 `media` 为 `{ trimStartSeconds, trimEndSeconds, playbackRate, volume, loop, muted }`。trim 是素材内部的秒数，结束 null 代表源文件结束；速率 0.1–4，音量 0–1。共享 `mediaTime` 从场景时间映射至裁切后的素材时间，再由宿主管理播放、暂停和音量；淡入淡出同时作用于视觉透明度和音量。原生流式音频的音高处理由宿主决定，无法保证不同设备的变速音色完全相同。
+- `samplePresentation` 的视觉透明度为出入场包络 × 透明度采样；音量为 `sampleVolume` × `sampleFade` 包络 × 空间衰减，静音最终归零。视频透明度不会改变其声音。标量曲线允许纵向超调，但运行时将结果限制在 0–1。
+- `media.spatial` 为可选 `{ enabled, refDistance, maxDistance, rolloffFactor }`，缺省关闭，避免改变旧场景声音。参考距离 0.1–100 米，最大距离从参考距离至 1000 米，衰减系数 0–10。使用反距离衰减：`gain = ref / (ref + rolloff × (clamp(distance, ref, max) - ref))`；超过最大距离保持该距离的增益。音源和听者均传入世界位置，分组、放置根节点、位置关键帧及相机移动都影响距离；左右声像相对相机 forward × up 方向计算。Web 与小程序共享计算规则，宿主按音频 API 能力输出声像，原生流式通路至少保留距离衰减。
 - 保存限制 1 MiB、8 素材、24 实例、2400 关键帧，时长大于 0 且不超过 600 秒；静态场景可用 null 时长，新场景默认 10 秒。校验允许 Bezier 纵向超调。
-- `packages/scene-core` 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样、`clipTime`、`samplePresentation` 和 `mediaTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
+- `packages/scene-core` 是 Web 与小程序共用的零依赖源码。接口为 `play/pause/seek/advance/sync/sample/subscribe/observe/bind/dispose`，另提供数值采样、`clipTime`、`samplePresentation`、`sampleFade`、`sampleOpacity`、`sampleVolume`、`sampleSpatialAudio` 和 `mediaTime`。宿主负责帧时钟、资源、渲染和编辑历史；Core 不持有全局项目表、DOM、定时器或 RAF。
 - 每个播放器独立创建 Core；`dispose()` 停止播放并清空订阅、对象绑定与内容引用。GLB 骨骼/节点动画仍由各端 Three.AnimationMixer 求值，Core 只共享片段时间映射。
 - Web 使用本地 npm 包；小程序提交 npm pack 快照与 esbuild 产物。小程序仓库的 `miniprogram/lib/scene-runtime/vendor/build-info.json` 记录版本、源码哈希和字节数，更新后需核对两端一致。更新命令见 [Scene Core README](../packages/scene-core/README.md)。
 
@@ -60,6 +62,7 @@ Scene 是团队拥有的独立场景。`scene.document` 保存 schema 6 编排�
 | --- | --- |
 | 采样与历史曲线转换 | `npx tsx scripts/test-scene-core.ts` |
 | 媒体/空间文字协议与出入场采样 | `npx tsx scripts/test-scene-performance.ts` |
+| 透明度/音量关键帧、空间衰减与协议门槛 | `npx tsx scripts/test-scene-automation.ts` |
 | 分组与父子变换 | `npx tsx scripts/test-scene-hierarchy.ts` |
 | 添加模型与编辑交互 | `scripts/test-scene-add-model.ts`、`scripts/test-scene-interactions.ts` |
 | 米制网格、原点与虚拟摄像机 | `npx tsx scripts/test-scene-spatial-reference.ts` |

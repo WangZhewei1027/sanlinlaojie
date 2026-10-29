@@ -1,8 +1,9 @@
 export type Vector = { x: number; y: number; z: number };
 export type TransformValues = { position: Vector; rotation: Vector; scale: Vector };
 export type TransformChannel = `${keyof TransformValues}.${keyof Vector}`;
+export type AutomationChannel = TransformChannel | 'opacity' | 'volume';
 export type Keyframe = { time: number; value: number; handles: [number, number, number, number]; connectedRight: boolean };
-export type Instance = { id: string; position: number[]; rotation: number[]; scale: number[]; tracks?: Partial<Record<TransformChannel, Keyframe[]>> };
+export type Instance = { id: string; position: number[]; rotation: number[]; scale: number[]; tracks?: Partial<Record<AutomationChannel, Keyframe[]>> };
 export type Content = { durationSeconds: number | null; loop: boolean; instances: Instance[]; groups?: Instance[] };
 export type TransformRoot = { position: { set(x: number, y: number, z: number): unknown }; rotation: { set(x: number, y: number, z: number, order?: 'XYZ'): unknown }; scale: { set(x: number, y: number, z: number): unknown } };
 export function instanceValues(instance: Instance): TransformValues;
@@ -12,7 +13,15 @@ export function applyTransform(root: TransformRoot, values: TransformValues): vo
 export function clipTime(time: number, animation: { startSeconds: number; loop: boolean }, duration: number): number;
 export type PresentationTiming = { startSeconds: number; endSeconds: number | null; fadeInSeconds: number; fadeOutSeconds: number };
 export type MediaSettings = { trimStartSeconds: number; trimEndSeconds: number | null; playbackRate: number; loop: boolean };
-export function samplePresentation(instance: { timing?: PresentationTiming }, time: number, sceneDuration?: number | null): { visible: boolean; opacity: number; localTime: number };
+export type PresentationInstance = { timing?: PresentationTiming; opacity?: number; media?: { volume?: number }; tracks?: Partial<Record<AutomationChannel, Keyframe[]>> };
+export type Presentation = { visible: boolean; opacity: number; localTime: number };
+export type SpatialAudioSettings = { enabled: boolean; refDistance: number; maxDistance: number; rolloffFactor: number };
+export type AudioListener = { position: Vector; forward: Vector; up: Vector };
+export function sampleFade(instance: { timing?: PresentationTiming }, time: number, sceneDuration?: number | null): Presentation;
+export function sampleOpacity(instance: PresentationInstance, time: number): number;
+export function sampleVolume(instance: PresentationInstance, time: number): number;
+export function samplePresentation(instance: PresentationInstance, time: number, sceneDuration?: number | null): Presentation;
+export function sampleSpatialAudio(settings: SpatialAudioSettings | undefined, source: Vector, listener: AudioListener): { gain: number; pan: number };
 export function mediaTime(time: number, media?: MediaSettings, timing?: PresentationTiming, duration?: number): number;
 export const MEDIA_PRELOAD_SECONDS: 5;
 export const MEDIA_PRELOAD_UPCOMING_LIMIT: 2;
