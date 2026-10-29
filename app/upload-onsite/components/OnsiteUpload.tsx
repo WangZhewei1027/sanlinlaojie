@@ -5,6 +5,7 @@ import { ContentNotice } from "@/app/manage/content/ContentFeedback";
 import { useCollections } from "@/app/manage/lib/collections";
 import { type TeamContext, teamHref, useCollectionInfo } from "@/app/manage/lib/content-context";
 import { errorMessage } from "@/app/manage/lib/content-errors";
+import { useUploadStageText } from "@/app/manage/lib/upload-stage-text";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { Text } from "@/components/ui/typography";
 import { useSearchParams } from "next/navigation";
@@ -33,6 +34,7 @@ type UploadMode = "camera" | "text" | "audio";
  */
 export function OnsiteUpload({ team, teamArchived }: { team: TeamContext; teamArchived: boolean }) {
   const tx = useIntegrationText(ONSITE_TEXTS);
+  const stageText = useUploadStageText();
   const params = useSearchParams();
   const { gpsPosition, gpsError, gpsLoading } = useGPS();
   const { organizationId } = team;
@@ -68,7 +70,7 @@ export function OnsiteUpload({ team, teamArchived }: { team: TeamContext; teamAr
     () => ({ organizationId, workspaceId: collectionId, collectionName, canEdit, location: confirmed, tagIds: selectedTagIds }),
     [organizationId, collectionId, collectionName, canEdit, confirmed, selectedTagIds],
   );
-  const { submit, receipt, failure, submitting, dismissReceipt } = useOnsitePlacement(target, tx);
+  const { submit, receipt, failure, submitting, stage, dismissReceipt } = useOnsitePlacement(target, tx);
 
   const run = async (capture: OnsiteCapture) => {
     await submit(capture);
@@ -143,14 +145,14 @@ export function OnsiteUpload({ team, teamArchived }: { team: TeamContext; teamAr
             {mode === "camera" && (
               <CameraUpload
                 onUpload={(source, title, description) => run({ kind: "image", source, title, description })}
-                disabled={captureDisabled}
+                disabled={captureDisabled} progressLabel={stage ? stageText(stage) : undefined}
               />
             )}
-            {mode === "text" && <TextUpload onUpload={(source) => run({ kind: "text", source })} disabled={captureDisabled} />}
+            {mode === "text" && <TextUpload onUpload={(source) => run({ kind: "text", source })} disabled={captureDisabled} progressLabel={stage ? stageText(stage) : undefined} />}
             {mode === "audio" && (
               <AudioRecorder
                 onUpload={(source, title, description) => run({ kind: "audio", source, title, description })}
-                disabled={captureDisabled}
+                disabled={captureDisabled} progressLabel={stage ? stageText(stage) : undefined}
               />
             )}
           </section>

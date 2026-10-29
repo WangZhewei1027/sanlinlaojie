@@ -65,10 +65,25 @@ function mediaTime(time, media = { trimStartSeconds: 0, trimEndSeconds: null, pl
   const local = Math.max(0, time - (timing ? timing.startSeconds : 0)) * media.playbackRate;
   return start + (media.loop && Number.isFinite(span) ? local % span : Math.min(local, span));
 }
+const MEDIA_PRELOAD_SECONDS = 5, MEDIA_PRELOAD_UPCOMING_LIMIT = 2;
+/** Pure preparation plan. Hosts supply only audio/video nodes and own all I/O. */
+function mediaPreloadIds(instances, time, sceneDuration = null, loop = false) {
+  const active = [], upcoming = [];
+  for (const instance of instances) {
+    const start = instance.timing ? instance.timing.startSeconds : 0;
+    const end = Math.min(instance.timing && instance.timing.endSeconds !== null ? instance.timing.endSeconds : Infinity, sceneDuration === null ? Infinity : sceneDuration);
+    if (start >= end) continue;
+    if (samplePresentation(instance, time, sceneDuration).visible) { active.push(instance.id); continue; }
+    const delay = start > time ? start - time : loop && sceneDuration > 0 ? sceneDuration - time + start : Infinity;
+    if (delay >= 0 && delay <= MEDIA_PRELOAD_SECONDS) upcoming.push({ id: instance.id, delay });
+  }
+  upcoming.sort((a, b) => a.delay - b.delay);
+  return active.concat(upcoming.slice(0, MEDIA_PRELOAD_UPCOMING_LIMIT).map(item => item.id));
+}
 // Groups and instances share one ID space; each node is sampled in its parent's space.
 const nodeMap = content => new Map([...(content.groups || []), ...content.instances].map(node => [node.id, node]));
 function createSceneCore({ content }) {
-  let current = content, time = 0, playing = false, looping = false, disposed = false;
+  let current = content, time = 0, playing = false, looping = !!content.loop, disposed = false;
   let instances = nodeMap(current);
   const listeners = new Set(), bindings = new Map();
   const duration = () => current.durationSeconds;
@@ -79,7 +94,7 @@ function createSceneCore({ content }) {
     for (const callback of listeners) callback();
   }
   const core = {
-    get time() { return time; }, get playing() { return playing; }, get duration() { return duration(); },
+    get time() { return time; }, get playing() { return playing; }, get duration() { return duration(); }, get looping() { return looping; },
     sample,
     sync(next) {
       if (disposed) return;
@@ -113,4 +128,4 @@ function createSceneCore({ content }) {
   };
   return core;
 }
-module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance, samplePresentation, mediaTime };
+module.exports = { createSceneCore, instanceValues, applyTransform, clipTime, sampleTrack, sampleInstance, samplePresentation, mediaTime, mediaPreloadIds, MEDIA_PRELOAD_SECONDS, MEDIA_PRELOAD_UPCOMING_LIMIT };

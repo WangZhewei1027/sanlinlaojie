@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useUploadStageText } from "../lib/upload-stage-text";
+import type { UploadStage, UploadStageListener } from "@/lib/upload/progress";
+import { VideoUploadHint } from "../components/upload/VideoUploadHint";
 import { FileDropzone } from "../components/upload/file-dropzone";
 import { ContentFailureNotice } from "./ContentFeedback";
 import { useContentAction } from "./useContentAction";
@@ -17,6 +20,7 @@ export interface AssetContentInput {
   file?: File;
   text?: string;
   url?: string;
+  onStage?: UploadStageListener;
 }
 
 export interface AssetEditDialogProps {
@@ -36,6 +40,8 @@ export interface AssetEditDialogProps {
 export function AssetEditDialog(props: AssetEditDialogProps) {
   const { t } = useTranslation();
   const contentId = useId();
+  const stageText = useUploadStageText();
+  const [stage, setStage] = useState<UploadStage | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState(props.initialText ?? "");
   const action = useContentAction();
@@ -48,11 +54,12 @@ export function AssetEditDialog(props: AssetEditDialogProps) {
     props.onOpenChange(next);
   };
   const submit = async () => {
-    const input: AssetContentInput = {};
+    const input: AssetContentInput = { onStage: setStage };
     if (kind === "file" && file) input.file = file;
     if (kind === "text") input.text = text;
     if (kind === "url") input.url = text.trim();
-    if (await action.run(() => props.onSubmit(input))) close(false);
+    try { if (await action.run(() => props.onSubmit(input))) close(false); }
+    finally { setStage(null); }
   };
 
   return (
@@ -66,6 +73,7 @@ export function AssetEditDialog(props: AssetEditDialogProps) {
         {kind === "file" ? (
           <div role="group" aria-label={t("contentModel.edit.file")}>
             <FileDropzone file={file} onFileSelect={setFile} onFileRemove={() => setFile(null)} accept={props.accept} disabled={action.pending} label={t("contentModel.edit.file")} />
+            {props.assetType === "video" && <VideoUploadHint className="mt-2" />}
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -79,7 +87,7 @@ export function AssetEditDialog(props: AssetEditDialogProps) {
         )}
 
 
-        {action.pending && props.progress != null && (
+        {action.pending && stage === "uploading" && props.progress != null && (
           <div className="space-y-1" aria-live="polite">
             <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(props.progress)} aria-label={t("contentModel.edit.uploading")}>
               <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${Math.min(100, Math.max(0, props.progress))}%` }} />
@@ -89,11 +97,11 @@ export function AssetEditDialog(props: AssetEditDialogProps) {
         )}
         {action.failure && <ContentFailureNotice failure={action.failure} />}
 
-        <DialogFooter>
+        <DialogFooter aria-live="polite">
           <Button variant="outline" onClick={() => close(false)} disabled={action.pending}>{t("contentModel.action.cancel")}</Button>
           <Button onClick={submit} disabled={!ready || action.pending}>
             {action.pending && <Loader2 className="animate-spin" aria-hidden />}
-            {action.pending ? t("contentModel.edit.uploading") : t("contentModel.edit.save")}
+            {action.pending ? stageText(stage ?? "creating") : t("contentModel.edit.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

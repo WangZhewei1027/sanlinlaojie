@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Mic, Upload, RotateCcw, Play, Pause, StopCircle } from "lucide-react";
+import { Mic, Upload, RotateCcw, Play, Pause, StopCircle, Loader2 } from "lucide-react";
 
 interface AudioRecorderProps {
+  progressLabel?: string;
   onUpload: (
     audioFile: File,
     title?: string,
@@ -18,7 +19,7 @@ interface AudioRecorderProps {
   disabled?: boolean;
 }
 
-export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
+export function AudioRecorder({ onUpload, disabled, progressLabel }: AudioRecorderProps) {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -329,12 +330,13 @@ export function AudioRecorder({ onUpload, disabled }: AudioRecorderProps) {
 
               <Button
                 onClick={handleUpload}
+                aria-live="polite"
                 disabled={isUploading}
                 size="lg"
                 className="w-full"
               >
                 {isUploading ? (
-                  t("onsite.uploading")
+                  <><Loader2 className="h-5 w-5 animate-spin" aria-hidden />{progressLabel ?? t("onsite.uploading")}</>
                 ) : (
                   <>
                     <Upload className="h-5 w-5 mr-2" />

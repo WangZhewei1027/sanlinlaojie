@@ -1,6 +1,6 @@
 import { AnimationMixer, Box3, Group, LoopOnce, Mesh, type AnimationAction, type AnimationClip, type Material, type Object3D } from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { applyTransform, clipTime, samplePresentation } from '@spatial-memory/scene-core';
+import { applyTransform, clipTime, mediaPreloadIds, samplePresentation } from '@spatial-memory/scene-core';
 import type { Editor } from '@/vendor/three-editor';
 import type { CompositionGroup, CompositionInstance } from '@/lib/scene/protocol';
 import { ModelPool, disposeModel } from './model-pool';
@@ -135,6 +135,11 @@ export class EditorModels {
   }
   frame() {
     const props = this.props(), { session } = props;
+    const media = props.instances.filter(instance => {
+      const kind = props.resolveResource?.(instance)?.kind;
+      return kind === 'audio' || kind === 'video';
+    });
+    const prepare = new Set(mediaPreloadIds(media, session.time, session.duration, session.looping));
     for (const entry of this.entries.values()) {
       const presentation = samplePresentation(entry.instance, session.time, session.duration);
       const ghost = !props.preview && !session.playing && props.selectedId === entry.instance.id && (!presentation.visible || presentation.opacity === 0);
@@ -146,7 +151,7 @@ export class EditorModels {
         original.material.opacity = original.opacity * opacity;
         original.material.depthWrite = original.depthWrite && opacity === 1;
       }
-      entry.surface?.media?.sync(entry.instance, session.time, session.playing, session.duration);
+      entry.surface?.media?.sync(entry.instance, session.time, session.playing, session.duration, prepare.has(entry.instance.id));
       if (entry.action && entry.mixer && entry.clip && entry.instance.animation) {
         entry.action.time = clipTime(session.time, entry.instance.animation, entry.clip.duration);
         entry.mixer.update(0);

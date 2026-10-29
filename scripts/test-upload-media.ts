@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { openAsBlob } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import test from "node:test";
 import sharp from "sharp";
 import { ContentError } from "../lib/content-model/errors";
 import { processUploadMedia } from "../lib/upload/media-processing.server";
+import { STORED_FILE_MAX_BYTES, VIDEO_MAX_DURATION_SECONDS } from "../lib/upload/policy";
 
 const file = (buffer: Uint8Array, name: string, type: string) => new File([Uint8Array.from(buffer)], name, { type });
 const invalid = (status = 400) => (error: unknown) => error instanceof ContentError && error.status === status;
@@ -156,4 +158,106 @@ test("concurrent media uploads are bounded and the slot is released after a fail
   const raw = Buffer.from("model data");
   assert.deepEqual((await processUploadMedia(file(raw, "model.glb", "model/gltf-binary"), "model")).buffer, raw);
   assert.equal((await processUploadMedia(input, "audio")).mimeType, "audio/mpeg");
+});
+
+test("videos normalize to small H.264/AAC MP4 with the index before media for progressive playback", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "upload-media-test-"));
+  try {
+    const input = join(directory, "source.mov");
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=2",
+      "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2", "-c:v", "libx264", "-preset", "ultrafast",
+      "-crf", "12", "-c:a", "pcm_s16le", "-metadata", "title=private video", input]);
+    const source = await readFile(input);
+    const normalized = await processUploadMedia(file(source, "source.mov", "video/quicktime"), "video");
+    assert.equal(normalized.fileName, "source.mp4"); assert.equal(normalized.mimeType, "video/mp4");
+    assert.ok(normalized.buffer.length < source.length / 4);
+    assert.deepEqual((await processUploadMedia(file(source, "source.mov", "video/quicktime"), "video")).buffer, normalized.buffer);
+    const output = join(directory, "result.mp4"); await writeFile(output, normalized.buffer);
+    const info = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_streams", "-show_format", "-of", "json", output], { encoding: "utf8" }));
+    const video = info.streams.find((stream: { codec_type: string }) => stream.codec_type === "video");
+    const audio = info.streams.find((stream: { codec_type: string }) => stream.codec_type === "audio");
+    assert.equal(video.codec_name, "h264"); assert.equal(video.pix_fmt, "yuv420p");
+    assert.equal(video.width, 640); assert.equal(video.height, 360); assert.equal(video.avg_frame_rate, "24/1");
+    assert.equal(audio.codec_name, "aac"); assert.equal(audio.channels, 1); assert.equal(audio.sample_rate, "24000");
+    assert.ok(Math.abs(Number(info.format.duration) - 2) < 0.15);
+    assert.equal(info.format.tags?.title, undefined);
+    // Walk top-level MP4 boxes rather than searching arbitrary encoded bytes.
+    const boxes: string[] = [];
+    for (let offset = 0; offset + 8 <= normalized.buffer.length;) {
+      const size = normalized.buffer.readUInt32BE(offset);
+      assert.ok(size >= 8 && offset + size <= normalized.buffer.length);
+      boxes.push(normalized.buffer.toString("ascii", offset + 4, offset + 8)); offset += size;
+    }
+    assert.ok(boxes.includes("moov") && boxes.includes("mdat"));
+    assert.ok(boxes.indexOf("moov") < boxes.indexOf("mdat"), "faststart makes metadata available before the video payload");
+    execFileSync("ffmpeg", ["-v", "error", "-xerror", "-i", output, "-f", "null", "-"]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("silent and portrait videos remain valid without enlarging small inputs or changing their aspect", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "upload-media-test-"));
+  try {
+    for (const [width, height, rate, sar] of [[180, 320, 12, "1"], [720, 1280, 30, "1"], [720, 576, 24, "64/45"]] as const) {
+      const input = join(directory, `source-${width}-${height}.mp4`);
+      execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `color=blue:size=${width}x${height}:rate=${rate}:duration=0.5`, "-vf", `setsar=${sar}`,
+        "-c:v", "libx264", "-preset", "ultrafast", input]);
+      const normalized = await processUploadMedia(file(await readFile(input), "portrait.mp4", "video/mp4"), "video");
+      const output = join(directory, `result-${width}-${height}.mp4`); await writeFile(output, normalized.buffer);
+      const info = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_streams", "-of", "json", output], { encoding: "utf8" }));
+      assert.equal(info.streams.length, 1); const video = info.streams[0];
+      assert.ok(video.width <= width && video.height <= height && video.height <= 640);
+      assert.equal(video.width / video.height, sar === "1" ? width / height : 16 / 9);
+      assert.equal(video.sample_aspect_ratio, "1:1");
+      assert.equal(video.avg_frame_rate, `${Math.min(rate, 24)}/1`);
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("five-minute disk-backed videos retain their full soundtrack with a low bitrate even above 5 MiB", async () => {
+  assert.equal(VIDEO_MAX_DURATION_SECONDS, 300);
+  const directory = await mkdtemp(join(tmpdir(), "upload-media-test-"));
+  try {
+    const input = join(directory, "five-minutes.mp4");
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=300",
+      "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=24000:duration=300",
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-c:a", "aac", "-b:a", "64k", input]);
+    const source = new File([await openAsBlob(input)], "five-minutes.mp4", { type: "video/mp4" });
+    Object.defineProperty(source, "arrayBuffer", { value: () => { throw new Error("Large video originals must not be buffered in memory"); } });
+    const normalized = await processUploadMedia(source, "video");
+    assert.ok(normalized.buffer.length > STORED_FILE_MAX_BYTES, "valid video outputs are no longer rejected by the generic 5 MiB limit");
+    assert.ok(normalized.buffer.length < (512_000 + 32_000) * 300 / 8 + 1024 * 1024, "file size follows low video/audio bitrates plus container/buffer overhead");
+    assert.equal(normalized.mimeType, "video/mp4");
+    const output = join(directory, "result.mp4"); await writeFile(output, normalized.buffer);
+    const info = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_streams", "-show_format", "-of", "json", output], { encoding: "utf8" }));
+    const video = info.streams.find((stream: { codec_type: string }) => stream.codec_type === "video");
+    const audio = info.streams.find((stream: { codec_type: string }) => stream.codec_type === "audio");
+    assert.ok(Math.abs(Number(info.format.duration) - 300) < 0.15, "five minutes are accepted without size-based truncation");
+    assert.ok(Math.abs(Number(video.duration) - 300) < 0.15);
+    assert.ok(Math.abs(Number(audio.duration) - 300) < 0.15);
+    assert.ok(Number(video.bit_rate) < 530_000, "long clips retain the same low bitrate cap as short clips");
+    assert.equal(audio.codec_name, "aac");
+    execFileSync("ffmpeg", ["-v", "error", "-xerror", "-i", output, "-f", "null", "-"]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("video processing rejects invalid, playlist and overlong sources and cleans up every temporary file", async () => {
+  const before = (await readdir(tmpdir())).filter(name => name.startsWith(`sanlin-upload-${process.pid}-`)).sort();
+  await assert.rejects(processUploadMedia(file(Buffer.from("broken"), "bad.mp4", "video/mp4"), "video"), invalid());
+  await assert.rejects(processUploadMedia(file(wav(0.1), "audio.mp4", "video/mp4"), "video"), invalid());
+  await assert.rejects(processUploadMedia(file(Buffer.from("#EXTM3U\n#EXTINF:5,\nhttp://127.0.0.1/private.mp4\n"), "list.mp4", "video/mp4"), "video"), invalid());
+  const directory = await mkdtemp(join(tmpdir(), "upload-media-test-"));
+  try {
+    const input = join(directory, "long.mp4");
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=red:size=16x16:rate=2:duration=301", "-c:v", "libx264", input]);
+    await assert.rejects(processUploadMedia(file(await readFile(input), "long.mp4", "video/mp4"), "video"), invalid(413));
+    // Non-seekable WebM has no duration metadata. It must also be bounded and
+    // rejected after decoding instead of being silently cut to an accepted clip.
+    for (const seconds of [0.5, 301]) {
+      const source = execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `color=red:size=16x16:rate=2:duration=${seconds}`,
+        "-c:v", "libvpx", "-f", "webm", "pipe:1"]);
+      if (seconds > VIDEO_MAX_DURATION_SECONDS) await assert.rejects(processUploadMedia(file(source, "stream.webm", "video/webm"), "video"), invalid(413));
+      else assert.equal((await processUploadMedia(file(source, "stream.webm", "video/webm"), "video")).mimeType, "video/mp4");
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+  assert.deepEqual((await readdir(tmpdir())).filter(name => name.startsWith(`sanlin-upload-${process.pid}-`)).sort(), before);
 });

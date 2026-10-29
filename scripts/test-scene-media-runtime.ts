@@ -9,23 +9,25 @@ import { MediaPlayback } from '../app/manage/scenes/components/three-editor/medi
 import { EditorModels } from '../app/manage/scenes/components/three-editor/models';
 import { ModelPool } from '../app/manage/scenes/components/three-editor/model-pool';
 import type { ThreeViewportProps } from '../app/manage/scenes/components/three-editor/types';
+import { EventTargetFixture } from './test-support/performance-hosts';
 
 const instance = (): CompositionInstance => ({ id: 'video', asset: 'video', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], animation: null,
   timing: { startSeconds: 2, endSeconds: 10, fadeInSeconds: 2, fadeOutSeconds: 2 },
   media: { trimStartSeconds: 3, trimEndSeconds: 7, playbackRate: 2, volume: 0.8, loop: false, muted: false },
 });
 
-class FakeMedia {
+class FakeMedia extends EventTargetFixture {
   duration = 20; currentTime = 0; volume = 1; muted = false; playbackRate = 1; loop = false; readyState = 1; paused = true;
   plays = 0; pauses = 0; loads = 0; srcRemoved = false;
+  src = ''; preload = '';
   reject?: Error; deferred?: Promise<void>;
   play() { this.plays++; if (this.reject) return Promise.reject(this.reject); this.paused = false; return this.deferred ?? Promise.resolve(); }
   pause() { this.pauses++; this.paused = true; }
-  removeAttribute(name: string) { if (name === 'src') this.srcRemoved = true; }
+  removeAttribute(name: string) { if (name === 'src') { this.srcRemoved = true; this.src = ''; } }
   load() { this.loads++; }
 }
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
-const player = (media: FakeMedia, onError: (blocked: boolean) => void = () => {}) => new MediaPlayback(media as unknown as HTMLMediaElement, onError);
+const player = (media: FakeMedia, onError: (blocked: boolean) => void = () => {}) => new MediaPlayback(media as unknown as HTMLMediaElement, 'https://fixture.example/source.mp4', onError);
 
 test('media starts at its scene cue, maps trim/speed, fades volume and stops at the source out point', async () => {
   const media = new FakeMedia(), playback = player(media), node = instance();
@@ -41,7 +43,44 @@ test('media starts at its scene cue, maps trim/speed, fades volume and stops at 
   node.media!.muted = true;
   playback.sync(node, 5.1, false, 12); assert.equal(media.paused, true); assert.equal(media.muted, true); assert.ok(Math.abs(media.currentTime - 5.2) < 1e-10);
   playback.sync(node, 10, true, 12); assert.equal(media.paused, true, 'out cue is exclusive');
-  playback.dispose(); assert.equal(media.srcRemoved, true); assert.equal(media.loads, 1);
+  playback.dispose(); assert.equal(media.srcRemoved, true); assert.equal(media.loads, 2);
+});
+
+test('media stays unfetched outside its preload window and starts progressively after metadata at the current trim position', async () => {
+  const media = new FakeMedia(), playback = player(media), node = instance();
+  media.readyState = 0; media.duration = NaN;
+  assert.equal(media.src, '');
+  playback.sync(node, 0, false, 12, false);
+  assert.equal(media.loads, 0);
+  playback.sync(node, 1, false, 12, true);
+  assert.equal(media.src, 'https://fixture.example/source.mp4');
+  assert.equal(media.preload, 'auto'); assert.equal(media.loads, 1); assert.equal(media.plays, 0);
+  playback.sync(node, 3, true, 12, true);
+  assert.equal(media.plays, 0, 'trimmed media cannot leak audio from source start while metadata loads');
+  media.readyState = 1; media.duration = 20; media.emit('loadedmetadata'); await flush();
+  assert.equal(media.currentTime, 5); assert.equal(media.plays, 1, 'play starts before HAVE_ENOUGH_DATA or a complete download');
+  playback.sync(node, 11, true, 12, false);
+  assert.equal(media.src, ''); assert.equal(media.paused, true); assert.equal(media.preload, 'none');
+  media.emit('loadedmetadata'); await flush(); assert.equal(media.plays, 1, 'late metadata cannot revive an evicted cue');
+  playback.sync(node, 11, true, 12, true);
+  assert.equal(media.currentTime, 3, 'a cue prepared across loop wrap buffers from its trim in point');
+  playback.dispose(); assert.equal(media.listeners.get('loadedmetadata')?.size, 0);
+});
+
+test('a released pending play cannot pause or unblock a newer source load', async () => {
+  const media = new FakeMedia(), playback = player(media);
+  let finishOld!: () => void, finishNew!: () => void;
+  media.deferred = new Promise<void>(resolve => { finishOld = resolve; });
+  playback.sync(instance(), 3, true, 12, true);
+  playback.sync(instance(), 11, true, 12, false);
+  media.deferred = new Promise<void>(resolve => { finishNew = resolve; });
+  playback.sync(instance(), 3, true, 12, true);
+  finishOld(); await flush();
+  assert.equal(media.paused, false); assert.equal(media.plays, 2);
+  media.paused = true;
+  playback.sync(instance(), 3.1, true, 12, true);
+  assert.equal(media.plays, 2, 'the newer pending request remains protected');
+  finishNew(); await flush(); playback.dispose();
 });
 
 test('blocked autoplay reports once until the user pauses and retries', async () => {

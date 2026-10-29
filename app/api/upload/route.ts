@@ -10,13 +10,15 @@ import { findReusableKey, issueReceipt, receiptDto, resolveUploadScope, type Rec
 import { inferUploadType } from "@/lib/upload/detection";
 import { processUploadMedia } from "@/lib/upload/media-processing.server";
 import { getUploadSourceLimitBytes, STORED_FILE_MAX_BYTES } from "@/lib/upload/policy";
-import { readUploadForm } from "@/lib/upload/request.server";
+import { readUploadForm, type UploadForm } from "@/lib/upload/request.server";
+import { uploadProgressResponse } from "@/lib/upload/progress.server";
+import { UPLOAD_STREAM_CONTENT_TYPE, type ServerUploadStage } from "@/lib/upload/progress";
 import { ALL_UPLOAD_TYPES, type UploadType } from "@/lib/upload/types";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 
 // The browser posts originals. After authorizing the target team, the server
-// normalizes audio/images and stores only the processed bytes in OSS.
+// normalizes audio/images/videos and stores only the processed bytes in OSS.
 //
 // POST multipart/form-data { file, type?, organization_id?, workspace_id?, purpose? }
 //   → { url, contentHash, storagePath, data: UploadReceiptDto }
@@ -36,7 +38,7 @@ import { createHash } from "node:crypto";
 //     (actual deletion is deferred while object deletion is disabled).
 
 // cacheComponents keeps route handlers on the default Node.js runtime.
-export const maxDuration = 180;
+export const maxDuration = 600;
 const PURPOSES: readonly UploadPurpose[] = ["asset"];
 
 function newObjectKey(userId: string, fileName: string): string {
@@ -54,10 +56,13 @@ function formText(form: FormData | null, name: string): string | null {
 
 export async function POST(request: Request) {
   let userId: string | null = null;
+  let upload: UploadForm | undefined;
+  let ownsUpload = true;
   try {
     userId = await requireSessionUserId();
     const actor = await loadActor(db, userId);
-    const form = await readUploadForm(request);
+    upload = await readUploadForm(request);
+    const { form } = upload;
     const file = form.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "缺少文件" }, { status: 400 });
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
     const inferredType = inferUploadType(file.type, file.name);
     const type = (requestedType || inferredType) as UploadType;
     // A mislabeled media file must not bypass normalization via a generic type.
-    if ((inferredType === "audio" || inferredType === "image") && type !== inferredType && !(inferredType === "image" && type === "anchor")) {
+    if ((inferredType === "audio" || inferredType === "image" || inferredType === "video") && type !== inferredType && !(inferredType === "image" && type === "anchor")) {
       throw new ContentError("VALIDATION_FAILED", "文件内容类型与上传类型不一致");
     }
     const sourceLimit = getUploadSourceLimitBytes(type);
@@ -87,58 +92,74 @@ export async function POST(request: Request) {
     if (!organizationId && !workspaceId) throw new ContentError("VALIDATION_FAILED", "需要指定团队或地图合集");
 
     const scope = await resolveUploadScope(db, actor, { organizationId, workspaceId });
-    const { buffer, fileName, mimeType } = await processUploadMedia(file, type);
-    if (buffer.length === 0 || buffer.length > STORED_FILE_MAX_BYTES) {
-      throw new ContentError("VALIDATION_FAILED", "处理后的文件超过 5MB 限制，请缩短音频或减小图片后重试", undefined, 413);
-    }
-    const contentHash = createHash("sha256").update(buffer).digest("hex");
-    const purpose: UploadPurpose =
-      (requestedPurpose as UploadPurpose | null) ??
-      "asset";
-    const receiptInput = {
-      organizationId: scope.org.org.id,
-      workspaceId: scope.workspaceId,
-      userId: actor.userId,
-      contentHash,
-      mimeType,
-      sizeBytes: buffer.length,
-      uploadType: type,
-      purpose,
-    };
+    const finish = async (report: (stage: ServerUploadStage) => void): Promise<UploadResponse> => {
+      try {
+        report(type === "image" || type === "anchor" ? "compressingImage" : type === "audio" ? "compressingAudio" : type === "video" ? "compressingVideo" : "preparing");
+        const { buffer, fileName, mimeType } = await processUploadMedia(file, type);
+        if (buffer.length === 0) throw new ContentError("VALIDATION_FAILED", "处理后的文件为空");
+        if (type !== "video" && buffer.length > STORED_FILE_MAX_BYTES) {
+          throw new ContentError("VALIDATION_FAILED", "处理后的文件超过 5MB 限制，请缩短音频或减小文件后重试", undefined, 413);
+        }
+        report("storing");
+        const contentHash = createHash("sha256").update(buffer).digest("hex");
+        const purpose: UploadPurpose =
+          (requestedPurpose as UploadPurpose | null) ??
+          "asset";
+        const receiptInput = {
+          organizationId: scope.org.org.id,
+          workspaceId: scope.workspaceId,
+          userId: actor.userId,
+          contentHash,
+          mimeType,
+          sizeBytes: buffer.length,
+          uploadType: type,
+          purpose,
+        };
 
-    // Organization-scoped dedup. The reuse happens under the object lock the
-    // collector also takes, and the object's existence is re-verified while
-    // the lease is being written; a vanished object falls back to an upload.
-    const existingKey = await findReusableKey(db, scope.org.org.id, contentHash);
-    if (existingKey) {
-      const reused = await db
-        .transaction()
-        .execute(async (trx): Promise<ReceiptRow | null> => {
-          await lockObjectKeys(trx, [existingKey]);
-          const receipt = await issueReceipt(trx, { ...receiptInput, storageKey: existingKey, reused: true });
-          if (!(await headObject(existingKey))) throw new MissingObject();
-          return receipt;
-        })
-        .catch((error: unknown) => {
-          if (error instanceof MissingObject) return null;
-          throw error;
+        // Organization-scoped dedup. The reuse happens under the object lock the
+        // collector also takes, and the object's existence is re-verified while
+        // the lease is being written; a vanished object falls back to an upload.
+        const existingKey = await findReusableKey(db, scope.org.org.id, contentHash);
+        if (existingKey) {
+          const reused = await db
+            .transaction()
+            .execute(async (trx): Promise<ReceiptRow | null> => {
+              await lockObjectKeys(trx, [existingKey]);
+              const receipt = await issueReceipt(trx, { ...receiptInput, storageKey: existingKey, reused: true });
+              if (!(await headObject(existingKey))) throw new MissingObject();
+              return receipt;
+            })
+            .catch((error: unknown) => {
+              if (error instanceof MissingObject) return null;
+              throw error;
+            });
+          if (reused) {
+            const body: UploadResponse = { url: publicObjectUrl(existingKey), contentHash, storagePath: null, data: receiptDto(reused) };
+            return body;
+          }
+        }
+
+        const key = newObjectKey(actor.userId, fileName);
+        await putObject(key, buffer, { contentType: mimeType });
+        const receipt = await db.transaction().execute(async (trx) => {
+          await lockObjectKeys(trx, [key]);
+          return issueReceipt(trx, { ...receiptInput, storageKey: key, reused: false });
         });
-      if (reused) {
-        const body: UploadResponse = { url: publicObjectUrl(existingKey), contentHash, storagePath: null, data: receiptDto(reused) };
-        return NextResponse.json(body);
-      }
+        const body: UploadResponse = { url: publicObjectUrl(key), contentHash, storagePath: key, data: receiptDto(receipt) };
+        return body;
+      } finally { await upload!.dispose(); }
+    };
+    // The async operation owns the temp file until compression/storage finish,
+    // including after the streaming response has been returned.
+    ownsUpload = false;
+    if (request.headers.get("accept")?.includes(UPLOAD_STREAM_CONTENT_TYPE)) {
+      return uploadProgressResponse(finish, error => failure(error, { method: "POST", path: "/api/upload", userId }));
     }
-
-    const key = newObjectKey(actor.userId, fileName);
-    await putObject(key, buffer, { contentType: mimeType });
-    const receipt = await db.transaction().execute(async (trx) => {
-      await lockObjectKeys(trx, [key]);
-      return issueReceipt(trx, { ...receiptInput, storageKey: key, reused: false });
-    });
-    const body: UploadResponse = { url: publicObjectUrl(key), contentHash, storagePath: key, data: receiptDto(receipt) };
-    return NextResponse.json(body);
+    return NextResponse.json(await finish(() => {}));
   } catch (error) {
     return failure(error, { method: "POST", path: "/api/upload", userId });
+  } finally {
+    if (ownsUpload) await upload?.dispose();
   }
 }
 

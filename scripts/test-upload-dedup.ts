@@ -12,6 +12,12 @@
  * to a real OSS upload; it must not be revived.)
  */
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { openAsBlob } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readUploadEvents } from "../lib/upload/progress";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
 import sharp from "sharp";
@@ -44,7 +50,16 @@ async function main(): Promise<void> {
   const call = async (user: string | null, handler: unknown, url: string, init: RequestInit = {}, params?: Record<string, string>) => {
     auth.setStubSessionUser(user ? { id: user, email: null, name: null, emailVerified: true } : null);
     const response = await (handler as Handler)(new Request(`http://localhost${url}`, init), { params: Promise.resolve(params ?? {}) });
-    return { status: response.status, body: (await response.json()) as Body };
+    if (response.headers.get("content-type")?.includes("application/x-ndjson")) {
+      const stages: string[] = [];
+      for await (const event of readUploadEvents(response.body!)) {
+        if (event.event === "stage") stages.push(event.stage);
+        else if (event.event === "error") return { status: event.status, body: event.body as Body, stages };
+        else return { status: response.status, body: event.response as unknown as Body, stages };
+      }
+      throw new Error("Upload progress ended without a terminal result");
+    }
+    return { status: response.status, body: (await response.json()) as Body, stages: [] as string[] };
   };
   const bytes = Buffer.from(`glTF-dedup-${f.run}`);
   const hash = createHash("sha256").update(bytes).digest("hex");
@@ -55,12 +70,12 @@ async function main(): Promise<void> {
     for (const [name, value] of Object.entries(fields)) form.set(name, value);
     return call(user, upload, "/api/upload", { method: "POST", body: form });
   };
-  const sendMedia = (user: string | null, file: File, type?: string) => {
+  const sendMedia = (user: string | null, file: File, type?: string, stream = false) => {
     const form = new FormData();
     form.set("file", file);
     form.set("organization_id", f.organizations.team);
     if (type) form.set("type", type);
-    return call(user, upload, "/api/upload", { method: "POST", body: form });
+    return call(user, upload, "/api/upload", { method: "POST", body: form, ...(stream ? { headers: { Accept: "application/x-ndjson" } } : {}) });
   };
 
   try {
@@ -137,6 +152,40 @@ async function main(): Promise<void> {
     assert.equal((await sendMedia(f.users.editor, audio, "document")).status, 400, "media cannot opt out via a generic type");
     assert.equal(oss.stubObjects.size, beforeFailure, "failed processing never writes an original or issues a usable object");
     console.log("PASS >10 MiB originals, server MP3/JPEG receipts, processed-byte dedup and failed-upload isolation");
+    // Real route, processor, object double and receipts through the stream contract.
+    const videoBytes = execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=128x72:rate=12:duration=0.5", "-c:v", "libvpx", "-f", "webm", "pipe:1"]);
+    const video = new File([Uint8Array.from(videoBytes)], "clip.webm", { type: "video/webm" });
+    const streamed = await sendMedia(f.users.editor, video, "video", true);
+    assert.equal(streamed.status, 200, JSON.stringify(streamed.body));
+    assert.deepEqual(streamed.stages, ["compressingVideo", "storing"]);
+    assert.equal(streamed.body.data.mime_type, "video/mp4");
+    assert.match(streamed.body.data.storage_key, /\.mp4$/);
+    assert.equal(oss.stubObjects.get(streamed.body.data.storage_key)?.contentType, "video/mp4");
+    const againVideo = await sendMedia(f.users.editor, video, "video", true);
+    assert.equal(againVideo.body.storagePath, null);
+    assert.equal(againVideo.body.url, streamed.body.url);
+    const brokenStream = await sendMedia(f.users.editor, corrupt, "audio", true);
+    assert.equal(brokenStream.status, 400);
+    assert.deepEqual(brokenStream.stages, ["compressingAudio"]);
+    assert.equal((await sendMedia(f.users.editor, video, "document", true)).status, 400);
+    const forbiddenStream = await sendMedia(f.users.viewer, video, "video", true);
+    assert.equal(forbiddenStream.status, 403);
+    assert.deepEqual(forbiddenStream.stages, [], "authorization precedes streaming and compression");
+    console.log("PASS streamed compression/storage stages, MP4 receipts/dedup and stream error status/auth guards");
+    const videoDirectory = await mkdtemp(join(tmpdir(), "upload-route-video-"));
+    try {
+      const input = join(videoDirectory, "five-minutes.mp4");
+      execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=300",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=24000:duration=300",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-c:a", "aac", "-b:a", "64k", input]);
+      const longVideo = new File([await openAsBlob(input)], "five-minutes.mp4", { type: "video/mp4" });
+      const delivered = await sendMedia(f.users.editor, longVideo, "video", true);
+      assert.equal(delivered.status, 200, JSON.stringify(delivered.body));
+      assert.deepEqual(delivered.stages, ["compressingVideo", "storing"]);
+      assert.ok(delivered.body.data.size_bytes > 5 * 1024 * 1024, "a valid low-bitrate video is not rejected by the non-video 5 MiB limit");
+      assert.equal(oss.stubObjects.get(delivered.body.data.storage_key)?.size, delivered.body.data.size_bytes);
+      console.log("PASS five-minute video above 5 MiB reaches storage and receives its complete upload receipt");
+    } finally { await rm(videoDirectory, { recursive: true, force: true }); }
   } finally {
     try {
       await client.query("delete from error_log where user_id=any($1::uuid[])", [Object.values(f.users)]);

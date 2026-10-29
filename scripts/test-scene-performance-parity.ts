@@ -105,16 +105,25 @@ async function main() {
           }
         }
         for (const media of hosts.browserMedia) {
-          const file = media.src.split('/').at(-1)!;
+          const file = media.lastSource.split('/').at(-1)!;
+          if (!file || !media.src) continue;
           const instanceId = file.split('.')[0];
           const surface = player.instances.find((entry: { id: string }) => entry.id === instanceId).surface;
           const driftTolerance = session.playing ? .15 : .015;
           if (surface.audio) near(surface.audio.sourceTime, media.currentTime, `${label} ${file} requested audio time`, driftTolerance);
           if (surface.video) {
             near(surface.video.sourceTime, media.currentTime, `${label} ${file} requested video time`, driftTolerance);
-            const decoder = hosts.decoders.find(decoder => decoder.source.endsWith(file))!;
+            const decoder = hosts.decoders.findLast(decoder => !decoder.removed && decoder.source.endsWith(file))!;
             near(decoder.currentTime, media.currentTime, `${label} ${file} decoded frame time`, 1 / 30);
             assert.ok(surface.materials[0].map?.image.data.length > 0, 'decoded video pixels uploaded to the real native material');
+          }
+          const nativeAudio = hosts.innerAudio.findLast(audio => !audio.destroyed && audio.source.endsWith(file));
+          if (nativeAudio) {
+            assert.equal(nativeAudio.paused, media.paused, `${label} ${file} native streaming playback`);
+            near(nativeAudio.currentTime, media.currentTime, `${label} ${file} streamed audio time`, .2);
+            near(nativeAudio.playbackRate, media.playbackRate, `${label} ${file} streamed audio rate`);
+            near(nativeAudio.volume, media.muted ? 0 : media.volume, `${label} ${file} streamed audio fade`);
+            continue;
           }
           const factor = media.playbackRate > 2 ? 2 : 1;
           const nativeSources = hosts.audioContexts.flatMap(context => context.sources).filter(source => factor === 2 ? source.buffer?.duration === 10 : source.buffer?.source.endsWith(file));
@@ -152,7 +161,7 @@ async function main() {
       assert.ok(hosts.audioContexts.every(context => context.sources.every(source => !source.started || source.stopped)));
       session.play(loop); player.play(); await compare('resume');
       // A late asynchronous native failure must silence/release the entire performance.
-      hosts.decoders[0].failNextSeek = true; player.seek(4); await settleMedia();
+      hosts.decoders.findLast(decoder => !decoder.removed)!.failNextSeek = true; player.seek(4); await settleMedia();
       assert.equal(player.state, 'error', 'decoder failure transitions the real player to error');
       assert.match(player.diagnostics.message, /Injected decoder seek failure/);
       assert.equal(player.root.children.length, 0, 'runtime error detaches every instance');
@@ -163,6 +172,7 @@ async function main() {
       assert.ok(hosts.browserMedia.every(media => media.released && media.paused), 'Web media stopped and detached');
       assert.ok(hosts.decoders.every(decoder => decoder.removed && !decoder.started), 'native decoders removed');
       assert.ok(hosts.audioContexts.every(context => context.closed && context.sources.every(source => source.stopped)), 'native audio contexts and scheduled sources released');
+      assert.ok(hosts.innerAudio.every(audio => audio.destroyed && audio.paused), 'native streaming audio released');
       assert.equal(hosts.files.size, 0, 'native temporary downloads released');
     } finally { models.dispose(); session.dispose(); player.dispose(); cache.dispose(); hosts.restore(); }
   }

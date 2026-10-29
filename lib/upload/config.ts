@@ -87,7 +87,7 @@ export const FILE_TYPE_CONFIGS: Record<UploadType, FileTypeConfig> = {
   },
 };
 
-/** Final stored size, retained for callers; originals have separate limits. */
+/** Final non-video size; videos use bitrate/duration, originals have separate limits. */
 export const STORAGE_MAX_FILE_SIZE_MB = STORED_FILE_MAX_BYTES / 1024 / 1024;
 
 /** Original-file size accepted before server-side compression. */

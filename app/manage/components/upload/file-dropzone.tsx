@@ -96,6 +96,7 @@ export function FileDropzone({
                 type="button"
                 variant="ghost"
                 size="sm"
+                disabled={disabled}
                 onClick={(e) => {
                   e.stopPropagation();
                   onFileRemove();

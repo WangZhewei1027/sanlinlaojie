@@ -24,8 +24,13 @@
 	}
 	encode zstd gzip
 
-	# 32 MiB originals plus multipart overhead; the app enforces tighter bounds.
-	request_body {
+	# Video originals: 512 MiB; multipart: 513 MiB. Caddy MB is decimal.
+	@large_upload path /api/upload /api/upload/
+	request_body @large_upload {
+		max_size 540MB
+	}
+	@ordinary_request not path /api/upload /api/upload/
+	request_body @ordinary_request {
 		max_size 35MB
 	}
 

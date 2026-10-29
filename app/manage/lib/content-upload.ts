@@ -18,6 +18,7 @@ import type {
 import type { LinkAssetData } from "@/lib/link-asset";
 import { FILE_TYPE_CONFIGS, getEffectiveMaxSizeMB, validateFileSize } from "@/lib/upload/config";
 import { FileUploadService } from "@/lib/upload/service";
+import type { UploadStageListener } from "@/lib/upload/progress";
 import type { UploadType } from "@/lib/upload/types";
 import { uploadReceipt, type UploadScope } from "./content-api";
 
@@ -102,7 +103,7 @@ export interface UploadedAssetInput {
  * content passes only the organization; a collection is added solely for
  * upload-and-place on the map or onsite.
  */
-export async function uploadAssetFiles(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal): Promise<UploadedAssetInput> {
-  const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset", signal });
+export async function uploadAssetFiles(prepared: PreparedFile, scope: UploadScope, signal?: AbortSignal, onStage?: UploadStageListener): Promise<UploadedAssetInput> {
+  const receipt = await uploadReceipt(prepared.file, { ...scope, type: prepared.type, purpose: "asset", signal, onStage });
   return { payload: filePayload(prepared), resources: [{ role: prepared.type === "anchor" ? "reference" : "primary", receiptId: receipt.id }], receipts: [receipt] };
 }

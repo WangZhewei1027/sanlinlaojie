@@ -1,15 +1,18 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { ContentError } from "@/lib/content-model/errors";
 import { MAX_MATCH_IMAGE_BYTES } from "@/lib/anchor-matching";
 import { runMediaCommand } from "./media-command.server";
-import { STORED_FILE_MAX_BYTES } from "./policy";
+import { STORED_FILE_MAX_BYTES, VIDEO_MAX_DURATION_SECONDS } from "./policy";
 import type { UploadType } from "./types";
 import "server-only";
 
 const MAX_AUDIO_SECONDS = 600;
+const MAX_VIDEO_PIXELS = 16_777_216;
 const IMAGE_PROFILES = {
   image: { targetBytes: 80 * 1024, steps: [[1024, 50], [768, 40]] },
   anchor: { targetBytes: 256 * 1024, steps: [[1280, 65], [1024, 50]] },
@@ -18,6 +21,7 @@ const IMAGE_OPTIONS = { limitInputPixels: 60_000_000, failOn: "warning", animate
 // Exclude playlists, devices and protocols which could follow attacker-controlled
 // URLs or paths. MOV external data references remain disabled by FFmpeg's default.
 const AUDIO_INPUT_OPTIONS = ["-protocol_whitelist", "file", "-format_whitelist", "mp3,wav,flac,ogg,aac,mov,matroska,webm,amr,aiff,asf,caf"];
+const VIDEO_INPUT_OPTIONS = ["-protocol_whitelist", "file", "-format_whitelist", "mov,matroska,webm,avi"];
 let activeJobs = 0;
 
 export interface ProcessedUploadMedia {
@@ -84,6 +88,82 @@ async function transcodeAudio(buffer: Buffer, name: string): Promise<ProcessedUp
   }
 }
 
+
+interface VideoInfo {
+  duration: number | null;
+  width: number;
+  height: number;
+  frameRate: number;
+}
+
+async function videoInfo(path: string): Promise<VideoInfo> {
+  const output = await runMediaCommand("ffprobe", ["-v", "error", ...VIDEO_INPUT_OPTIONS, "-select_streams", "V:0",
+    "-show_entries", "stream=width,height,duration,avg_frame_rate:format=duration", "-of", "json", path], "video");
+  let data: unknown;
+  try { data = JSON.parse(output); } catch { throw new ContentError("VALIDATION_FAILED", "无法读取视频信息"); }
+  const info = record(data);
+  const stream = Array.isArray(info?.streams) ? record(info.streams[0]) : undefined;
+  const width = Number(stream?.width), height = Number(stream?.height);
+  if (!stream || !Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2)
+    throw new ContentError("VALIDATION_FAILED", "视频不含有效画面");
+  if (width * height > MAX_VIDEO_PIXELS)
+    throw new ContentError("VALIDATION_FAILED", "视频分辨率不能超过 1600 万像素", undefined, 413);
+  const duration = [stream.duration, record(info?.format)?.duration]
+    .map(Number).filter(value => Number.isFinite(value) && value > 0);
+  const [numerator, denominator] = String(stream.avg_frame_rate).split("/").map(Number);
+  const rate = numerator / denominator;
+  return { duration: duration.length ? Math.max(...duration) : null, width, height,
+    frameRate: Number.isFinite(rate) && rate > 0 ? Math.min(24, rate) : 24 };
+}
+
+async function transcodeVideo(file: File): Promise<ProcessedUploadMedia> {
+  const directory = await mkdtemp(join(tmpdir(), `sanlin-upload-${process.pid}-`));
+  try {
+    const input = join(directory, "input"), output = join(directory, "output.mp4");
+    // Video originals can be 512 MiB. Preserve the parser's disk-backed source
+    // and use backpressure instead of materializing a second full-file Buffer.
+    const reader = file.stream().getReader();
+    try {
+      await pipeline((async function* () {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) return;
+          yield value;
+        }
+      })(), createWriteStream(input, { flags: "wx" }));
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+    const source = await videoInfo(input);
+    if (source.duration !== null && source.duration > VIDEO_MAX_DURATION_SECONDS)
+      throw new ContentError("VALIDATION_FAILED", "视频时长不能超过 5 分钟，请截取需要的片段后重试", undefined, 413);
+    await runMediaCommand("ffmpeg", ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-xerror",
+      ...VIDEO_INPUT_OPTIONS, "-err_detect", "explode", "-threads", "1", "-i", input,
+      "-map", "0:V:0", "-map", "0:a:0?", "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
+      "-vf", "scale=w='max(2,trunc(min(min(iw*sar,640),640*dar)/2)*2)':h='max(2,trunc(min(min(ih,640),640/dar)/2)*2)',setsar=1",
+      "-r", String(source.frameRate), "-c:v", "libx264", "-preset", "veryfast", "-crf", "32",
+      "-maxrate", "512k", "-bufsize", "1024k", "-pix_fmt", "yuv420p", "-profile:v", "main", "-level:v", "3.1",
+      "-g", String(Math.max(1, Math.round(source.frameRate * 2))), "-threads", "1", "-filter_threads", "1",
+      "-c:a", "aac", "-b:a", "32k", "-ar", "24000", "-ac", "1",
+      // Bound unknown-duration inputs, then reject the overlong result. No -fs:
+      // a size cutoff could silently turn a valid upload into a truncated clip.
+      "-t", String(VIDEO_MAX_DURATION_SECONDS + 1), "-movflags", "+faststart", output], "video");
+    const size = (await stat(output)).size;
+    if (size === 0) throw new ContentError("VALIDATION_FAILED", "处理后的视频为空，请检查文件后重试");
+    const result = await videoInfo(output);
+    if (result.duration === null) throw new ContentError("VALIDATION_FAILED", "无法读取处理后的视频时长");
+    if (result.duration > VIDEO_MAX_DURATION_SECONDS + 0.1)
+      throw new ContentError("VALIDATION_FAILED", "视频时长不能超过 5 分钟，请截取需要的片段后重试", undefined, 413);
+    // One output frame plus AAC padding can move a container boundary slightly.
+    if (source.duration !== null && result.duration + 0.15 < source.duration)
+      throw new ContentError("VALIDATION_FAILED", "视频未能完整处理，请检查文件后重试");
+    return { buffer: await readFile(output), fileName: outputName(file.name, "mp4"), mimeType: "video/mp4" };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 async function compressImage(buffer: Buffer, name: string, anchor: boolean): Promise<ProcessedUploadMedia> {
   try {
     const metadata = await sharp(buffer, IMAGE_OPTIONS).metadata();
@@ -118,13 +198,15 @@ async function compressImage(buffer: Buffer, name: string, anchor: boolean): Pro
 
 /** Receipts and hashes must describe these final bytes, never the source file. */
 export async function processUploadMedia(file: File, type: UploadType): Promise<ProcessedUploadMedia> {
-  if (!["audio", "image", "anchor"].includes(type))
+  if (!["audio", "image", "anchor", "video"].includes(type))
     return { buffer: Buffer.from(await file.arrayBuffer()), fileName: file.name, mimeType: file.type || "application/octet-stream" };
   if (activeJobs >= 2) throw new ContentError("VALIDATION_FAILED", "文件处理繁忙，请稍后重试", undefined, 429);
   activeJobs++;
   try {
+    if (type === "video") return await transcodeVideo(file);
     const buffer = Buffer.from(await file.arrayBuffer());
-    return type === "audio" ? await transcodeAudio(buffer, file.name) : await compressImage(buffer, file.name, type === "anchor");
+    if (type === "audio") return await transcodeAudio(buffer, file.name);
+    return await compressImage(buffer, file.name, type === "anchor");
   } finally {
     activeJobs--;
   }

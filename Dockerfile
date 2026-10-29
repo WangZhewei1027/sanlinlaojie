@@ -24,7 +24,7 @@ RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-# Uploads normalize audio with FFmpeg; sharp supplies the image processing runtime.
+# Uploads normalize audio/video with FFmpeg; sharp supplies the image processing runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production \
@@ -34,6 +34,7 @@ ENV NODE_ENV=production \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --chown=node:node scripts/standalone-http.cjs ./
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "--require", "./standalone-http.cjs", "server.js"]

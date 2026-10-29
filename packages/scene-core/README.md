@@ -17,7 +17,11 @@ GLB clips remain Three.AnimationMixer's responsibility; `clipTime` shares their 
 `samplePresentation(instance, time, sceneDuration)` supplies timed visibility and the shared
 fade envelope. `mediaTime(time, settings, timing, sourceDuration)` maps scene time to trimmed,
 rate-adjusted, optionally looping source-media seconds. Untimed legacy nodes stay visible at
-the final scene time. These helpers do not fetch or play media.
+the final scene time. `mediaPreloadIds(mediaInstances, time, sceneDuration, loop)` selects
+all current cues and the nearest two upcoming cues within five scene seconds, including
+loop wrap. Pass only audio/video nodes; the hosts prepare remote streams for these IDs
+and release them when they leave the window. `core.looping` reports the selected loop
+mode, including a `play(loop)` override. These helpers do not fetch or play media.
 Scene documents must pass the server validator before playback. Audio rendering, script execution,
 editor undo, asset fetch and AR tracking are intentionally outside this small package.
 
@@ -32,7 +36,7 @@ Update the mini-program snapshot from the Web repository:
 ```sh
 npm pack ./packages/scene-core --pack-destination ../xr-frame-plant-trees/vendor
 cd ../xr-frame-plant-trees
-npm install --ignore-scripts ./vendor/spatial-memory-scene-core-2.2.0.tgz
+npm install --ignore-scripts ./vendor/spatial-memory-scene-core-2.3.0.tgz
 npm run build:scene-core
 npm run test:scene-memory
 ```

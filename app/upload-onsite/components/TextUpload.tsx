@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
 
 interface TextUploadProps {
+  progressLabel?: string;
   onUpload: (text: string) => Promise<void>;
   disabled: boolean;
 }
 
-export function TextUpload({ onUpload, disabled }: TextUploadProps) {
+export function TextUpload({ onUpload, disabled, progressLabel }: TextUploadProps) {
   const { t } = useTranslation();
   const [textContent, setTextContent] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -46,12 +47,13 @@ export function TextUpload({ onUpload, disabled }: TextUploadProps) {
         size="lg"
         className="w-full"
         onClick={handleUpload}
+        aria-live="polite"
         disabled={uploading || !textContent.trim() || disabled}
       >
         {uploading ? (
           <>
             <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-            {t("onsite.uploading")}
+            {progressLabel ?? t("onsite.uploading")}
           </>
         ) : (
           <>

@@ -87,11 +87,11 @@ export function resourceSurface(kind: Exclude<SceneResourceKind, 'model'>, url: 
   }
   const element = document.createElement(kind === 'video' ? 'video' : 'audio');
   element.crossOrigin = 'anonymous';
-  element.preload = 'auto';
-  // WeChat WebAudio resamples audio when changing speed; keep pitch semantics equal.
+  // Preserve the editor's existing speed-and-pitch behavior. Native mobile stream
+  // players expose rate but do not guarantee a matching pitch-preservation switch.
   element.preservesPitch = false;
   if (kind === 'video') (element as HTMLVideoElement).playsInline = true;
-  const media = new MediaPlayback(element, onError);
+  const media = new MediaPlayback(element, url, onError);
   const failed = () => { if (!closed) onError(); };
   element.addEventListener('error', failed);
   let texture: VideoTexture | undefined;
@@ -110,8 +110,6 @@ export function resourceSurface(kind: Exclude<SceneResourceKind, 'model'>, url: 
     for (const radius of [0.22, 0.34]) object.add(new Mesh(new TorusGeometry(radius, 0.012, 6, 36), material));
     object.position.y = 0.34;
   }
-  element.src = url;
-  element.load();
   const result = surface(object, materials, texture, media);
   result.audioMarker = kind === 'audio';
   const dispose = result.dispose;

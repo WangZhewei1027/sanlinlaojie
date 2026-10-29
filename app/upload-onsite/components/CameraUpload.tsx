@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
 
 interface CameraUploadProps {
+  progressLabel?: string;
   onUpload: (
     imageData: string,
     title?: string,
@@ -16,7 +17,7 @@ interface CameraUploadProps {
   disabled: boolean;
 }
 
-export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
+export function CameraUpload({ onUpload, disabled, progressLabel }: CameraUploadProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -175,12 +176,13 @@ export function CameraUpload({ onUpload, disabled }: CameraUploadProps) {
               size="lg"
               className="w-full"
               onClick={handleUpload}
+        aria-live="polite"
               disabled={uploading || disabled}
             >
               {uploading ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  {t("onsite.uploading")}
+                  {progressLabel ?? t("onsite.uploading")}
                 </>
               ) : (
                 <>

@@ -10,9 +10,12 @@ import { Camera, Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { acceptFor, fileTypeOf, linkPayload, prepareFile, textPayload, uploadAssetFiles, type PreparedFile, type UploadedAssetInput } from "../../lib/content-upload";
+import { useUploadStageText } from "../../lib/upload-stage-text";
+import type { UploadStage } from "@/lib/upload/progress";
 import { usePlacementStore } from "../../lib/placement-store";
 import { FieldLabel } from "../AssetEditor/FieldLabel";
 import { AssetLinkPreview } from "../AssetEditor/previews/AssetLinkPreview";
+import { VideoUploadHint } from "../upload/VideoUploadHint";
 import { FileDropzone } from "../upload/file-dropzone";
 import { FileTypeSelector } from "../upload/file-type-selector";
 import { PlacementLocationFields } from "./PlacementLocationFields";
@@ -37,6 +40,8 @@ export function UploadAndPlaceForm() {
   const [file, setFile] = useState<File | null>(null);
   const [prepared, setPrepared] = useState<PreparedFile | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [stage, setStage] = useState<UploadStage | null>(null);
+  const stageText = useUploadStageText();
   const [text, setText] = useState("");
   const [link, setLink] = useState("");
   const [name, setName] = useState("");
@@ -93,15 +98,18 @@ export function UploadAndPlaceForm() {
     if (type === "link" && !linkState.data) return setProblem(linkState.errorKey ? t(linkState.errorKey) : tx("contentModel.integration.map.create.linkRequired"));
     const assetName = name.trim() || (isFile ? file?.name ?? "" : type === "text" ? text.trim().slice(0, 40) : linkState.data?.originalUrl ?? "");
 
+    setStage("creating");
     const created = await create.submit(async () => {
       if (type === "text") return { asset: { name: assetName, fileType: "text", payload: textPayload(text.trim()), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (type === "link") return { asset: { name: assetName, fileType: "link", payload: linkPayload(linkState.data!, name.trim() || undefined), resources: [] }, name: name.trim() || undefined, location: point, status: "active" };
       if (!uploaded.current || uploaded.current.source !== prepared) {
-        uploaded.current = { source: prepared!, input: await uploadAssetFiles(prepared!, { organizationId, workspaceId }) };
+        uploaded.current = { source: prepared!, input: await uploadAssetFiles(prepared!, { organizationId, workspaceId }, undefined, setStage) };
       }
+      setStage("creating");
       const { payload, resources } = uploaded.current.input;
       return { asset: { name: assetName, fileType: fileTypeOf(prepared!.type), payload, resources }, name: name.trim() || undefined, location: point, status: "active" };
     });
+    setStage(null);
     if (created) reset();
   };
 
@@ -109,7 +117,8 @@ export function UploadAndPlaceForm() {
     <div className="space-y-4">
       <FileTypeSelector selectedType={type} types={types} onTypeChange={(next) => { setType(next); reset(); }} />
       {isFile && <FileDropzone file={file} accept={acceptFor(type)} onFileSelect={(next) => void selectFile(next)} onFileRemove={() => { setFile(null); setPrepared(null); uploaded.current = null; }} disabled={create.pending} />}
-      {preparing && <Text as="p" variant="bodySm" tone="subdued">{tx("contentModel.integration.map.create.preparing")}</Text>}
+      {type === "video" && <VideoUploadHint />}
+      {preparing && <Text as="p" variant="bodySm" tone="subdued">{stageText("preparing")}</Text>}
       {type === "text" && (
         <div className="space-y-1">
           <FieldLabel htmlFor="upload-place-text">{tx("contentModel.integration.map.create.text")}</FieldLabel>
@@ -139,9 +148,9 @@ export function UploadAndPlaceForm() {
         )}
       />
       {(problem || create.error) && <Text as="p" variant="bodySm" tone="critical" role="alert">{problem ?? create.error}</Text>}
-      <Button className="w-full" variant={editorOpen ? "secondary" : "default"} onClick={submit} disabled={create.pending || preparing}>
+      <Button aria-live="polite" className="w-full" variant={editorOpen ? "secondary" : "default"} onClick={submit} disabled={create.pending || preparing}>
         {create.pending && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />}
-        {tx("contentModel.integration.map.create.uploadAction")}
+        {create.pending ? stageText(stage ?? "creating") : tx("contentModel.integration.map.create.uploadAction")}
       </Button>
     </div>
   );

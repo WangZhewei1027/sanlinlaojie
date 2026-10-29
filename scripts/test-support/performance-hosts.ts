@@ -36,13 +36,40 @@ export class ImageFixture extends EventTargetFixture {
 export class BrowserMediaFixture extends EventTargetFixture {
   duration = 20; currentTime = 0; volume = 1; muted = false; playbackRate = 1; loop = false; readyState = 4; paused = true;
   videoWidth = 8; videoHeight = 4; crossOrigin = ''; preload = ''; playsInline = false;
-  src = ''; plays = 0; loads = 0; released = false;
+  source = ''; lastSource = ''; plays = 0; loads = 0; released = false;
+  set src(value: string) { this.source = value; if (value) this.lastSource = value; }
+  get src() { return this.source; }
   constructor(readonly kind: 'audio' | 'video') { super(); }
   load() { this.loads++; queueMicrotask(() => { this.emit('loadedmetadata'); this.emit('canplay'); }); }
   play() { this.plays++; this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
   removeAttribute(name: string) { if (name === 'src') { this.src = ''; this.released = true; } }
   tick(seconds: number) { if (!this.paused) this.currentTime = Math.min(this.duration, this.currentTime + seconds * this.playbackRate); }
+}
+
+export class InnerAudioFixture extends EventTargetFixture {
+  source = ''; currentTime = 0; duration = 20; paused = true; destroyed = false;
+  autoplay = false; loop = false; volume = 0; startTime = 0; playbackRate = 1;
+  set src(value: string) { this.source = value; this.currentTime = this.startTime; queueMicrotask(() => this.emit('canplay')); }
+  play() { this.paused = false; }
+  pause() { this.paused = true; }
+  destroy() { this.destroyed = true; this.paused = true; }
+  seek(time: number) { this.currentTime = time; queueMicrotask(() => this.emit('seeked')); }
+  onCanplay(callback: () => void) { this.on('canplay', callback); }
+  offCanplay(callback: () => void) { this.off('canplay', callback); }
+  onSeeked(callback: () => void) { this.on('seeked', callback); }
+  offSeeked(callback: () => void) { this.off('seeked', callback); }
+  onEnded(callback: () => void) { this.on('ended', callback); }
+  offEnded(callback: () => void) { this.off('ended', callback); }
+  onError(callback: () => void) { this.on('error', callback); }
+  offError(callback: () => void) { this.off('error', callback); }
+  tick(seconds: number) { if (!this.paused && !this.destroyed) this.currentTime = Math.min(this.duration, this.currentTime + seconds * this.playbackRate); }
+}
+function mp4Fixture() {
+  function box(type: string, ...children: Buffer[]) { const payload = Buffer.concat(children), bytes = Buffer.alloc(8 + payload.length); bytes.writeUInt32BE(bytes.length); bytes.write(type, 4); payload.copy(bytes, 8); return bytes; }
+  const mvhd = Buffer.alloc(20); mvhd.writeUInt32BE(1000, 12); mvhd.writeUInt32BE(20000, 16);
+  const hdlr = Buffer.alloc(12); hdlr.write('soun', 8);
+  return Buffer.concat([box('ftyp', Buffer.alloc(8)), box('moov', box('mvhd', mvhd), box('trak', box('mdia', box('hdlr', hdlr))))]);
 }
 
 export class GainFixture {
@@ -97,7 +124,7 @@ export class VideoDecoderFixture extends EventTargetFixture {
 
 export function performanceHosts() {
   const browserMedia: BrowserMediaFixture[] = [], browserCanvases: CanvasFixture[] = [], miniCanvases: CanvasFixture[] = [];
-  const audioContexts: AudioContextFixture[] = [], decoders: VideoDecoderFixture[] = [];
+  const audioContexts: AudioContextFixture[] = [], decoders: VideoDecoderFixture[] = [], innerAudio: InnerAudioFixture[] = [];
   const files = new Set<string>();
   const document = {
     createElement(name: string) {
@@ -110,6 +137,11 @@ export function performanceHosts() {
   const wx = {
     env: { USER_DATA_PATH: '/performance-fixture' },
     createOffscreenCanvas() { const canvas = new CanvasFixture(); miniCanvases.push(canvas); return canvas; },
+    createInnerAudioContext() { const audio = new InnerAudioFixture(); innerAudio.push(audio); return audio; },
+    request({ header, success }: { header: { Range: string }; success(value: unknown): void }) {
+      const match = /bytes=(\d+)-(\d+)/.exec(header.Range)!; const bytes = mp4Fixture().subarray(Number(match[1]), Number(match[2]) + 1);
+      queueMicrotask(() => success({ statusCode: 206, data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) })); return { abort() {} };
+    },
     createWebAudioContext() { const context = new AudioContextFixture(); audioContexts.push(context); return context; },
     createVideoDecoder() { const decoder = new VideoDecoderFixture(); decoders.push(decoder); return decoder; },
     getVideoInfo({ src, success }: { src: string; success(value: unknown): void }) { queueMicrotask(() => success({ duration: 20, width: 8, height: 4, type: 'mp4', size: 1, source: src })); },
@@ -122,9 +154,9 @@ export function performanceHosts() {
   const descriptors = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), wx: Object.getOwnPropertyDescriptor(globalThis, 'wx') };
   Object.defineProperty(globalThis, 'document', { configurable: true, value: document });
   Object.defineProperty(globalThis, 'wx', { configurable: true, value: wx });
-  return { browserMedia, browserCanvases, miniCanvases, audioContexts, decoders, files, canvas: new CanvasFixture(),
-    tick(seconds: number) { browserMedia.forEach(media => media.tick(seconds)); audioContexts.forEach(context => { context.currentTime += seconds; context.sources.forEach(source => source.tick()); }); },
+  return { browserMedia, browserCanvases, miniCanvases, audioContexts, innerAudio, decoders, files, canvas: new CanvasFixture(),
+    tick(seconds: number) { browserMedia.forEach(media => media.tick(seconds)); innerAudio.forEach(media => media.tick(seconds)); audioContexts.forEach(context => { context.currentTime += seconds; context.sources.forEach(source => source.tick()); }); },
     restore() { for (const [key, descriptor] of Object.entries(descriptors)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); } },
   };
 }
-export async function settleMedia() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
+export async function settleMedia() { for (let i = 0; i < 100; i++) await Promise.resolve(); }

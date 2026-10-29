@@ -16,6 +16,7 @@ import { runContentAction } from "@/app/manage/lib/content-errors";
 import { useIntegrationText } from "@/app/manage/lib/integration-text";
 import { bodyForIntent, contentSignature, intentFor, settleFailure, type UploadIntent, type UploadStage } from "./asset-upload";
 import { AssetContentField, contentOf, defaultNameFor, type CreatableType, type DraftContent } from "./AssetContentField";
+import { useUploadStageText } from "@/app/manage/lib/upload-stage-text";
 import { ASSET_TEXTS } from "./texts";
 
 export interface AssetCreateDialogProps {
@@ -35,6 +36,7 @@ const EMPTY_DRAFT: DraftContent = { file: null, text: "" };
 export function AssetCreateDialog({ open, onOpenChange, organizationId, teamName, types, onCreated }: AssetCreateDialogProps) {
   const { t } = useTranslation();
   const tx = useIntegrationText(ASSET_TEXTS);
+  const stageText = useUploadStageText();
   const ids = { type: useId(), name: useId() };
   const [type, setType] = useState<CreatableType>(types[0] ?? "image");
   const [draft, setDraft] = useState<DraftContent>(EMPTY_DRAFT);
@@ -130,7 +132,7 @@ export function AssetCreateDialog({ open, onOpenChange, organizationId, teamName
           </div>
 
           {stage && (
-            <Text as="p" variant="bodySm" tone="subdued" aria-live="polite">{tx(`contentModel.integration.assets.create.${stage}`)}</Text>
+            <Text as="p" variant="bodySm" tone="subdued" aria-live="polite">{stageText(stage)}</Text>
           )}
           {action.failure && <ContentFailureNotice failure={action.failure} />}
 
@@ -138,7 +140,7 @@ export function AssetCreateDialog({ open, onOpenChange, organizationId, teamName
             <Button type="button" variant="outline" onClick={() => close(false)} disabled={action.pending}>{tx("contentModel.integration.assets.create.cancel")}</Button>
             <Button type="submit" disabled={!content || !name.trim() || action.pending}>
               {action.pending && <Loader2 className="animate-spin" aria-hidden />}
-              {tx(action.failure ? "contentModel.integration.assets.create.retry" : "contentModel.integration.assets.create.submit")}
+              {stage ? stageText(stage) : tx(action.failure ? "contentModel.integration.assets.create.retry" : "contentModel.integration.assets.create.submit")}
             </Button>
           </DialogFooter>
         </form>

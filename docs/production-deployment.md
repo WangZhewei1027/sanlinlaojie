@@ -131,7 +131,7 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 
 - 管理与扫码：客户端 → Caddy → Next.js → PostgreSQL。素材和 Scene 保存即生效，引用通过 ID 读取当前内容。
 - 文件：浏览器上传原文件 → Next.js `/api/upload` 授权并压缩/转码 → OSS；浏览器和小程序按最终媒体 URL 加载文件，网页部分图片也经过 Next.js 图片优化接口。Docker runner 包含 FFmpeg/ffprobe，sharp 随服务端依赖打包；缺少转码运行时会拒绝音频上传，不保存未转换文件。
-- 图片/匹配图/音频原文件最大 32 MiB，最终对象最大 5 MiB；multipart 上限 33 MiB，Next proxy 缓冲为 34 MiB，主/备用 Caddy 入口均为 35 MB。发布该变更时需要重建应用镜像并加载配套 Caddy 配置，不能仅替换客户端资源。
+- 视频原文件最大 512 MiB / 5 分钟，图片/匹配图/音频最大 32 MiB。视频最终大小按 512 kbps 视频 + 32 kbps 音频控制，不再限制 5 MiB；其他素材最终对象仍最大 5 MiB。multipart 上限 513 MiB；上传端点绕过 Next proxy 请求体复制并流式落盘，路由继续校验会话和团队权限。主/备用 Caddy 仅对 `/api/upload` 开放 540 MB（十进制），其他请求仍为 35 MB。生产启动预加载 `scripts/standalone-http.cjs`，将 Node 接收请求期限从 5 分钟提高至 15 分钟，保留请求头 60 秒期限；视频编码最多 300 秒。发布需要重建镜像并加载配套 Caddy 配置，不能仅替换客户端资源。
 - 识别：小程序 → Next.js 识别接口 → SAGE 网关 → PAI-EAS 返回向量 → 后端匹配并返回结果。
 - Google 登录：浏览器访问 Google 授权页 → 浏览器回调 Caddy / Next.js → 香港 FC → Google 令牌与公钥接口 → Next.js 验签并在 PostgreSQL 中创建或关联账号、保存会话。
 
@@ -161,6 +161,14 @@ SMTP 邮件发送是可选功能，核对时未配置 `SMTP_HOST` / `SMTP_FROM`�
 部署配置索引：[`Dockerfile`](../Dockerfile)、[`docker-compose.yml`](../deploy/docker-compose.yml)、[`Caddyfile`](../deploy/Caddyfile)、[`env.example`](../deploy/env.example)。密钥、服务器 `.env`、SAGE 私有注册表和数据库 dump 均不提交 Git。
 
 pgAdmin 的首次 secret 和数据库角色需按 [部署说明](pgadmin.md) 初始化；后续 Web 部署同步其公开配置与镜像，保留账号配置卷和私有凭据。
+
+### OSS 媒体跨域与浏览器缓存（2026-10-29）
+
+素材桶 `sanlinlaojie-media` 的 CORS 保留现有规则：来源 `*`，方法 `GET` / `HEAD`，允许请求头 `*`，暴露 `ETag` / `Content-Length`，预检缓存 86400 秒；已开启 `ResponseVary=true`。此设置让包括非跨域请求在内的响应都返回 `Vary: Origin`，避免普通素材预览与场景的 `crossOrigin="anonymous"` 请求错误复用缓存。此规则只允许跨域读取，不允许浏览器跨域上传或删除。
+
+这次在 Chrome 复现了原音频 URL 加载失败，而同一文件使用新缓存键可以播放；仅重新获取该音频的缓存后，原 URL 也恢复。音频文件和编码没有修改。修改 CORS 配置不会自动失效浏览器已经缓存的旧响应；遇到旧页面仍报缺少 `Access-Control-Allow-Origin`，先保存未保存的场景，再重新加载；必要时在开发者工具禁用缓存后刷新一次。不要通过移除视频的 `crossOrigin` 来处理，WebGL 视频纹理仍需要 CORS。
+
+排查时分别发送不带 Origin、带 `Origin: http://localhost:3000` 和带线上 Origin 的请求：三者均应有 `Vary: Origin`，后两者应有匹配的 `Access-Control-Allow-Origin`。同时检查 `Range` 请求返回 206 及其预检是否成功。预检缓存时间与对象的一年 `Cache-Control` 是两个独立设置；无需为了修复 CORS 禁用素材的长期缓存。配置说明见 [OSS CORS](https://help.aliyun.com/zh/oss/user-guide/configure-cross-origin-resource-sharing) 和 [PutBucketCors / ResponseVary](https://help.aliyun.com/zh/oss/developer-reference/putbucketcors)。
 
 ### 登录配置与 Google 网络依赖
 

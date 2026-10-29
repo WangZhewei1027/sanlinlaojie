@@ -1,3 +1,4 @@
+import { readUploadEvents, UPLOAD_STREAM_CONTENT_TYPE, type UploadStageListener } from "@/lib/upload/progress";
 import { notifyContentChange } from "./content-events";
 /**
  * Typed browser client for the content model APIs.
@@ -229,12 +230,12 @@ export interface UploadScope {
 }
 
 /**
- * Upload one already-processed file and return its receipt. The receipt (not
+ * Upload one original file for server processing and return its receipt. The receipt (not
  * the URL) is what asset and placement commands accept.
  */
 export async function uploadReceipt(
   file: File,
-  options: UploadScope & { type: string; purpose?: UploadPurpose; signal?: AbortSignal },
+  options: UploadScope & { type: string; purpose?: UploadPurpose; signal?: AbortSignal; onStage?: UploadStageListener },
 ): Promise<UploadReceiptDto> {
   const form = new FormData();
   form.set("file", file, file.name);
@@ -242,20 +243,32 @@ export async function uploadReceipt(
   form.set("organization_id", options.organizationId);
   if (options.workspaceId) form.set("workspace_id", options.workspaceId);
   form.set("purpose", options.purpose ?? "asset");
+  options.onStage?.("uploading");
   let response: Response;
   try {
     response = await fetch("/api/upload", {
       method: "POST",
       body: form,
-      headers: {},
+      headers: { Accept: UPLOAD_STREAM_CONTENT_TYPE },
       signal: options.signal,
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new ContentApiError(error instanceof Error ? error.message : "Network error", 0, null);
   }
-  const body = await parse<UploadResponse>(response);
-  if (!body.data) throw new ContentApiError("Upload receipt missing", 502, "RECEIPT_INVALID");
+  let body: UploadResponse | undefined;
+  if (response.ok && response.headers.get("content-type")?.includes(UPLOAD_STREAM_CONTENT_TYPE)) {
+    if (!response.body) throw new ContentApiError("Upload response missing", 502, null);
+    for await (const event of readUploadEvents(response.body)) {
+      if (event.event === "stage") options.onStage?.(event.stage);
+      else if (event.event === "error") {
+        if (!isApiErrorBody(event.body)) throw new ContentApiError("Invalid upload error", 502, null);
+        throw new ContentApiError(event.body.error, event.status, event.body.code, event.body.details);
+      } else { body = event.response; break; }
+    }
+  } else body = await parse<UploadResponse>(response);
+
+  if (!body?.data) throw new ContentApiError("Upload receipt missing", 502, "RECEIPT_INVALID");
   return body.data;
 }
 

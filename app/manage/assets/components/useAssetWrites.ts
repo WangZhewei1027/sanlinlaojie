@@ -59,7 +59,8 @@ export function useAssetWrites(detail: Detail, tx: IntegrationT) {
     return write(
       async (lock) => {
         try {
-          const body = await bodyForIntent(current, content, asset.organization_id, (key) => String(t(key)));
+          const body = await bodyForIntent(current, content, asset.organization_id, (key) => String(t(key)), input.onStage);
+          input.onStage?.("creating");
           return await assetApi.update(asset.id, {
             payload: body.payload,
             resources: body.resources,

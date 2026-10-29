@@ -14,8 +14,11 @@ export type PresentationTiming = { startSeconds: number; endSeconds: number | nu
 export type MediaSettings = { trimStartSeconds: number; trimEndSeconds: number | null; playbackRate: number; loop: boolean };
 export function samplePresentation(instance: { timing?: PresentationTiming }, time: number, sceneDuration?: number | null): { visible: boolean; opacity: number; localTime: number };
 export function mediaTime(time: number, media?: MediaSettings, timing?: PresentationTiming, duration?: number): number;
+export const MEDIA_PRELOAD_SECONDS: 5;
+export const MEDIA_PRELOAD_UPCOMING_LIMIT: 2;
+export function mediaPreloadIds(instances: readonly { id: string; timing?: PresentationTiming }[], time: number, sceneDuration?: number | null, loop?: boolean): string[];
 export interface SceneCore {
- readonly time: number; readonly playing: boolean; readonly duration: number | null;
+ readonly time: number; readonly playing: boolean; readonly duration: number | null; readonly looping: boolean;
  sample(id: string): TransformValues | undefined;
  sync(content: Content): void;
  subscribe(callback: () => void): () => void;

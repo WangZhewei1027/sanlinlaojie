@@ -15,7 +15,7 @@ npm run hooks:install
 
 依赖安装不自动更改 Git 配置，因此 CI 和 Docker 的 `npm ci` 不依赖 `.git` 或本地 hook。现有 `package-lock.json` 与 `.npmrc` 是依赖安装依据；新增依赖需说明实际用途。
 
-媒体上传使用 sharp 和系统 FFmpeg/ffprobe（含 libmp3lame）；本地先安装 FFmpeg。默认离线回归会实际转换合成音频/图片并清理临时文件，不访问 OSS 或网络；CI 与生产镜像均安装 FFmpeg。
+媒体上传使用 sharp 和系统 FFmpeg/ffprobe（含 libmp3lame、libx264 和 AAC）；本地先安装 FFmpeg。默认离线回归会实际转换合成音频/图片/视频并清理临时文件，不访问 OSS 或网络；CI 与生产镜像均安装 FFmpeg。
 
 ## 日常命令
 

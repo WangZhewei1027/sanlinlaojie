@@ -3,6 +3,7 @@
 import { collectionApi, isContentApiError, newIdempotencyKey } from "@/app/manage/lib/content-api";
 import { errorMessage } from "@/app/manage/lib/content-errors";
 import { fileTypeOf, prepareFile, textPayload, uploadAssetFiles } from "@/app/manage/lib/content-upload";
+import type { UploadStage } from "@/lib/upload/progress";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
 import type { AssetFileType, AssetPayload, ResourceInput } from "@/lib/content-model/contracts";
 import { useCallback, useRef, useState } from "react";
@@ -67,6 +68,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
   const [receipt, setReceipt] = useState<OnsiteReceipt | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState<UploadStage | null>(null);
   const attemptRef = useRef<Attempt | null>(null);
   const uploadRef = useRef<UploadedFile | null>(null);
 
@@ -92,6 +94,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
     attemptRef.current = attempt;
 
     setSubmitting(true);
+    setStage("preparing");
     setFailure(null);
     setReceipt(null);
     try {
@@ -105,7 +108,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
         if (!uploaded || uploaded.source !== capture.source || uploaded.workspaceId !== workspaceId) {
           const file = capture.kind === "image" ? await dataUrlToFile(capture.source) : capture.source;
           const prepared = await prepareFile(file, capture.kind);
-          const version = await uploadAssetFiles(prepared, { organizationId, workspaceId });
+          const version = await uploadAssetFiles(prepared, { organizationId, workspaceId }, undefined, setStage);
           uploaded = { source: capture.source, workspaceId, fileType: fileTypeOf(prepared.type), payload: version.payload, resources: version.resources };
           uploadRef.current = uploaded;
         }
@@ -115,6 +118,7 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
       }
       const textName = capture.kind === "text" ? capture.source.trim().split("\n")[0].slice(0, 30).trim() : "";
       const name = title || textName || attempt.defaultName;
+      setStage("creating");
       const result = await collectionApi.createPlacement(workspaceId, {
         asset: { name, fileType, payload, resources },
         name,
@@ -140,8 +144,9 @@ export function useOnsitePlacement(target: OnsiteTarget, tx: IntegrationT) {
       throw error instanceof Error ? error : new Error(message);
     } finally {
       setSubmitting(false);
+      setStage(null);
     }
   }, [target, tx]);
 
-  return { submit, receipt, failure, submitting, dismissReceipt: () => setReceipt(null), dismissFailure: () => setFailure(null) };
+  return { submit, receipt, failure, submitting, stage, dismissReceipt: () => setReceipt(null), dismissFailure: () => setFailure(null) };
 }

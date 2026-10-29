@@ -15,7 +15,8 @@ export type AssetInputContent =
   | { kind: "text"; text: string }
   | { kind: "link"; url: string };
 
-export type UploadStage = "preparing" | "uploading" | "creating";
+import type { UploadStage } from "@/lib/upload/progress";
+export type { UploadStage } from "@/lib/upload/progress";
 
 export interface AssetContentBody {
   payload: AssetPayload;
@@ -74,7 +75,7 @@ export async function buildAssetContentBody(
   const prepared = await prepareFile(content.file, content.type);
   onStage?.("uploading");
   // Team content: the receipt is bound to the organization, never to a collection.
-  const { payload, resources } = await uploadAssetFiles(prepared, { organizationId });
+  const { payload, resources } = await uploadAssetFiles(prepared, { organizationId }, undefined, onStage);
   return { payload, resources };
 }
 

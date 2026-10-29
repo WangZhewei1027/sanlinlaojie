@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mediaTime, samplePresentation } from '@spatial-memory/scene-core';
+import { createSceneCore, mediaPreloadIds, mediaTime, samplePresentation } from '@spatial-memory/scene-core';
 import { fromDocument, toDocument } from '../app/manage/lib/scene-document';
 import { compileSceneManifest, resourceKindIssues } from '../lib/scene/compile';
 import { groupNodes, isGroup, removeNodes, trackRows } from '../lib/scene/hierarchy-authoring';
@@ -54,6 +54,19 @@ assert.equal(mediaTime(4.5, { ...media, loop: true }, timing, 20), 6);
 assert.equal(mediaTime(9, media, timing, 3), 3, 'trim outside source duration stays at source end');
 assert.equal(mediaTime(2, undefined, undefined, 3), 2);
 assert.equal(mediaTime(9, undefined, undefined, 3), 3);
+
+const cue = (id: string, startSeconds: number, endSeconds: number) => ({ id, timing: { startSeconds, endSeconds, fadeInSeconds: 0, fadeOutSeconds: 0 } });
+const cues = [cue('late', 25, 29), cue('third', 4, 7), cue('second', 3, 6), cue('first', 2, 4), cue('now', 0, 1)];
+assert.deepEqual(mediaPreloadIds(cues, 0, 30), ['now', 'first', 'second'], 'active cues and the nearest two within five seconds');
+assert.deepEqual(mediaPreloadIds(cues, 3.5, 30), ['second', 'first', 'third'], 'overlapping active cues are never evicted by the speculative limit');
+assert.deepEqual(mediaPreloadIds(cues, 8, 30), [], 'past and distant cues release their network and decoder resources');
+assert.deepEqual(mediaPreloadIds(cues, 20, 30), ['late'], 'preload begins exactly five seconds before the cue');
+assert.deepEqual(mediaPreloadIds(cues, 29, 30, true), ['now', 'first'], 'scene loops prepare the next iteration before wrapping');
+assert.deepEqual(mediaPreloadIds(cues, 29, 30, false), []);
+assert.deepEqual(mediaPreloadIds([cue('outside', 30, 35), cue('shortened', 32, 40)], 29, 30, true), [], 'cues beyond the shortened scene never request data');
+assert.deepEqual(mediaPreloadIds([cue('unbounded', 10, 20)], 5, null), ['unbounded']);
+const clock = createSceneCore({ content: { ...document.content, loop: true } });
+assert.equal(clock.looping, true); clock.play(false); assert.equal(clock.looping, false); clock.pause(); assert.equal(clock.looping, false); clock.dispose();
 
 for (const patch of [
   { asset: 'music' },

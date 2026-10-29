@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Text } from "@/components/ui/typography";
+import { VideoUploadHint } from "@/app/manage/components/upload/VideoUploadHint";
 import { FileDropzone } from "@/app/manage/components/upload/file-dropzone";
 import { acceptFor, LIBRARY_UPLOAD_TYPES, type LibraryUploadType } from "@/app/manage/lib/content-upload";
 import type { IntegrationT } from "@/app/manage/lib/integration-text";
@@ -52,6 +53,7 @@ export function AssetContentField({ type, draft, onChange, disabled, tx }: {
   const id = useId();
   if (isFileType(type)) {
     return (
+      <>
       <FileDropzone
         file={draft.file}
         onFileSelect={(file) => onChange({ ...draft, file })}
@@ -60,6 +62,8 @@ export function AssetContentField({ type, draft, onChange, disabled, tx }: {
         disabled={disabled}
         label={tx("contentModel.integration.assets.create.file")}
       />
+      {type === "video" && <VideoUploadHint />}
+      </>
     );
   }
   if (type === "text") {

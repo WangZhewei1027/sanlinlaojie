@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 // Keep DB/migration/HTTP and cross-runtime suites out of this default command.
 const tests = [
   "test-engineering-standards.mjs",
+  "test-upload-http-server.mjs",
   "test-activity-presentation.ts",
   "test-activity-input.ts",
   "test-content-model-contracts.ts",
@@ -27,7 +28,7 @@ const tests = [
 ];
 
 // React client imports must not inherit the react-server export condition.
-const serverTests = ["test-wechat-qr.ts", "test-google-relay.mjs", "test-upload-request.ts", "test-upload-media.ts"];
+const serverTests = ["test-wechat-qr.ts", "test-google-relay.mjs", "test-upload-request.ts", "test-upload-media.ts", "test-upload-progress.ts"];
 for (const [conditions, files] of [[[], tests], [["--conditions", "react-server"], serverTests]]) {
   const result = spawnSync(process.execPath, [
     "--import", "tsx", ...conditions, "--test", "--test-concurrency=1",
